@@ -83,12 +83,25 @@ Run these and read the output. Do not mutate anything in this phase.
     A pre-commit hook may fail or may rewrite files. On non-zero exit: STOP and report;
     the user is now on the new branch with changes staged, so say that plainly.
 13. `git push -u origin HEAD`
-14. Open the pull request:
-    `gh pr create --base DEFAULT --head <branch> --title "<commit message>" --body "<the agent's SUMMARY>"`
-    If `gh` is missing or unauthenticated, do not treat it as a failure of the run —
-    report that the branch is pushed and give the compare URL
-    (`https://<host>/<owner>/<repo>/compare/DEFAULT...<branch>`) derived from
-    `git remote get-url origin`.
+14. Surface the pull-request link. Do NOT shell out to `gh` — it is not installed here,
+    and the push already gives you what you need.
+
+    GitHub prints the ready-made link in the `git push` output from step 13:
+
+    ```
+    remote: Create a pull request for '<branch>' on GitHub by visiting:
+    remote:      https://github.com/<owner>/<repo>/pull/new/<branch>
+    ```
+
+    Take that URL verbatim from the push output and put it in the report.
+
+    If the push output did not contain one (the branch already existed upstream, or
+    the host is not GitHub), build it from `git remote get-url origin` instead:
+    strip any `.git` suffix and any `git@host:` form down to `https://<host>/<owner>/<repo>`,
+    then append `/compare/DEFAULT...<branch>`.
+
+    Opening the link in a browser is the user's step. Never treat a missing PR as a
+    failed run — the branch is pushed either way, which is the part that mattered.
 15. `git checkout DEFAULT`
 
 ## Phase 4 — Report
@@ -98,7 +111,7 @@ Four lines, nothing more:
 ```
 Branch:  10x-<slug>  (pushed)
 Commit:  <hash short>  <message>
-PR:      <url, or why there is none>
+PR:      <the pull/new or compare URL — open it to create the PR>
 You are back on <DEFAULT> — the changes live on the branch, not here.
 ```
 
