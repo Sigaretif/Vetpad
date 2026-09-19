@@ -39,7 +39,12 @@ skill never merges, never rebases, never rewrites history.
    step 6 created one.
 9. Offer to clean up. After the prune in step 4, list local branches whose upstream
    is gone — these are the ones the remote deleted after their pull request merged:
-   `git branch -vv | grep ': gone]'`. If there are any, name them and ask with
+   `LC_ALL=C git branch -vv | grep ': gone]'`. The `LC_ALL=C` is load-bearing, not
+   decoration: `git branch -vv` prints a TRANSLATED string, so on a Polish system the
+   marker reads `: nie ma]` and an unprefixed grep silently matches nothing — reporting
+   "no branches to clean up" while leaving real ones behind. A false negative with no
+   error is the worst failure mode here, so force the locale on every command whose
+   human-readable output you parse. If there are any, name them and ask with
    AskUserQuestion whether to delete them. On yes, delete them with `git branch -d`
    (never `-D`): `-d` refuses any branch not fully merged into DEFAULT, which is
    exactly the safety net you want here. Report any branch git refused and leave it
@@ -60,3 +65,5 @@ On branch: <where the user is now>
 - dropping or clearing a stash that did not pop cleanly
 - `git branch -D` — forced branch deletion, under any circumstances
 - deleting a branch the user did not confirm in step 9
+- parsing translated git output: prefix `LC_ALL=C` on any command you grep, or use a
+  porcelain/plumbing form (`--porcelain`, `rev-list`, `for-each-ref`) that never translates
