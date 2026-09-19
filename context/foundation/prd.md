@@ -19,7 +19,7 @@ timeline_budget:
 
 ## Vision & Problem Statement
 
-A small group searching for an apartment together — in the first instance a three-person team (the author, his fiancée, his sister) — currently runs the search on passive tools: spreadsheets, Notion pages, and plain "white page" notes. Those tools hold **blind links**, not substance, so time-to-value is poor and memory decays: a week after saving a listing, nobody remembers why it was saved or what was wrong with it. They also impose **no opinionated, real-estate-specific structure** on notes — without a rigid template, observations devolve into unreadable walls of text, and finding a specific detail later becomes impossible. Two moments are where this bites hardest: **pre-viewing preparation**, where the team arrives without knowing what is missing from the listing or what to ask the seller (the "preparation gap"), and **recall days later**, when a saved listing has to be re-understood from scratch. On top of this sits **coordination overhead** — three people, one decision, with reasoning scattered across chat messages and individual heads — and a **missing capability**: nothing today checks a listing against *this team's own criteria* and reports what is missing, risky, or expensive.
+A small group searching for an apartment together — in the first instance a three-person team (the author, his fiancée, his sister) — currently runs the search on passive tools: spreadsheets, Notion pages, and plain "white page" notes. Those tools hold **blind links**, not substance, so time-to-value is poor and memory decays: a week after saving a listing, nobody remembers why it was saved or what was wrong with it. They also impose **no opinionated, real-estate-specific structure** on notes — without a rigid template, observations devolve into unreadable walls of text, and finding a specific detail later becomes impossible. Two moments are where this bites hardest: **pre-viewing preparation**, where the team arrives without knowing what is missing from the listing or what to ask the seller (the "preparation gap"), and **recall days later**, when a saved listing has to be re-understood from scratch. On top of this sits **coordination overhead** — three people, one decision, with reasoning scattered across chat messages and individual heads — and a **missing capability**: nothing today checks a listing against _this team's own criteria_ and reports what is missing, risky, or expensive.
 
 The insight: generic tools (Excel, Notion) are fundamentally **passive** — they cannot fetch data, and they cannot instantly audit a listing to expose red flags. Real-estate portals, meanwhile, will never build active auditing, because their business model serves sellers and agencies: portals optimize for lead generation and have zero incentive to ship a tool that challenges listings, highlights missing data, or acts as a cross-portal buyer's advocate. The gap is structural, not accidental — which is why it is still open.
 
@@ -27,18 +27,21 @@ The insight: generic tools (Excel, Notion) are fundamentally **passive** — the
 
 **Primary persona**: couples and families searching for an apartment together — a small group making one joint decision. The first concrete instance is a three-person team: the author, his fiancée, and his sister, all active participants rather than one driver plus two spectators.
 
-The moment they reach for this product: when a listing has been saved and must later be *re-understood* (recall), and when a viewing is imminent and the team needs to know what the listing does not tell them (preparation).
+The moment they reach for this product: when a listing has been saved and must later be _re-understood_ (recall), and when a viewing is imminent and the team needs to know what the listing does not tell them (preparation).
 
 ## Success Criteria
 
 ### Primary
+
 - Vetpad replaces the spreadsheet outright: for the duration of the apartment search, all three members keep zero parallel notes in Excel, Notion or plain text files. A surviving spreadsheet means the product failed.
 - The preparation gap closes: the team walks into every viewing with Vetpad's question list, and it surfaces at least one thing they would otherwise have failed to ask the seller.
 
 ### Secondary
+
 - The Google Maps link removes the "where is this really?" step — one click from listing to map, with no copy-pasting an address into a browser.
 
 ### Guardrails
+
 - Human-authored notes survive re-scraping, always. Notes are editable at any time and are never overwritten when listing data is re-fetched; scraped content and written content never collide.
 - Missing data reads "unknown", never "no" and never zero. A listing that does not mention a feature must not render as that feature being absent — a fabricated fact could cost the team a flat.
 - The AI never asserts without evidence. Any finding about a legal condition, cost or red flag quotes the original listing text verbatim. The audit is a highlighter, not a lawyer: interpretation of the quoted text stays with the human. Confident-but-ungrounded findings are the failure mode this guards against, because Polish real-estate terminology is exactly where a language model hallucinates.
@@ -52,6 +55,7 @@ The moment they reach for this product: when a listing has been saved and must l
 - **Then** they see the audit's findings — critical missing information, questions for the seller, mandatory conditions, explicitly stated additional costs and red flags — beside their own empty structured note fields, and can write their conclusions before contacting the seller
 
 #### Acceptance Criteria
+
 - A pasted URL produces a saved card without waiting for any AI call
 - A duplicate URL opens the existing card and offers a re-fetch rather than creating a second entry
 - The card's status distinguishes "Not Audited" from a completed audit
@@ -93,7 +97,7 @@ The moment they reach for this product: when a listing has been saved and must l
 - FR-010: Member can run an AI audit of a saved offer against the team's shared hard limits and each member's own additional requirements, on demand. Priority: must-have
   > Socrates: Counter-argument considered: "the AI can be confidently wrong about Polish real-estate specifics — czynsz, media, taxes, ownership form — and a confident 'no red flags' is strictly worse than no audit." Resolution: a genuine domain risk, and the reason the evidence guardrail is binding. When the audit flags a legal or cost issue it is strictly required to quote the original Polish source text, so it acts as a highlighter rather than a lawyer and the final interpretation of the quoted text stays with the human.
 - FR-011: Member can read the audit's findings — critical missing information and the questions for the seller it implies, mandatory conditions, explicitly stated additional costs, and red flags. Every positive finding carries a verbatim excerpt of the original listing text it rests on; missing data points are flagged explicitly and carry no excerpt, because an absence cannot be quoted. Missing-information findings cover only decision-critical attributes (for example floor, heating, ownership form), not an exhaustive inventory of everything the listing omits. Priority: must-have
-  > Socrates: Counter-arguments considered: "'likely additional costs' is inference, not extraction, and cannot be grounded in an excerpt — it conflicts with the evidence guardrail" and "an exhaustive missing-information list buries the two or three questions actually worth asking." Resolution: both accepted and both fixed in the FR. The cost category is redefined as *explicitly stated* additional costs — czynsz, kaucja and the like, only where the text names them — so it stays extraction. The missing-information category is restricted to decision-critical attributes rather than exhaustive trivia.
+  > Socrates: Counter-arguments considered: "'likely additional costs' is inference, not extraction, and cannot be grounded in an excerpt — it conflicts with the evidence guardrail" and "an exhaustive missing-information list buries the two or three questions actually worth asking." Resolution: both accepted and both fixed in the FR. The cost category is redefined as _explicitly stated_ additional costs — czynsz, kaucja and the like, only where the text names them — so it stays extraction. The missing-information category is restricted to decision-critical attributes rather than exhaustive trivia.
 
 ### Notes
 
@@ -169,4 +173,4 @@ Multi-user, single shared space.
 1. **How is a parser failure told apart from a real listing change?** A broken scrape returns different data and would mark an audit stale for the wrong reason; repeated false staleness trains the team to ignore the flag. Surfaced during the Socratic round on FR-009 and left unresolved. Owner: user. By: no date set. Block: no — the MVP ships either way, but the stale flag's credibility depends on it.
 2. **What does "unknown" look like in the interface?** The guardrail binds the semantics — an unstated attribute is never rendered as absent or as zero — but not the presentation. Owner: user; a design decision for the implementation step. By: no date set. Block: no.
 
-*Resolved during shaping, recorded so they are not reopened: concurrent note editing (dissolved by the access model — notes are per-person and never co-edited); aspect and room note structure, fixed list versus free tags (cut for the MVP in favour of Pros / Cons / General Observations); which criteria are hard requirements versus preferences (hard limits shared board-wide, soft requirements per-person free text).*
+_Resolved during shaping, recorded so they are not reopened: concurrent note editing (dissolved by the access model — notes are per-person and never co-edited); aspect and room note structure, fixed list versus free tags (cut for the MVP in favour of Pros / Cons / General Observations); which criteria are hard requirements versus preferences (hard limits shared board-wide, soft requirements per-person free text)._

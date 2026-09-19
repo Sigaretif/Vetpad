@@ -106,7 +106,7 @@ missing from the listing or what to ask the seller (the "preparation gap"), and
 **recall days later**, when a saved listing has to be re-understood from scratch.
 On top of this sits **coordination overhead** — three people, one decision, with
 reasoning scattered across chat messages and individual heads — and a **missing
-capability**: nothing today checks a listing against *this team's own criteria*
+capability**: nothing today checks a listing against _this team's own criteria_
 and reports what is missing, risky, or expensive.
 
 Scale probe: at a hundred times this scale the rule itself would change shape.
@@ -132,7 +132,7 @@ three-person team: the author, his fiancée, and his sister, all active
 participants rather than one driver plus two spectators.
 
 The moment they reach for this product: when a listing has been saved and must
-later be *re-understood* (recall), and when a viewing is imminent and the team
+later be _re-understood_ (recall), and when a viewing is imminent and the team
 needs to know what the listing does not tell them (preparation).
 
 > Note carried forward to Phase 2: the persona is generic ("couples/families
@@ -144,6 +144,7 @@ needs to know what the listing does not tell them (preparation).
 ## Success Criteria
 
 ### Primary
+
 - Vetpad replaces the spreadsheet outright: for the duration of the apartment
   search, all three members keep zero parallel notes in Excel, Notion or plain
   text files. A surviving spreadsheet means the product failed.
@@ -152,10 +153,12 @@ needs to know what the listing does not tell them (preparation).
   failed to ask the seller.
 
 ### Secondary
+
 - The Google Maps link removes the "where is this really?" step — one click from
   listing to map, with no copy-pasting an address into a browser.
 
 ### Guardrails
+
 - Human-authored notes survive re-scraping, always. Notes are editable at any
   time and are never overwritten when listing data is re-fetched; scraped
   content and written content never collide.
@@ -178,6 +181,7 @@ needs to know what the listing does not tell them (preparation).
 - **Then** they see the audit's findings — missing information, questions for the seller, mandatory conditions, likely additional costs and red flags — beside their own empty structured note fields, and can write their conclusions before contacting the seller
 
 #### Acceptance Criteria
+
 - A pasted URL produces a saved card without waiting for any AI call
 - A duplicate URL opens the existing card and offers a re-fetch rather than creating a second entry
 - The card's status distinguishes "Not Audited" from a completed audit
@@ -219,7 +223,7 @@ needs to know what the listing does not tell them (preparation).
 - FR-010: Member can run an AI audit of a saved offer against the team's shared hard limits and each member's own additional requirements, on demand. Priority: must-have
   > Socrates: Counter-argument considered: "the AI can be confidently wrong about Polish real-estate specifics — czynsz, media, taxes, ownership form — and a confident 'no red flags' is strictly worse than no audit." Resolution: a genuine domain risk, and the reason the evidence guardrail is binding. When the audit flags a legal or cost issue it is strictly required to quote the original Polish source text, so it acts as a highlighter rather than a lawyer and the final interpretation of the quoted text stays with the human.
 - FR-011: Member can read the audit's findings — critical missing information and the questions for the seller it implies, mandatory conditions, explicitly stated additional costs, and red flags. Every positive finding carries a verbatim excerpt of the original listing text it rests on; missing data points are flagged explicitly and carry no excerpt, because an absence cannot be quoted. Missing-information findings cover only decision-critical attributes (for example floor, heating, ownership form), not an exhaustive inventory of everything the listing omits. Priority: must-have
-  > Socrates: Counter-arguments considered: "'likely additional costs' is inference, not extraction, and cannot be grounded in an excerpt — it conflicts with the evidence guardrail" and "an exhaustive missing-information list buries the two or three questions actually worth asking." Resolution: both accepted and both fixed in the FR. The cost category is redefined as *explicitly stated* additional costs — czynsz, kaucja and the like, only where the text names them — so it stays extraction. The missing-information category is restricted to decision-critical attributes rather than exhaustive trivia.
+  > Socrates: Counter-arguments considered: "'likely additional costs' is inference, not extraction, and cannot be grounded in an excerpt — it conflicts with the evidence guardrail" and "an exhaustive missing-information list buries the two or three questions actually worth asking." Resolution: both accepted and both fixed in the FR. The cost category is redefined as _explicitly stated_ additional costs — czynsz, kaucja and the like, only where the text names them — so it stays extraction. The missing-information category is restricted to decision-critical attributes rather than exhaustive trivia.
 
 ### Notes
 
@@ -381,12 +385,12 @@ shaping; these two were not.
 
 Resolved during shaping, recorded so they are not reopened:
 
-- *Concurrent note editing* — dissolved by the access model: notes are
+- _Concurrent note editing_ — dissolved by the access model: notes are
   per-person and never co-edited.
-- *Aspect and room note structure, fixed list versus free tags* — cut entirely
+- _Aspect and room note structure, fixed list versus free tags_ — cut entirely
   for the MVP in favour of Pros / Cons / General Observations; the granular form
   is deferred post-MVP vision.
-- *Which criteria are hard requirements versus preferences* — hard limits (city,
+- _Which criteria are hard requirements versus preferences_ — hard limits (city,
   price, square meters) are shared board-wide; soft requirements are per-person
   free text.
 
@@ -454,10 +458,15 @@ after `/10x-prd`.
   preference, not a product-level requirement; the product-level property it
   implies ("audit correctness takes precedence over speed and cost") is recorded
   as an NFR above.
-- **Scraping feasibility already verified**: the author has confirmed that
-  scraping works for both otodom.pl and olx.pl. Working notes for both live in
-  the repository root (`otodom_fetching.md`, `olx_fetching.md`). Only otodom is
-  in the MVP; olx is the first post-MVP source.
+- **Ingestion feasibility already verified**: the author has confirmed that
+  listing data can be fetched from both otodom.pl and olx.pl. The working notes
+  for both live in `context/foundation/ingestion/`
+  (`otodom_fetching.md`, `olx_fetching.md`), including the robots.txt boundaries
+  each portal publishes. Only otodom is in the MVP; olx is the first post-MVP
+  source. Note that both documents were written for a different deployment — a
+  daily cron job on a VM sending email digests — so only their request shapes and
+  field mappings carry over. Vetpad's scheduled-fetch and notification behaviour
+  is an explicit Non-Goal; every fetch here is a deliberate manual action.
 - **Binding constraint, repeated for the downstream step**: real authentication
   is mandatory (academic grading requirement). Do not substitute a shared link
   or a single shared account.
@@ -466,14 +475,14 @@ after `/10x-prd`.
 
 Run at the close of Phase 7. All six elements present; no gaps.
 
-| Element | Result |
-| --- | --- |
-| Access Control | present — login, three pre-seeded accounts, flat roles, per-person notes, binding real-authentication constraint |
-| Business Logic | present — one declarative rule sentence with inputs, output and encounter. Empty-CRUD anti-pattern not triggered |
-| Project artifacts | present |
+| Element                    | Result                                                                                                                                                   |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Access Control             | present — login, three pre-seeded accounts, flat roles, per-person notes, binding real-authentication constraint                                         |
+| Business Logic             | present — one declarative rule sentence with inputs, output and encounter. Empty-CRUD anti-pattern not triggered                                         |
+| Project artifacts          | present                                                                                                                                                  |
 | Timeline-cost acknowledged | present — `mvp_weeks: 3`, at the default target, so no sustained-effort acknowledgment was required. Hard deadline 2026-11-04 leaves roughly seven weeks |
-| Non-Goals | present — twelve entries across ingestion/automation, analysis/intelligence and product surface |
-| Preserved behavior | n/a — greenfield session |
+| Non-Goals                  | present — twelve entries across ingestion/automation, analysis/intelligence and product surface                                                          |
+| Preserved behavior         | n/a — greenfield session                                                                                                                                 |
 
 Status: `accepted`. Two open questions are recorded in `## Open Questions`;
 they are captured gaps, not gate gaps.
