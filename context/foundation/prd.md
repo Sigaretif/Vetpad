@@ -121,7 +121,8 @@ The moment they reach for this product: when a listing has been saved and must l
 - Every finding the audit makes about a condition, a cost or a risk is traceable to a verbatim quotation of the listing's own text. A finding that cannot be grounded in the text is not reported at all.
 - Audit correctness takes precedence over both audit speed and audit cost. The team accepts a slower and more expensive verdict in exchange for one that is right about Polish-language listing terminology.
 - There is no strict response-time budget, but any operation in progress is continuously visible as in progress. An ingest that has not completed within roughly one minute, and an audit that has not completed within roughly three minutes, are reported as failed with a retry offered — rather than showing progress indefinitely.
-- The listing's text and the team's criteria may be sent to a third-party model provider. Members' notes never leave the system.
+- The listing's text and the team's criteria may be sent to third-party services: the model provider that produces the audit, and — if listing data ever has to be fetched through one — an extraction service. Members' notes never leave the system.
+- The advertiser's personal data is never stored. The portal returns the seller's phone number and name with every listing, and an extraction service would pass them through as well; they are discarded at the point of fetch and no part of the product retains them.
 - Data is retained indefinitely; nothing expires automatically. Removal is always a deliberate member action.
 - The product is usable on current desktop browsers. No mobile usability is promised in the MVP.
 
