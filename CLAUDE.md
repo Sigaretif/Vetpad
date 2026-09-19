@@ -26,11 +26,11 @@ Astro 7 SSR app (React 19 islands, Tailwind 4, Supabase auth) deployed to Cloudf
 ### Cloudflare Workers runtime
 
 - The deploy target is Cloudflare **Workers**, not Pages: `@wrangler.jsonc` sets `main` to the `@astrojs/cloudflare` server entrypoint and `@README.md` deploys with `npx wrangler deploy`. `@context/foundation/tech-stack.md` says `cloudflare-pages` in its front matter — that hint is stale; never run `wrangler pages deploy`.
-- An HTTP-triggered Worker has no wall-clock limit while the client stays connected. The binding limit is **CPU time**, and waiting on `fetch` does not consume it — so the audit's ~3-minute budget (`@context/foundation/prd.md`, Non-Functional Requirements) fits in a single request, while heavy in-process work does not. Check the current per-plan numbers at <https://developers.cloudflare.com/workers/platform/limits/> rather than assuming them.
+- The audit's ~3-minute budget (`@context/foundation/prd.md`, Non-Functional Requirements) fits in one HTTP request: the binding limit is **CPU time**, which waiting on `fetch` does not consume. The concrete ban is the next bullet; any other CPU-bound pass over a full page body gets its per-request CPU number checked in the Workers dashboard before it merges. Current per-plan numbers: <https://developers.cloudflare.com/workers/platform/limits/>.
 - Do not parse a whole otodom.pl page inside the Worker: no HTML-parsing dependency (`cheerio`, `node-html-parser`, `linkedom`) enters `@package.json`, and no `src/pages/api/` handler builds a document or walks a DOM over the fetched page. For a single pasted listing (FR-004) the path is section 7.1 of `@context/foundation/ingestion/otodom_fetching.md`: fetch the offer page, pull `__NEXT_DATA__` out with one bounded `RegExp`, parse the JSON — no `buildId`, no pagination, no state. Section 1 of the same file lists the paths `robots.txt` puts off-limits, the GraphQL endpoint among them. Per-request CPU time is visible in the Workers dashboard — `observability` is enabled in `@wrangler.jsonc`.
 - Never use a module-scope variable as a cache, a queue, a lock or a job registry — that state belongs in Postgres.
-- Default to Web APIs (`fetch`, `URL`, `crypto.subtle`). Before importing any `node:*` module, verify it is supported under `nodejs_compat` for the `compatibility_date` in `@wrangler.jsonc`; `node:fs` is not.
-- Miss `.dev.vars` (the workerd half of the local setup in `@README.md`) and the dev server still starts — the secrets are simply absent, `createClient()` returns `null`, auth is disabled, and the most visible signal is the error banner `src/layouts/Layout.astro` renders from `missingConfigs` (a failing `npm run smoke` is the other).
+- Before importing any `node:*` module, verify it is supported under `nodejs_compat` for the `compatibility_date` in `@wrangler.jsonc`; `node:fs` is not.
+- `.dev.vars` is the workerd half of the local setup (`@README.md`); missing it is the zero-config state above, not a gap to fill.
 
 ### Framework
 
@@ -51,7 +51,7 @@ These come from `@context/foundation/prd.md` (Success Criteria → Guardrails, N
 - A failed fetch is reported explicitly as a fetch problem. **Never create or save a blank, partial or silently empty offer.**
 - No machine action re-runs or removes an audit. When the listing or the criteria change, the existing audit is flagged **stale** and the member is prompted to re-run it. Removal is always a deliberate member action; nothing expires on its own.
 - Every fetch, re-fetch and audit is a **deliberate manual action** (Non-Goals). No scheduled jobs, no background re-scraping, no notifications.
-- Audit correctness outranks audit speed and audit cost (`@context/foundation/prd.md`, Non-Functional Requirements). Reach for the most capable model rather than the cheapest or the fastest: a slower, pricier verdict that is right about Polish listing terminology is the trade the team chose.
+- Audit correctness outranks audit speed and audit cost (`@context/foundation/prd.md`, Non-Functional Requirements). The audit calls `claude-opus-5`; a slower, pricier verdict that is right about Polish listing terminology is the trade the team chose. Swapping it for a smaller, faster or cheaper model to cut latency or spend is a decision to raise with the user, never a default. No provider SDK is in `@package.json` yet — the change that adds one updates this line to name it.
 
 ## Structure
 
@@ -73,7 +73,7 @@ Scripts are in `@package.json`. Two commands CI runs that are **not** npm script
 
 ## Testing
 
-There is no unit-test runner; `scripts/smoke.mjs` is the only test surface — what it covers and what it needs to run: `@README.md`. It is the only command that requires a live Supabase (with email confirmation disabled).
+There is no unit-test runner; `scripts/smoke.mjs` is the only test surface — what it covers and what it needs to run: `@README.md`. It is the only command that requires a live Supabase.
 
 - Any change to the surface of `src/pages/api/` — adding a route, removing one, or changing an existing route's contract — must be reflected in `scripts/smoke.mjs`, and in the `smoke` job of `@.github/workflows/ci.yml` if the flow needs different setup.
 - Concretely: FR-001 specifies pre-seeded accounts and **no registration**, so removing `/auth/signup` and `/api/auth/signup` will break every step in `scripts/smoke.mjs` that creates, or then reuses, the account it signs up inline. That change has to seed a test account in the CI job instead. Do not leave the smoke job red.
@@ -83,7 +83,7 @@ There is no unit-test runner; `scripts/smoke.mjs` is the only test surface — w
 
 Changes are written in the `master` working tree and leave it through `/git-ship` — so after shipping, the change is no longer in your tree. The skill's own description is the account of what it does; the part worth knowing before you start is that it stops when `master` is behind `origin`, and `/git-sync` (fast-forward only) is what unblocks it.
 
-- Branch slugs are 2–5 words; `/git-ship` normalises the rest (the `10x-` prefix, case, ASCII, hyphens, length).
+- Branch slugs are 2–5 words; `/git-ship` normalises the rest.
 - Commit subjects: English, imperative, one line, 70 characters max, no `feat:`/`fix:` prefixes, no trailing period.
 - Do not overstate automation. Because every fetch, re-fetch and audit is a deliberate manual action (see Product invariants), a message calling one of them "automatic" misdescribes the product. If the behaviour stops to ask the user, write "offer", "prompt" or "ask".
 - PRs target `master`; both CI jobs must pass (`@.github/workflows/ci.yml`).
