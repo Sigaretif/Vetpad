@@ -67,7 +67,7 @@ Reply with EXACTLY this block and nothing else — no preamble, no commentary,
 no markdown fences, no extra blank lines:
 
 ```
-SUMMARY: <one sentence, English, what this change does>
+SUMMARY: <one sentence, English, what this change does — no overstated automation>
 FILES: <n changed, n insertions, n deletions>   # counted per step 4, never estimated
 BRANCH-1: <slug>
 BRANCH-2: <slug>
@@ -93,6 +93,12 @@ RISK: <NONE, or a comma-separated list of suspicious files you noticed>
 - say what changed and why it matters, concretely
 - the three proposals must be genuinely different in angle or scope, not three
   rewordings of the same sentence
+- **do not overstate what the change automates.** If the new behaviour stops to ask
+  the user — a confirmation prompt, an `AskUserQuestion` call, an "offer" — then it
+  is NOT automatic. Write "offer", "prompt" or "ask", never "automatically" or
+  "automatic". The same restraint applies to SUMMARY. A commit message that claims
+  a step runs by itself, when it actually waits for a human, misleads every later
+  reader of the history; that is worse than a vague message.
 
 ### RISK line
 
