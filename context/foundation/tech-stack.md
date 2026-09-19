@@ -5,9 +5,9 @@ project_name: vetpad
 hints:
   language_family: js
   team_size: solo
-  deployment_target: cloudflare-pages
+  deployment_target: cloudflare-workers
   ci_provider: github-actions
-  ci_default_flow: auto-deploy-on-merge
+  ci_default_flow: manual-promotion
   bootstrapper_confidence: first-class
   path_taken: standard
   quality_override: false
@@ -32,6 +32,10 @@ layout and routing conventions, heavy representation in training data, and curre
 version-pinned documentation. Supabase's Postgres plus auth covers Access Control
 without hand-rolling identity, and its row-level security is the natural home for the
 shared-workspace model. Java + Spring Boot was the familiar alternative but supplies no
-frontend, which the timeline cannot absorb. The known tension: Cloudflare's edge runtime
-is the tightest option for the PRD's ~3-minute audit budget, and Supabase RLS must be
-configured early or authorisation gaps accumulate quietly.
+frontend, which the timeline cannot absorb. The known tension is not the audit budget —
+Cloudflare meters CPU time, and waiting on a model provider's `fetch` consumes none of it
+(`@context/foundation/infrastructure.md`). It is that the same billing model bans a
+CPU-bound pass over a full listing page, so ingestion extracts `__NEXT_DATA__` with one
+bounded `RegExp`; if that ever stops working the fallback moves extraction off the Worker
+entirely, rather than parsing HTML inside it. Supabase RLS must be configured early or
+authorisation gaps accumulate quietly.

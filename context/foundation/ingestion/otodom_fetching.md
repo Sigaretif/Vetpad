@@ -223,28 +223,46 @@ Avoid the map view entirely (`?map=1` is disallowed by robots.txt).
 
 Each element of `data.searchAds.items[]`:
 
-| Field                                                         | Notes                                                                                                                                            |
-| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `id`                                                          | Numeric internal ID, e.g. `68423433`. Stable. **Use as the dedup key.**                                                                          |
-| `slug`                                                        | `idealne-na-start-lub-inwestycje-ul-orzycka-ID4D63L` - ends with `ID<publicCode>`                                                                |
-| `title`                                                       | Advertiser-written headline                                                                                                                      |
-| `estate`, `transaction`                                       | `FLAT`, `SELL`                                                                                                                                   |
-| `totalPrice`                                                  | `{value, currency}`; may be `null` when `hidePrice` is true                                                                                      |
-| `pricePerSquareMeter`, `priceFromPerSquareMeter`, `rentPrice` | Money objects                                                                                                                                    |
-| `areaInSquareMeters`, `terrainAreaInSquareMeters`             | Numbers                                                                                                                                          |
-| `roomsNumber`                                                 | Enum string, e.g. `TWO`                                                                                                                          |
-| `floorNumber`                                                 | e.g. `FLOOR_3`, `GROUND`                                                                                                                         |
-| `dateCreated`                                                 | `"2026-09-15 18:35:19"` - naive local time, **note the non-ISO format**                                                                          |
-| `createdAtFirst`                                              | `"2026-09-15T18:35:05Z"` - ISO/UTC, the original publication moment. **Prefer this one.**                                                        |
-| `pushedUpAt`                                                  | Non-null when the advertiser re-promoted an old offer. Guard against this so a bump is not reported as a new offer.                              |
-| `isPrivateOwner`, `isPromoted`, `isExclusiveOffer`            | Booleans                                                                                                                                         |
-| `agency`                                                      | `{id, name, slug, imageUrl, type}` or `null`                                                                                                     |
-| `location`                                                    | `address.street/city/province` + `reverseGeocoding.locations[]` with `locationLevel` of `voivodeship / city_or_village / district / residential` |
-| `images[]`                                                    | `{small, medium, large}` CDN URLs on `ireland.apollo.olxcdn.com`                                                                                 |
-| `totalPossibleImages`                                         | Photo count                                                                                                                                      |
-| `shortDescription`                                            | Truncated description                                                                                                                            |
-| `tags[]`                                                      | `[{value: "BALCONY", weight: 35}, ...]`                                                                                                          |
-| `development*`                                                | Populated for new-build investment listings                                                                                                      |
+| Field                                                         | Notes                                                                                                                                                                      |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                                                          | Numeric internal ID, e.g. `68423433`. Stable. **Use as the dedup key.**                                                                                                    |
+| `slug`                                                        | `idealne-na-start-lub-inwestycje-ul-orzycka-ID4D63L` - ends with `ID<publicCode>`                                                                                          |
+| `title`                                                       | Advertiser-written headline                                                                                                                                                |
+| `estate`, `transaction`                                       | `FLAT`, `SELL`                                                                                                                                                             |
+| `totalPrice`                                                  | `{value, currency}`; may be `null` when `hidePrice` is true                                                                                                                |
+| `pricePerSquareMeter`, `priceFromPerSquareMeter`, `rentPrice` | Money objects                                                                                                                                                              |
+| `areaInSquareMeters`, `terrainAreaInSquareMeters`             | Numbers                                                                                                                                                                    |
+| `roomsNumber`                                                 | Enum string, e.g. `TWO`                                                                                                                                                    |
+| `floorNumber`                                                 | e.g. `FLOOR_3`, `GROUND`                                                                                                                                                   |
+| `dateCreated`                                                 | `"2026-09-15 18:35:19"` - naive local time, **note the non-ISO format**                                                                                                    |
+| `createdAtFirst`                                              | `"2026-09-15T18:35:05Z"` - ISO/UTC, the original publication moment. Prefer it **when present**, but see the warning below: it is `null` on offers that were never bumped. |
+| `pushedUpAt`                                                  | Non-null when the advertiser re-promoted an old offer. Guard against this so a bump is not reported as a new offer.                                                        |
+| `isPrivateOwner`, `isPromoted`, `isExclusiveOffer`            | Booleans                                                                                                                                                                   |
+| `agency`                                                      | `{id, name, slug, imageUrl, type}` or `null`                                                                                                                               |
+| `location`                                                    | `address.street/city/province` + `reverseGeocoding.locations[]` with `locationLevel` of `voivodeship / city_or_village / district / residential`                           |
+| `images[]`                                                    | `{small, medium, large}` CDN URLs on `ireland.apollo.olxcdn.com`                                                                                                           |
+| `totalPossibleImages`                                         | Photo count                                                                                                                                                                |
+| `shortDescription`                                            | Truncated description                                                                                                                                                      |
+| `tags[]`                                                      | `[{value: "BALCONY", weight: 35}, ...]`                                                                                                                                    |
+| `development*`                                                | Populated for new-build investment listings                                                                                                                                |
+
+**`createdAtFirst` can be `null` - verified 2026-09-19.** On a freshly published
+offer that has never been bumped, `createdAtFirst` is absent and only `createdAt`
+(detail view) / `dateCreated` (list view) carries the timestamp. Treating it as
+always present will crash or, worse, sort `None` values into the wrong bucket.
+Always resolve through a fallback:
+
+```python
+def published_at(item: dict) -> str | None:
+    """Best available publication timestamp, ISO form preferred."""
+    return item.get('createdAtFirst') or item.get('createdAt') or item.get('dateCreated')
+```
+
+The semantic difference still matters and the priority order above is correct:
+when an advertiser bumps an old offer, `dateCreated` is refreshed while
+`createdAtFirst` stays at the original moment. So `createdAtFirst` is the right
+field _when it exists_; the fallback only fills the never-bumped case, where
+`createdAt` happens to be the original moment anyway.
 
 Offer URL from an item:
 
@@ -407,10 +425,11 @@ Recommended algorithm, one cron run per day:
    keeping the payload small; `LATEST/DESC` guarantees the newest offers are on
    page 1 so a single request is usually enough.
 2. Read `pagination.totalPages`. Page further only while the oldest
-   `createdAtFirst` on the current page is still newer than your watermark, and
-   cap it (e.g. 5 pages) so a bad filter cannot trigger a crawl.
+   `published_at(item)` on the current page is still newer than your watermark,
+   and cap it (e.g. 5 pages) so a bad filter cannot trigger a crawl. Use the
+   `published_at()` fallback from section 6, never bare `createdAtFirst`.
 3. For each item, skip it if `id` already exists in your local store (SQLite is
-   plenty). Store `id`, `createdAtFirst`, `totalPrice.value`, `slug`,
+   plenty). Store `id`, `published_at(item)`, `totalPrice.value`, `slug`,
    `first_seen_at`, `notified_at`.
 4. Treat an item as new only when its `id` is unseen. Do **not** key on
    `dateCreated` or `pushedUpAt`: advertisers bump old offers, which refreshes
@@ -453,6 +472,58 @@ curl -sS -o /dev/null -w "%{http_code}\n" \
 
 Also prefer a **Polish or European egress**; the site serves `/uk/*` variants and
 geo-differentiated content, and `/uk/*` is robots-disallowed.
+
+### 9.1 Cloudflare Workers specifically
+
+Platform limits, from the official docs (page last updated 2026-09-05), against
+what a daily notifier actually consumes:
+
+| Limit                         | Workers Free | Workers Paid                                | This workload      |
+| ----------------------------- | ------------ | ------------------------------------------- | ------------------ |
+| CPU per Cron Trigger          | 10 ms        | 30 s (interval < 1 h) / **15 min (>= 1 h)** | JSON parse, sub-ms |
+| Wall time per Cron Trigger    | 15 min       | 15 min                                      | seconds            |
+| Subrequests per invocation    | 50           | 10,000                                      | 2-7                |
+| Simultaneous open connections | 6            | 6                                           | 1-2                |
+| Requests per day              | 100,000      | no limit                                    | 1                  |
+
+Two quotes that settle the timeout question:
+
+> Waiting on network requests (such as `fetch()` calls, KV reads, or database
+> queries) does **not** count toward CPU time.
+
+> There is no set time limit on individual subrequests.
+
+So a Worker may wait on a slow upstream without burning its CPU budget. A daily
+cron has an interval >= 1 h, which puts a paid Worker in the 15-minute CPU tier.
+The Free tier's 10 ms CPU is enough to parse one offer and build an email, but
+there is no headroom; budget for Paid if the digest does any real work.
+
+**Two hard constraints that change the architecture:**
+
+**1. You cannot control the TLS fingerprint.** Workers' `fetch()` uses
+Cloudflare's own TLS stack. There is no way to set cipher order or ALPN. This
+does not affect Otodom, which applies no TLS-based filtering, but it makes the
+`ChromeishAdapter` workaround in `olx_fetching.md` section 2 **impossible to
+express in a Worker**. Direct OLX scraping is off the table on this platform;
+OLX needs either a third-party scraping service or a runtime with a real socket
+stack (Cloudflare Containers, a VM).
+
+**2. Egress is a Cloudflare datacenter range.** Unverified against Otodom as of
+2026-09-19. Otodom showed no bot defences from a residential Polish IP, so it
+will probably work, but neither local workerd nor the preflight above can tell
+you: the only way to observe it before shipping is a throwaway Worker that does
+nothing but the preflight fetch and logs the status code. Vetpad deliberately
+does not do that — the scraper ships as written, and a 403 is handled by the
+fallback below rather than by verifying first.
+
+If the preflight fails, the fallback is a third-party scraping service. That
+path is fully verified and documented separately in `otodom_apify.md`, including
+the exact request shape and the failure modes the provider hides from you.
+
+Storage: a Worker has no filesystem, so the SQLite store in section 8 becomes
+**D1** (SQL, closest to the documented schema) or **KV** (sufficient if you only
+ever check "have I seen this id"). Do not keep the watermark in memory; isolates
+are recycled without warning.
 
 ---
 
@@ -536,6 +607,10 @@ Performed 2026-09-16, plain `curl`, Polish residential IP, no proxy:
 | `fetch_offer()` on a live offer URL (7.1)              | `200`, `ad` object with 62 keys, all summary fields populated                                     |
 | Nonexistent offer slug                                 | `HTTPError 404`                                                                                   |
 | `characteristics[].localizedValue`                     | Populated for numeric/monetary entries only; **empty string for every enum entry** - read `value` |
+| `createdAtFirst` on a never-bumped offer               | **`null`** - use the `published_at()` fallback from section 6                                     |
+| Cloudflare Workers limits (2026-09-19)                 | Fit with large margin; `fetch()` wait does not consume CPU time                                   |
+| Cloudflare Workers TLS control                         | None - no cipher/ALPN control, so the OLX workaround cannot run there                             |
+| Cloudflare egress IP against Otodom                    | **Not verified** - deliberately; a 403 is handled by the fallback, see section 9.1                |
 
 Re-run the checks in this table before trusting the document; Otodom is a moving
 target and the payload shape is not a contract.
