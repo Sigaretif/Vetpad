@@ -18,7 +18,9 @@ skill never merges, never rebases, never rewrites history.
    fall back to `master`, then `main`.
 3. `git branch --show-current`. If it is not DEFAULT, say which branch you are
    switching from, and switch back to it at the very end.
-4. `git fetch origin`
+4. `git fetch --prune origin` — `--prune` matters: the remote deletes merged
+   branches automatically, and without it every dead `origin/*` ref lingers forever.
+   It only ever removes remote-tracking refs; it never touches a local branch or a commit.
 5. `git rev-list --count DEFAULT..origin/DEFAULT` — 0 → report
    "DEFAULT is already up to date with origin." and stop.
 6. `git status --porcelain` — if the tree is dirty, ask with AskUserQuestion:
@@ -35,6 +37,13 @@ skill never merges, never rebases, never rewrites history.
    resolve. Do not offer to merge or rebase; that is the user's call.
 8. Return to the original branch if step 3 moved you, and restore the stash if
    step 6 created one.
+9. Offer to clean up. After the prune in step 4, list local branches whose upstream
+   is gone — these are the ones the remote deleted after their pull request merged:
+   `git branch -vv | grep ': gone]'`. If there are any, name them and ask with
+   AskUserQuestion whether to delete them. On yes, delete them with `git branch -d`
+   (never `-D`): `-d` refuses any branch not fully merged into DEFAULT, which is
+   exactly the safety net you want here. Report any branch git refused and leave it
+   alone. Never delete the branch the user is currently on, and never delete DEFAULT.
 
 ## Report
 
@@ -49,3 +58,5 @@ On branch: <where the user is now>
 - `pull` without `--ff-only`
 - `merge`, `rebase`, `reset --hard`, `--force`
 - dropping or clearing a stash that did not pop cleanly
+- `git branch -D` — forced branch deletion, under any circumstances
+- deleting a branch the user did not confirm in step 9
