@@ -6,297 +6,272 @@ runner_up: Vercel
 context_type: mvp
 tech_stack:
   language: TypeScript
-  framework: Astro 7 (SSR, React 19 islands)
-  runtime: workerd (Cloudflare Workers) via @astrojs/cloudflare ^14.3.1
+  framework: Astro 7.3 (SSR, React 19 islands, Tailwind 4)
+  runtime: Cloudflare Workers (workerd) via @astrojs/cloudflare ^14.3
 ---
 
 ## Recommendation
 
 **Deploy on Cloudflare Workers.**
 
-Of the six platforms researched, Workers is the only one with no wall-clock ceiling on a
-single request: billing is CPU time, and waiting on an outbound `fetch` consumes none of
-it. That matters because the PRD's audit budget (`context/foundation/prd.md`,
-Non-Functional Requirements) is ~3 minutes of mostly-waiting on a model provider, and
-every other candidate imposes a hard cap — Netlify 60 s synchronous, Fly.io a 60 s proxy
-idle timeout, Vercel 300 s, Railway 5 minutes, Render 100 minutes. Second, the repository
-already deploys here: `wrangler.jsonc` points `main` at the `@astrojs/cloudflare` server
-entrypoint, `npx astro preview` runs on real workerd via the Cloudflare Vite plugin, and
-the deadline in `prd.md` is 2026-11-04 with after-hours-only capacity. A migration would
-spend days of that budget buying properties the interview said are not needed: the
-project is single-region (Poland), stateless request/response, and already committed to
-external Supabase — which neutralises the edge advantage, the persistent-process
-advantage and the service-co-location advantage all at once. Cost is $0–5/month.
-
-The cost of this choice is concentrated in one place — listing ingestion (FR-004) — and
-the risk register below is mostly about that.
+Three platforms tied at 5/5 on the agent-friendly criteria (Cloudflare, Vercel, Railway), so the
+criteria alone did not decide this. What decided it is the one axis where the platforms genuinely
+differ for this product: how long a single HTTP request may wait on an outbound `fetch`. The PRD
+budgets roughly three minutes for the AI audit and the Business Logic section makes that a
+foreground, member-triggered action — the member watches it run. Cloudflare is the only candidate
+with **no wall-clock limit on a request handler at all**, and the only one where the documented
+billing unit (CPU time) explicitly excludes waiting on `fetch`. Vercel's 300 s ceiling also fits,
+but it is a fixed ceiling rather than the absence of one. Interview answers barely moved the
+ranking and that is itself informative: external providers are fine (Supabase is already external),
+so co-located databases earn nobody points, and a single-region audience neutralises Cloudflare's
+edge advantage. The decision rests on request duration and on Cloudflare's documentation being the
+most machine-readable of the six, which matters more than usual because the developer reported no
+prior platform experience.
 
 ## Platform Comparison
 
-Scored against the five criteria in
-`.claude/skills/10x-infra-research/references/agent-friendly-criteria.md`.
-All facts checked 2026-09-19.
+Every status below was checked on 2026-09-19.
 
 | Platform | CLI-first | Managed/Serverless | Agent-readable docs | Stable deploy API | MCP / Integration | Total |
 |---|---|---|---|---|---|---|
-| Cloudflare Workers | Pass | Pass | Pass | Pass | Partial | 4.5 |
-| Vercel | Pass | Pass | Pass | Pass | Partial | 4.5 |
-| Railway | Partial | Pass | Pass | Pass | Pass | 4.5 |
-| Render | Partial | Pass | Pass | Pass | Pass | 4.5 |
-| Fly.io | Partial | Partial | Pass | Pass | Partial | 3.5 |
-| Netlify | Partial | Pass | Pass | Partial | Pass | 3.5 |
+| **Cloudflare Workers** | Pass | Pass | Pass | Pass | Pass | 5/5 |
+| **Vercel** | Pass | Pass | Pass | Pass | Pass | 5/5 |
+| **Railway** | Pass | Pass | Pass | Pass | Pass | 5/5 |
+| Render | Partial | Pass | Pass | Pass | Pass | 4/5 |
+| Fly.io | Pass | Partial | Pass | Pass | Partial | 3/5 |
+| Netlify | Partial | Pass | Pass | Pass | Pass | dropped by hard filter |
 
-**Cloudflare Workers.** CLI covers the whole loop — `wrangler deploy`, `wrangler rollback
-[VERSION_ID]`, `wrangler tail`, `wrangler secret put`. Fully managed, no OS surface. Docs
-publish per-product `llms.txt`, every page has an `/index.md` twin, source is on GitHub
-(`cloudflare/cloudflare-docs`). Deploy is one deterministic command. MCP scores Partial,
-not Pass: managed remote MCP servers exist (docs, bindings, builds, observability) at
-`https://docs.mcp.cloudflare.com/mcp` with OAuth, but no GA label is published — treat as
-preview.
+### Hard filters applied before scoring
 
-**Vercel.** Ties Cloudflare on the criteria and beats it on documentation ergonomics:
-every docs URL returns Markdown with YAML frontmatter carrying `last_updated`, plus
-`.graph.md` cross-link maps and `llms-full.txt`. `vercel deploy --prod`, `vercel rollback`,
-`vercel promote`, `vercel logs --follow`. MCP is Public Beta (`https://mcp.vercel.com`).
-The weights, not the criteria, pushed it to second — see below.
+- **Persistent connections**: not required (interview Q1 — request/response only, consistent with
+  the PRD's Non-Goals: no scheduled jobs, no background re-scraping, no notifications). Dropped
+  nobody.
+- **Runtime compatibility**: all six run TypeScript / Astro 7 SSR through an official adapter.
+  Dropped nobody.
+- **~3-minute audit inside one HTTP request** (PRD, Business Logic + Non-Functional Requirements):
+  **dropped Netlify**. Netlify's synchronous function limit is 60 s, uniform across every plan and
+  not configurable. Background Functions reach 15 minutes but return `202` immediately with no
+  response body and no streaming, which is a different architecture (async polling), not a
+  deployment of this one.
 
-**Railway.** Railpack builds an Astro `output: "server"` app as a plain Node service with
-no Dockerfile. Proxy closes a request only after 5 minutes with no data transferred, so
-the audit fits. MCP server is GA (`railway setup agent`). CLI is Partial because
-`railway redeploy` only re-runs the *latest* deployment — rolling back to an arbitrary
-older one is dashboard-only.
+### Per-platform notes
 
-**Render.** The most generous request budget of the six: Render documents allowing HTTP
-responses to take up to 100 minutes. Native Node runtime, no Dockerfile, Frankfurt is a
-GA region, MCP server GA at `https://mcp.render.com/mcp`. CLI is Partial for the same
-reason as Railway — there is no rollback command; rollbacks, scaling and deletions go
-through the dashboard or REST API.
+**Cloudflare Workers** — `wrangler deploy` / `wrangler rollback` / `wrangler tail` /
+`wrangler secret put` cover the whole operational loop with no dashboard step. Docs are the
+strongest agent surface of the six: a fundamentals `llms.txt`, per-product `llms.txt` and
+`llms-full.txt`, every page available as `<url>/index.md` or via an `Accept: text/markdown` header,
+and the source on GitHub at `cloudflare/cloudflare-docs`. The limits page states plainly that
+waiting on network requests does not count toward CPU time, and that HTTP-triggered Workers have no
+hard duration limit while the client stays connected. Cloudflare's own MCP servers exist as a
+family at `*.mcp.cloudflare.com` (docs, Workers bindings, builds, observability), but none carries
+an explicit GA or beta label — see the risk register.
 
-**Fly.io.** Scores Partial on "managed" because you own the Dockerfile, the health checks
-and the image — a real operational surface at MVP scope. No free tier since the trial-only
-change (2 machine-hours or 7 days). Fly Proxy closes a connection after 60 s with no bytes
-in either direction, so a 3-minute audit needs streaming or a heartbeat. `fly mcp server`
-is self-labelled experimental. No Warsaw region; `fra` is the nearest.
+**Vercel** — equally complete CLI (`vercel deploy --prod`, `vercel rollback`, `vercel promote`,
+`vercel logs --follow`, `vercel env`), `llms.txt` and `llms-full.txt`, and a hosted OAuth MCP
+server at `mcp.vercel.com`. Fluid compute (GA since 2025-04-23) gives Hobby a 300 s maximum
+duration, which covers a 180 s audit with margin; the adapter exposes `maxDuration` in
+`astro.config.mjs`. Its real advantage over Cloudflare is a full Node runtime with no CPU-ms
+metering, which would lift this project's ban on parsing a listing page. Its constraint is that the
+Hobby plan is restricted to non-commercial personal use.
 
-**Netlify.** Synchronous functions time out at **60 s, not configurable**, and the timeout
-is wall-clock — "mostly waiting on fetch" does not help. The audit would have to become a
-background function (202 immediately, no streaming, two retries on error) plus polling,
-with job state in Supabase. That is a real architecture change, not a config flag. Deploy
-API is Partial: the CLI has no rollback; it is the dashboard's "Publish deploy" or the
-REST API. Pinning functions to an EU region requires the $20/mo Pro plan; Free defaults to
-Ohio.
+**Railway** — Railpack (now the default builder; Nixpacks is in maintenance mode) detects an Astro
+Node app from `package.json` with no Dockerfile. `railway up --detach` is CI-safe and
+non-interactive with `RAILWAY_TOKEN`; `railway redeploy` covers rollback; docs mirror every page at
+`<url>.md` plus a `llms.txt` index. EU West Metal (Amsterdam) is GA. The proxy allows 15 minutes of
+active transfer but closes connections idle for 5 minutes — a silent 3-minute wait passes, but
+without much margin and with no doc explicitly exempting a non-streaming wait.
 
-### How the interview weighted the scores
+**Render** — scored Partial on CLI because the operational loop has holes an agent cannot close:
+there is no rollback command (Dashboard or REST API only) and no confirmed command for setting
+environment variables. Docs are strong (`llms.txt`, `llms-full.txt`, markdown via `.md` suffix,
+plus a `render-oss/skills` repo). The blocking issue is that **no Render document states a maximum
+request duration**, and Render's own guidance actively discourages holding a request open for long
+synchronous work, pointing instead at Render Workflows (public beta). An undocumented limit is
+worse than a documented low one, because it cannot be designed around.
 
-- **Stateless request/response** — no platform dropped on the hard filter.
-- **Cost ≈ DX** — a mild penalty on Vercel. Its Hobby plan is off-limits: the Fair Use
-  guidelines (updated 2026-09-14) restrict it to non-commercial personal use, and define
-  commercial to include a paid employee or consultant writing the code. Pro is $20/mo
-  against $0–5 for Workers and ~$5 for Railway, with no compensating advantage at three
-  users.
-- **No existing platform familiarity** — no tie-break from experience. The tie-break that
-  did apply is different in kind: the repo is already wired to Workers and the deadline is
-  fixed, so switching costs days that the 3-week after-hours budget does not have.
-- **Single region (Poland)** — neutralises the edge-native advantage. Note the inverse
-  too: Workers has *no* selectable region, so Supabase's region governs latency either way.
-- **External providers fine (Supabase; OpenRouter undecided)** — neutralises the
-  co-located-database advantage that Railway, Render and Fly would otherwise carry.
+**Fly.io** — `flyctl` is complete for deploy, logs and secrets, though rollback is a manual pattern
+(`fly releases --image`, then redeploy that image hash) rather than a command, and old images can
+be pruned. Scored Partial on managed/serverless: Dockerfiles, Machines, health checks that do not
+auto-restart on failure, and explicit `auto_stop_machines` configuration are meaningfully more
+operational surface than the rest of the field. Partial on MCP: `fly mcp server` exists but carries
+no maturity label. Frankfurt (`fra`) is the nearest region; there is no Warsaw. The proxy's default
+idle timeout is **60 seconds**, so the audit route would require an explicit `idle_timeout` raise in
+`fly.toml` — a default that fails, not a default that works.
+
+**Netlify** — dropped on the 60 s filter above. Worth recording that it scored well otherwise:
+`llms.txt`, a hosted MCP server, and Netlify DB (Neon) GA since 2026-04-28. Its CLI lacks a
+rollback command; rollback is a dashboard "Publish deploy" on a prior atomic deploy, or the API.
 
 ### Shortlisted Platforms
 
 #### 1. Cloudflare Workers (Recommended)
 
-Wins on the constraint that matters most and on the one the interview did not ask about.
-The audit's ~3-minute budget is a wall-clock problem on five of six platforms and a
-non-problem here, because CPU time is what is metered and `await fetch(...)` does not
-consume it. Local fidelity is unusually good: since adapter v13, `astro dev` and
-`astro preview` run on real workerd through the Cloudflare Vite plugin, so what CI's smoke
-job exercises is the production runtime, not a Node approximation. Zero migration against
-a fixed deadline. Astro's core team joined Cloudflare in January 2026, so the adapter is
-first-party.
+Wins on the only axis that separated the leaders: a request handler has no wall-clock limit while
+the client stays connected, and the metered resource (CPU time) excludes `fetch` waits. That maps
+exactly onto an audit that spends ~3 minutes waiting on a model provider and almost no time
+computing. Secondary wins: the best machine-readable documentation of the six, which matters
+because the developer has no prior platform experience to fall back on; `$5`/month for the plan this
+project actually needs; and, from adapter v13 onward, `astro dev` and `astro preview` already run
+on workerd, so local development and production share a runtime with no separate platform-native
+dev command.
 
 #### 2. Vercel
 
-The strongest alternative and the one to pick if listing ingestion turns out to be the
-binding problem. Its SSR functions run the **full Node.js runtime** under Fluid compute,
-which dissolves two Workers-specific constraints at once: no `nodejs_compat` surprises
-from a provider SDK, and no CPU-time reason to ban an HTML parser — `cheerio` would just
-work, restoring the fallback that FR-004 currently lacks. 300 s max duration covers the
-audit. Region is one line (`{"regions": ["fra1"]}`). Supabase is a first-class Marketplace
-integration. Migration is a swap to `@astrojs/vercel` (v11.0.10, peer `astro ^7.0.0`).
-The gaps: $20/mo, a hard 300 s ceiling where Workers has none, and Vercel's own Astro docs
-page is stale — it still documents `@astrojs/vercel/serverless` and `output: 'hybrid'`,
-both removed in Astro 5+.
+Matches Cloudflare on all five criteria and beats it on runtime headroom: a full Node runtime with
+no CPU metering, which would remove this project's constraint against parsing a full listing page
+and open up `cheerio` or similar. Its 300 s Hobby ceiling covers the audit. The gap is that the
+ceiling is fixed where Cloudflare's is absent, that the Hobby plan forbids commercial use (fine for
+a private family tool, a decision point if that ever changes), and that adopting it means replacing
+the adapter, `wrangler.jsonc`, the deploy step and several rules in `CLAUDE.md`.
 
 #### 3. Railway
 
-Full Node on an always-on VM, ~$5/mo, MCP server in GA, 5-minute proxy timeout, EU West
-(Amsterdam) region. Railpack builds the Astro Node output with no Dockerfile. Same
-parser-freedom benefit as Vercel at a quarter of the price. The gaps versus the
-recommendation: an always-on service instead of scale-to-zero (the serverless toggle is
-opt-in and an open Supabase connection pool prevents sleep entirely), arbitrary rollback
-is dashboard-only, and the start command needs `server.host: '0.0.0.0'` or the service
-502s. Render is a near-tie here — its 100-minute request budget is the best of the six —
-losing narrowly on $7 vs $5 and a free tier that spins down after 15 minutes idle.
+The strongest of the long-lived-process options: no CPU metering, no cold starts when always-on,
+Railpack detects Astro without a Dockerfile, an Amsterdam region, and a complete scriptable CLI.
+The gap is the 5-minute idle-connection close, which puts a silent 3-minute audit uncomfortably
+near a boundary that no document explicitly exempts it from, plus the absence of a free tier
+($5/month minimum, which doubles as usage credit).
 
 ## Anti-Bias Cross-Check: Cloudflare Workers
 
+This cross-check carried more weight than usual: the repository already targets Workers
+(`wrangler.jsonc`, `@astrojs/cloudflare`, and a `CLAUDE.md` written around Workers constraints), so
+the research started tilted toward confirming a decision that had already been made.
+
 ### Devil's Advocate — Weaknesses
 
-1. **The free plan is not viable for this stack, and fails in a confusing way.** Workers
-   Free caps CPU at **10 ms per invocation**. Astro 7 SSR with React 19 islands rendering
-   an offer card with a photo gallery will exceed that on a cold isolate. The failure mode
-   is an error 1102 ("Worker exceeded CPU") mid-render, not a slow page. The real floor is
-   the $5/mo Paid plan (30 s CPU default, 5 min configurable). The trap is that people
-   size the plan by request count — and static asset requests are free and uncounted, so
-   request count is exactly the metric that will *not* warn you.
-2. **The HTML-parsing ban in `CLAUDE.md` is a consequence of this platform's billing
-   model, and it removes the plan B for a must-have requirement.** Today's path is one
-   bounded `RegExp` over `__NEXT_DATA__` (`context/foundation/ingestion/otodom_fetching.md`,
-   §7.1). If otodom drops `__NEXT_DATA__` or moves to an RSC payload, the natural fallback
-   — build a document, walk it — is architecturally banned here. On a Node platform the
-   fix is `npm i cheerio`; on Workers it is a platform migration mid-project.
-3. **Cloudflare egress IPs are widely bot-flagged, and otodom sits behind anti-bot.** A
-   fetch that succeeds from a laptop can return 403 from a deployed Worker. The PRD
-   requires a failed fetch be reported explicitly as a fetch problem — so the degraded
-   behaviour is correct, but the product's core ingestion would be broken in production
-   only. There is no way to change the outbound IP without paid add-ons.
-4. **`nodejs_compat` is not Node.** The model-provider decision is still open (OpenRouter
-   vs. a direct Anthropic SDK). Any transitive dependency reaching for
-   `node:child_process`, `worker_threads`, `vm` or `http2` gets a non-functional stub — and
-   it breaks at runtime in production, not at `npm run build` or `npx astro check`.
-5. **Region is not selectable.** A Worker executes at the nearest PoP; Supabase lives in
-   one region. An SSR page issuing several sequential queries (offers list, then notes,
-   then criteria) compounds round-trips, and the remedy — Smart Placement — is another
-   configuration surface with its own heuristics.
+1. **The free plan is not a tier this application can use.** The Free plan caps CPU at 10 ms per
+   invocation. Astro SSR rendering a dashboard with React islands, plus `JSON.parse` over a full
+   `__NEXT_DATA__` payload, will exceed that. The $5/month Workers Paid plan is mandatory from day
+   one — and its *default* CPU limit is 30 seconds, not the headline 5-minute maximum. Reaching the
+   maximum requires an explicit `limits` block in `wrangler.jsonc`. Nothing surfaces this until a
+   request dies in production.
+2. **The HTML-parsing ban targets the wrong artifact.** `CLAUDE.md` forbids `cheerio`,
+   `node-html-parser` and DOM walks over a fetched page, on CPU grounds. But `JSON.parse` over a
+   several-hundred-kilobyte `__NEXT_DATA__` blob is the same CPU-bound full-page pass in a different
+   format, and the rule permits it. The protection does not cover the path the project actually
+   uses.
+3. **Cloudflare egress is the most heavily flagged datacenter IP space on the web**, and Vetpad's
+   entire ingestion path depends on otodom.pl serving a Worker. otodom.pl is itself most likely
+   Cloudflare-fronted. Cloudflare's own community forum carries recurring reports of Workers egress
+   being blocked. That `CLAUDE.md` already documents a third-party extraction fallback means the
+   risk is priced in, not that it is mitigated — adopting the fallback is a second vendor, a second
+   secret in six places, and a second failure mode.
+4. **Runtime parity cuts both ways.** `astro dev` on workerd catches missing Node APIs immediately,
+   which is honest. It also means any dependency added later that needs CommonJS `require` or an
+   unsupported `node:*` module fails at install time rather than at deploy time. Under a seven-week
+   after-hours deadline that is a real velocity cost, not only a virtue.
+5. **There is no escape hatch.** If the audit route ever needs libraries that assume Node streams,
+   switching adapters means re-verifying every place the zero-config contract puts an integration —
+   the `astro.config.mjs` schema, the factory, every call site, and the config-status entry — which
+   is a wider change than "swap the adapter".
 
 ### Pre-Mortem — How This Could Fail
 
-December: otodom hardens its anti-bot and fetches begin returning 403 from Cloudflare's
-egress ranges. Nobody had ever exercised ingestion from a deployed Worker — it was always
-tested from the laptop, where it worked. The documented fallback, parsing the page HTML,
-is forbidden by the project's own CPU rule, so the fix requires either a proxy service or
-abandoning the platform halfway through the product. In parallel, weeks earlier, the free
-plan's 10 ms CPU cap had blown up on the gallery render; the team clicked upgrade to $5
-without reading why, so nobody internalised that CPU — not request count — is the binding
-resource. When the audit later grew to two model calls with post-processing, per-request
-CPU crept past the 30 s default and requests began dying in production only. Runtime
-fidelity was never the problem: `astro preview` runs real workerd, and CI exercises it.
-The problem was that local workerd does not meter CPU and does not egress from
-Cloudflare's address space. The two things CI could not see were precisely the two that
-broke.
+Six months on, the decision has turned out badly. The first week after deploy looks perfect: the
+audit completes, `wrangler tail` shows clean logs, the bill is five dollars. The crack appears
+quietly — otodom starts returning 403 to a fraction of Worker requests, irregularly, perhaps one in
+ten. The team reads it as a portal glitch, because the same page loads fine in a browser. Ingestion
+becomes a lottery exactly as a wave of new listings hits the market. Switching to the extraction
+fallback means threading a new secret through six places and rewriting the fetch path — a weekend's
+work that does not exist, because the deadline is two weeks out. In parallel the audit starts
+failing on longer listings: nobody set `limits.cpu_ms`, so the default 30-second CPU ceiling kills
+requests on the largest descriptions — precisely the ones that most needed auditing. The failure
+looks like a model provider problem, so it is debugged on the wrong side for three weeks. The team
+goes back to the spreadsheet. The PRD's primary success criterion fails, not because the platform
+was wrong, but because of two defaults nobody checked.
 
 ### Unknown Unknowns
 
-- **`wrangler dev` is redundant and misleading in this project.** Since adapter v13,
-  `astro dev` and `astro preview` run on real workerd via the Cloudflare Vite plugin.
-  Tutorials still instruct a separate `wrangler dev` step; here it is a dead end. Adapter
-  v14 requires Astro ≥ 7.2.0 — this repo is on 7.3.2 with 14.3.1, so it is satisfied.
-- **Local workerd fidelity does not extend to CPU metering or egress identity** — the two
-  properties most likely to break in production. Per-request CPU is visible only in the
-  Workers dashboard; `observability` is already enabled in `wrangler.jsonc` and is the
-  only probe that exists today.
-- **The `node:fs` line in `CLAUDE.md` was stale.** Research indicates `node:fs`
-  is supported under `nodejs_compat` as an ephemeral per-request virtual filesystem from
-  compatibility date `2025-09-01` onward. `node:child_process`, `worker_threads`, `vm` and
-  `http2` remain stubs. Applied on 2026-09-19 at the user's direction: the rule no longer
-  claims `node:fs` is unsupported and names the four stubs instead. Nothing in `src/`
-  imports `node:fs` today, so the correction is not yet load-bearing.
-- **Astro's core team joined Cloudflare in January 2026.** This is the strongest argument
-  for staying — the adapter is first-party — and a quiet dependency: Astro's neutrality
-  across adapters is now commercially entangled, and the Vercel/Netlify adapters may
-  diverge in quality over time.
-- **`tech-stack.md` front matter said `deployment_target: cloudflare-pages`.** Pages
-  is not deprecated but is frozen — Cloudflare's own guidance is to start new projects
-  with Workers. An agent reading only `tech-stack.md` would run `wrangler pages deploy`
-  and create a second, parallel deployment. `CLAUDE.md` already bans this; the ban exists
-  for exactly this reason. Corrected to `cloudflare-workers` on 2026-09-19, together with
-  `ci_default_flow`, which claimed `auto-deploy-on-merge` although
-  `.github/workflows/ci.yml` has no deploy job and production release is a human action.
+- **The repository's `compatibility_date` is `2026-05-08`**, which predates the 2026-08-04 change
+  that made `nodejs_compat` the default. The explicit flag is present, so it works today — but any
+  future bump of that date crosses a behavioural boundary and is a change to test, not a version
+  bump.
+- **"Wait inside one request" is architectural lock-in disguised as a hosting choice.** Only
+  Cloudflare and Vercel support the pattern without streaming. Fly (60 s idle) and Railway (5 min
+  idle) would both force a rewrite to polling. Leaving Cloudflare later is not an adapter swap; it
+  is a rebuild of the audit's interaction model.
+- **No platform limit does not mean no limit.** Browsers and intermediate proxies also drop silent
+  long-lived requests. The PRD's requirement that any operation in progress stays continuously
+  visible as in progress effectively demands streaming or polling regardless of what Cloudflare
+  permits.
+- **`@astrojs/cloudflare` v14 dropped Cloudflare Pages support entirely.** Workers is the only path.
+  Every tutorial — and a large share of model-generated answers — saying `wrangler pages deploy` is
+  wrong for this repository, which is why `CLAUDE.md` bans it by name.
+- **Cloudflare's own MCP servers carry no per-server GA or beta label** on the documentation page
+  listing them. Treating any one of them as stable is an assumption, not a documented fact.
 
 ## Operational Story
 
-- **Preview deploys**: none today, and that is the current state, not a gap — CI
-  (`.github/workflows/ci.yml`) runs `ci` and `smoke` only; there is no deploy job and no
-  per-PR URL. `smoke` builds and runs `npm run preview`, which since adapter v13 executes
-  on real workerd against a local Supabase, so a PR is verified on the production runtime
-  without a hosted preview. To add hosted previews later, the primitive is
-  `wrangler versions upload`, which returns a preview URL without shifting production
-  traffic; protect it with Cloudflare Access, and note that fork PRs cannot read repository
-  secrets.
-- **Secrets**: `SUPABASE_URL` and `SUPABASE_KEY` live in three places, each for a different
-  consumer — Cloudflare Workers Secrets for production (`npx wrangler secret put`), GitHub
-  repository secrets for the CI build job, and local `.env` + `.dev.vars` for development.
-  They are read only through `astro:env/server`, declared `access: "secret"` and
-  `optional: true` in `astro.config.mjs`. Absence is a supported state: `createClient()`
-  returns `null` and `src/lib/config-status.ts` surfaces the gap in the layout banner.
-  Rotation is `wrangler secret put` followed by a redeploy; Workers Secrets are write-only
-  once set — they cannot be read back, so GitHub and Cloudflare must be updated as a pair.
-  Adding the model-provider key repeats all six places (see `CLAUDE.md`).
-- **Rollback**: `npx wrangler rollback [VERSION_ID]`, or `wrangler versions deploy` to
-  shift traffic between uploaded versions. Time-to-revert is seconds — a version is already
-  built and uploaded. **Two caveats.** A rollback does not revert secrets: a version
-  deployed before a key rotation will run against the rotated value. And it does not
-  revert the database — once `supabase/migrations/` exists, a schema migration is a
-  separate, forward-only system, so a code rollback across a migration boundary can leave
-  the Worker talking to a schema it does not expect.
-- **Approval**: `npx wrangler deploy` to production, rotating `SUPABASE_KEY`, and anything
-  touching the Supabase schema or RLS policies are human decisions — deploy is deliberately
-  not automated in CI. An agent may run unattended: `npm run build`, `npm run lint`,
-  `npx astro sync`, `npx astro check`, `npm run smoke`, `wrangler tail`,
-  `wrangler versions upload` (no traffic shift), and `wrangler secret list` (names only,
-  never values).
-- **Logs**: `npx wrangler tail` streams live requests and exceptions read-only; add
-  `--format json` to pipe into a filter. Historical queries and per-request CPU time come
-  from the Workers dashboard — `observability` is enabled in `wrangler.jsonc`, which is
-  what makes them available at all. CI logs read via `gh run view --log`. Cloudflare's
-  managed remote MCP servers (docs, observability) offer structured access over OAuth, but
-  publish no GA label — treat as preview.
+- **Preview deploys**: `wrangler versions upload` publishes a non-production version and returns a
+  preview URL; `wrangler versions deploy` promotes it. Preview URLs are public by default — put
+  Cloudflare Access in front of them before any real Supabase data is reachable through one. The
+  existing GitHub Actions `ci` job builds every PR but does not deploy, so preview deploys are an
+  opt-in manual step today, not an automatic per-PR URL.
+- **Secrets**: `SUPABASE_URL` and `SUPABASE_KEY` live in three places, and the model-provider key
+  will make it four. Locally in `.env` (Astro) and `.dev.vars` (workerd); in GitHub repository
+  secrets, which `.github/workflows/ci.yml` injects into the `ci` job's build step; and in Workers
+  Secrets via `npx wrangler secret put <NAME>`, which creates a new version and deploys it
+  immediately. Workers secrets are write-only once set — they can be replaced, not read back.
+  Rotation is `wrangler secret put` again, then update the GitHub secret to match.
+- **Rollback**: `npx wrangler rollback` reverts to the previous version; `npx wrangler rollback
+  <version-id>` targets a specific one, and `wrangler versions list` shows the candidates. Time to
+  revert is seconds. The caveat that matters here: a rollback reverts code, never data. Once
+  Supabase migrations exist, a schema change that a rolled-back Worker cannot read is a manual
+  recovery, and a `wrangler secret put` is itself a new version, so rolling back code can roll back
+  a secret with it.
+- **Approval**: an agent may run `wrangler deploy`, `wrangler versions upload`, `wrangler tail`,
+  `wrangler rollback` and `astro build` unattended. A human does, by hand: creating the Cloudflare
+  account and API token, the first `wrangler login`, setting or rotating any production secret,
+  applying a Supabase migration to the hosted project, deleting the Worker, and any billing-plan
+  change. The API token this project uses should be scoped to Workers for this one project — no
+  DNS, no unrelated Workers Secrets, no billing.
+- **Logs**: `npx wrangler tail` streams live requests and exceptions; `wrangler tail --format json`
+  gives structured output an agent can parse. `observability.enabled` is already `true` in
+  `wrangler.jsonc`, so invocation logs are queryable in the dashboard's Workers Logs without extra
+  setup. Cloudflare's observability MCP server exposes the same data as structured tools, at the
+  cost of the caveat in the risk register about unlabelled server maturity.
 
 ## Risk Register
 
 | Risk | Source | Likelihood | Impact | Mitigation |
 |---|---|---|---|---|
-| otodom returns 403 to Cloudflare egress IPs; FR-004 ingestion broken in production only | Devil's advocate #3 / Pre-mortem | M | H | Decided 2026-09-19: accepted, not pre-verified. The scraper ships as written; if it returns 403 from a deployed Worker, it is replaced by an external extraction service (Apify or similar) — the same escape hatch as the row above, and a swap behind one `fetch` rather than a platform migration. The explicit fetch-failure path (PRD NFR) stays the user-visible contract either way. |
-| `__NEXT_DATA__` disappears from otodom; the DOM-parsing fallback is banned on this platform | Devil's advocate #2 | L | H | Decided 2026-09-19: the fallback moves extraction off the Worker — an external service (Apify or similar) called with one `fetch` — rather than migrating the platform. Recorded in `CLAUDE.md`; adding the service is a decision the user makes. |
-| Free plan's 10 ms CPU cap kills SSR renders with error 1102 | Devil's advocate #1 | H | M | Budget the $5/mo Workers Paid plan from day one. Do not size the plan by request count — static assets are free and uncounted, so requests will not warn you. |
-| Per-request CPU creeps past the 30 s default as the audit grows | Pre-mortem | M | M | Check per-request CPU in the Workers dashboard after each change to the audit path — `observability` is already on. The CLAUDE.md rule requiring this for any CPU-bound pass over a page body already covers it. |
-| A model-provider SDK pulls in a `node:*` module that is a stub under `nodejs_compat` | Devil's advocate #4 | M | M | Verify the dependency against the `nodejs_compat` support list for `compatibility_date` 2026-05-08 *before* adding it to `package.json`. Build and typecheck will not catch this; only a deployed request will. |
-| Compounding Supabase round-trips from a non-selectable PoP region | Devil's advocate #5 | L | L | Low stakes at three users. If SSR latency becomes visible, batch the queries first; reach for Smart Placement only after measuring. |
-| Rollback does not revert secrets or schema migrations | Research finding (operational story) | L | M | Rotate secrets and redeploy as one action. Once `supabase/migrations/` exists, keep migrations forward-only and additive so a code rollback stays safe across the boundary. |
-| An agent reads `deployment_target: cloudflare-pages` in tech-stack.md and runs `wrangler pages deploy` | Unknown unknowns | L | M | **Closed 2026-09-19** — the front matter now reads `cloudflare-workers`. The ban in `CLAUDE.md` stands as the second line of defence. |
-| The `node:fs` rule in CLAUDE.md is stale and misleads future work | Unknown unknowns | M | L | **Closed 2026-09-19** — the rule now names `child_process`, `worker_threads`, `vm` and `http2` as the stubs. Confirm against Cloudflare's docs the first time code actually imports `node:fs`. |
-| OpenRouter routing conflicts with the recorded model choice | Interview answer / research finding | M | L | `CLAUDE.md` states the audit calls `claude-opus-5` and that audit correctness outranks speed and cost. Routing through OpenRouter is a deliberate decision to raise with the user — and the change that adds any provider SDK updates that line to name it. |
+| Default 30 s CPU limit on the Paid plan kills the audit on long listings; nobody notices the default is not the 5-min maximum | Devil's advocate | M | H | Add an explicit `limits` block to `wrangler.jsonc` before first deploy and check the per-request CPU number in the Workers dashboard after the first real audit |
+| Free plan's 10 ms CPU cap makes the free tier unusable; deploy silently fails under load | Devil's advocate | H | M | Treat Workers Paid ($5/mo) as a prerequisite of the first deploy, not an upgrade path |
+| otodom.pl returns 403 to Cloudflare egress IPs, intermittently at first | Research finding + Pre-mortem | M | H | Log every non-200 fetch status distinctly from a parse failure so intermittent blocking is visible as blocking; keep the extraction-service fallback in `context/foundation/ingestion/otodom_apify.md` ready to adopt as a decision, not a scramble |
+| `JSON.parse` over a large `__NEXT_DATA__` payload is the CPU-bound full-page pass the HTML-parsing ban was meant to prevent | Devil's advocate | M | M | Measure CPU time on the largest real listing before merging ingestion; if it is close to the limit, extract the needed subtree with a bounded RegExp rather than parsing the whole blob |
+| A silent 3-minute request is dropped by the browser or an intermediate proxy even though Cloudflare imposes no limit | Unknown unknowns | M | H | Satisfy the PRD's in-progress-visibility requirement with streaming or polling; that same mechanism keeps bytes flowing and removes the exposure |
+| The wait-in-one-request pattern locks the audit to Cloudflare or Vercel; migrating later means rebuilding the audit UX | Unknown unknowns | L | H | Accepted for the MVP. Record it here so a future platform change is scoped as an architecture change from the start |
+| Bumping `compatibility_date` past 2026-08-04 changes `nodejs_compat` behaviour | Unknown unknowns | L | M | Treat any `compatibility_date` change as a change to test against a preview version, never as a routine bump |
+| A preview URL exposes real Supabase data publicly | Research finding | M | M | Put Cloudflare Access in front of preview versions before the first one carries production credentials |
+| Cloudflare MCP servers carry no GA/beta label; one changes or disappears mid-project | Unknown unknowns | L | L | Keep `wrangler` the primary operational path; treat MCP as a convenience, per the CLI-first default |
+| An adapter change forces re-verification of every zero-config integration point | Devil's advocate | L | M | No action for the MVP; the four-place pattern in `CLAUDE.md` is the checklist if it ever happens |
 
 ## Getting Started
 
-The project already deploys to this platform; these are the steps that keep it correct at
-the versions in `package.json` (`astro ^7.3.2`, `@astrojs/cloudflare ^14.3.1`,
-`wrangler ^4.131.1`, Node 22).
+The repository is already configured for this platform, so these are the gaps between the current
+tree and a first deploy — not a from-scratch setup. Commands are written against the versions this
+project pins (`wrangler` ^4.131, `@astrojs/cloudflare` ^14.3, Astro ^7.3). The Worker name in
+`wrangler.jsonc` is already `vetpad`, which is what the `workers.dev` subdomain will be — renaming
+it after the first deploy would create a second Worker rather than move the first.
 
-1. **Develop against the real runtime — do not add `wrangler dev`.** `npm run dev` already
-   runs on workerd through the Cloudflare Vite plugin (adapter v13+). `npm run build &&
-   npm run preview` is the production-parity check, and is what CI's `smoke` job uses.
-2. **Before pushing, run what CI runs**, including the two commands that are not npm
-   scripts: `npx astro sync && npm run lint && npx astro check && npm run build`.
-3. **Deploy manually**: `npm run build && npx wrangler deploy`. There is no deploy job in
-   `.github/workflows/ci.yml` — production release is a deliberate human action.
-4. **Set production secrets once**: `npx wrangler secret put SUPABASE_URL` and
-   `npx wrangler secret put SUPABASE_KEY`. Mirror them into GitHub repository secrets for
-   the `ci` build job. Verify with `npx wrangler secret list` (names only).
-5. **Move to the Workers Paid plan ($5/mo) before real use**, and confirm per-request CPU
-   in the Workers dashboard after the first SSR page with a photo gallery ships. The free
-   plan's 10 ms CPU cap is the first thing this stack will hit.
-6. **Ingestion is not pre-validated from a deployed Worker** — decided 2026-09-19. The
-   otodom scraper ships as written; a 403 from Cloudflare's egress is handled by replacing
-   it with an external extraction service, not by a preflight or a proxy.
-7. **Observe and revert**: `npx wrangler tail` for live logs;
-   `npx wrangler rollback [VERSION_ID]` to revert, remembering it reverts neither secrets
-   nor database schema.
+1. **Add an explicit CPU limit.** Set `"limits": { "cpu_ms": 300000 }` in `wrangler.jsonc`. Without
+   it the Paid plan's 30-second default applies, which is the failure mode in the pre-mortem above.
+2. **Authenticate and deploy.** `npx wrangler login` (interactive, human-only — run it as
+   `! npx wrangler login` in this session if you want the output here), then `npm run build` and
+   `npx wrangler deploy`. Do **not** use `wrangler pages deploy`; adapter v14 does not support
+   Pages.
+3. **Set the production secrets.** `npx wrangler secret put SUPABASE_URL` and
+   `npx wrangler secret put SUPABASE_KEY`, pointing at the hosted Supabase project rather than the
+   local one. The app deploys and renders without them — the banner from `src/lib/config-status.ts`
+   reports the gap — so this step can follow a first successful deploy.
+4. **Verify the audit's CPU cost on real data**, once FR-010 exists: run one audit against the
+   longest listing you can find and read the per-request CPU number in the Workers dashboard. That
+   single measurement closes the two highest-impact rows of the risk register.
 
 ## Out of Scope
 
 The following were not evaluated in this research:
 - Docker image configuration
-- CI/CD pipeline setup (including adding a deploy job to `.github/workflows/ci.yml`)
+- CI/CD pipeline setup
 - Production-scale architecture (multi-region, HA, DR)
