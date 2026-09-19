@@ -2,8 +2,8 @@
   "package": "@przeprogramowani/10x-cli",
   "version": "1.23.1",
   "manifestVersion": 3,
-  "lastApplied": "2026-09-19T13:11:38.203Z",
-  "lessonId": "m1l3",
+  "lastApplied": "2026-09-19T15:43:52.679Z",
+  "lessonId": "m1l4",
   "course": "10xdevs4",
   "tool": "claude-code",
   "files": {
@@ -120,6 +120,30 @@
         "contentHashes": {
           "SKILL.md": "15fac153374b8a11318e85d1d6d7bf466558e83998d796541930387b2bbd70ce",
           "references/health-check-schema.md": "6c7115da83ef2a4a396a9b703d94395a0904748bb586a6e182f2018fcbfedfe6"
+        }
+      },
+      "10x-agents-md": {
+        "files": [
+          "SKILL.md"
+        ],
+        "contentHashes": {
+          "SKILL.md": "7f37d82f743aab6e6c86eb773ba403380e8764b97a31f259b1297e7e57c8652e"
+        }
+      },
+      "10x-rule-review": {
+        "files": [
+          "SKILL.md"
+        ],
+        "contentHashes": {
+          "SKILL.md": "a086bd7cb3ca9fcccf73c578101dbabfd1fa6374d54b4a21007cfbd2d4a048e2"
+        }
+      },
+      "10x-lesson": {
+        "files": [
+          "SKILL.md"
+        ],
+        "contentHashes": {
+          "SKILL.md": "7190637b96f7956e07aadf57ce0262156da8d19fd9730def7261224b4b4c1bc3"
         }
       }
     },
@@ -318,12 +342,109 @@
       },
       "installedReleaseId": "r-01931641e2446d2c391ae2a5580585d7b137173dca2b63b9a85ed32388155a66",
       "installedManifestHash": "1ec3800cfa5c5d37754debba7e9172f32e71330ee1a29531d6ec8fff1c4bfaaa"
+    },
+    "m1l4": {
+      "appliedAt": "2026-09-19T15:43:52.679Z",
+      "skills": {
+        "10x-idea-check": {
+          "files": [
+            "SKILL.md",
+            "references/10xdevs-4-certification.md",
+            "references/10xdevs-4-dates.md",
+            "references/assessment-guide.md",
+            "references/examples.md"
+          ]
+        },
+        "10x-init": {
+          "files": [
+            "SKILL.md"
+          ]
+        },
+        "10x-shape": {
+          "files": [
+            "SKILL.md",
+            "references/prd-schema.md"
+          ]
+        },
+        "10x-prd": {
+          "files": [
+            "SKILL.md"
+          ]
+        },
+        "10x-tech-stack-selector": {
+          "files": [
+            "SKILL.md",
+            "references/agent-friendly-criteria.md",
+            "references/decision-flow.md",
+            "references/eval-cases.md",
+            "references/handoff-schema.md",
+            "references/residual-interview.md",
+            "references/starter-registry.yaml"
+          ]
+        },
+        "10x-stack-assess": {
+          "files": [
+            "SKILL.md",
+            "references/agent-friendly-criteria.md",
+            "references/decision-flow.md",
+            "references/eval-cases.md",
+            "references/handoff-schema.md",
+            "references/residual-interview.md",
+            "references/starter-registry.yaml"
+          ]
+        },
+        "10x-bootstrapper": {
+          "files": [
+            "SKILL.md",
+            "references/bootstrapper-config.yaml",
+            "references/handoff-consumer.md",
+            "references/post-scaffold-verification.md",
+            "references/pre-scaffold-verification.md",
+            "references/refusal-protocol.md",
+            "references/scaffold-merge.md",
+            "references/verification-log-schema.md"
+          ]
+        },
+        "10x-health-check": {
+          "files": [
+            "SKILL.md",
+            "references/health-check-schema.md"
+          ]
+        },
+        "10x-agents-md": {
+          "files": [
+            "SKILL.md"
+          ]
+        },
+        "10x-rule-review": {
+          "files": [
+            "SKILL.md"
+          ]
+        },
+        "10x-lesson": {
+          "files": [
+            "SKILL.md"
+          ]
+        }
+      },
+      "prompts": [
+        "skill-explainer.md"
+      ],
+      "configs": [],
+      "representation": {
+        "lang": "en",
+        "tool": "claude-code",
+        "courseRules": true,
+        "rules": true
+      },
+      "installedReleaseId": "r-01931641e2446d2c391ae2a5580585d7b137173dca2b63b9a85ed32388155a66",
+      "installedManifestHash": "1ec3800cfa5c5d37754debba7e9172f32e71330ee1a29531d6ec8fff1c4bfaaa"
     }
   },
   "managedRules": {
     "path": "CLAUDE.md",
     "begin": "<!-- BEGIN @przeprogramowani/10x-cli -->",
     "end": "<!-- END @przeprogramowani/10x-cli -->",
-    "upstreamHash": "f80b35907ac751c9d8583470fddcc85be00388af8dc3e3d0735f75528a030975"
+    "upstreamHash": "9c611141144fb3f53d5ba2bff0a858c9810c5e41ef16bbbb4c5aa74a21d20b69"
   }
 }
