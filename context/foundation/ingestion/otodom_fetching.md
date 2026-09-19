@@ -1,0 +1,541 @@
+# Fetching data from otodom.pl
+
+Reference notes for building a daily "new apartment listings" notifier.
+Everything below was verified live against production otodom.pl on **2026-09-16**
+from a Polish residential IP using plain `curl` (no browser, no proxy, no API key).
+
+**Target use cases**
+
+1. Fetch a list of offers matching a set of filters.
+2. Fetch one specific offer in full detail.
+
+**Deployment context assumed by this document:** a cloud VM, one cron run per day,
+notifications delivered by email.
+
+---
+
+## 1. Legal and robots.txt boundaries
+
+There is no public Otodom API. Scraping is the only option, so stay inside the
+rules the site itself publishes.
+
+`https://www.otodom.pl/robots.txt` (fetched 2026-09-16) contains
+`User-agent: *` with `Allow: /` plus a disallow list. The relevant entries:
+
+| Rule                                                                                                                                                                              | Consequence for this project                                                                       |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `Disallow: /api/query`                                                                                                                                                            | **Do not use the GraphQL endpoint.** It works and accepts arbitrary queries, but it is off-limits. |
+| `Allow: /api/query?crawl=true`                                                                                                                                                    | The only permitted GraphQL entry point. Undocumented, no introspection, not needed.                |
+| `Disallow: /*?*map=1`                                                                                                                                                             | Do not use map view / bounding-box searches. Use the normal list view.                             |
+| `Disallow: /ajax/`, `/adminpanel/`, `/hpr/`, `/uk/*`, `/drukuj/`, `/platnosci/`, `/oferta/kontakt/`, `/m/oferta/abuse/`, `/pl/login`, `/changelang/`, `/nowe-ogloszenie/confirm*` | Never touch.                                                                                       |
+| `Disallow: /*description={search_term_string}`                                                                                                                                    | This is a search-template placeholder. A real `?description=taras` query is not covered by it.     |
+
+Explicitly **allowed** (not matched by any disallow rule) and therefore what this
+document builds on:
+
+- `/pl/wyniki/...` - the search results page (HTML)
+- `/pl/oferta/...` - the offer detail page (HTML)
+- `/_next/data/{buildId}/pl/wyniki/....json` - the JSON payload behind the search page
+- `/_next/data/{buildId}/pl/oferta/....json` - the JSON payload behind the offer page
+- `/sitemap.xml` and the sitemaps it indexes
+
+Additional non-robots.txt considerations:
+
+- Otodom's Terms of Service prohibit automated data collection. robots.txt
+  compliance does not override that. For a personal, low-volume notifier
+  (one cron run per day, a handful of requests) the practical risk is low, but it
+  is a deliberate choice, not a blanket permission.
+- Offer detail responses include the advertiser's **phone number and full name**
+  (`ad.contactDetails.phones`, `ad.owner.contacts`). That is personal data under
+  GDPR. Do not store or email it unless you actually need it; prefer keeping only
+  the offer URL.
+- Do not redistribute scraped content. Keep it for personal use.
+
+---
+
+## 2. Site architecture
+
+Otodom is a **server-side-rendered Next.js** application (Pages Router). Every
+page ships its full data as JSON inside the HTML:
+
+```text
+<script id="__NEXT_DATA__" type="application/json" crossorigin="anonymous">{...}</script>
+```
+
+This means:
+
+- **No JavaScript execution is needed.** No Playwright, no Selenium, no headless
+  Chrome. `requests` / `httpx` + `json` is enough.
+- **No HTML/CSS-selector parsing is needed.** Selectors on this site are hashed
+  CSS-module classes and change with every deploy. Parse the JSON instead - it is
+  far more stable.
+- The same JSON is also reachable directly, without the HTML wrapper, at
+  `/_next/data/{buildId}/<page-path>.json`. That is the preferred route.
+
+Anti-bot status as observed: **no challenge.** No DataDome, no Cloudflare
+interstitial, no captcha on a plain request with a normal desktop User-Agent.
+There _is_ a reCAPTCHA widget embedded in the page markup, but it guards
+interactive forms (contact / login), not page delivery.
+
+---
+
+## 3. Method A (recommended): the `_next/data` JSON route
+
+### 3.1 Getting `buildId`
+
+The route requires the current Next.js build ID. It changes on every Otodom
+deploy (observed value on 2026-09-16: `jGmeL_RAnlKZBDWFZwXZe`).
+
+Fetch any normal page and read it out of `__NEXT_DATA__`:
+
+```python
+import re, json, httpx
+
+UA = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+      "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36")
+HEADERS = {"User-Agent": UA, "Accept-Language": "pl-PL,pl;q=0.9"}
+
+def next_data(html: str) -> dict:
+    m = re.search(r'id="__NEXT_DATA__"[^>]*>(.*?)</script>', html, re.S)
+    if not m:
+        raise RuntimeError("__NEXT_DATA__ not found - layout changed or request was blocked")
+    return json.loads(m.group(1))
+
+def get_build_id(client: httpx.Client) -> str:
+    r = client.get("https://www.otodom.pl/pl/wyniki/sprzedaz/mieszkanie/cala-polska",
+                   headers=HEADERS, follow_redirects=True, timeout=30)
+    r.raise_for_status()
+    return next_data(r.text)["buildId"]
+```
+
+Cache the `buildId` on disk. Refresh it when a `_next/data` request returns
+**404 with body `{}`** - that is the exact signature of a stale build ID.
+The retry loop should be: request -> 404 -> re-fetch buildId -> request once more -> fail.
+
+### 3.2 Search request
+
+```
+GET https://www.otodom.pl/_next/data/{buildId}/pl/wyniki/{transaction}/{estate}/{location-path}.json?{filters}
+```
+
+Verified working example (Warsaw flats for sale, newest first):
+
+```
+https://www.otodom.pl/_next/data/jGmeL_RAnlKZBDWFZwXZe/pl/wyniki/sprzedaz/mieszkanie/mazowieckie/warszawa/warszawa/warszawa.json?limit=36&by=LATEST&direction=DESC
+```
+
+Notes proven by testing:
+
+- The `x-nextjs-data: 1` header is **not** required.
+- Repeating `searchingCriteria=` query params (which the browser sends) is **not**
+  required; the path segments are enough.
+- Response is pure JSON. Top level is `{"pageProps": {...}, "__N_SSP": true}` -
+  i.e. one level shallower than in `__NEXT_DATA__`, where it sits under
+  `props.pageProps`. Handle both shapes if you share parsing code.
+
+### 3.3 Where the data is
+
+| JSON path (in `pageProps`)        | Contents                                                                                               |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `data.searchAds.items[]`          | The offers on this page                                                                                |
+| `data.searchAds.pagination`       | `{totalItems, totalPages, currentPage, itemsPerPage}`                                                  |
+| `data.searchAds.stats`            | Aggregate price min/max/mean for the current filter set                                                |
+| `data.searchAds.locationsObjects` | Resolved location objects                                                                              |
+| `filteringQueryParams`            | Echo of the filters the server actually applied - **use this to confirm your filters were understood** |
+| `pageHeading`, `locationName`     | Human-readable description of the search                                                               |
+
+`filteringQueryParams` is the single best sanity check: if you send `priceMax` and
+it does not come back in that object, the server ignored it.
+
+---
+
+## 4. Method B (fallback): SSR HTML
+
+Identical data, just wrapped:
+
+```
+GET https://www.otodom.pl/pl/wyniki/sprzedaz/mieszkanie/mazowieckie/warszawa/warszawa/warszawa?limit=36&by=LATEST&direction=DESC
+```
+
+Then `next_data(html)["props"]["pageProps"]`. Payload is ~1.1 MB vs ~215-460 KB
+for the JSON route, so use it only for `buildId` discovery and as a fallback if
+the `_next/data` route ever changes shape.
+
+**Always follow redirects.** Otodom canonicalises some filters into the URL path:
+sending `?roomsNumber=[TWO]` triggers a 301 to
+`/pl/wyniki/sprzedaz/mieszkanie,2-pokoje/...`. With `curl` use `-L`; with `httpx`
+use `follow_redirects=True`. Without it you get a 184-byte body containing only
+the redirect target.
+
+---
+
+## 5. Building the search URL
+
+### 5.1 Path structure
+
+```
+/pl/wyniki/{transaction}/{estate}[,{modifiers}]/{voivodeship}/{county}/{commune}/{city}[/{district}]
+```
+
+| Segment       | Verified values                                                                                                                    |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `transaction` | `sprzedaz`, `wynajem`                                                                                                              |
+| `estate`      | `mieszkanie`, `kawalerka`, `dom`, `dzialka`, `lokal`, `haleimagazyny`, `garaz`, `inwestycja`, `pokoj`                              |
+| `modifiers`   | comma-appended: `mieszkanie,2-pokoje`, `mieszkanie,3-pokoje`, `mieszkanie,rynek-pierwotny`, `lokal,biuro`                          |
+| location      | `cala-polska`, or a hierarchy such as `mazowieckie/warszawa/warszawa/warszawa`, optionally plus a district: `.../warszawa/mokotow` |
+
+Do not hand-build location paths. **Get them from the browser** (section 5.3) or
+from `sitemap_locations_0.xml` (indexed by `/sitemap.xml`).
+
+### 5.2 Query parameters (all verified against `filteringQueryParams`)
+
+| Param                                                        | Example                        | Meaning                                                                                                                                   |
+| ------------------------------------------------------------ | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `limit`                                                      | `24`, `36`, `48`, `72`         | Page size. Larger values work; `72` confirmed.                                                                                            |
+| `page`                                                       | `2`                            | 1-based page index.                                                                                                                       |
+| `by` + `direction`                                           | `by=LATEST&direction=DESC`     | Sort. `LATEST/DESC` = newest first, which is what a notifier wants. `by=DEFAULT` is the site's relevance ranking (promoted offers first). |
+| `priceMin`, `priceMax`                                       | `500000`, `900000`             | PLN, integers.                                                                                                                            |
+| `areaMin`, `areaMax`                                         | `40`, `80`                     | m².                                                                                                                                       |
+| `roomsNumber`                                                | `%5BTWO%5D`, `%5BTWO,THREE%5D` | URL-encoded `[TWO,THREE]`. Enum: `ONE, TWO, THREE, FOUR, FIVE, SIX_OR_MORE`. Triggers a path redirect.                                    |
+| `market`                                                     | `ALL`, `SECONDARY`, `PRIMARY`  | Secondary / primary market.                                                                                                               |
+| `ownerTypeSingleSelect`                                      | `ALL`, `PRIVATE`, `BUSINESS`   | `PRIVATE` = no agencies.                                                                                                                  |
+| `daysSinceCreated`                                           | `1`, `3`, `7`, `14`            | Only offers created in the last N days. **Very useful for a daily cron** - `daysSinceCreated=1` returned 234 results for Warsaw flats.    |
+| `description`                                                | `taras`                        | Free-text match against the description.                                                                                                  |
+| `floorsNumber`, `buildingType`, `extras`, `isExclusiveOffer` | -                              | Exist in the UI; capture the exact param names from the browser when needed.                                                              |
+
+### 5.3 How to obtain an exact filter URL
+
+The reliable procedure, for any filter not listed above:
+
+1. Open otodom.pl, set the filters in the UI, click **Szukaj**.
+2. Wait for the page to finish loading, then copy the URL from the address bar.
+   It must be the post-redirect URL, because Otodom rewrites part of the filter
+   state into the path.
+3. That URL is directly usable for Method B, and its path + query map 1:1 onto
+   Method A.
+4. Confirm by checking that every filter appears in `pageProps.filteringQueryParams`.
+
+Avoid the map view entirely (`?map=1` is disallowed by robots.txt).
+
+---
+
+## 6. Search result item fields
+
+Each element of `data.searchAds.items[]`:
+
+| Field                                                         | Notes                                                                                                                                            |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `id`                                                          | Numeric internal ID, e.g. `68423433`. Stable. **Use as the dedup key.**                                                                          |
+| `slug`                                                        | `idealne-na-start-lub-inwestycje-ul-orzycka-ID4D63L` - ends with `ID<publicCode>`                                                                |
+| `title`                                                       | Advertiser-written headline                                                                                                                      |
+| `estate`, `transaction`                                       | `FLAT`, `SELL`                                                                                                                                   |
+| `totalPrice`                                                  | `{value, currency}`; may be `null` when `hidePrice` is true                                                                                      |
+| `pricePerSquareMeter`, `priceFromPerSquareMeter`, `rentPrice` | Money objects                                                                                                                                    |
+| `areaInSquareMeters`, `terrainAreaInSquareMeters`             | Numbers                                                                                                                                          |
+| `roomsNumber`                                                 | Enum string, e.g. `TWO`                                                                                                                          |
+| `floorNumber`                                                 | e.g. `FLOOR_3`, `GROUND`                                                                                                                         |
+| `dateCreated`                                                 | `"2026-09-15 18:35:19"` - naive local time, **note the non-ISO format**                                                                          |
+| `createdAtFirst`                                              | `"2026-09-15T18:35:05Z"` - ISO/UTC, the original publication moment. **Prefer this one.**                                                        |
+| `pushedUpAt`                                                  | Non-null when the advertiser re-promoted an old offer. Guard against this so a bump is not reported as a new offer.                              |
+| `isPrivateOwner`, `isPromoted`, `isExclusiveOffer`            | Booleans                                                                                                                                         |
+| `agency`                                                      | `{id, name, slug, imageUrl, type}` or `null`                                                                                                     |
+| `location`                                                    | `address.street/city/province` + `reverseGeocoding.locations[]` with `locationLevel` of `voivodeship / city_or_village / district / residential` |
+| `images[]`                                                    | `{small, medium, large}` CDN URLs on `ireland.apollo.olxcdn.com`                                                                                 |
+| `totalPossibleImages`                                         | Photo count                                                                                                                                      |
+| `shortDescription`                                            | Truncated description                                                                                                                            |
+| `tags[]`                                                      | `[{value: "BALCONY", weight: 35}, ...]`                                                                                                          |
+| `development*`                                                | Populated for new-build investment listings                                                                                                      |
+
+Offer URL from an item:
+
+```python
+url = f"https://www.otodom.pl/pl/oferta/{item['slug']}"
+```
+
+Ignore `item['href']` - it is an internal route template (`[lang]/ad/<slug>`).
+
+**Off-by-one warning:** the API returns `limit + 1` items (25 for `limit=24`,
+49 for 48, 73 for 72). One extra promoted/premium tile is injected. Do not
+compute pagination from `len(items)`; use `pagination.totalPages` /
+`pagination.itemsPerPage`.
+
+---
+
+## 7. Fetching a single offer
+
+### 7.1 URL in, data out (the simplest use case)
+
+This is the cheapest thing to build against Otodom and a good first milestone:
+one function, offer URL as the only argument, structured data as the return
+value. No `buildId`, no filter translation, no pagination, no state.
+
+Reuses `HEADERS` and `next_data()` from section 3.1:
+
+```python
+import httpx
+
+def fetch_offer(client: httpx.Client, url: str) -> dict:
+    """Any canonical Otodom offer URL -> the full ad object."""
+    r = client.get(url, headers=HEADERS, follow_redirects=True, timeout=30)
+    r.raise_for_status()
+    props = next_data(r.text)["props"]["pageProps"]
+    ad = props.get("ad")
+    if ad is None:
+        raise LookupError(f"no ad payload (expired or removed): {url}")
+    return ad
+```
+
+Why the HTML route and not `_next/data` here: for a single ad the HTML route
+needs no `buildId`, so it cannot break on a deploy (see 3.1). You pay ~519 KB
+instead of ~78 KB for one request, which is irrelevant at this volume. Use the
+JSON route from 7.2 only if you are already refreshing offers in bulk.
+
+Accepts any canonical offer URL, with or without the `/pl/` prefix, with or
+without query string, and follows the redirect if the slug changed.
+
+Checks worth having in that function:
+
+| Condition                                                   | Meaning                           | Suggested handling                             |
+| ----------------------------------------------------------- | --------------------------------- | ---------------------------------------------- |
+| `HTTPError 404`                                             | Offer removed or wrong URL        | Mark inactive locally, do not retry            |
+| `pageProps.ad` missing but `shouldShowExpiredAdPage` truthy | Offer expired, page still renders | Mark expired, keep last known snapshot         |
+| `__NEXT_DATA__` regex miss                                  | Site shape changed                | Fail loudly; do not fall back to HTML scraping |
+
+A minimal, useful projection of the return value - enough for a notification
+email, no personal data stored:
+
+```python
+def summarise(ad: dict) -> dict:
+    ch = {c['key']: c.get('value') for c in ad.get('characteristics', [])}
+    floor = ch.get('floor_no')                      # e.g. 'floor_7', 'ground_floor'
+    return {
+        'id':          ad['id'],
+        'title':       ad['title'],
+        'url':         ad['url'],
+        'price':       ch.get('price'),             # 800000
+        'rent':        ch.get('rent'),              # 1200 - service charge, not in price
+        'price_per_m': ch.get('price_per_m'),
+        'area_m2':     ch.get('m'),                 # 61.5
+        'rooms':       ch.get('rooms_num'),
+        'floor':       floor,
+        'floors_total': ch.get('building_floors_num'),
+        'build_year':  ch.get('build_year'),
+        'building':    ch.get('building_type'),     # 'block', 'tenement', ...
+        'condition':   ch.get('construction_status'),
+        'market':      ad.get('market'),            # SECONDARY / PRIMARY
+        'seller':      ad.get('advertType'),        # PRIVATE / AGENCY / DEVELOPER
+        'created_at':  ad.get('createdAt'),
+        'lat':         ad['location']['coordinates']['latitude'],
+        'lon':         ad['location']['coordinates']['longitude'],
+        'photo':       (ad.get('images') or [{}])[0].get('medium'),
+    }
+```
+
+**Trap in `characteristics`, verified on a live ad:** `localizedValue` is filled
+in only for numeric and monetary entries (`price`, `rent`, `price_per_m`, `m`,
+`rooms_num`, `build_year`, `building_floors_num`, `free_from`). For every enum
+entry - `market`, `floor_no`, `building_type`, `construction_status`,
+`building_material`, `heating`, `windows_type`, `building_ownership`,
+`energy_certificate` - it is an **empty string**. Read `value` instead and map
+the token yourself; `floor_no` arrives as `floor_7`, not `7`. Currency lives in
+the `currency` field of the entry, not inside `value`.
+
+Deliberately omitted: `owner`, `agency`, `contactDetails`. They carry names and
+phone numbers, and section 1 explains why you do not want that in your database.
+
+Verified end to end on 2026-09-17: newest Warsaw listing pulled from a search
+page, then `fetch_offer` on its URL returned an `ad` object with **62 keys** and
+every field above populated. A nonexistent slug raised `HTTPError 404`.
+
+`httpx` is a hard dependency of the snippets in this document. If you prefer
+`requests`, the only changes are `follow_redirects=` → `allow_redirects=` and
+the client constructor; both were tested and behave identically here.
+
+### 7.2 Both routes
+
+Given the slug `mieszkanie-49-m-warszawa-ID4CZR6`, the public code is the part
+after the trailing `ID`, i.e. `4CZR6`.
+
+**JSON route (preferred for bulk):**
+
+```
+GET https://www.otodom.pl/_next/data/{buildId}/pl/oferta/mieszkanie-49-m-warszawa-ID4CZR6.json?id=4CZR6
+```
+
+Verified: 200, ~78 KB. The `id` query param is part of the route contract.
+
+**HTML route:**
+
+```
+GET https://www.otodom.pl/pl/oferta/mieszkanie-49-m-warszawa-ID4CZR6
+```
+
+Verified: 200, ~519 KB, then parse `__NEXT_DATA__`.
+
+### 7.3 Field map
+
+Data lives at `pageProps.ad` (~60 fields). The useful ones:
+
+| Field                                   | Notes                                                                                                                                                                                                                            |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                                    | Same numeric ID as in the search item                                                                                                                                                                                            |
+| `title`, `slug`, `url`                  | Canonical absolute URL included                                                                                                                                                                                                  |
+| `description`                           | Full description, **HTML markup** - strip or render it                                                                                                                                                                           |
+| `createdAt`, `modifiedAt`, `pushedUpAt` | ISO/UTC                                                                                                                                                                                                                          |
+| `status`                                | `active`; expired offers set `shouldShowExpiredAdPage`                                                                                                                                                                           |
+| `market`                                | `SECONDARY` / `PRIMARY`                                                                                                                                                                                                          |
+| `advertType`                            | `PRIVATE` / `AGENCY` / `DEVELOPER`                                                                                                                                                                                               |
+| `advertiserType`                        | Related classification                                                                                                                                                                                                           |
+| `characteristics[]`                     | `[{key, value, localizedValue, currency}]` with keys `price`, `rent`, `price_per_m`, `m`, `market`, `building_type`, `floor_no`, `construction_status`, ... **The cleanest source of the numeric facts.**                        |
+| `target`                                | Flat ad-targeting dict: `Area`, `Build_year`, `Building_floors_num`, `Building_material`, `Building_ownership`, `Building_type`, `Construction_status`, `Extras_types`, `Floor_no`, `City`, `City_id`, `MarketType`, `OfferType` |
+| `features`, `featuresByCategory`        | Amenity lists                                                                                                                                                                                                                    |
+| `location.coordinates`                  | `{latitude, longitude}`                                                                                                                                                                                                          |
+| `location.reverseGeocoding.locations[]` | District / neighbourhood hierarchy                                                                                                                                                                                               |
+| `images[]`, `floorPlans`, `videos`      | Media                                                                                                                                                                                                                            |
+| `owner`, `agency`, `contactDetails`     | **Contains name and phone number - personal data, see section 1**                                                                                                                                                                |
+| `links`, `breadcrumbs`, `seo`           | Navigation metadata                                                                                                                                                                                                              |
+
+---
+
+## 8. Detecting new offers on a daily schedule
+
+Recommended algorithm, one cron run per day:
+
+1. For each saved search, request page 1 with
+   `by=LATEST&direction=DESC&daysSinceCreated=3&limit=72`.
+   `daysSinceCreated=3` gives ~48 h of slack for a missed or failed run while
+   keeping the payload small; `LATEST/DESC` guarantees the newest offers are on
+   page 1 so a single request is usually enough.
+2. Read `pagination.totalPages`. Page further only while the oldest
+   `createdAtFirst` on the current page is still newer than your watermark, and
+   cap it (e.g. 5 pages) so a bad filter cannot trigger a crawl.
+3. For each item, skip it if `id` already exists in your local store (SQLite is
+   plenty). Store `id`, `createdAtFirst`, `totalPrice.value`, `slug`,
+   `first_seen_at`, `notified_at`.
+4. Treat an item as new only when its `id` is unseen. Do **not** key on
+   `dateCreated` or `pushedUpAt`: advertisers bump old offers, which refreshes
+   `dateCreated` while `createdAtFirst` stays put.
+5. Optional price-drop alerts: compare stored `totalPrice.value` against the
+   current one for already-known IDs.
+6. Only fetch the offer detail endpoint for items you are actually going to email
+   about, and only if the list fields are insufficient. The list item alone
+   already carries price, area, rooms, floor, district, first photo and a short
+   description, which is enough for a useful notification.
+7. Email the batch as one digest per run, with a link per offer. One email a day
+   beats one email per offer.
+
+Request budget for a typical setup: 1 request for `buildId` + 1-2 per saved
+search. With 3 saved searches that is roughly 5-7 requests per day.
+
+---
+
+## 9. Running in the cloud
+
+This is the one thing that could not be verified from a residential connection.
+Datacenter IP ranges (Hetzner, OVH, AWS, GCP, DigitalOcean) are a common trigger
+for bot defences even when the same request succeeds from a home network.
+
+**Run this preflight on the target VM before writing any code:**
+
+```bash
+curl -sS -o /dev/null -w "%{http_code}\n" \
+  -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36" \
+  -H "Accept-Language: pl-PL,pl;q=0.9" \
+  "https://www.otodom.pl/pl/wyniki/sprzedaz/mieszkanie/mazowieckie/warszawa/warszawa/warszawa"
+```
+
+- `200` -> proceed as documented.
+- `403` / `429` / a captcha body -> the plain HTTP approach will not hold. Options,
+  in order of preference: host it on a residential connection (an always-on
+  Raspberry Pi with a daily cron is a perfect fit for one run per day), or place a
+  Polish residential proxy in front of the requests. A headless browser does not
+  help against IP reputation.
+
+Also prefer a **Polish or European egress**; the site serves `/uk/*` variants and
+geo-differentiated content, and `/uk/*` is robots-disallowed.
+
+---
+
+## 10. Request etiquette
+
+- **User-Agent:** send a realistic desktop Chrome UA. Do not send a blank UA and
+  do not impersonate `Googlebot`. If you want to be transparent, a custom UA with
+  contact info is the most honest option, but it also makes blocking trivial.
+- **Accept-Language:** `pl-PL,pl;q=0.9`.
+- **Rate:** 8 back-to-back requests all returned 200 in 0.6-1.0 s with no
+  throttling. Still, keep 1-2 s between requests, run sequentially, never in
+  parallel. A daily job has no reason to hurry.
+- **Cookies:** not required. A cookie jar reused across requests looks more
+  natural but is unnecessary.
+- **Retries:** exponential backoff on 5xx and on timeouts; a maximum of 3
+  attempts. On 403/429 abort the whole run and alert yourself rather than
+  retrying.
+- **Compression:** let the client negotiate gzip; the payloads are large.
+- **Conditional requests:** not usable, these pages are dynamic.
+
+---
+
+## 11. Failure modes and how to detect them
+
+| Symptom                                    | Cause                                                                 | Action                                                                                |
+| ------------------------------------------ | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `404` with body `{}` on a `_next/data` URL | Stale `buildId` (Otodom deployed)                                     | Re-read `buildId` from HTML, retry once                                               |
+| `__NEXT_DATA__` regex finds nothing        | Blocked / challenge page, or the app moved to the App Router          | Log the raw body, alert, do not retry in a loop                                       |
+| `KeyError: 'searchAds'`                    | Payload shape changed, or the URL redirected to a different page type | Assert on `pageProps.filteringQueryParams` and `data.searchAds` early and fail loudly |
+| Filters silently ignored                   | Wrong param name or a value that failed validation                    | Diff your intended filters against `filteringQueryParams` on every run                |
+| 184-byte response                          | An unfollowed 301 (filter canonicalised into the path)                | Enable redirect following                                                             |
+| `403` / `429`                              | IP reputation or rate limiting                                        | See section 9                                                                         |
+| Item count is `limit + 1`                  | Injected promoted tile                                                | Expected, see section 6                                                               |
+
+Build the scraper so that **any** unexpected shape raises rather than silently
+producing an empty result set: a notifier that quietly reports "no new offers"
+forever is worse than one that crashes.
+
+---
+
+## 12. Things not to do
+
+- Do not use `POST /api/query` (the GraphQL endpoint). It is robots-disallowed.
+  For the record: it responds 200 to arbitrary queries, introspection is disabled,
+  and only `?crawl=true` is permitted - but the documented `_next/data` route
+  covers both use cases, so there is no reason to go there.
+- Do not use map/bounding-box searches (`?map=1`) - robots-disallowed.
+- Do not use a headless browser. It buys nothing here and multiplies cost,
+  fragility and detectability.
+- Do not scrape by CSS selectors. The class names are per-build hashes.
+- Do not crawl the whole site. Fetch only your saved searches.
+- Do not expect per-offer sitemaps. `/sitemap.xml` only indexes
+  `sitemap_agencies_0.xml`, `sitemap_categories_0.xml` and
+  `sitemap_locations_0.xml`; it is useful for resolving location paths, not for
+  offer discovery.
+- Do not store or forward advertiser phone numbers without a reason.
+
+---
+
+## 13. Verification log
+
+Performed 2026-09-16, plain `curl`, Polish residential IP, no proxy:
+
+| Check                                                  | Result                                                                                            |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| `GET /pl/wyniki/...` (HTML)                            | `200`, 1 174 672 B, `__NEXT_DATA__` present                                                       |
+| `GET /pl/oferta/...-ID4CZR6` (HTML)                    | `200`, 519 107 B, `pageProps.ad` complete                                                         |
+| `GET /_next/data/{buildId}/pl/wyniki/....json`         | `200`, 215-458 KB, pure JSON                                                                      |
+| `GET /_next/data/{buildId}/pl/oferta/...json?id=4CZR6` | `200`, 78 315 B                                                                                   |
+| Filters `priceMin/priceMax/areaMin/roomsNumber`        | Applied; echoed in `filteringQueryParams`; 3 283 items / 92 pages                                 |
+| `daysSinceCreated=1`                                   | `200`, 234 items - newest `2026-09-16 18:55:51`                                                   |
+| Sort `by=LATEST&direction=DESC`                        | Correct descending `createdAtFirst` order                                                         |
+| `limit=24 / 48 / 72`                                   | `itemsPerPage` honoured; `len(items) == limit + 1`                                                |
+| 8 consecutive requests                                 | 8x `200`, 0.57-1.02 s, no throttling                                                              |
+| Anti-bot challenge                                     | None                                                                                              |
+| Invalid `buildId`                                      | `404`, body `{}`                                                                                  |
+| `x-nextjs-data` header omitted                         | Still `200`                                                                                       |
+| `searchingCriteria` params omitted                     | Still `200`                                                                                       |
+| GraphQL introspection                                  | Disabled (`"introspection disabled"`)                                                             |
+| `buildId` at time of writing                           | `jGmeL_RAnlKZBDWFZwXZe` (expect it to have changed)                                               |
+| `fetch_offer()` on a live offer URL (7.1)              | `200`, `ad` object with 62 keys, all summary fields populated                                     |
+| Nonexistent offer slug                                 | `HTTPError 404`                                                                                   |
+| `characteristics[].localizedValue`                     | Populated for numeric/monetary entries only; **empty string for every enum entry** - read `value` |
+
+Re-run the checks in this table before trusting the document; Otodom is a moving
+target and the payload shape is not a contract.
