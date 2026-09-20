@@ -42,7 +42,8 @@ Astro 7 SSR app (React 19 islands, Tailwind 4, Supabase auth) deployed to Cloudf
 
 ### Git
 
-- Never commit or push directly to `master`, and never rewrite history (`--force`, `--amend`, `reset --hard`, `git branch -D`). Ship with `/git-ship`. The rest of the workflow is in `## Git workflow` below.
+- Never rewrite history (`--force`, `--amend`, `reset --hard`, `git branch -D`), and never commit or push by hand — a change leaves the tree through a skill, never through a raw `git push`.
+- Two skills do that, and **the agent asks which one before it starts, every time** — it never picks for the user. `/git-ship` is the reviewed path: a `10x-` branch, a push, a pull request, and the user back on `master` with a clean tree. `/git-land` is the unreviewed one: it commits on `master` and pushes straight to `origin`, no branch and no PR, and it aborts unless the user is already standing on `master`. Neither is the default, because the choice is the user's; when the answer is "whichever", that means `/git-ship`, since a PR can be closed and a push to `master` cannot be taken back. The rest of the workflow is in `## Git workflow` below.
 
 ## Product invariants
 
@@ -84,12 +85,12 @@ There is no unit-test runner; `scripts/smoke.mjs` is the only test surface — w
 
 ## Git workflow
 
-Changes are written in the `master` working tree and leave it through `/git-ship` — so after shipping, the change is no longer in your tree. The skill's own description is the account of what it does; the part worth knowing before you start is that it stops when `master` is behind `origin`, and `/git-sync` (fast-forward only) is what unblocks it.
+Changes are written in the `master` working tree and leave it through one of two skills, and the agent asks which one rather than assuming (see `### Git` above). Each skill's own description is the account of what it does; the parts worth knowing before you start are these. `/git-ship` moves the change onto a branch, so afterwards it is no longer in your tree. `/git-land` leaves it where it is and pushes `master` itself, so afterwards your tree is clean but the change is on the default branch with nothing between it and `origin` — it confirms once before that push. Both stop when `master` is behind `origin`, and `/git-sync` (fast-forward only) is what unblocks them.
 
-- Branch slugs are 2–5 words; `/git-ship` normalises the rest.
+- Branch slugs are 2–5 words; `/git-ship` normalises the rest. `/git-land` asks for no slug — it creates no branch.
 - Commit subjects: English, imperative, one line, 70 characters max, no `feat:`/`fix:` prefixes, no trailing period.
 - Do not overstate automation. Because every fetch, re-fetch and audit is a deliberate manual action (see Product invariants), a message calling one of them "automatic" misdescribes the product. If the behaviour stops to ask the user, write "offer", "prompt" or "ask".
-- PRs target `master`; both CI jobs must pass (`@.github/workflows/ci.yml`).
+- PRs target `master`; both CI jobs must pass (`@.github/workflows/ci.yml`). A `/git-land` push skips that gate entirely — CI runs on `master` after the fact, so anything that would not survive review belongs in a PR.
 
 ## Forward-looking (no instances in the repo yet)
 
