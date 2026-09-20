@@ -13,6 +13,8 @@ sources:
 
 # Plan wdrożenia Vetpad na Cloudflare Workers
 
+> **Ten dokument jest artefaktem jednej zmiany i trafi do `context/archive/`.** Wiedza operacyjna, która ma przeżyć archiwizację — procedury, rollback, logi, pułapki o mylących objawach i warunki wyzwalające dla Apify oraz planu płatnego — mieszka w `@context/foundation/deployment-runbook.md`. Jeśli szukasz „jak wdrożyć" albo „dlaczego produkcja się zachowuje dziwnie", tamten plik jest właściwy; ten opisuje, jak doszło do pierwszego wdrożenia.
+
 ## Kontekst
 
 Repozytorium jest skonfigurowane pod Cloudflare Workers (`wrangler.jsonc`, `@astrojs/cloudflare` ^14.3, `wrangler` ^4.131), ale nigdy nie zostało wdrożone: nie ma konta Cloudflare, nie ma hostowanego Supabase, nie ma produkcyjnych sekretów. `@context/foundation/infrastructure.md` wybrał platformę i spisał rejestr ryzyk — ten plan zamyka lukę między drzewem plików a działającą produkcją.
@@ -536,17 +538,24 @@ Job `smoke` sekretów nie potrzebuje — startuje własne Supabase w kontenerze.
 
 ---
 
-## Faza 6 — Auto-deploy: Workers Builds ⏳
+## Faza 6 — Auto-deploy: Workers Builds ✅
 
-**Skonfigurowane 2026-09-20, weryfikacja w toku.**
+**Skonfigurowane i zweryfikowane 2026-09-20.** Push na `master` (commit `1af2f73`) uruchomił build w Cloudflare, który zbudował i wdrożył aplikację bez udziału człowieka:
 
-Stan wersji Workera bezpośrednio po konfiguracji: trzy wersje, wszystkie z pracy ręcznej — `Upload` (pierwszy `wrangler deploy`) i dwie `Secret Change` (`wrangler secret put`). Żadnej pochodzącej z buildu.
+| Czas (UTC) | Zdarzenie | Źródło wg API |
+| --- | --- | --- |
+| 12:45:23 | wersja `941d57f8` utworzona | `version_upload` |
+| 12:45:24 | deployment, **100% ruchu** na tej wersji | `deployment` |
 
-> **To nie jest objaw błędu i warto wiedzieć dlaczego.** Workers Builds uruchamia się **przy pushu**, nie w momencie podłączenia repozytorium. Jeśli konfigurujesz go po ostatnim pushu, lista wersji nie zmieni się aż do następnego. Brak buildu tuż po konfiguracji nie odróżnia „działa" od „nie działa".
->
-> `wrangler` nie ma komendy do Workers Builds (`wrangler builds` nie istnieje), więc z terminala nie da się tego sprawdzić. Rozstrzyga dopiero push na `master` i pojawienie się wersji o innym źródle niż `Upload` / `Secret Change`.
+> **Nie daj się zmylić etykietom.** `wrangler deploy` to dwa kroki: wgranie wersji, potem jej promocja. API zapisuje je osobno, więc na liście wersji widnieje `version_upload` — co wygląda jak `wrangler versions upload`, czyli polecenie dla gałęzi **nie**produkcyjnych. Rozstrzyga dopiero `wrangler deployments list`: jeśli nowa wersja obsługuje 100% ruchu, deploy się odbył.
 
-Commit, który wprowadza ten akapit, jest jednocześnie testem tej fazy.
+Weryfikacja produkcji po automatycznym wdrożeniu: `/` i `/auth/signin` → 200, `/dashboard` → 302, baner konfiguracyjny nadal nieobecny, Supabase osiągalny, brak 1102.
+
+**Sekrety przetrwały automatyczne wdrożenie** — potwierdzenie w praktyce tego, na czym oparto decyzję z Fazy 2.2: sekrety są per-Worker, nie per-wersja. Ta sama właściwość jest powodem, dla którego preview URL-e muszą zostać wyłączone.
+
+### Konfiguracja, która zadziałała
+
+> **Bezpośrednio po konfiguracji lista wersji się nie zmieni — i to nie jest objaw błędu.** Workers Builds uruchamia się **przy pushu**, nie w momencie podłączenia repozytorium. Jeśli konfigurujesz go po ostatnim pushu, nic się nie wydarzy aż do następnego, a `wrangler` nie ma komendy do Workers Builds (`wrangler builds` nie istnieje), więc z terminala nie da się tego podejrzeć. Cisza po konfiguracji nie odróżnia „działa" od „nie działa" — rozstrzyga dopiero push.
 
 ### Konfiguracja do odhaczenia
 
