@@ -120,10 +120,15 @@ something other than what they are, which is the only reason this table exists.
 
 ### Ingestion starts failing (otodom)
 
-**Verified 2026-09-20: otodom serves Cloudflare's egress** — HTTP 200 with
-`__NEXT_DATA__` present, no captcha, no `cf-mitigated` header
-(`@context/foundation/ingestion/otodom_fetching.md` § 9.1). So the direct path in
-§ 7.1 is the one in use: one `fetch`, one bounded `RegExp`, `JSON.parse`.
+**Verified 2026-09-20 on both routes: otodom serves Cloudflare's egress.** The
+search page returned HTTP 200 with `__NEXT_DATA__` present, no captcha and no
+`cf-mitigated` header; a second probe then walked the full § 7.1 path against a live
+**offer** page — `RegExp`, `JSON.parse`, and `props.pageProps.ad` with its documented
+62 keys, all from Cloudflare's egress
+(`@context/foundation/ingestion/otodom_fetching.md` § 9.1). Verifying the offer route
+separately mattered: the preflight in § 9 uses a search URL, and that is not the route
+FR-004 fetches. So the direct path is the one in use: one `fetch`, one bounded
+`RegExp`, `JSON.parse`.
 
 One observation is not permanent access. Blocking of datacenter ranges arrives
 gradually, so **log every non-200 fetch status distinctly from a parse failure** —
@@ -153,15 +158,19 @@ failure mode. Three things to know before starting:
 ### The CPU ceiling is reached
 
 The Free plan carried deploy zero with room to spare: Astro SSR showed no 1102, and
-a probe decoded 1.2 MB of HTML and scanned it without tripping the limit. That
-measurement was taken against an **almost empty application** and does not predict
-the one that ingests listings.
+a probe decoded 1.2 MB of HTML and scanned it without tripping the limit.
 
-Re-measure before these land on `master`:
+**The FR-004 ingestion cost has since been measured, and the earlier warning in this
+file overstated it.** A probe ran the full section 7.1 path against a live offer page
+on the Free plan: `RegExp` plus `JSON.parse` completed in **under a millisecond**, no
+1102. The reason the fear was misplaced is worth keeping — the offer page is ~558 KB
+of *HTML*, but the embedded `__NEXT_DATA__` JSON is only ~102 KB, a fifth of it. The
+parse was never operating on the number that made it look expensive.
 
-- **FR-004 ingestion** — `JSON.parse` over a full `__NEXT_DATA__` payload builds
-  objects and is categorically more expensive than a substring scan. This is the
-  single heaviest CPU consumer in the product.
+Still re-measure before this lands on `master`:
+
+- **FR-004 ingestion** — measured cheap on one offer; confirm on the longest listing
+  you can find, since description length is the variable this scales with.
 - **FR-010 audit** — parsing the model's structured output is small, but it adds to
   an existing budget. The model call itself costs almost no CPU: waiting on `fetch`
   is not metered, and HTTP-triggered Workers have no duration limit on Free either.

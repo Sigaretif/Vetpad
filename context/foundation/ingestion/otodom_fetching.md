@@ -349,6 +349,20 @@ def summarise(ad: dict) -> dict:
     }
 ```
 
+**Second trap, verified on a live ad 2026-09-20 (`ID4CZQU`): a missing value arrives
+as `"0"`, not as a missing key.** That offer returned `rent: "0"` — service charge
+zero — for a 1975 block where a zero czynsz is not credible. Otodom's form appears to
+default the field rather than omit it, so `characteristics` cannot be read as
+"present means stated". Mapped straight through, the product prints "Czynsz: 0 zł",
+which is a fabricated fact about a cost the buyer pays monthly.
+
+This is the exact failure `@context/foundation/prd.md` guards against under Success
+Criteria → Guardrails ("Missing data reads 'unknown', never 'no' and never zero"),
+and the code that causes it looks perfectly correct. Treat `"0"` from `rent` as
+unknown, and check every other numeric entry for the same behaviour before trusting
+it. Distinguishing "stated as zero" from "not stated" is not possible from this
+payload alone — which is itself the answer: report unknown.
+
 **Trap in `characteristics`, verified on a live ad:** `localizedValue` is filled
 in only for numeric and monetary entries (`price`, `rent`, `price_per_m`, `m`,
 `rooms_num`, `build_year`, `building_floors_num`, `free_from`). For every enum
@@ -522,8 +536,30 @@ fetched the Warsaw search results page from Cloudflare's egress with the
 | Body size | 1,235,304 bytes |
 | Round trip | 1,021 ms |
 
-So the direct path in section 7.1 is open to a Worker on this account today. Two
-caveats before treating it as settled: one observation is not a guarantee of
+**The offer page was verified separately on 2026-09-20**, because the check above
+uses a *search results* page and FR-004 fetches `/pl/oferta/...` — a different route
+that could in principle be protected differently. A second throwaway Worker
+(`vetpad-offer-probe`) walked the whole of section 7.1 against one live offer from
+Cloudflare's egress:
+
+| Step | Result |
+| --- | --- |
+| HTTP status | **200**, no redirect |
+| `__NEXT_DATA__` via the bounded `RegExp` | found |
+| `JSON.parse` | no error |
+| `props.pageProps.ad` | present, **62 keys** — matches section 7.1 |
+| `shouldShowExpiredAdPage` | false |
+| HTML / embedded JSON size | 558,209 B / **102,338 B** |
+| `RegExp` + `JSON.parse` wall time | **below 1 ms**, on the Workers **Free** plan |
+
+Three things that payload settled, each recorded where it belongs: the CPU cost of
+parsing is negligible (the JSON is a fifth of the HTML, not the whole of it);
+`localizedValue` behaves exactly as the trap above describes (empty for `floor_no`,
+filled for `price`); and `contactDetails`, `owner` and `agency` were all present, so
+the personal-data rule in `@CLAUDE.md` is live rather than theoretical.
+
+So the direct path in section 7.1 is open to a Worker on this account today, end to
+end and not merely at the HTTP layer. Two caveats before treating it as settled: one observation is not a guarantee of
 sustained access — blocking of datacenter ranges tends to arrive gradually, so
 log every non-200 fetch status distinctly from a parse failure, and re-run this
 probe if ingestion starts failing intermittently. A 403 is still handled by the
