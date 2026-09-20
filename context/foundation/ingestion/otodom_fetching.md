@@ -508,13 +508,26 @@ express in a Worker**. Direct OLX scraping is off the table on this platform;
 OLX needs either a third-party scraping service or a runtime with a real socket
 stack (Cloudflare Containers, a VM).
 
-**2. Egress is a Cloudflare datacenter range.** Unverified against Otodom as of
-2026-09-19. Otodom showed no bot defences from a residential Polish IP, so it
-will probably work, but neither local workerd nor the preflight above can tell
-you: the only way to observe it before shipping is a throwaway Worker that does
-nothing but the preflight fetch and logs the status code. Vetpad deliberately
-does not do that — the scraper ships as written, and a 403 is handled by the
-fallback below rather than by verifying first.
+**2. Egress is a Cloudflare datacenter range. VERIFIED 2026-09-20: Otodom serves
+it.** A throwaway Worker (`vetpad-egress-probe`, deployed, called once, deleted)
+fetched the Warsaw search results page from Cloudflare's egress with the
+`User-Agent` and `Accept-Language` headers from section 3.1. Result:
+
+| Field | Value |
+| --- | --- |
+| HTTP status | **200** |
+| `__NEXT_DATA__` present | **yes** |
+| Captcha / interstitial markers | none |
+| `cf-mitigated` header | absent |
+| Body size | 1,235,304 bytes |
+| Round trip | 1,021 ms |
+
+So the direct path in section 7.1 is open to a Worker on this account today. Two
+caveats before treating it as settled: one observation is not a guarantee of
+sustained access — blocking of datacenter ranges tends to arrive gradually, so
+log every non-200 fetch status distinctly from a parse failure, and re-run this
+probe if ingestion starts failing intermittently. A 403 is still handled by the
+fallback below rather than by abandoning ingestion.
 
 If the preflight fails, the fallback is a third-party scraping service. That
 path is fully verified and documented separately in `otodom_apify.md`, including
