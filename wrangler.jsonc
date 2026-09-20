@@ -9,6 +9,12 @@
     "directory": "./dist",
     "not_found_handling": "404-page",
   },
+  // No "limits" block on purpose: limits.cpu_ms is rejected on the Workers Free plan
+  // (API error 100328) and would block the deploy. Add "limits": { "cpu_ms": 300000 }
+  // in the same change that upgrades to Workers Paid — the Paid default is 30s, not 5 min.
+  // Secrets are per-Worker, not per-version: a preview URL would serve production
+  // Supabase credentials publicly. Re-enable only behind Cloudflare Access.
+  "preview_urls": false,
   "observability": {
     "enabled": true,
   },

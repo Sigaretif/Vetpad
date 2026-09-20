@@ -15,7 +15,7 @@ A modern, opinionated starter template for building fast, accessible web applica
 
 ## Prerequisites
 
-- Node.js v22.14.0 (as specified in `.nvmrc`)
+- Node.js v22.23.2 (as specified in `.nvmrc` — the version Cloudflare's build image preinstalls)
 - npm (comes with Node.js)
 
 ## Getting Started
@@ -118,15 +118,19 @@ No database tables or migrations are required — this project uses Supabase Aut
 
 If you prefer to use a hosted Supabase project, add these variables to your `.env` and `.dev.vars` files:
 
-| Variable       | Description                                                |
-| -------------- | ---------------------------------------------------------- |
-| `SUPABASE_URL` | Project URL from Supabase dashboard → Settings → API       |
-| `SUPABASE_KEY` | `anon` public key from Supabase dashboard → Settings → API |
+| Variable       | Description                                                                 |
+| -------------- | --------------------------------------------------------------------------- |
+| `SUPABASE_URL` | Project URL from Supabase dashboard → Settings → API                        |
+| `SUPABASE_KEY` | **Publishable** key from Supabase dashboard → Settings → **API Keys**       |
 
 ```
 SUPABASE_URL=https://<project-ref>.supabase.co
-SUPABASE_KEY=<anon-key>
+SUPABASE_KEY=sb_publishable_...
 ```
+
+Supabase is retiring the `anon` / `service_role` naming by the end of 2026. A project created today shows **publishable** (`sb_publishable_...`) and **secret** (`sb_secret_...`) under Settings → API Keys; an older project may still show `anon` and `service_role` under Settings → API. The mapping is one to one — publishable replaces `anon`, and that is the one this app uses.
+
+> Never use the **secret** / `service_role` key here. It bypasses row-level security entirely, and it fails silently: the app works, and the database is wide open. The correct key starts with `sb_publishable_`, never `sb_secret_`.
 
 ### Email confirmation in local development
 
@@ -151,21 +155,28 @@ Route protection is handled in `src/middleware.ts`. Add paths to the `PROTECTED_
 
 ## Deployment
 
-This project deploys to [Cloudflare Workers](https://workers.cloudflare.com/).
+This project deploys to [Cloudflare Workers](https://workers.cloudflare.com/) — **not** Cloudflare Pages. `@astrojs/cloudflare` v14 dropped Pages support entirely, so `wrangler pages deploy` is wrong for this repository.
 
-1. Build the project:
+**Runs on the Workers Free plan.** Cloudflare meters **CPU time**, not request duration: waiting on `fetch()` does not count toward it, and HTTP-triggered Workers have no hard duration limit while the client stays connected — on Free too. The only open question is whether CPU-bound work fits in Free's 10 ms per invocation, which is measured once real ingestion and audit code exists. The symptom to watch for is error **1102 "Worker exceeded resource limits"** — it reads like a code bug and is not one. See `context/changes/deployment/deployment-plan.md` → "Kiedy wrócić do pytania o plan płatny".
+
+> `wrangler.jsonc` deliberately carries **no `limits` block**: `limits.cpu_ms` is rejected on the Free plan (API error 100328) and blocks the deploy. It is added in the same change that upgrades to Workers Paid.
+
+### Default path: Workers Builds
+
+Cloudflare builds and deploys on every push to `master`. Configured in the Cloudflare dashboard under the Worker's **Settings → Builds** (production branch `master`, build command `npm run build`, deploy command `npx wrangler deploy`). GitHub Actions is the quality gate only and carries no deploy step.
+
+### Fallback path: manual deploy
 
 ```bash
 npm run build
-```
-
-2. Deploy with Wrangler:
-
-```bash
 npx wrangler deploy
 ```
 
-Set `SUPABASE_URL` and `SUPABASE_KEY` as secrets in your Cloudflare dashboard or via `npx wrangler secret put`.
+### Secrets
+
+Set `SUPABASE_URL` and `SUPABASE_KEY` via `npx wrangler secret put <NAME>`. Each one creates a new version and deploys it immediately; secrets are write-only once set. The app deploys and renders without them — `src/lib/config-status.ts` reports the gap in a banner — so this step can follow a first successful deploy.
+
+The full deployment plan, including prerequisites, edge cases and the operational runbook, is at [`context/changes/deployment/deployment-plan.md`](./context/changes/deployment/deployment-plan.md).
 
 ## Smoke test
 
