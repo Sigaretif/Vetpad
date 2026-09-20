@@ -536,7 +536,19 @@ Job `smoke` sekretów nie potrzebuje — startuje własne Supabase w kontenerze.
 
 ---
 
-## Faza 6 — Auto-deploy: Workers Builds
+## Faza 6 — Auto-deploy: Workers Builds ⏳
+
+**Skonfigurowane 2026-09-20, weryfikacja w toku.**
+
+Stan wersji Workera bezpośrednio po konfiguracji: trzy wersje, wszystkie z pracy ręcznej — `Upload` (pierwszy `wrangler deploy`) i dwie `Secret Change` (`wrangler secret put`). Żadnej pochodzącej z buildu.
+
+> **To nie jest objaw błędu i warto wiedzieć dlaczego.** Workers Builds uruchamia się **przy pushu**, nie w momencie podłączenia repozytorium. Jeśli konfigurujesz go po ostatnim pushu, lista wersji nie zmieni się aż do następnego. Brak buildu tuż po konfiguracji nie odróżnia „działa" od „nie działa".
+>
+> `wrangler` nie ma komendy do Workers Builds (`wrangler builds` nie istnieje), więc z terminala nie da się tego sprawdzić. Rozstrzyga dopiero push na `master` i pojawienie się wersji o innym źródle niż `Upload` / `Secret Change`.
+
+Commit, który wprowadza ten akapit, jest jednocześnie testem tej fazy.
+
+### Konfiguracja do odhaczenia
 
 Dopiero **po** zielonej Fazie 5 — automatyzujemy ścieżkę, która została ręcznie potwierdzona.
 
