@@ -60,17 +60,24 @@ Routes, banner, Supabase reachability and the CPU ceiling in one pass:
 
 ```bash
 B=https://vetpad.vetpad.workers.dev
-for p in "/" "/auth/signin"; do printf '%-14s %s\n' "$p" "$(curl -s -o /dev/null -w '%{http_code}' "$B$p")"; done
+for p in "/" "/auth/signin" "/auth/signup"; do printf '%-14s %s\n' "$p" "$(curl -s -o /dev/null -w '%{http_code}' "$B$p")"; done
 curl -s -o /dev/null -w "/dashboard %{http_code} -> %{redirect_url}\n" "$B/dashboard"
 curl -s -o /tmp/p.html "$B/"
 grep -q "Supabase nie jest skonfigurowany" /tmp/p.html && echo "banner: VISIBLE — secrets missing" || echo "banner: gone"
 grep -qiE "1102|exceeded resource limits" /tmp/p.html && echo "!!! 1102" || echo "1102: none"
 curl -s -o /dev/null -w "wrong-password -> %{redirect_url}\n" -X POST "$B/api/auth/signin" \
   -H "Origin: $B" --data-urlencode "email=x@y.z" --data-urlencode "password=wrong"
+# SUPABASE_URL / SUPABASE_KEY: the hosted project URL and its publishable key
+curl -s "$SUPABASE_URL/auth/v1/settings" -H "apikey: $SUPABASE_KEY" | grep -o '"disable_signup":[a-z]*'
 ```
 
-Expected: `200`, `200`, `302 -> /auth/signin`, banner gone, no 1102, and the wrong
-password redirect carrying `?error=Invalid%20login%20credentials`.
+Expected: `200`, `200`, `404`, `302 -> /auth/signin`, banner gone, no 1102, the wrong
+password redirect carrying `?error=Invalid%20login%20credentials`, and
+`"disable_signup":true`.
+
+Registration is checked by **reading** the Auth settings, never by a trial
+`POST /auth/v1/signup`: if sign-up were open, that probe would create an account in
+production. The trial sign-up belongs to `npm run smoke`, on a throwaway local database.
 
 **That last check is the useful one.** A correct `Invalid login credentials` proves
 the Worker reached the hosted Supabase — an unreachable one fails differently. It
@@ -205,6 +212,35 @@ or rotating any production secret, applying a migration to the hosted project,
 deleting the Worker, changing the billing plan, dashboard configuration, and
 invoking `/git-ship` or `/git-land`.
 
+## Team accounts
+
+Registration is closed (FR-001); every account is created by a human in the hosted
+project's dashboard. None of this is an agent's job (see "What only a human does").
+
+- **Close registration.** Authentication → Sign In / Providers → turn off **Allow new
+  users to sign up**. Leave the **Email** provider enabled — disabling it also disables
+  password sign-in for existing accounts. Confirm with the `disable_signup` check in
+  "Verifying a deploy".
+- **Create an account.** Authentication → Users → Add user → Create new user, with
+  **Auto Confirm User** ticked. Hand the password to the member directly.
+- **Reissue a password.** There is no password reset in the product (FR-001). In the SQL
+  Editor:
+
+  ```sql
+  update auth.users
+  set encrypted_password = crypt('<new password>', gen_salt('bf')), updated_at = now()
+  where email = '<address>';
+  ```
+
+  Step-by-step version for the administrator (in Polish):
+  [`context/foundation/user-manual/change-user-password.md`](./user-manual/change-user-password.md).
+
+- **Remove a stray account** someone registered before sign-up was closed:
+  Authentication → Users → the account → Delete user.
+
+Hosted accounts never go into `supabase/seed.sql`: the repository is public, and the
+seed is for local fixtures only.
+
 ## Two databases, never one
 
 | Where | Which Supabase |
@@ -213,9 +249,10 @@ invoking `/git-ship` or `/git-land`.
 | CI `smoke` job | its own local container |
 | Workers Secrets | **hosted** |
 
-Local development uses the local database. `npm run smoke` registers a fresh account
-on every run and would litter production `auth.users`; migration work runs through
-`supabase db reset`, which wipes whatever it points at.
+Local development uses the local database. `npm run smoke` signs in with an account
+from `supabase/seed.sql` and attempts a sign-up, so it needs the local database: only
+there does that account exist, and only there is the sign-up attempt harmless.
+Migration work runs through `supabase db reset`, which wipes whatever it points at.
 
 **`supabase db reset --linked` wipes the hosted database and runs `supabase/seed.sql`
 against it.** Seeds are not inherently local. Migrations reach the hosted project

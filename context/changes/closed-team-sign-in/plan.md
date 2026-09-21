@@ -228,31 +228,31 @@ Dostosowuje dokumentację do nowego stanu, dopisuje do runbooka procedurę zakł
 
 #### Automated
 
-- [x] 1.1 Generowanie typów przechodzi: `npx astro sync`
-- [x] 1.2 Lint przechodzi: `npm run lint`
-- [x] 1.3 Sprawdzenie typów przechodzi: `npx astro check`
-- [x] 1.4 Build przechodzi bez `.env` i `.dev.vars` (zero-config): `npm run build`
-- [x] 1.5 W `src/` nie ma odwołań do rejestracji: `grep -rniE "signup|sign up|confirm-email" src` nic nie zwraca
-- [x] 1.6 Smoke przechodzi wszystkie 10 kroków na lokalnym stacku po restarcie Supabase: `npx supabase stop && npx supabase start`, `npm run build && npm run preview`, `BASE_URL=http://localhost:4321 npm run smoke`
+- [x] 1.1 Generowanie typów przechodzi: `npx astro sync` — 2e4fc69
+- [x] 1.2 Lint przechodzi: `npm run lint` — 2e4fc69
+- [x] 1.3 Sprawdzenie typów przechodzi: `npx astro check` — 2e4fc69
+- [x] 1.4 Build przechodzi bez `.env` i `.dev.vars` (zero-config): `npm run build` — 2e4fc69
+- [x] 1.5 W `src/` nie ma odwołań do rejestracji: `grep -rniE "signup|sign up|confirm-email" src` nic nie zwraca — 2e4fc69
+- [x] 1.6 Smoke przechodzi wszystkie 10 kroków na lokalnym stacku po restarcie Supabase: `npx supabase stop && npx supabase start`, `npm run build && npm run preview`, `BASE_URL=http://localhost:4321 npm run smoke` — 2e4fc69
 - [ ] 1.7 Job `smoke` i `ci` w GitHub Actions są zielone na PR/pushu tej zmiany
 
 #### Manual
 
-- [x] 1.8 Strona główna i topbar nie pokazują „Sign Up”; `/auth/signin` pokazuje zdanie o administratorze zamiast linku do rejestracji
-- [x] 1.9 Logowanie w przeglądarce jako `sigaretif1@vetpad.local` prowadzi na `/` i pozwala otworzyć `/dashboard`
-- [x] 1.10 Wejście na `/auth/signup` w przeglądarce pokazuje 404
+- [x] 1.8 Strona główna i topbar nie pokazują „Sign Up”; `/auth/signin` pokazuje zdanie o administratorze zamiast linku do rejestracji — 2e4fc69
+- [x] 1.9 Logowanie w przeglądarce jako `sigaretif1@vetpad.local` prowadzi na `/` i pozwala otworzyć `/dashboard` — 2e4fc69
+- [x] 1.10 Wejście na `/auth/signup` w przeglądarce pokazuje 404 — 2e4fc69
 
 ### Phase 2: Dokumentacja i zamknięcie rejestracji na produkcji
 
 #### Automated
 
-- [ ] 2.1 W README nie ma tras rejestracji: `grep -nE "/auth/signup|/auth/confirm-email" README.md` nic nie zwraca
-- [ ] 2.2 CLAUDE.md nie wskazuje usuniętego pliku: `grep -n "signup.ts" CLAUDE.md` nic nie zwraca
-- [ ] 2.3 Runbook nie opisuje rejestrującego smoke: `grep -n "registers a fresh account" context/foundation/deployment-runbook.md` nic nie zwraca
-- [ ] 2.4 Formatowanie przechodzi: `npm run lint`
+- [x] 2.1 W README nie ma tras rejestracji: `grep -nE "/auth/signup|/auth/confirm-email" README.md` nic nie zwraca
+- [x] 2.2 CLAUDE.md nie wskazuje usuniętego pliku: `grep -n "signup.ts" CLAUDE.md` nic nie zwraca
+- [x] 2.3 Runbook nie opisuje rejestrującego smoke: `grep -n "registers a fresh account" context/foundation/deployment-runbook.md` nic nie zwraca
+- [x] 2.4 Formatowanie przechodzi: `npm run lint`
 
 #### Manual
 
-- [ ] 2.5 W dashboardzie hostowanego projektu „Allow new users to sign up” jest wyłączone, a `GET $SUPABASE_URL/auth/v1/settings` zwraca `"disable_signup": true`
-- [ ] 2.6 Trzy konta zespołu istnieją w hostowanym projekcie i każdy członek zalogował się na `https://vetpad.vetpad.workers.dev`
+- [x] 2.5 W dashboardzie hostowanego projektu „Allow new users to sign up” jest wyłączone, a `GET $SUPABASE_URL/auth/v1/settings` zwraca `"disable_signup": true`
+- [x] 2.6 Trzy konta zespołu istnieją w hostowanym projekcie i każdy członek zalogował się na `https://vetpad.vetpad.workers.dev`
 - [ ] 2.7 Po wdrożeniu fazy 1 na produkcji `/auth/signup` zwraca 404, a kontrole z „Verifying a deploy” dają oczekiwane wyniki

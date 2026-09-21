@@ -132,23 +132,18 @@ Supabase is retiring the `anon` / `service_role` naming by the end of 2026. A pr
 
 > Never use the **secret** / `service_role` key here. It bypasses row-level security entirely, and it fails silently: the app works, and the database is wide open. The correct key starts with `sb_publishable_`, never `sb_secret_`.
 
-### Email confirmation in local development
+### Team accounts
 
-By default Supabase requires email confirmation before a user can sign in. To skip this during local development:
+Registration is closed (FR-001): only the team's pre-created accounts can sign in, and Supabase Auth itself rejects sign-ups (`[auth] enable_signup = false` in `supabase/config.toml`, "Allow new users to sign up" off in the hosted dashboard).
 
-1. Open the Supabase dashboard for your project
-2. Go to **Authentication → Email → Confirm email**
-3. Toggle it **off**
-
-Users can then sign in immediately after sign-up without clicking a confirmation link.
+- **Locally**, `supabase/seed.sql` creates three confirmed accounts, `sigaretif1@vetpad.local` to `sigaretif3@vetpad.local`, on a fresh `npx supabase start` or `npx supabase db reset`.
+- **In the hosted project**, the administrator creates the accounts by hand, following "Team accounts" in [`context/foundation/deployment-runbook.md`](./context/foundation/deployment-runbook.md). They never go into `seed.sql`.
 
 ### Auth routes
 
 | Route                 | Description                                                             |
 | --------------------- | ----------------------------------------------------------------------- |
 | `/auth/signin`        | Email/password sign-in form                                             |
-| `/auth/signup`        | Email/password sign-up form                                             |
-| `/auth/confirm-email` | Post-signup "check your inbox" page                                     |
 | `/dashboard`          | Example protected page (redirects to `/auth/signin` if unauthenticated) |
 
 Route protection is handled in `src/middleware.ts`. Add paths to the `PROTECTED_ROUTES` array there to require authentication.
@@ -180,14 +175,14 @@ The full deployment plan, including prerequisites, edge cases and the operationa
 
 ## Smoke test
 
-`scripts/smoke.mjs` is a dependency-free Node script that walks the whole auth flow (sign-up, sign-in, protected page, sign-out) over HTTP. Run it against the dev server or the production preview after dependency upgrades:
+`scripts/smoke.mjs` is a dependency-free Node script that walks the auth flow over HTTP: it signs in with a seeded account (sign-in, protected page, sign-out) and checks that registration is closed — the app's signup routes return 404 and Supabase Auth answers a sign-up attempt with `signup_disabled`. Run it against the dev server or the production preview after dependency upgrades:
 
 ```bash
 npm run dev            # or: npm run build && npm run preview
 BASE_URL=http://localhost:4321 npm run smoke
 ```
 
-It needs a reachable Supabase instance (local or cloud) with email confirmation disabled.
+It needs the local Supabase started with the seed (`npx supabase start`) and `SUPABASE_URL`/`SUPABASE_KEY` in `.env`, which `npm run smoke` loads. Credentials default to `sigaretif1@vetpad.local` and can be overridden with `SMOKE_EMAIL`/`SMOKE_PASSWORD`. Never run it against production: the seeded account exists only locally, and the sign-up attempt is only harmless on a throwaway database.
 
 > **Note:** this script exists primarily to guard the development of the starter itself — it is a fast sanity check that dependency upgrades did not break the build, the Cloudflare adapter or the Supabase auth flow. It is **not** a substitute for a real test suite. Once you build your own product on top of this starter, add proper tests (unit, integration, end-to-end) suited to your application.
 
