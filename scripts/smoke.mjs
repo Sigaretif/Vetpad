@@ -1,9 +1,12 @@
-// Smoke test: proves the built app, the Cloudflare adapter and the Supabase auth flow still work together.
-// Zero dependencies on purpose. Run against a live server: BASE_URL=http://localhost:4321 node scripts/smoke.mjs
+// Smoke test: proves the built app, the Cloudflare adapter and the Supabase auth flow still work together,
+// and that registration is closed both in the app and in Supabase Auth (FR-001).
+// Zero dependencies on purpose. Run against a live server: BASE_URL=http://localhost:4321 npm run smoke
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:4321";
-const email = `smoke-${Date.now()}@example.com`;
-const password = "Smoke-Test-Passw0rd!";
+const { SUPABASE_URL, SUPABASE_KEY } = process.env;
+// Default credentials are the first team account seeded by supabase/seed.sql (local database only).
+const email = process.env.SMOKE_EMAIL ?? "sigaretif1@vetpad.local";
+const password = process.env.SMOKE_PASSWORD ?? "qwerty123456";
 const jar = new Map();
 
 function cookieHeader() {
@@ -35,18 +38,33 @@ async function request(path, { method = "GET", form } = {}) {
   return { status: response.status, location: response.headers.get("location") ?? "" };
 }
 
+async function supabaseSignup() {
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    return { status: 0, location: "", error: "SUPABASE_URL and SUPABASE_KEY must be set (e.g. in .env)" };
+  }
+  const response = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
+    method: "POST",
+    headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify({ email: `smoke-${Date.now()}@example.com`, password: "Smoke-Test-Passw0rd!" }),
+  });
+  const body = await response.json().catch(() => ({}));
+  return { status: response.status, location: "", errorCode: body.error_code ?? "" };
+}
+
 const steps = [
   ["home renders", () => request("/"), { status: 200 }],
   ["dashboard redirects anonymous user", () => request("/dashboard"), { status: 302, location: "/auth/signin" }],
+  ["signup page is gone", () => request("/auth/signup"), { status: 404 }],
   [
-    "signup creates account",
+    "signup route is gone",
     () => request("/api/auth/signup", { method: "POST", form: { email, password } }),
-    { status: 302, location: "/auth/confirm-email" },
+    { status: 404 },
   ],
+  ["supabase auth rejects signup", () => supabaseSignup(), { status: 422, errorCode: "signup_disabled" }],
   [
     "signin rejects wrong password",
     () => request("/api/auth/signin", { method: "POST", form: { email, password: "wrong" } }),
-    { status: 302, location: "/auth/signin?error=" },
+    { status: 302, locationPrefix: "/auth/signin?error=" },
   ],
   [
     "signin accepts correct password",
@@ -62,12 +80,18 @@ let failed = 0;
 for (const [name, run, expected] of steps) {
   const actual = await run();
   const ok =
+    !actual.error &&
     actual.status === expected.status &&
-    (expected.location === undefined || actual.location.startsWith(expected.location));
-  console.log(`${ok ? "PASS" : "FAIL"}  ${name}  -> ${actual.status} ${actual.location}`);
+    (expected.location === undefined || actual.location === expected.location) &&
+    (expected.locationPrefix === undefined || actual.location.startsWith(expected.locationPrefix)) &&
+    (expected.errorCode === undefined || actual.errorCode === expected.errorCode);
+  const detail = actual.error ?? `${actual.status} ${actual.errorCode ?? actual.location}`;
+  console.log(`${ok ? "PASS" : "FAIL"}  ${name}  -> ${detail}`);
   if (!ok) {
     failed++;
-    console.log(`      expected ${expected.status} ${expected.location ?? ""}`);
+    console.log(
+      `      expected ${expected.status} ${expected.errorCode ?? expected.location ?? expected.locationPrefix ?? ""}`,
+    );
   }
 }
 

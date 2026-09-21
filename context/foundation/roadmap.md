@@ -41,7 +41,7 @@ A small group searching for an apartment together keeps blind links in spreadshe
 
 | ID   | Change ID                | Outcome (user can …)                                                                | Prerequisites | PRD refs                      | Status   |
 | ---- | ------------------------ | ----------------------------------------------------------------------------------- | ------------- | ----------------------------- | -------- |
-| S-01 | closed-team-sign-in      | sign in only with a pre-seeded account; nobody can register                         | —             | FR-001                        | ready    |
+| S-01 | closed-team-sign-in      | sign in only with a pre-seeded account; nobody can register                         | —             | FR-001                        | in-progress |
 | S-02 | paste-listing-to-card    | paste an otodom.pl URL and read the saved listing's text, parameters and photos     | S-01          | US-01, FR-004, FR-005, FR-007 | proposed |
 | S-03 | team-search-criteria     | define and edit the team's shared hard limits and their own additional requirements | S-01          | FR-002, FR-003                | proposed |
 | S-04 | grounded-listing-audit   | run an AI audit on a saved listing and read findings, each quoted from the listing  | S-02, S-03    | US-01, FR-010, FR-011         | proposed |
@@ -93,7 +93,7 @@ None. Every absent or partial layer in the Baseline is first needed by a user-fa
 - **Unknowns:**
   - Who creates the three accounts in the hosted project, and when — a human-only action per the runbook. — Owner: user. Block: no.
 - **Risk:** Sequenced before any team data exists because read access is open to every signed-in member (FR-013): while registration stays open, anyone who registers can read every saved listing and note. Removing signup also breaks every smoke step that creates its account inline, so the smoke job needs a pre-seeded test account in the same change.
-- **Status:** ready
+- **Status:** in-progress
 
 ### S-02: Paste a listing URL and get a saved card
 

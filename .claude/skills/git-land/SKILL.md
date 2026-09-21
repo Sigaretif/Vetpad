@@ -1,6 +1,6 @@
 ---
 name: git-land
-description: Commit the current working-tree changes and push them straight to the default branch — no feature branch, no pull request. Aborts unless you are already on the default branch and level with its remote. Pass -m to write the commit subject yourself instead of having a subagent propose one.
+description: Commit the current working-tree changes and push them — together with any local commits already on the default branch (e.g. from /10x-implement) — straight to the default branch — no feature branch, no pull request. Aborts unless you are already on the default branch and level with its remote. Pass -m to write the commit subject yourself instead of having a subagent propose one.
 argument-hint: "[-m] [optional hint about what the change is]"
 disable-model-invocation: true
 allowed-tools: Bash, Agent, AskUserQuestion
@@ -9,9 +9,19 @@ allowed-tools: Bash, Agent, AskUserQuestion
 # /git-land
 
 Take everything currently uncommitted, commit it on the default branch you are
-already standing on, and push it to `origin`. No branch is created, no pull request
-is opened, and the change stays in your working tree's history rather than moving
-away from it.
+already standing on, and push it to `origin` — together with any local commits
+DEFAULT already has that `origin/DEFAULT` does not. No branch is created, no pull
+request is opened, and the change stays in your working tree's history rather than
+moving away from it.
+
+The change has up to two parts, and either may be empty:
+
+- **Local commits** — commits on DEFAULT ahead of `origin/DEFAULT`. `/10x-implement`
+  makes these: one per phase, plus an epilogue. They are pushed as they are —
+  never squashed, reworded or re-created — because `plan.md`'s `## Progress` rows
+  point at their SHAs.
+- **Uncommitted work** — whatever `git status --porcelain` shows. This gets one
+  new commit on top, as before.
 
 This is the unreviewed path. `/git-ship` is the reviewed one; reach for this only
 when the change genuinely does not want a PR.
@@ -30,10 +40,12 @@ The flag is recognised only as the first token, so a hint that happens to contai
 
 ## Token discipline — the point of this skill
 
-**Do NOT run `git diff` yourself**, in either mode. In the default mode, reading the
-diff is delegated to the `git-namer` subagent (Haiku, low effort) precisely so the
-diff never lands in this expensive context. You run only cheap, short-output
-commands. If you catch yourself about to read a diff, dispatch instead.
+**Do NOT run `git diff` yourself**, in either mode — and do not run `git show` or
+`git log -p` on the local commits either. In the default mode, reading the diff is
+delegated to the `git-namer` subagent (Haiku, low effort) precisely so the diff
+never lands in this expensive context. You run only cheap, short-output commands:
+`git log --oneline` over the local commits is fine, their contents are not. If you
+catch yourself about to read a diff, dispatch instead.
 
 In manual mode nothing reads the diff at all — not you, not a subagent. The user
 already knows what they changed; that is the whole point of the flag. Do not "just
@@ -48,9 +60,12 @@ Never "work around" them.
 - **the current branch is not the default branch** — this skill never switches
   branches. Abort with: "You are on `<branch>`, not DEFAULT. /git-land only commits
   on DEFAULT; use /git-ship, or check out DEFAULT first." Detached HEAD aborts too.
-- nothing to commit
+- nothing to land: no uncommitted changes **and** no local commits ahead of
+  `origin/DEFAULT`
 - the local default branch is behind its remote — abort and point at `/git-sync`.
   There is no branch to park on here, so a stale local DEFAULT has to be fixed first.
+  If DEFAULT also has local commits, the two have diverged and `/git-sync` will
+  refuse too — say so and hand the call back to the user.
 - there is no `origin` remote — abort. A local-only commit is not what this skill
   promises; the user can commit by hand.
 - the user declines the confirmation in Phase 3
@@ -74,16 +89,29 @@ Run these and read the output. Do not mutate anything in this phase.
    condition above. An empty result means detached HEAD → abort. **Do not offer to
    check out DEFAULT**: the uncommitted changes are the user's, and moving them
    between branches is `/git-ship`'s job, not this skill's.
-4. `git status --porcelain` — empty → abort: "Nothing to commit, working tree clean."
+4. `git status --porcelain` — record whether it is empty as DIRTY (non-empty) or
+   CLEAN. Do not abort yet; local commits may still need pushing.
 5. `git remote get-url origin` — fails → abort per the stop condition above.
-6. `git fetch origin` then `git rev-list --count HEAD..origin/DEFAULT`.
-   If the count is greater than 0, **abort** with:
-   "Your DEFAULT is N commits behind origin/DEFAULT. Run /git-sync first, then
-   /git-land again." Nothing has been changed at this point, so this is safe.
+6. `git fetch origin`, then count both directions:
+   `git rev-list --count HEAD..origin/DEFAULT` → BEHIND, and
+   `git rev-list --count origin/DEFAULT..HEAD` → AHEAD (the local commits).
+   - BEHIND > 0 → **abort** with: "Your DEFAULT is N commits behind
+     origin/DEFAULT. Run /git-sync first, then /git-land again." If AHEAD > 0 as
+     well, add: "DEFAULT has diverged from origin/DEFAULT — /git-sync will refuse
+     too; this needs your call." Nothing has been changed at this point, so this
+     is safe.
+   - AHEAD > 0 → also run `git --no-pager log --oneline origin/DEFAULT..HEAD` →
+     the LOCAL list. One subject line per commit; that is all you read about them.
+   - CLEAN and AHEAD is 0 → abort: "Nothing to land: working tree clean and
+     DEFAULT is level with origin/DEFAULT."
 
 ## Phase 2 — Naming
 
-Two modes. Step 7 picks one; step 10 runs either way.
+Only the uncommitted part needs a name. If CLEAN (AHEAD > 0 by now), skip this
+whole phase — no `git-namer` dispatch, no question: the local commits already carry
+their own messages and are never reworded. Go straight to Phase 3.
+
+Otherwise, two modes. Step 7 picks one; step 10 runs either way.
 
 ### Phase 2A — Delegated naming (no `-m`)
 
@@ -146,16 +174,29 @@ Two modes. Step 7 picks one; step 10 runs either way.
 
     > Commit N file(s) as "<subject>" and push straight to DEFAULT on origin? No PR.
 
-    Options: **Commit and push** / **Abort**. On abort, change nothing and say so.
+    If AHEAD > 0, the question names the local commits too, because they are
+    published by the same push and have not been reviewed either. Put the LOCAL
+    list in the question text, one line per commit:
+
+    > Push K local commit(s) [and commit N file(s) as "<subject>"] straight to
+    > DEFAULT on origin? No PR.
+    > <LOCAL list>
+
+    Drop the bracketed part when CLEAN.
+
+    Options: **Commit and push** (or **Push** when CLEAN) / **Abort**. On abort,
+    change nothing and say so.
 
     Skip this step only if the user's hint explicitly said not to ask.
 
 ## Phase 4 — Execute (stop on the first non-zero exit)
 
-12. `git add -A` — `-A`, never `git add .`, so the result does not depend on cwd.
-13. `git commit -m "<chosen message>"`
+12. Only if DIRTY: `git add -A` — `-A`, never `git add .`, so the result does not
+    depend on cwd.
+13. Only if DIRTY: `git commit -m "<chosen message>"`
     A pre-commit hook may fail or may rewrite files. On non-zero exit: STOP and report;
-    the user is on DEFAULT with changes staged and no commit, so say that plainly.
+    the user is on DEFAULT with changes staged and no new commit — and, if AHEAD > 0,
+    the local commits still unpushed — so say that plainly.
 14. `git push origin DEFAULT`
     If the push is **rejected as non-fast-forward**, someone pushed to DEFAULT between
     step 6 and now. STOP. The commit exists locally and DEFAULT has diverged from its
@@ -167,7 +208,7 @@ Two modes. Step 7 picks one; step 10 runs either way.
 Three lines, nothing more:
 
 ```
-Commit:  <hash short>  <message>
+Commits: <K> local + <new short hash> <message>   # drop whichever part is empty
 Pushed:  DEFAULT → origin/DEFAULT  (no PR — this change is on the default branch)
 You are on DEFAULT with a clean tree.
 ```
@@ -179,6 +220,7 @@ The second line matters: there was no review gate. Always say so.
 - create, switch to, or delete a branch — if a branch is wanted, the skill is `/git-ship`
 - `--force`, `--force-with-lease`, `--amend`, `reset --hard`, or anything that
   rewrites history
+- squashing, rewording or re-creating the local commits
 - pull, merge or rebase to resolve a rejected push
 - committing when a RISK path is unresolved
 - pushing without the Phase 3 confirmation
