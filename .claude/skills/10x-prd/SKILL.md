@@ -23,8 +23,8 @@ allowed-tools:
 This skill is the second link in the bootstrap chain. For greenfield: `/10x-shape → /10x-prd → 10x-tech-stack-selector → bootstrapper`. For brownfield: `/10x-shape → /10x-prd → 10x-stack-assess → 10x-health-check`. Its single job: take a shaped notes file and emit a `context/foundation/prd.md` that conforms to the locked PRD schema, routing every gap to `## Open Questions` rather than inventing content.
 
 The skill auto-routes to the correct template based on `context_type` in the input:
-- **greenfield** → 11-section PRD template (product built from scratch)
-- **brownfield** → 12-section PRD template (delta-change to an existing system)
+- **greenfield** → 10-section PRD template (product built from scratch)
+- **brownfield** → 11-section PRD template (delta-change to an existing system)
 
 The skill is a **document generator**, not a discovery facilitator. It NEVER invents domain decisions, business-logic rules, success criteria, or user stories. Anything missing in the input goes verbatim into `## Open Questions` so a human can resolve it.
 
@@ -343,7 +343,7 @@ After the write lands, summarize what was produced:
   Project:          [project from frontmatter]
   Context type:     [greenfield | brownfield]
   Path:             [context/foundation/prd.md | context/foundation/prd-vN.md]
-  Schema sections:  [11 / 11 | 12 / 12] present
+  Schema sections:  [10 / 10 | 11 / 11] present
   Frontmatter:      <K populated, M as TODO>  (8 keys total)
   Open Questions:   <count> entries
 

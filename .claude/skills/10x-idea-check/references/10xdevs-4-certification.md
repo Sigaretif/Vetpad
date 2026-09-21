@@ -43,7 +43,7 @@ Testy — co najmniej jeden test weryfikujący działanie z perspektywy użytkow
 Projekt dostępny pod publicznym URL, w App Store lub jako instalowalny pakiet (jeśli typ aplikacji na to nie pozwala, pomiń to w opisie projektu)
 
 🥇 Kryteria na wyróżnienie
-Zgłoszenie w 1. terminie (5.07.2026):
+Zgłoszenie w 1. terminie:
 
 Własna wersja 10xCards — spełnienie wszystkich wymagań (obowiązkowe + publiczny URL)
 
