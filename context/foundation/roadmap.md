@@ -226,7 +226,7 @@ None. Every absent or partial layer in the Baseline is first needed by a user-fa
 
 | Roadmap ID | Issue                                                | Change ID                | Suggested issue title                                       | Ready for `/10x-plan` | Notes                               |
 | ---------- | ---------------------------------------------------- | ------------------------ | ----------------------------------------------------------- | --------------------- | ----------------------------------- |
-| S-01       | [#12](https://github.com/Sigaretif/Vetpad/issues/12) | closed-team-sign-in      | Close registration; sign-in only for pre-seeded accounts    | yes                   | Run `/10x-plan closed-team-sign-in` |
+| S-01       | [#12](https://github.com/Sigaretif/Vetpad/issues/12) | closed-team-sign-in      | Close registration; sign-in only for pre-seeded accounts    | done                  | Done; archived 2026-09-22           |
 | S-02       | [#13](https://github.com/Sigaretif/Vetpad/issues/13) | paste-listing-to-card    | Save an otodom listing from a pasted URL and show its card  | no                    | After S-01; north star              |
 | S-03       | [#14](https://github.com/Sigaretif/Vetpad/issues/14) | team-search-criteria     | Shared hard limits and per-member additional requirements   | no                    | After S-01; can run beside S-02     |
 | S-04       | [#15](https://github.com/Sigaretif/Vetpad/issues/15) | grounded-listing-audit   | AI audit of a saved listing with verbatim excerpts          | no                    | After S-02 and S-03                 |
