@@ -548,15 +548,15 @@ Pierwsza migracja w historii repozytorium. Powstaje wyłącznie przez `npx supab
 
 #### Automated
 
-- [x] 5.1 `npm run lint`, `npx astro check` i `npm run build` przechodzą
-- [x] 5.2 README nie twierdzi już, że migracje nie są potrzebne
-- [x] 5.3 `CLAUDE.md` nie trzyma `supabase/migrations/` w sekcji forward-looking
-- [x] 5.4 Skrypt inspekcyjny jest wywoływalny z `package.json` i bez argumentu drukuje sposób użycia
-- [x] 5.5 `npm run smoke` przechodzi
+- [x] 5.1 `npm run lint`, `npx astro check` i `npm run build` przechodzą — fef02cd
+- [x] 5.2 README nie twierdzi już, że migracje nie są potrzebne — fef02cd
+- [x] 5.3 `CLAUDE.md` nie trzyma `supabase/migrations/` w sekcji forward-looking — fef02cd
+- [x] 5.4 Skrypt inspekcyjny jest wywoływalny z `package.json` i bez argumentu drukuje sposób użycia — fef02cd
+- [x] 5.5 `npm run smoke` przechodzi — fef02cd
 
 #### Manual
 
-- [x] 5.6 `otodom_fetching.md` opisuje `ad.adCategory`, ostrzega przed `ad.category`, a log weryfikacji nosi datę 2026-09-22
-- [x] 5.7 PRD nie wymienia prezentacji wartości nieznanych jako pytania otwartego
-- [x] 5.8 Sekcja „Parked" roadmapy wymienia fallback Apify i podgląd zdjęć w tej samej karcie
-- [x] 5.9 PRD rozstrzyga przechowywanie tekstu ogłoszenia wraz z wpisanym kontaktem
+- [x] 5.6 `otodom_fetching.md` opisuje `ad.adCategory`, ostrzega przed `ad.category`, a log weryfikacji nosi datę 2026-09-22 — fef02cd
+- [x] 5.7 PRD nie wymienia prezentacji wartości nieznanych jako pytania otwartego — fef02cd
+- [x] 5.8 Sekcja „Parked" roadmapy wymienia fallback Apify i podgląd zdjęć w tej samej karcie — fef02cd
+- [x] 5.9 PRD rozstrzyga przechowywanie tekstu ogłoszenia wraz z wpisanym kontaktem — fef02cd
