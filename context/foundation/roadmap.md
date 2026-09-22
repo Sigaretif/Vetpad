@@ -39,19 +39,19 @@ A small group searching for an apartment together keeps blind links in spreadshe
 
 ## At a glance
 
-| ID   | Change ID                | Outcome (user can …)                                                                | Prerequisites | PRD refs                      | Status   |
-| ---- | ------------------------ | ----------------------------------------------------------------------------------- | ------------- | ----------------------------- | -------- |
-| S-01 | closed-team-sign-in      | sign in only with a pre-seeded account; nobody can register                         | —             | FR-001                        | done |
+| ID   | Change ID                | Outcome (user can …)                                                                | Prerequisites | PRD refs                      | Status      |
+| ---- | ------------------------ | ----------------------------------------------------------------------------------- | ------------- | ----------------------------- | ----------- |
+| S-01 | closed-team-sign-in      | sign in only with a pre-seeded account; nobody can register                         | —             | FR-001                        | done        |
 | S-02 | paste-listing-to-card    | paste an otodom.pl URL and read the saved listing's text, parameters and photos     | S-01          | US-01, FR-004, FR-005, FR-007 | in-progress |
-| S-03 | team-search-criteria     | define and edit the team's shared hard limits and their own additional requirements | S-01          | FR-002, FR-003                | proposed |
-| S-04 | grounded-listing-audit   | run an AI audit on a saved listing and read findings, each quoted from the listing  | S-02, S-03    | US-01, FR-010, FR-011         | proposed |
-| S-05 | member-notes             | write their own Pros / Cons / Observations note and read everyone's, attributed     | S-02          | US-01, FR-012, FR-013         | proposed |
-| S-06 | shared-offer-board       | browse every saved listing on one board with its audit status                       | S-02          | FR-006                        | proposed |
-| S-07 | duplicate-listing-notice | paste an already-saved URL and land on the existing card, told who saved it         | S-02          | FR-005                        | proposed |
-| S-08 | location-map-link        | open a Google Maps search for a listing's location in one click                     | S-02          | FR-008                        | proposed |
-| S-09 | refetch-and-stale-audit  | re-fetch a listing on demand, keep every note, and see when an audit has gone stale | S-04, S-05    | FR-009, FR-003                | proposed |
-| S-10 | archive-and-restore      | archive a listing off the board, see who archived it, and restore it                | S-06          | FR-014                        | proposed |
-| S-11 | delete-offer-and-notes   | delete a mistaken listing, and delete their own notes                               | S-05          | FR-015                        | proposed |
+| S-03 | team-search-criteria     | define and edit the team's shared hard limits and their own additional requirements | S-01          | FR-002, FR-003                | proposed    |
+| S-04 | grounded-listing-audit   | run an AI audit on a saved listing and read findings, each quoted from the listing  | S-02, S-03    | US-01, FR-010, FR-011         | proposed    |
+| S-05 | member-notes             | write their own Pros / Cons / Observations note and read everyone's, attributed     | S-02          | US-01, FR-012, FR-013         | proposed    |
+| S-06 | shared-offer-board       | browse every saved listing on one board with its audit status                       | S-02          | FR-006                        | proposed    |
+| S-07 | duplicate-listing-notice | paste an already-saved URL and land on the existing card, told who saved it         | S-02          | FR-005                        | proposed    |
+| S-08 | location-map-link        | open a Google Maps search for a listing's location in one click                     | S-02          | FR-008                        | proposed    |
+| S-09 | refetch-and-stale-audit  | re-fetch a listing on demand, keep every note, and see when an audit has gone stale | S-04, S-05    | FR-009, FR-003                | proposed    |
+| S-10 | archive-and-restore      | archive a listing off the board, see who archived it, and restore it                | S-06          | FR-014                        | proposed    |
+| S-11 | delete-offer-and-notes   | delete a mistaken listing, and delete their own notes                               | S-05          | FR-015                        | proposed    |
 
 ## Streams
 
@@ -224,26 +224,26 @@ None. Every absent or partial layer in the Baseline is first needed by a user-fa
 
 ## Backlog Handoff
 
-| Roadmap ID | Issue                                                | Change ID                | Suggested issue title                                       | Ready for `/10x-plan` | Notes                               |
-| ---------- | ---------------------------------------------------- | ------------------------ | ----------------------------------------------------------- | --------------------- | ----------------------------------- |
-| S-01       | [#12](https://github.com/Sigaretif/Vetpad/issues/12) | closed-team-sign-in      | Close registration; sign-in only for pre-seeded accounts    | done                  | Done; archived 2026-09-22           |
+| Roadmap ID | Issue                                                | Change ID                | Suggested issue title                                       | Ready for `/10x-plan` | Notes                                                                            |
+| ---------- | ---------------------------------------------------- | ------------------------ | ----------------------------------------------------------- | --------------------- | -------------------------------------------------------------------------------- |
+| S-01       | [#12](https://github.com/Sigaretif/Vetpad/issues/12) | closed-team-sign-in      | Close registration; sign-in only for pre-seeded accounts    | done                  | Done; archived 2026-09-22                                                        |
 | S-02       | [#13](https://github.com/Sigaretif/Vetpad/issues/13) | paste-listing-to-card    | Save an otodom listing from a pasted URL and show its card  | planned               | North star; planned 2026-09-22 → `context/changes/paste-listing-to-card/plan.md` |
-| S-03       | [#14](https://github.com/Sigaretif/Vetpad/issues/14) | team-search-criteria     | Shared hard limits and per-member additional requirements   | no                    | After S-01; can run beside S-02     |
-| S-04       | [#15](https://github.com/Sigaretif/Vetpad/issues/15) | grounded-listing-audit   | AI audit of a saved listing with verbatim excerpts          | no                    | After S-02 and S-03                 |
-| S-05       | [#16](https://github.com/Sigaretif/Vetpad/issues/16) | member-notes             | Per-member Pros / Cons / Observations notes, attributed     | no                    | After S-02                          |
-| S-06       | [#17](https://github.com/Sigaretif/Vetpad/issues/17) | shared-offer-board       | Shared board of saved listings with audit status            | no                    | After S-02                          |
-| S-07       | [#18](https://github.com/Sigaretif/Vetpad/issues/18) | duplicate-listing-notice | Redirect duplicate URLs to the existing card with notice    | no                    | After S-02                          |
-| S-08       | [#19](https://github.com/Sigaretif/Vetpad/issues/19) | location-map-link        | One-click Google Maps search from listing location          | no                    | After S-02                          |
-| S-09       | [#20](https://github.com/Sigaretif/Vetpad/issues/20) | refetch-and-stale-audit  | Manual re-fetch that preserves notes and flags stale audits | no                    | After S-04 and S-05                 |
-| S-10       | [#21](https://github.com/Sigaretif/Vetpad/issues/21) | archive-and-restore      | Archive, restore and show who archived a listing            | no                    | After S-06                          |
-| S-11       | [#22](https://github.com/Sigaretif/Vetpad/issues/22) | delete-offer-and-notes   | Delete a listing and a member's own notes                   | no                    | After S-05                          |
+| S-03       | [#14](https://github.com/Sigaretif/Vetpad/issues/14) | team-search-criteria     | Shared hard limits and per-member additional requirements   | no                    | After S-01; can run beside S-02                                                  |
+| S-04       | [#15](https://github.com/Sigaretif/Vetpad/issues/15) | grounded-listing-audit   | AI audit of a saved listing with verbatim excerpts          | no                    | After S-02 and S-03                                                              |
+| S-05       | [#16](https://github.com/Sigaretif/Vetpad/issues/16) | member-notes             | Per-member Pros / Cons / Observations notes, attributed     | no                    | After S-02                                                                       |
+| S-06       | [#17](https://github.com/Sigaretif/Vetpad/issues/17) | shared-offer-board       | Shared board of saved listings with audit status            | no                    | After S-02                                                                       |
+| S-07       | [#18](https://github.com/Sigaretif/Vetpad/issues/18) | duplicate-listing-notice | Redirect duplicate URLs to the existing card with notice    | no                    | After S-02                                                                       |
+| S-08       | [#19](https://github.com/Sigaretif/Vetpad/issues/19) | location-map-link        | One-click Google Maps search from listing location          | no                    | After S-02                                                                       |
+| S-09       | [#20](https://github.com/Sigaretif/Vetpad/issues/20) | refetch-and-stale-audit  | Manual re-fetch that preserves notes and flags stale audits | no                    | After S-04 and S-05                                                              |
+| S-10       | [#21](https://github.com/Sigaretif/Vetpad/issues/21) | archive-and-restore      | Archive, restore and show who archived a listing            | no                    | After S-06                                                                       |
+| S-11       | [#22](https://github.com/Sigaretif/Vetpad/issues/22) | delete-offer-and-notes   | Delete a listing and a member's own notes                   | no                    | After S-05                                                                       |
 
 ## Open Roadmap Questions
 
 1. **How is a parser failure told apart from a real listing change?** A broken scrape returns different data and would mark an audit stale for the wrong reason; repeated false staleness trains the team to ignore the flag. Surfaced during the Socratic round on FR-009 and left unresolved. — Owner: user. Block: no (affects S-09).
-2. **What does "unknown" look like in the interface?** The guardrail binds the semantics — an unstated attribute is never rendered as absent or as zero — but not the presentation. — Owner: user; a design decision for the implementation step. Block: no (affects S-02, S-04).
-3. **Is a validation library acceptable for URL normalisation and for checking the audit's structured output, or does validation stay hand-rolled?** The project rules require the user's go-ahead before one is added. — Owner: user. Block: no (affects S-02, S-04, S-07).
-4. **If otodom.pl starts refusing the hosting platform's requests, is the documented extraction-service fallback adopted?** It is a second vendor and a second secret, and the project rules make it a user decision. — Owner: user. Block: no (affects S-02, S-09).
+2. ~~**What does "unknown" look like in the interface?**~~ Resolved 2026-09-22 in S-02: an unstated attribute reads „nie podano w ogłoszeniu", and every parameter on the card always has its row. Recorded in the PRD's resolved block under Open Questions. — Owner: user.
+3. **Is a validation library acceptable for checking the audit's structured output, or does validation stay hand-rolled?** Narrowed 2026-09-22: S-02 settled URL normalisation hand-rolled (`src/lib/otodom/url.ts`), with no library added. The library decision stays open for the audit's output. The project rules require the user's go-ahead before one is added. — Owner: user. Block: no (affects S-04).
+4. ~~**If otodom.pl starts refusing the hosting platform's requests, is the documented extraction-service fallback adopted?**~~ Resolved 2026-09-22: not adopted now; parked with its trigger condition — see "Extraction-service fallback for ingestion (Apify)" under Parked. — Owner: user.
 5. **When does the hosting plan move off the free tier?** The runbook ties it to a measured CPU ceiling, not to a date; the audit and the longest listing are the likely triggers. — Owner: user. Block: no (affects S-02, S-04).
 
 ## Parked

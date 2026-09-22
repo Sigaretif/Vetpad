@@ -315,8 +315,10 @@ Checks worth having in that function:
 
 | Condition                                                   | Meaning                           | Suggested handling                             |
 | ----------------------------------------------------------- | --------------------------------- | ---------------------------------------------- |
-| `HTTPError 404`                                             | Offer removed or wrong URL        | Mark inactive locally, do not retry            |
+| `HTTPError 404` or `410`                                    | Offer removed or wrong URL        | Mark inactive locally, do not retry            |
+| Any other non-2xx (`403`, `429`, `5xx`)                     | Portal refused to serve the page  | Report with the status; see section 9.1        |
 | `pageProps.ad` missing but `shouldShowExpiredAdPage` truthy | Offer expired, page still renders | Mark expired, keep last known snapshot         |
+| `ad.shouldShowExpiredAdPage === true`                       | Same flag, carried on `ad` itself | Check it too — `ad` can be present and expired |
 | `__NEXT_DATA__` regex miss                                  | Site shape changed                | Fail loudly; do not fall back to HTML scraping |
 
 A minimal, useful projection of the return value - enough for a notification
@@ -363,6 +365,13 @@ unknown, and check every other numeric entry for the same behaviour before trust
 it. Distinguishing "stated as zero" from "not stated" is not possible from this
 payload alone — which is itself the answer: report unknown.
 
+**The trap is wider than `"0"` — verified 2026-09-22.** A house listing (`ID4wZN2`)
+had **no `rent` key at all**, and a rental (`ID4DapL`) returned `rent: "1"`. The rule
+Vetpad applies to every numeric characteristic, not only `rent`: key absent, value
+empty, unparseable, or `≤ 0` → unknown; integer facts (`rooms_num`,
+`building_floors_num`, `build_year`) additionally require an integer. In code this is
+the single function `numericOrUnknown` in `src/lib/otodom/map.ts`.
+
 **Trap in `characteristics`, verified on a live ad:** `localizedValue` is filled
 in only for numeric and monetary entries (`price`, `rent`, `price_per_m`, `m`,
 `rooms_num`, `build_year`, `building_floors_num`, `free_from`). For every enum
@@ -374,6 +383,11 @@ the `currency` field of the entry, not inside `value`.
 
 Deliberately omitted: `owner`, `agency`, `contactDetails`. They carry names and
 phone numbers, and section 1 explains why you do not want that in your database.
+All three were present on a live offer on 2026-09-22 (`agency` as `null` on a
+private listing, so never assume it is an object). `target` is a second leak:
+it repeats the seller's account id as `seller_id` (and `user_type`), so Vetpad
+copies only `target.OfferType` and `target.ProperType`, never `target` whole —
+see section 7.4.
 
 Verified end to end on 2026-09-17: newest Warsaw listing pulled from a search
 page, then `fetch_offer` on its URL returned an `ad` object with **62 keys** and
@@ -408,24 +422,63 @@ Verified: 200, ~519 KB, then parse `__NEXT_DATA__`.
 
 Data lives at `pageProps.ad` (~60 fields). The useful ones:
 
-| Field                                   | Notes                                                                                                                                                                                                                            |
-| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`                                    | Same numeric ID as in the search item                                                                                                                                                                                            |
-| `title`, `slug`, `url`                  | Canonical absolute URL included                                                                                                                                                                                                  |
-| `description`                           | Full description, **HTML markup** - strip or render it                                                                                                                                                                           |
-| `createdAt`, `modifiedAt`, `pushedUpAt` | ISO/UTC                                                                                                                                                                                                                          |
-| `status`                                | `active`; expired offers set `shouldShowExpiredAdPage`                                                                                                                                                                           |
-| `market`                                | `SECONDARY` / `PRIMARY`                                                                                                                                                                                                          |
-| `advertType`                            | `PRIVATE` / `AGENCY` / `DEVELOPER`                                                                                                                                                                                               |
-| `advertiserType`                        | Related classification                                                                                                                                                                                                           |
-| `characteristics[]`                     | `[{key, value, localizedValue, currency}]` with keys `price`, `rent`, `price_per_m`, `m`, `market`, `building_type`, `floor_no`, `construction_status`, ... **The cleanest source of the numeric facts.**                        |
-| `target`                                | Flat ad-targeting dict: `Area`, `Build_year`, `Building_floors_num`, `Building_material`, `Building_ownership`, `Building_type`, `Construction_status`, `Extras_types`, `Floor_no`, `City`, `City_id`, `MarketType`, `OfferType` |
-| `features`, `featuresByCategory`        | Amenity lists                                                                                                                                                                                                                    |
-| `location.coordinates`                  | `{latitude, longitude}`                                                                                                                                                                                                          |
-| `location.reverseGeocoding.locations[]` | District / neighbourhood hierarchy                                                                                                                                                                                               |
-| `images[]`, `floorPlans`, `videos`      | Media                                                                                                                                                                                                                            |
-| `owner`, `agency`, `contactDetails`     | **Contains name and phone number - personal data, see section 1**                                                                                                                                                                |
-| `links`, `breadcrumbs`, `seo`           | Navigation metadata                                                                                                                                                                                                              |
+| Field                                   | Notes                                                                                                                                                                                                                                                                                 |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                                    | Same numeric ID as in the search item                                                                                                                                                                                                                                                 |
+| `title`, `slug`, `url`                  | Canonical absolute URL included                                                                                                                                                                                                                                                       |
+| `description`                           | Full description, **HTML markup** - strip or render it                                                                                                                                                                                                                                |
+| `createdAt`, `modifiedAt`, `pushedUpAt` | ISO/UTC                                                                                                                                                                                                                                                                               |
+| `status`                                | `active`; expired offers set `shouldShowExpiredAdPage`                                                                                                                                                                                                                                |
+| `market`                                | `SECONDARY` / `PRIMARY` — and `ALL` on a rental (2026-09-22); it does **not** tell sale from rental                                                                                                                                                                                   |
+| `advertType`                            | `PRIVATE` / `AGENCY` / `DEVELOPER` — top-level on `ad`, not a `characteristics` entry                                                                                                                                                                                                 |
+| `advertiserType`                        | Related classification                                                                                                                                                                                                                                                                |
+| `adCategory`                            | `{id, name, type}` — **the** transaction and property-type discriminator on an offer page. Values in section 7.4                                                                                                                                                                      |
+| `category`                              | **A different field.** Its `name` is an empty array — comparing against it passes every listing. Do not use it                                                                                                                                                                        |
+| `transaction`                           | **Absent** on the offer page. `transaction: SELL` (section 6) exists only on search-result items                                                                                                                                                                                      |
+| `characteristics[]`                     | `[{key, value, localizedValue, currency}]` with keys `price`, `rent`, `price_per_m`, `m`, `market`, `building_type`, `floor_no`, `construction_status`, ... **The cleanest source of the numeric facts.**                                                                             |
+| `target`                                | Flat ad-targeting dict: `Area`, `Build_year`, `Building_floors_num`, `Building_material`, `Building_ownership`, `Building_type`, `Construction_status`, `Extras_types`, `Floor_no`, `City`, `City_id`, `MarketType`, `OfferType`, `ProperType` — **also `seller_id` and `user_type`** |
+| `features`, `featuresByCategory`        | Amenity lists. `features` can be `[]` on an offer whose description names a balcony and a lift — an empty list is not a statement of absence                                                                                                                                          |
+| `location.address`                      | `city`, `district`, `province` observed as `null`; only `street.name` filled (2026-09-22). Not a source for a location label                                                                                                                                                          |
+| `location.coordinates`                  | `{latitude, longitude}`                                                                                                                                                                                                                                                               |
+| `location.reverseGeocoding.locations[]` | District / neighbourhood hierarchy. The location label is the entry with the longest `fullNameItems`, read from its `fullName` (e.g. `"Praga-Południe, Warszawa, mazowieckie"`)                                                                                                       |
+| `images[]`, `floorPlans`, `videos`      | Media                                                                                                                                                                                                                                                                                 |
+| `owner`, `agency`, `contactDetails`     | **Contains name and phone number - personal data, see section 1**                                                                                                                                                                                                                     |
+| `links`, `breadcrumbs`, `seo`           | Navigation metadata                                                                                                                                                                                                                                                                   |
+
+### 7.4 Telling a flat sale from everything else (verified 2026-09-22)
+
+Vetpad accepts only a sale of a flat (`@context/foundation/prd.md`, FR-005), and
+the offer page carries no `transaction` field. The discriminator is `ad.adCategory`,
+cross-checked against `ad.target.OfferType`. Three live listings, one per case:
+
+| Listing                   | `ad.adCategory`                          | `target`                                  | Vetpad gate    |
+| ------------------------- | ---------------------------------------- | ----------------------------------------- | -------------- |
+| Flat for sale `…ID4CIsC`  | `{id: 101, name: "FLAT", type: "SELL"}`  | `OfferType: "sprzedaz"`                   | pass           |
+| Flat for rent `…ID4DapL`  | `{id: 102, name: "FLAT", type: "RENT"}`  | `OfferType: "wynajem"`; `market: "ALL"`   | `not_for_sale` |
+| House for sale `…ID4wZN2` | `{id: 201, name: "HOUSE", type: "SELL"}` | `ProperType: "dom"`; no `rent` key at all | `not_a_flat`   |
+
+Two ways to get this wrong, both silent: comparing against `ad.category` (its
+`name` is an empty array, so the gate never fires), or reading `ad.market` as the
+transaction (a rental reported `ALL`). The gate itself is `mapAdToOffer` in
+`src/lib/otodom/map.ts`.
+
+Other observations from the same probe:
+
+- `description` is a sequence of `<p>…</p>`; `images[]` entries carry `thumbnail`,
+  `small`, `medium`, `large` and `isExterior` (20 photos on the flat above).
+- `localizedValue` behaved exactly as the trap in section 7.1 describes.
+- `owner` and `contactDetails` were filled (`phones`, `name`, `contacts`), `agency`
+  was `null`, and `target` repeated the seller's account id as `seller_id`. That is
+  why `raw` in `public.offers` is built from a **whitelist** of `ad` keys — with
+  `location` narrowed to `coordinates` and `reverseGeocoding`, and `target` narrowed
+  to `OfferType` and `ProperType` — rather than by deleting known personal fields.
+
+**Reproducing any of this:** `npm run otodom:inspect -- <offer URL>`
+(`scripts/otodom-inspect.mjs`) fetches one live offer with the app's own
+`src/lib/otodom/` code and prints the gate inputs (`adCategory`, `target.OfferType`,
+`target.ProperType`), every `characteristics` entry raw, and the mapper's output with
+the columns that came out unknown. It hits the live portal: a debugging tool, not a
+test, never run in CI.
 
 ---
 
@@ -527,30 +580,30 @@ it.** A throwaway Worker (`vetpad-egress-probe`, deployed, called once, deleted)
 fetched the Warsaw search results page from Cloudflare's egress with the
 `User-Agent` and `Accept-Language` headers from section 3.1. Result:
 
-| Field | Value |
-| --- | --- |
-| HTTP status | **200** |
-| `__NEXT_DATA__` present | **yes** |
-| Captcha / interstitial markers | none |
-| `cf-mitigated` header | absent |
-| Body size | 1,235,304 bytes |
-| Round trip | 1,021 ms |
+| Field                          | Value           |
+| ------------------------------ | --------------- |
+| HTTP status                    | **200**         |
+| `__NEXT_DATA__` present        | **yes**         |
+| Captcha / interstitial markers | none            |
+| `cf-mitigated` header          | absent          |
+| Body size                      | 1,235,304 bytes |
+| Round trip                     | 1,021 ms        |
 
 **The offer page was verified separately on 2026-09-20**, because the check above
-uses a *search results* page and FR-004 fetches `/pl/oferta/...` — a different route
+uses a _search results_ page and FR-004 fetches `/pl/oferta/...` — a different route
 that could in principle be protected differently. A second throwaway Worker
 (`vetpad-offer-probe`) walked the whole of section 7.1 against one live offer from
 Cloudflare's egress:
 
-| Step | Result |
-| --- | --- |
-| HTTP status | **200**, no redirect |
-| `__NEXT_DATA__` via the bounded `RegExp` | found |
-| `JSON.parse` | no error |
-| `props.pageProps.ad` | present, **62 keys** — matches section 7.1 |
-| `shouldShowExpiredAdPage` | false |
-| HTML / embedded JSON size | 558,209 B / **102,338 B** |
-| `RegExp` + `JSON.parse` wall time | **below 1 ms**, on the Workers **Free** plan |
+| Step                                     | Result                                       |
+| ---------------------------------------- | -------------------------------------------- |
+| HTTP status                              | **200**, no redirect                         |
+| `__NEXT_DATA__` via the bounded `RegExp` | found                                        |
+| `JSON.parse`                             | no error                                     |
+| `props.pageProps.ad`                     | present, **62 keys** — matches section 7.1   |
+| `shouldShowExpiredAdPage`                | false                                        |
+| HTML / embedded JSON size                | 558,209 B / **102,338 B**                    |
+| `RegExp` + `JSON.parse` wall time        | **below 1 ms**, on the Workers **Free** plan |
 
 Three things that payload settled, each recorded where it belongs: the CPU cost of
 parsing is negligible (the JSON is a fifth of the HTML, not the whole of it);
@@ -661,5 +714,23 @@ Performed 2026-09-16, plain `curl`, Polish residential IP, no proxy:
 | Cloudflare Workers TLS control                         | None - no cipher/ALPN control, so the OLX workaround cannot run there                             |
 | Cloudflare egress IP against Otodom                    | **Not verified** - deliberately; a 403 is handled by the fallback, see section 9.1                |
 
-Re-run the checks in this table before trusting the document; Otodom is a moving
+Performed 2026-09-22 while building Vetpad's single-offer ingestion (FR-004), with
+`npm run otodom:inspect -- <url>` (`scripts/otodom-inspect.mjs`) — rerun it to
+reproduce any row:
+
+| Check                                                   | Result                                                                                                    |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `ad.adCategory` on flat sale / flat rental / house sale | `{101, FLAT, SELL}` / `{102, FLAT, RENT}` / `{201, HOUSE, SELL}` — the gate's discriminator (7.4)         |
+| `ad.category.name`                                      | Empty array — **not** a usable discriminator                                                              |
+| `ad.transaction` on an offer page                       | Absent; exists only on search-result items (section 6)                                                    |
+| `ad.market` on a rental                                 | `ALL` — does not identify the transaction                                                                 |
+| `characteristics.rent`                                  | `"0"` (2026-09-20), key absent (house), `"1"` (rental) — absent or `≤ 0` reads as unknown (7.1)           |
+| `features` on a flat whose text names balcony and lift  | `[]` — an empty list is not a statement of absence                                                        |
+| `location.address`                                      | `city`, `district`, `province` `null`; only `street.name` set — label comes from `reverseGeocoding` (7.3) |
+| `owner`, `contactDetails`, `agency`                     | First two filled with name and phones; `agency` `null`                                                    |
+| `target`                                                | Carries `seller_id` and `user_type` besides the ad attributes — never stored whole (7.4)                  |
+| `advertType`                                            | Top-level on `ad` (e.g. `PRIVATE`), not a `characteristics` entry                                         |
+| `shouldShowExpiredAdPage`                               | Can sit on `ad` itself, not only on `pageProps` — check both (7.1)                                        |
+
+Re-run the checks in these tables before trusting the document; Otodom is a moving
 target and the payload shape is not a contract.

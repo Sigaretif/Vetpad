@@ -123,6 +123,7 @@ The moment they reach for this product: when a listing has been saved and must l
 - There is no strict response-time budget, but any operation in progress is continuously visible as in progress. An ingest that has not completed within roughly one minute, and an audit that has not completed within roughly three minutes, are reported as failed with a retry offered — rather than showing progress indefinitely.
 - The listing's text and the team's criteria may be sent to third-party services: the model provider that produces the audit, and — if listing data ever has to be fetched through one — an extraction service. Members' notes never leave the system.
 - The advertiser's personal data is never stored. The portal returns the seller's phone number and name with every listing, and an extraction service would pass them through as well; they are discarded at the point of fetch and no part of the product retains them.
+- That rule covers the portal's contact fields, not the listing's own words. The listing's title and description are stored exactly as the advertiser wrote them, even when the advertiser typed a phone number or a name into them: redacting the text would break the verbatim excerpts the audit must quote (FR-011).
 - Data is retained indefinitely; nothing expires automatically. Removal is always a deliberate member action.
 - The product is usable on current desktop browsers. No mobile usability is promised in the MVP.
 
@@ -173,6 +174,6 @@ Multi-user, single shared space.
 ## Open Questions
 
 1. **How is a parser failure told apart from a real listing change?** A broken scrape returns different data and would mark an audit stale for the wrong reason; repeated false staleness trains the team to ignore the flag. Surfaced during the Socratic round on FR-009 and left unresolved. Owner: user. By: no date set. Block: no — the MVP ships either way, but the stale flag's credibility depends on it.
-2. **What does "unknown" look like in the interface?** The guardrail binds the semantics — an unstated attribute is never rendered as absent or as zero — but not the presentation. Owner: user; a design decision for the implementation step. By: no date set. Block: no.
+   _Resolved during implementation, recorded so they are not reopened: what "unknown" looks like in the interface (resolved 2026-09-22 in S-02) — an unstated attribute reads „nie podano w ogłoszeniu", and every parameter on the card always has its row, so an absence is shown rather than hidden by a missing line; an empty amenity list reads „ogłoszenie nie wymienia udogodnień", never as the amenities being absent._
 
 _Resolved during shaping, recorded so they are not reopened: concurrent note editing (dissolved by the access model — notes are per-person and never co-edited); aspect and room note structure, fixed list versus free tags (cut for the MVP in favour of Pros / Cons / General Observations); which criteria are hard requirements versus preferences (hard limits shared board-wide, soft requirements per-person free text)._

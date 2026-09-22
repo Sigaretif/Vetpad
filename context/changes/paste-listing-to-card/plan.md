@@ -530,33 +530,33 @@ Pierwsza migracja w historii repozytorium. Powstaje wyłącznie przez `npx supab
 
 #### Automated
 
-- [x] 4.1 `npm run lint`, `npx astro check` i `npm run build` przechodzą
-- [x] 4.2 Opis nie jest wstrzykiwany jako HTML — brak `set:html`
-- [x] 4.3 Karta nie jest wyspą React — brak dyrektywy `client:`
-- [x] 4.4 `npm run smoke` przechodzi
+- [x] 4.1 `npm run lint`, `npx astro check` i `npm run build` przechodzą — 4fc432e
+- [x] 4.2 Opis nie jest wstrzykiwany jako HTML — brak `set:html` — 4fc432e
+- [x] 4.3 Karta nie jest wyspą React — brak dyrektywy `client:` — 4fc432e
+- [x] 4.4 `npm run smoke` przechodzi — 4fc432e
 
 #### Manual
 
-- [x] 4.5 Karta pokazuje komplet parametrów, a wartości enumeryczne są po polsku
-- [x] 4.6 Oferta bez czynszu czyta „nie podano w ogłoszeniu", nigdzie nie pojawia się „0 zł"
-- [x] 4.7 Opis czyta się jako tekst z akapitami, bez znaczników HTML
-- [x] 4.8 Miniatury się ładują, a kliknięcie otwiera duże zdjęcie w nowej karcie
-- [x] 4.9 `/offers/<id>?duplicate=1` pokazuje baner o wcześniejszym zapisie
-- [x] 4.10 Wylogowany użytkownik na `/offers/<id>` trafia na `/auth/signin`
+- [x] 4.5 Karta pokazuje komplet parametrów, a wartości enumeryczne są po polsku — 4fc432e
+- [x] 4.6 Oferta bez czynszu czyta „nie podano w ogłoszeniu", nigdzie nie pojawia się „0 zł" — 4fc432e
+- [x] 4.7 Opis czyta się jako tekst z akapitami, bez znaczników HTML — 4fc432e
+- [x] 4.8 Miniatury się ładują, a kliknięcie otwiera duże zdjęcie w nowej karcie — 4fc432e
+- [x] 4.9 `/offers/<id>?duplicate=1` pokazuje baner o wcześniejszym zapisie — 4fc432e
+- [x] 4.10 Wylogowany użytkownik na `/offers/<id>` trafia na `/auth/signin` — 4fc432e
 
 ### Phase 5: Dokumentacja i domknięcie
 
 #### Automated
 
-- [ ] 5.1 `npm run lint`, `npx astro check` i `npm run build` przechodzą
-- [ ] 5.2 README nie twierdzi już, że migracje nie są potrzebne
-- [ ] 5.3 `CLAUDE.md` nie trzyma `supabase/migrations/` w sekcji forward-looking
-- [ ] 5.4 Skrypt inspekcyjny jest wywoływalny z `package.json` i bez argumentu drukuje sposób użycia
-- [ ] 5.5 `npm run smoke` przechodzi
+- [x] 5.1 `npm run lint`, `npx astro check` i `npm run build` przechodzą
+- [x] 5.2 README nie twierdzi już, że migracje nie są potrzebne
+- [x] 5.3 `CLAUDE.md` nie trzyma `supabase/migrations/` w sekcji forward-looking
+- [x] 5.4 Skrypt inspekcyjny jest wywoływalny z `package.json` i bez argumentu drukuje sposób użycia
+- [x] 5.5 `npm run smoke` przechodzi
 
 #### Manual
 
-- [ ] 5.6 `otodom_fetching.md` opisuje `ad.adCategory`, ostrzega przed `ad.category`, a log weryfikacji nosi datę 2026-09-22
-- [ ] 5.7 PRD nie wymienia prezentacji wartości nieznanych jako pytania otwartego
-- [ ] 5.8 Sekcja „Parked" roadmapy wymienia fallback Apify i podgląd zdjęć w tej samej karcie
-- [ ] 5.9 PRD rozstrzyga przechowywanie tekstu ogłoszenia wraz z wpisanym kontaktem
+- [x] 5.6 `otodom_fetching.md` opisuje `ad.adCategory`, ostrzega przed `ad.category`, a log weryfikacji nosi datę 2026-09-22
+- [x] 5.7 PRD nie wymienia prezentacji wartości nieznanych jako pytania otwartego
+- [x] 5.8 Sekcja „Parked" roadmapy wymienia fallback Apify i podgląd zdjęć w tej samej karcie
+- [x] 5.9 PRD rozstrzyga przechowywanie tekstu ogłoszenia wraz z wpisanym kontaktem
