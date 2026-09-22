@@ -1,10 +1,10 @@
 ---
 change_id: closed-team-sign-in
 title: Close registration so only pre-seeded team accounts can sign in
-status: implemented
+status: archived
 created: 2026-09-21
-updated: 2026-09-21
-archived_at: null
+updated: 2026-09-22
+archived_at: 2026-09-22T17:33:02Z
 ---
 
 ## Notes
