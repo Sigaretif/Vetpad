@@ -42,7 +42,7 @@ A small group searching for an apartment together keeps blind links in spreadshe
 | ID   | Change ID                | Outcome (user can …)                                                                | Prerequisites | PRD refs                      | Status   |
 | ---- | ------------------------ | ----------------------------------------------------------------------------------- | ------------- | ----------------------------- | -------- |
 | S-01 | closed-team-sign-in      | sign in only with a pre-seeded account; nobody can register                         | —             | FR-001                        | done |
-| S-02 | paste-listing-to-card    | paste an otodom.pl URL and read the saved listing's text, parameters and photos     | S-01          | US-01, FR-004, FR-005, FR-007 | planning |
+| S-02 | paste-listing-to-card    | paste an otodom.pl URL and read the saved listing's text, parameters and photos     | S-01          | US-01, FR-004, FR-005, FR-007 | in-progress |
 | S-03 | team-search-criteria     | define and edit the team's shared hard limits and their own additional requirements | S-01          | FR-002, FR-003                | proposed |
 | S-04 | grounded-listing-audit   | run an AI audit on a saved listing and read findings, each quoted from the listing  | S-02, S-03    | US-01, FR-010, FR-011         | proposed |
 | S-05 | member-notes             | write their own Pros / Cons / Observations note and read everyone's, attributed     | S-02          | US-01, FR-012, FR-013         | proposed |
@@ -107,7 +107,7 @@ None. Every absent or partial layer in the Baseline is first needed by a user-fa
   - Does otodom.pl serve requests from the hosting platform's egress addresses, reliably? The extraction-service fallback is documented but adopting it is a user decision. — Owner: user. Block: no.
   - How does "unknown" look on the card (PRD Open Question 2)? The semantics are binding — the plan picks a presentation and says so. — Owner: user. Block: no.
 - **Risk:** The north star, and it carries the product guardrails that are easiest to break silently: the seller's phone and name must be dropped at the fetch boundary, a stated `"0"` for rent (and any similar numeric field) must read as unknown, and a failed fetch must never leave a blank or partial offer. Ingestion must also show progress and give up within about a minute (Non-Functional Requirements).
-- **Status:** planning
+- **Status:** in-progress
 
 ### S-03: Team search criteria
 

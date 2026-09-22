@@ -477,17 +477,17 @@ Pierwsza migracja w historii repozytorium. Powstaje wyłącznie przez `npx supab
 
 #### Automated
 
-- [ ] 1.1 Migracja powstała poleceniem CLI i stosuje się czysto: `npx supabase db reset` kończy się bez błędu
-- [ ] 1.2 Tabela istnieje z RLS: zapytanie o `relrowsecurity` dla `offers` zwraca `t`
-- [ ] 1.3 Istnieją dokładnie cztery polityki, wszystkie dla `authenticated`, żadna nie wymienia `anon`
-- [ ] 1.4 Unikalność oferty jest wymuszona: powtórny `insert` z tym samym `otodom_id` kończy się błędem `duplicate key value violates unique constraint`
-- [ ] 1.5 `npm run lint`, `npx astro sync`, `npx astro check` i `npm run build` przechodzą
-- [ ] 1.6 `npm run smoke` przechodzi bez zmian w skrypcie
+- [x] 1.1 Migracja powstała poleceniem CLI i stosuje się czysto: `npx supabase db reset` kończy się bez błędu
+- [x] 1.2 Tabela istnieje z RLS: zapytanie o `relrowsecurity` dla `offers` zwraca `t`
+- [x] 1.3 Istnieją dokładnie cztery polityki, wszystkie dla `authenticated`, żadna nie wymienia `anon`
+- [x] 1.4 Unikalność oferty jest wymuszona: powtórny `insert` z tym samym `otodom_id` kończy się błędem `duplicate key value violates unique constraint`
+- [x] 1.5 `npm run lint`, `npx astro sync`, `npx astro check` i `npm run build` przechodzą
+- [x] 1.6 `npm run smoke` przechodzi bez zmian w skrypcie
 
 #### Manual
 
-- [ ] 1.7 W Supabase Studio tabela `offers` jest widoczna z włączonym RLS i czterema politykami
-- [ ] 1.8 Zapytanie o `offers` kluczem publishable bez sesji zwraca pustą tablicę i HTTP 200
+- [x] 1.7 W Supabase Studio tabela `offers` jest widoczna z włączonym RLS i czterema politykami
+- [x] 1.8 Zapytanie o `offers` kluczem publishable bez sesji zwraca pustą tablicę i HTTP 200
 
 ### Phase 2: Moduł ingestii i skrypt inspekcyjny
 
