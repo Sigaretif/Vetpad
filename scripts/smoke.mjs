@@ -85,6 +85,7 @@ const steps = [
     { status: 302, location: "/" },
   ],
   ["dashboard renders for signed-in user", () => request("/dashboard"), { status: 200 }],
+  ["offer card 404s on a non-uuid id", () => request("/offers/not-a-uuid"), { status: 404 }],
   [
     "offer save rejects empty url",
     () => request("/api/offers", { method: "POST", form: { url: "" } }),

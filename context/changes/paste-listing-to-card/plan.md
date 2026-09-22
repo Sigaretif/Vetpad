@@ -512,37 +512,37 @@ Pierwsza migracja w historii repozytorium. Powstaje wyłącznie przez `npx supab
 
 #### Automated
 
-- [x] 3.1 `npm run lint`, `npx astro check` i `npm run build` przechodzą
-- [x] 3.2 `npm run smoke` przechodzi z nowymi krokami, bez zmian w workflow CI
-- [x] 3.3 Trasa nie zwraca JSON-a ani ręcznie budowanego `Response`
-- [x] 3.4 Wyspa formularza nie używa `fetch()`
-- [x] 3.5 Limit czasu jest ustawiony po stronie serwera przez `AbortSignal.timeout`
+- [x] 3.1 `npm run lint`, `npx astro check` i `npm run build` przechodzą — e7f29bb
+- [x] 3.2 `npm run smoke` przechodzi z nowymi krokami, bez zmian w workflow CI — e7f29bb
+- [x] 3.3 Trasa nie zwraca JSON-a ani ręcznie budowanego `Response` — e7f29bb
+- [x] 3.4 Wyspa formularza nie używa `fetch()` — e7f29bb
+- [x] 3.5 Limit czasu jest ustawiony po stronie serwera przez `AbortSignal.timeout` — e7f29bb
 
 #### Manual
 
-- [x] 3.6 Wklejenie żywego ogłoszenia sprzedaży mieszkania kończy się przekierowaniem na `/offers/<uuid>` i wierszem w bazie z `created_by`
-- [x] 3.7 Wiersz nie zawiera wartości z `contactDetails`/`owner`/`agency`, a `raw` tylko klucze z białej listy
-- [x] 3.8 Ogłoszenie wynajmu daje komunikat o wynajmie i nie tworzy wiersza
-- [x] 3.9 Ten sam URL z parametrami śledzącymi lub bez prefiksu `/pl` nie tworzy duplikatu i kieruje na `/offers/<id>?duplicate=1`
-- [x] 3.10 Podczas pobierania przycisk pokazuje „Pobieram ogłoszenie…" i jest nieaktywny
+- [x] 3.6 Wklejenie żywego ogłoszenia sprzedaży mieszkania kończy się przekierowaniem na `/offers/<uuid>` i wierszem w bazie z `created_by` — e7f29bb
+- [x] 3.7 Wiersz nie zawiera wartości z `contactDetails`/`owner`/`agency`, a `raw` tylko klucze z białej listy — e7f29bb
+- [x] 3.8 Ogłoszenie wynajmu daje komunikat o wynajmie i nie tworzy wiersza — e7f29bb
+- [x] 3.9 Ten sam URL z parametrami śledzącymi lub bez prefiksu `/pl` nie tworzy duplikatu i kieruje na `/offers/<id>?duplicate=1` — e7f29bb
+- [x] 3.10 Podczas pobierania przycisk pokazuje „Pobieram ogłoszenie…" i jest nieaktywny — e7f29bb
 
 ### Phase 4: Karta oferty
 
 #### Automated
 
-- [ ] 4.1 `npm run lint`, `npx astro check` i `npm run build` przechodzą
-- [ ] 4.2 Opis nie jest wstrzykiwany jako HTML — brak `set:html`
-- [ ] 4.3 Karta nie jest wyspą React — brak dyrektywy `client:`
-- [ ] 4.4 `npm run smoke` przechodzi
+- [x] 4.1 `npm run lint`, `npx astro check` i `npm run build` przechodzą
+- [x] 4.2 Opis nie jest wstrzykiwany jako HTML — brak `set:html`
+- [x] 4.3 Karta nie jest wyspą React — brak dyrektywy `client:`
+- [x] 4.4 `npm run smoke` przechodzi
 
 #### Manual
 
-- [ ] 4.5 Karta pokazuje komplet parametrów, a wartości enumeryczne są po polsku
-- [ ] 4.6 Oferta bez czynszu czyta „nie podano w ogłoszeniu", nigdzie nie pojawia się „0 zł"
-- [ ] 4.7 Opis czyta się jako tekst z akapitami, bez znaczników HTML
-- [ ] 4.8 Miniatury się ładują, a kliknięcie otwiera duże zdjęcie w nowej karcie
-- [ ] 4.9 `/offers/<id>?duplicate=1` pokazuje baner o wcześniejszym zapisie
-- [ ] 4.10 Wylogowany użytkownik na `/offers/<id>` trafia na `/auth/signin`
+- [x] 4.5 Karta pokazuje komplet parametrów, a wartości enumeryczne są po polsku
+- [x] 4.6 Oferta bez czynszu czyta „nie podano w ogłoszeniu", nigdzie nie pojawia się „0 zł"
+- [x] 4.7 Opis czyta się jako tekst z akapitami, bez znaczników HTML
+- [x] 4.8 Miniatury się ładują, a kliknięcie otwiera duże zdjęcie w nowej karcie
+- [x] 4.9 `/offers/<id>?duplicate=1` pokazuje baner o wcześniejszym zapisie
+- [x] 4.10 Wylogowany użytkownik na `/offers/<id>` trafia na `/auth/signin`
 
 ### Phase 5: Dokumentacja i domknięcie
 

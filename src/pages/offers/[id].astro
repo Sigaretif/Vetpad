@@ -1,0 +1,100 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import Banner from "@/components/Banner.astro";
+import Topbar from "@/components/Topbar.astro";
+import OfferParameters from "@/components/offers/OfferParameters.astro";
+import OfferDescription from "@/components/offers/OfferDescription.astro";
+import OfferGallery from "@/components/offers/OfferGallery.astro";
+import { createClient } from "@/lib/supabase";
+import { formatMoney } from "@/lib/otodom/labels";
+import type { OfferRow } from "@/lib/otodom/types";
+import { cn } from "@/lib/utils";
+
+// Checked before the query: Postgres rejects a non-uuid with 22P02, which must not surface as a 500.
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * The saved offer, or `null` for everything that is not one: a malformed id, unconfigured
+ * Supabase (the zero-config state), a query error, or no row. Each of those is a 404, never a 500.
+ */
+async function loadOffer(id: string | undefined): Promise<OfferRow | null> {
+  if (!id || !UUID.test(id)) return null;
+  const supabase = createClient(Astro.request.headers, Astro.cookies);
+  if (!supabase) return null;
+  try {
+    const result = await supabase.from("offers").select("*").eq("id", id).maybeSingle();
+    return result.error || !result.data ? null : (result.data as OfferRow);
+  } catch {
+    return null;
+  }
+}
+
+// A frontmatter `return new Response(...)` crashes @typescript-eslint/no-misused-promises
+// (top-level return has no enclosing function), so the 404 is set on Astro.response instead.
+const offer = await loadOffer(Astro.params.id);
+if (!offer) {
+  Astro.response.status = 404;
+}
+
+/** `null` stays "not stated"; only a stated amount is formatted. */
+function money(amount: number | null, currency: string | null, suffix = ""): string | null {
+  return amount === null ? null : `${formatMoney(amount, currency)}${suffix}`;
+}
+
+const duplicate = offer !== null && Astro.url.searchParams.get("duplicate") === "1";
+const images = offer && Array.isArray(offer.images) ? offer.images : [];
+const price = offer ? money(offer.price, offer.price_currency) : null;
+const pricePerM = offer ? money(offer.price_per_m, offer.price_currency, "/m²") : null;
+const unstated = "text-white/40 italic";
+---
+
+<Layout title={offer ? `${offer.title} — Vetpad` : "Nie znaleziono oferty — Vetpad"}>
+  {duplicate && <Banner variant="info">Ta oferta była już zapisana — otwieramy istniejącą kartę.</Banner>}
+  <div class="bg-cosmic min-h-screen p-4 text-white">
+    <div class="mx-auto flex max-w-4xl flex-col gap-6">
+      <Topbar />
+
+      <a href="/dashboard" class="text-sm text-purple-300 transition-colors hover:text-purple-100 hover:underline">
+        ← Wróć do dashboardu
+      </a>
+
+      {offer === null ? (
+        <section class="rounded-2xl border border-white/10 bg-white/10 p-6 backdrop-blur-xl">
+          <h1 class="mb-2 text-2xl font-bold">Nie znaleziono oferty</h1>
+          <p class="text-blue-100/80">Ta karta nie istnieje albo nie można jej teraz wczytać.</p>
+        </section>
+      ) : (
+        <>
+          <header class="rounded-2xl border border-white/10 bg-white/10 p-6 backdrop-blur-xl">
+            <h1 class="mb-3 bg-gradient-to-r from-blue-200 to-purple-200 bg-clip-text text-2xl font-bold text-transparent sm:text-3xl">
+              {offer.title}
+            </h1>
+            <div class="flex flex-wrap items-baseline gap-x-6 gap-y-1">
+              <p class:list={cn("text-2xl font-semibold", price === null && unstated)}>
+                {price ?? "Cena: nie podano w ogłoszeniu"}
+              </p>
+              <p class:list={cn("text-blue-100/80", pricePerM === null && unstated)}>
+                {pricePerM ?? "Cena za m²: nie podano w ogłoszeniu"}
+              </p>
+            </div>
+            <p class:list={cn("mt-2 text-blue-100/80", offer.location_label === null && unstated)}>
+              {offer.location_label ?? "Lokalizacja: nie podano w ogłoszeniu"}
+            </p>
+            <a
+              href={offer.source_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="mt-4 inline-block text-sm text-purple-300 transition-colors hover:text-purple-100 hover:underline"
+            >
+              Otwórz oryginał na otodom.pl ↗
+            </a>
+          </header>
+
+          <OfferParameters offer={offer} />
+          <OfferDescription description={offer.description} />
+          <OfferGallery images={images} title={offer.title} />
+        </>
+      )}
+    </div>
+  </div>
+</Layout>

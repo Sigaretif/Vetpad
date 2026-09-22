@@ -1,0 +1,13 @@
+---
+interface Props {
+  description: string;
+}
+
+const { description } = Astro.props;
+---
+
+<section class="rounded-2xl border border-white/10 bg-white/10 p-6 text-white backdrop-blur-xl">
+  <h2 class="mb-4 text-xl font-semibold">Opis</h2>
+  <!-- Plain text stored without markup; rendered as text so nothing in it is interpreted as HTML. -->
+  <p class="text-sm leading-relaxed whitespace-pre-line text-blue-50/90">{description}</p>
+</section>

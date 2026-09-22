@@ -1,0 +1,41 @@
+---
+import type { OfferImage } from "@/lib/otodom/types";
+import { cn } from "@/lib/utils";
+
+interface Props {
+  images: OfferImage[];
+  title: string;
+}
+
+const { images, title } = Astro.props;
+const total = images.length;
+---
+
+<section class="rounded-2xl border border-white/10 bg-white/10 p-6 text-white backdrop-blur-xl">
+  <h2 class="mb-4 text-xl font-semibold">Zdjęcia</h2>
+  {total === 0 ? (
+    <p class="text-sm text-white/40 italic">Ogłoszenie nie zawiera zdjęć.</p>
+  ) : (
+    <ul class:list={cn("grid gap-3", total === 1 ? "grid-cols-1" : "grid-cols-2 sm:grid-cols-3")}>
+      {images.map((image, index) => (
+        <li>
+          <a
+            href={image.large}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="block overflow-hidden rounded-lg border border-white/10 transition-opacity hover:opacity-80"
+          >
+            <img
+              src={image.thumbnail}
+              alt={`Zdjęcie ${index + 1} z ${total}: ${title}`}
+              loading="lazy"
+              decoding="async"
+              referrerpolicy="no-referrer"
+              class="aspect-[4/3] w-full object-cover"
+            />
+          </a>
+        </li>
+      ))}
+    </ul>
+  )}
+</section>

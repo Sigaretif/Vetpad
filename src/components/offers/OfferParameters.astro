@@ -1,0 +1,89 @@
+---
+import type { OfferRow } from "@/lib/otodom/types";
+import {
+  advertTypeLabel,
+  buildingMaterialLabel,
+  buildingOwnershipLabel,
+  buildingTypeLabel,
+  constructionStatusLabel,
+  energyCertificateLabel,
+  featureLabel,
+  floorLabel,
+  formatArea,
+  formatDate,
+  formatInteger,
+  formatMoney,
+  heatingLabel,
+  marketLabel,
+  windowsTypeLabel,
+} from "@/lib/otodom/labels";
+import { cn } from "@/lib/utils";
+
+interface Props {
+  offer: OfferRow;
+}
+
+const { offer } = Astro.props;
+
+/** `null` is "the listing did not state it" and renders as such; a value is always formatted. */
+function show<T>(value: T | null, format: (value: T) => string): string | null {
+  return value === null ? null : format(value);
+}
+
+// Every parameter always has its own row: an unstated fact is shown as unstated, never dropped.
+const rows: { label: string; value: string | null }[] = [
+  { label: "Cena", value: show(offer.price, (v) => formatMoney(v, offer.price_currency)) },
+  { label: "Cena za m²", value: show(offer.price_per_m, (v) => `${formatMoney(v, offer.price_currency)}/m²`) },
+  { label: "Powierzchnia", value: show(offer.area_m2, formatArea) },
+  { label: "Liczba pokoi", value: show(offer.rooms, formatInteger) },
+  { label: "Piętro", value: show(offer.floor, floorLabel) },
+  { label: "Liczba pięter w budynku", value: show(offer.floors_total, formatInteger) },
+  { label: "Rok budowy", value: show(offer.build_year, formatInteger) },
+  { label: "Czynsz", value: show(offer.rent, (v) => formatMoney(v, offer.rent_currency)) },
+  { label: "Rynek", value: show(offer.market, marketLabel) },
+  { label: "Rodzaj zabudowy", value: show(offer.building_type, buildingTypeLabel) },
+  { label: "Stan wykończenia", value: show(offer.construction_status, constructionStatusLabel) },
+  { label: "Forma własności", value: show(offer.building_ownership, buildingOwnershipLabel) },
+  { label: "Ogrzewanie", value: show(offer.heating, heatingLabel) },
+  { label: "Okna", value: show(offer.windows_type, windowsTypeLabel) },
+  { label: "Materiał budynku", value: show(offer.building_material, buildingMaterialLabel) },
+  { label: "Certyfikat energetyczny", value: show(offer.energy_certificate, energyCertificateLabel) },
+  { label: "Typ ogłoszeniodawcy", value: show(offer.advert_type, advertTypeLabel) },
+  { label: "Dostępne od", value: show(offer.free_from, formatDate) },
+  { label: "Lokalizacja", value: offer.location_label },
+  { label: "Ulica", value: offer.street_name },
+];
+
+const features = Array.isArray(offer.features) ? offer.features.map(featureLabel) : [];
+---
+
+<section class="rounded-2xl border border-white/10 bg-white/10 p-6 text-white backdrop-blur-xl">
+  <h2 class="mb-4 text-xl font-semibold">Parametry</h2>
+  <table class="w-full text-sm">
+    <tbody>
+      {rows.map((row) => (
+        <tr class="border-b border-white/10 last:border-b-0">
+          <th scope="row" class="py-2 pr-4 text-left font-normal text-blue-100/70">
+            {row.label}
+          </th>
+          <td
+            class:list={cn("py-2 text-right", row.value === null ? "text-white/40 italic" : "font-medium text-white")}
+          >
+            {row.value ?? "nie podano w ogłoszeniu"}
+          </td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+
+  <h3 class="mt-6 mb-2 text-base font-semibold">Udogodnienia</h3>
+  {features.length === 0 ? (
+    <p class="text-sm text-white/40 italic">ogłoszenie nie wymienia udogodnień</p>
+  ) : (
+    <ul class="flex flex-wrap gap-2 text-sm">
+      {features.map((feature) => (
+        <li class="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-blue-50">{feature}</li>
+      ))}
+    </ul>
+  )}
+</section>

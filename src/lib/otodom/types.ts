@@ -68,5 +68,18 @@ export interface OfferInsert {
   raw: Record<string, unknown>;
 }
 
+/**
+ * One `public.offers` row as read back from the database: the mapped fields plus the
+ * columns the saving route and the database defaults fill in. The Supabase client is
+ * untyped, so the offer card casts its query result to this shape.
+ */
+export interface OfferRow extends OfferInsert {
+  id: string;
+  source_url: string;
+  created_by: string;
+  created_at: string;
+  fetched_at: string;
+}
+
 export type MapOfferResult =
   { ok: true; offer: OfferInsert } | { ok: false; reason: MapFailureReason; detail?: string };
