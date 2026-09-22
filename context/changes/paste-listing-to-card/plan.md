@@ -477,36 +477,36 @@ Pierwsza migracja w historii repozytorium. Powstaje wyłącznie przez `npx supab
 
 #### Automated
 
-- [x] 1.1 Migracja powstała poleceniem CLI i stosuje się czysto: `npx supabase db reset` kończy się bez błędu
-- [x] 1.2 Tabela istnieje z RLS: zapytanie o `relrowsecurity` dla `offers` zwraca `t`
-- [x] 1.3 Istnieją dokładnie cztery polityki, wszystkie dla `authenticated`, żadna nie wymienia `anon`
-- [x] 1.4 Unikalność oferty jest wymuszona: powtórny `insert` z tym samym `otodom_id` kończy się błędem `duplicate key value violates unique constraint`
-- [x] 1.5 `npm run lint`, `npx astro sync`, `npx astro check` i `npm run build` przechodzą
-- [x] 1.6 `npm run smoke` przechodzi bez zmian w skrypcie
+- [x] 1.1 Migracja powstała poleceniem CLI i stosuje się czysto: `npx supabase db reset` kończy się bez błędu — 96509c9
+- [x] 1.2 Tabela istnieje z RLS: zapytanie o `relrowsecurity` dla `offers` zwraca `t` — 96509c9
+- [x] 1.3 Istnieją dokładnie cztery polityki, wszystkie dla `authenticated`, żadna nie wymienia `anon` — 96509c9
+- [x] 1.4 Unikalność oferty jest wymuszona: powtórny `insert` z tym samym `otodom_id` kończy się błędem `duplicate key value violates unique constraint` — 96509c9
+- [x] 1.5 `npm run lint`, `npx astro sync`, `npx astro check` i `npm run build` przechodzą — 96509c9
+- [x] 1.6 `npm run smoke` przechodzi bez zmian w skrypcie — 96509c9
 
 #### Manual
 
-- [x] 1.7 W Supabase Studio tabela `offers` jest widoczna z włączonym RLS i czterema politykami
-- [x] 1.8 Zapytanie o `offers` kluczem publishable bez sesji zwraca pustą tablicę i HTTP 200
+- [x] 1.7 W Supabase Studio tabela `offers` jest widoczna z włączonym RLS i czterema politykami — 96509c9
+- [x] 1.8 Zapytanie o `offers` kluczem publishable bez sesji zwraca pustą tablicę i HTTP 200 — 96509c9
 
 ### Phase 2: Moduł ingestii i skrypt inspekcyjny
 
 #### Automated
 
-- [ ] 2.1 `npm run lint`, `npx astro check` i `npm run build` przechodzą
-- [ ] 2.2 W repo nie ma zależności parsującej HTML
-- [ ] 2.3 Nie dodano biblioteki walidacyjnej
-- [ ] 2.4 `map.ts` i `fetch.ts` nie mają importów runtime'owych — wyłącznie `import type`
-- [ ] 2.5 Pola `owner`/`agency`/`contactDetails` nie występują w `src/lib/otodom/` — `raw` z białej listy
-- [ ] 2.6 `node scripts/otodom-inspect.mjs <url>` kończy się kodem 0 i drukuje wszystkie trzy sekcje
+- [x] 2.1 `npm run lint`, `npx astro check` i `npm run build` przechodzą
+- [x] 2.2 W repo nie ma zależności parsującej HTML
+- [x] 2.3 Nie dodano biblioteki walidacyjnej
+- [x] 2.4 `map.ts` i `fetch.ts` nie mają importów runtime'owych — wyłącznie `import type`
+- [x] 2.5 Pola `owner`/`agency`/`contactDetails` nie występują w `src/lib/otodom/` — `raw` z białej listy
+- [x] 2.6 `node scripts/otodom-inspect.mjs <url>` kończy się kodem 0 i drukuje wszystkie trzy sekcje
 
 #### Manual
 
-- [ ] 2.7 Oferta sprzedaży mieszkania: bramka przechodzi, liczby i enumy zmapowane poprawnie
-- [ ] 2.8 Oferta wynajmu: bramka odrzuca z powodem `not_for_sale`
-- [ ] 2.9 Oferta domu: bramka odrzuca z powodem `not_a_flat`
-- [ ] 2.10 Oferta bez czynszu lub z `rent: "0"`: mapper zwraca `null`, nie `0`
-- [ ] 2.11 Wynik mappera (kolumny i `raw`) nie zawiera wartości z `contactDetails`/`owner`/`agency`
+- [x] 2.7 Oferta sprzedaży mieszkania: bramka przechodzi, liczby i enumy zmapowane poprawnie
+- [x] 2.8 Oferta wynajmu: bramka odrzuca z powodem `not_for_sale`
+- [x] 2.9 Oferta domu: bramka odrzuca z powodem `not_a_flat`
+- [x] 2.10 Oferta bez czynszu lub z `rent: "0"`: mapper zwraca `null`, nie `0`
+- [x] 2.11 Wynik mappera (kolumny i `raw`) nie zawiera wartości z `contactDetails`/`owner`/`agency`
 
 ### Phase 3: Ścieżka zapisu — trasa API, formularz i smoke
 

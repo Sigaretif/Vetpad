@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
-    "smoke": "node --env-file-if-exists=.env scripts/smoke.mjs"
+    "smoke": "node --env-file-if-exists=.env scripts/smoke.mjs",
+    "otodom:inspect": "node scripts/otodom-inspect.mjs"
   },
   "dependencies": {
     "@astrojs/check": "^0.9.10",
