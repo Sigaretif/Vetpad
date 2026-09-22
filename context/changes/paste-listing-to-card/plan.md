@@ -493,38 +493,38 @@ Pierwsza migracja w historii repozytorium. Powstaje wyłącznie przez `npx supab
 
 #### Automated
 
-- [x] 2.1 `npm run lint`, `npx astro check` i `npm run build` przechodzą
-- [x] 2.2 W repo nie ma zależności parsującej HTML
-- [x] 2.3 Nie dodano biblioteki walidacyjnej
-- [x] 2.4 `map.ts` i `fetch.ts` nie mają importów runtime'owych — wyłącznie `import type`
-- [x] 2.5 Pola `owner`/`agency`/`contactDetails` nie występują w `src/lib/otodom/` — `raw` z białej listy
-- [x] 2.6 `node scripts/otodom-inspect.mjs <url>` kończy się kodem 0 i drukuje wszystkie trzy sekcje
+- [x] 2.1 `npm run lint`, `npx astro check` i `npm run build` przechodzą — 19d2e68
+- [x] 2.2 W repo nie ma zależności parsującej HTML — 19d2e68
+- [x] 2.3 Nie dodano biblioteki walidacyjnej — 19d2e68
+- [x] 2.4 `map.ts` i `fetch.ts` nie mają importów runtime'owych — wyłącznie `import type` — 19d2e68
+- [x] 2.5 Pola `owner`/`agency`/`contactDetails` nie występują w `src/lib/otodom/` — `raw` z białej listy — 19d2e68
+- [x] 2.6 `node scripts/otodom-inspect.mjs <url>` kończy się kodem 0 i drukuje wszystkie trzy sekcje — 19d2e68
 
 #### Manual
 
-- [x] 2.7 Oferta sprzedaży mieszkania: bramka przechodzi, liczby i enumy zmapowane poprawnie
-- [x] 2.8 Oferta wynajmu: bramka odrzuca z powodem `not_for_sale`
-- [x] 2.9 Oferta domu: bramka odrzuca z powodem `not_a_flat`
-- [x] 2.10 Oferta bez czynszu lub z `rent: "0"`: mapper zwraca `null`, nie `0`
-- [x] 2.11 Wynik mappera (kolumny i `raw`) nie zawiera wartości z `contactDetails`/`owner`/`agency`
+- [x] 2.7 Oferta sprzedaży mieszkania: bramka przechodzi, liczby i enumy zmapowane poprawnie — 19d2e68
+- [x] 2.8 Oferta wynajmu: bramka odrzuca z powodem `not_for_sale` — 19d2e68
+- [x] 2.9 Oferta domu: bramka odrzuca z powodem `not_a_flat` — 19d2e68
+- [x] 2.10 Oferta bez czynszu lub z `rent: "0"`: mapper zwraca `null`, nie `0` — 19d2e68
+- [x] 2.11 Wynik mappera (kolumny i `raw`) nie zawiera wartości z `contactDetails`/`owner`/`agency` — 19d2e68
 
 ### Phase 3: Ścieżka zapisu — trasa API, formularz i smoke
 
 #### Automated
 
-- [ ] 3.1 `npm run lint`, `npx astro check` i `npm run build` przechodzą
-- [ ] 3.2 `npm run smoke` przechodzi z nowymi krokami, bez zmian w workflow CI
-- [ ] 3.3 Trasa nie zwraca JSON-a ani ręcznie budowanego `Response`
-- [ ] 3.4 Wyspa formularza nie używa `fetch()`
-- [ ] 3.5 Limit czasu jest ustawiony po stronie serwera przez `AbortSignal.timeout`
+- [x] 3.1 `npm run lint`, `npx astro check` i `npm run build` przechodzą
+- [x] 3.2 `npm run smoke` przechodzi z nowymi krokami, bez zmian w workflow CI
+- [x] 3.3 Trasa nie zwraca JSON-a ani ręcznie budowanego `Response`
+- [x] 3.4 Wyspa formularza nie używa `fetch()`
+- [x] 3.5 Limit czasu jest ustawiony po stronie serwera przez `AbortSignal.timeout`
 
 #### Manual
 
-- [ ] 3.6 Wklejenie żywego ogłoszenia sprzedaży mieszkania kończy się przekierowaniem na `/offers/<uuid>` i wierszem w bazie z `created_by`
-- [ ] 3.7 Wiersz nie zawiera wartości z `contactDetails`/`owner`/`agency`, a `raw` tylko klucze z białej listy
-- [ ] 3.8 Ogłoszenie wynajmu daje komunikat o wynajmie i nie tworzy wiersza
-- [ ] 3.9 Ten sam URL z parametrami śledzącymi lub bez prefiksu `/pl` nie tworzy duplikatu i kieruje na `/offers/<id>?duplicate=1`
-- [ ] 3.10 Podczas pobierania przycisk pokazuje „Pobieram ogłoszenie…" i jest nieaktywny
+- [x] 3.6 Wklejenie żywego ogłoszenia sprzedaży mieszkania kończy się przekierowaniem na `/offers/<uuid>` i wierszem w bazie z `created_by`
+- [x] 3.7 Wiersz nie zawiera wartości z `contactDetails`/`owner`/`agency`, a `raw` tylko klucze z białej listy
+- [x] 3.8 Ogłoszenie wynajmu daje komunikat o wynajmie i nie tworzy wiersza
+- [x] 3.9 Ten sam URL z parametrami śledzącymi lub bez prefiksu `/pl` nie tworzy duplikatu i kieruje na `/offers/<id>?duplicate=1`
+- [x] 3.10 Podczas pobierania przycisk pokazuje „Pobieram ogłoszenie…" i jest nieaktywny
 
 ### Phase 4: Karta oferty
 

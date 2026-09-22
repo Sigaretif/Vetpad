@@ -1,6 +1,9 @@
 // Smoke test: proves the built app, the Cloudflare adapter and the Supabase auth flow still work together,
-// and that registration is closed both in the app and in Supabase Auth (FR-001).
+// that registration is closed both in the app and in Supabase Auth (FR-001), and that /api/offers refuses
+// anonymous callers and URLs that are not otodom.pl offers before any request reaches otodom.pl.
 // Zero dependencies on purpose. Run against a live server: BASE_URL=http://localhost:4321 npm run smoke
+
+import { randomUUID } from "node:crypto";
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:4321";
 const { SUPABASE_URL, SUPABASE_KEY } = process.env;
@@ -67,11 +70,40 @@ const steps = [
     { status: 302, locationPrefix: "/auth/signin?error=" },
   ],
   [
+    "offer save redirects anonymous user",
+    () => request("/api/offers", { method: "POST", form: { url: "https://www.otodom.pl/pl/oferta/x-ID1" } }),
+    { status: 302, location: "/auth/signin" },
+  ],
+  [
+    "offer card redirects anonymous user",
+    () => request(`/offers/${randomUUID()}`),
+    { status: 302, location: "/auth/signin" },
+  ],
+  [
     "signin accepts correct password",
     () => request("/api/auth/signin", { method: "POST", form: { email, password } }),
     { status: 302, location: "/" },
   ],
   ["dashboard renders for signed-in user", () => request("/dashboard"), { status: 200 }],
+  [
+    "offer save rejects empty url",
+    () => request("/api/offers", { method: "POST", form: { url: "" } }),
+    { status: 302, locationPrefix: "/dashboard?error=" },
+  ],
+  [
+    "offer save rejects foreign host",
+    () => request("/api/offers", { method: "POST", form: { url: "https://www.olx.pl/d/oferta/xyz" } }),
+    { status: 302, locationPrefix: "/dashboard?error=" },
+  ],
+  [
+    "offer save rejects otodom non-offer url",
+    () =>
+      request("/api/offers", {
+        method: "POST",
+        form: { url: "https://www.otodom.pl/pl/wyniki/sprzedaz/mieszkanie/warszawa" },
+      }),
+    { status: 302, locationPrefix: "/dashboard?error=" },
+  ],
   ["signout clears session", () => request("/api/auth/signout", { method: "POST" }), { status: 302, location: "/" }],
   ["dashboard redirects after signout", () => request("/dashboard"), { status: 302, location: "/auth/signin" }],
 ];

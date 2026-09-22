@@ -6,10 +6,13 @@ interface SubmitButtonProps {
   pendingText: string;
   icon: ReactNode;
   children: ReactNode;
+  /** When given, overrides useFormStatus(), which never reports pending for a native POST to a string action. */
+  pending?: boolean;
 }
 
-export function SubmitButton({ pendingText, icon, children }: SubmitButtonProps) {
-  const { pending } = useFormStatus();
+export function SubmitButton({ pendingText, icon, children, pending: pendingOverride }: SubmitButtonProps) {
+  const status = useFormStatus();
+  const pending = pendingOverride ?? status.pending;
 
   return (
     <Button

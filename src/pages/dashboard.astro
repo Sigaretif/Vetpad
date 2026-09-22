@@ -1,7 +1,9 @@
 ---
 import Layout from "@/layouts/Layout.astro";
+import AddOfferForm from "@/components/offers/AddOfferForm";
 
 const { user } = Astro.locals;
+const error = Astro.url.searchParams.get("error");
 ---
 
 <Layout title="Dashboard">
@@ -14,6 +16,9 @@ const { user } = Astro.locals;
         Welcome, <span class="font-semibold text-white">{user?.email}</span>
       </p>
       <p class="mt-2 text-sm text-blue-100/50">This page is only for authenticated users.</p>
+      <div class="mt-6 w-full max-w-md text-left">
+        <AddOfferForm serverError={error} client:load />
+      </div>
       <form method="POST" action="/api/auth/signout" class="mt-6">
         <button
           type="submit"
