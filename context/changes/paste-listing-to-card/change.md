@@ -1,7 +1,7 @@
 ---
 change_id: paste-listing-to-card
 title: Paste listing to card
-status: new
+status: plan_reviewed
 created: 2026-09-22
 updated: 2026-09-22
 archived_at: null

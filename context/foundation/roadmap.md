@@ -42,7 +42,7 @@ A small group searching for an apartment together keeps blind links in spreadshe
 | ID   | Change ID                | Outcome (user can …)                                                                | Prerequisites | PRD refs                      | Status   |
 | ---- | ------------------------ | ----------------------------------------------------------------------------------- | ------------- | ----------------------------- | -------- |
 | S-01 | closed-team-sign-in      | sign in only with a pre-seeded account; nobody can register                         | —             | FR-001                        | done |
-| S-02 | paste-listing-to-card    | paste an otodom.pl URL and read the saved listing's text, parameters and photos     | S-01          | US-01, FR-004, FR-005, FR-007 | proposed |
+| S-02 | paste-listing-to-card    | paste an otodom.pl URL and read the saved listing's text, parameters and photos     | S-01          | US-01, FR-004, FR-005, FR-007 | planning |
 | S-03 | team-search-criteria     | define and edit the team's shared hard limits and their own additional requirements | S-01          | FR-002, FR-003                | proposed |
 | S-04 | grounded-listing-audit   | run an AI audit on a saved listing and read findings, each quoted from the listing  | S-02, S-03    | US-01, FR-010, FR-011         | proposed |
 | S-05 | member-notes             | write their own Pros / Cons / Observations note and read everyone's, attributed     | S-02          | US-01, FR-012, FR-013         | proposed |
@@ -107,7 +107,7 @@ None. Every absent or partial layer in the Baseline is first needed by a user-fa
   - Does otodom.pl serve requests from the hosting platform's egress addresses, reliably? The extraction-service fallback is documented but adopting it is a user decision. — Owner: user. Block: no.
   - How does "unknown" look on the card (PRD Open Question 2)? The semantics are binding — the plan picks a presentation and says so. — Owner: user. Block: no.
 - **Risk:** The north star, and it carries the product guardrails that are easiest to break silently: the seller's phone and name must be dropped at the fetch boundary, a stated `"0"` for rent (and any similar numeric field) must read as unknown, and a failed fetch must never leave a blank or partial offer. Ingestion must also show progress and give up within about a minute (Non-Functional Requirements).
-- **Status:** proposed
+- **Status:** planning
 
 ### S-03: Team search criteria
 
@@ -227,7 +227,7 @@ None. Every absent or partial layer in the Baseline is first needed by a user-fa
 | Roadmap ID | Issue                                                | Change ID                | Suggested issue title                                       | Ready for `/10x-plan` | Notes                               |
 | ---------- | ---------------------------------------------------- | ------------------------ | ----------------------------------------------------------- | --------------------- | ----------------------------------- |
 | S-01       | [#12](https://github.com/Sigaretif/Vetpad/issues/12) | closed-team-sign-in      | Close registration; sign-in only for pre-seeded accounts    | done                  | Done; archived 2026-09-22           |
-| S-02       | [#13](https://github.com/Sigaretif/Vetpad/issues/13) | paste-listing-to-card    | Save an otodom listing from a pasted URL and show its card  | no                    | After S-01; north star              |
+| S-02       | [#13](https://github.com/Sigaretif/Vetpad/issues/13) | paste-listing-to-card    | Save an otodom listing from a pasted URL and show its card  | planned               | North star; planned 2026-09-22 → `context/changes/paste-listing-to-card/plan.md` |
 | S-03       | [#14](https://github.com/Sigaretif/Vetpad/issues/14) | team-search-criteria     | Shared hard limits and per-member additional requirements   | no                    | After S-01; can run beside S-02     |
 | S-04       | [#15](https://github.com/Sigaretif/Vetpad/issues/15) | grounded-listing-audit   | AI audit of a saved listing with verbatim excerpts          | no                    | After S-02 and S-03                 |
 | S-05       | [#16](https://github.com/Sigaretif/Vetpad/issues/16) | member-notes             | Per-member Pros / Cons / Observations notes, attributed     | no                    | After S-02                          |
@@ -261,6 +261,8 @@ None. Every absent or partial layer in the Baseline is first needed by a user-fa
 - **Granular aspect or room note structure** — Why parked: PRD §Non-Goals; Pros, Cons and General Observations only.
 - **Real-time collaborative editing** — Why parked: PRD §Non-Goals; notes are per-person and never co-edited.
 - **Registration and password reset** — Why parked: FR-001; a password is reissued by the database administrator.
+- **Extraction-service fallback for ingestion (Apify)** — Why parked: the direct path was verified end to end from Cloudflare's egress on 2026-09-20, so a second vendor and a second secret buy nothing today. Trigger to revisit: otodom.pl answering the Worker's egress with 403/429 — a failure mode S-02 reports distinctly from a payload-shape change, precisely so this trigger is recognisable. Verified request shape and failure modes: `context/foundation/ingestion/otodom_apify.md`.
+- **Photo viewer inside the card (lightbox)** — Why parked: S-02 opens a full-size photo in a new browser tab, which keeps the card free of React state and of hand-rolled focus and keyboard handling. Revisit when browsing twenty photos per listing becomes a real friction in the team's use.
 
 ## Milestone History
 
