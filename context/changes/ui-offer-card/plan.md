@@ -405,14 +405,14 @@ Brak danych i migracji. Wycofanie = revert commitów fazy; tokeny i komponenty n
 
 #### Automated
 
-- [x] 4.1 `npx astro sync && npm run lint && npx astro check && npm run build` przechodzą
-- [x] 4.2 Smoke na buildzie produkcyjnym przechodzi, w tym `/dev/offer-card` → 404
-- [x] 4.3 `/dev/offer-card` na `npm run dev` bez `.env` zwraca 200
-- [x] 4.4 `grep -rn 'otodom.pl' src/pages/dev` nic nie zwraca
+- [x] 4.1 `npx astro sync && npm run lint && npx astro check && npm run build` przechodzą — 46ba71a
+- [x] 4.2 Smoke na buildzie produkcyjnym przechodzi, w tym `/dev/offer-card` → 404 — 46ba71a
+- [x] 4.3 `/dev/offer-card` na `npm run dev` bez `.env` zwraca 200 — 46ba71a
+- [x] 4.4 `grep -rn 'otodom.pl' src/pages/dev` nic nie zwraca — 46ba71a
 
 #### Manual
 
-- [x] 4.5 Zrzut desktop kitchen sinka pokazuje wszystkie stany, w tym działanie filtra URL
-- [x] 4.6 Zrzut z fokusem: pierścień widoczny na `card` i `background`
-- [x] 4.7 Jeden zrzut mobilny (~375 px) jako kontrola: brak przewijania poziomego
-- [x] 4.8 Checklist `ui-quality-checklist.md` przejrzany; odstępstwo i odłożone nazwane
+- [x] 4.5 Zrzut desktop kitchen sinka pokazuje wszystkie stany, w tym działanie filtra URL — 46ba71a
+- [x] 4.6 Zrzut z fokusem: pierścień widoczny na `card` i `background` — 46ba71a
+- [x] 4.7 Jeden zrzut mobilny (~375 px) jako kontrola: brak przewijania poziomego — 46ba71a
+- [x] 4.8 Checklist `ui-quality-checklist.md` przejrzany; odstępstwo i odłożone nazwane — 46ba71a

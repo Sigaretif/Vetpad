@@ -1,7 +1,7 @@
 ---
 change_id: ui-offer-card
 title: Karta oferty jako widok wzorcowy — tokeny z presetu shadcn, ciemny motyw, wspólna rama
-status: implementing
+status: implemented
 created: 2026-09-23
 updated: 2026-09-23
 archived_at: null
