@@ -17,7 +17,7 @@ const variantClasses: Record<Variant, string> = {
 ---
 
 <div
-  class={cn("banner border-b px-4 py-3 text-center text-sm", variantClasses[variant])}
+  class:list={cn("banner border-b px-4 py-3 text-center text-sm", variantClasses[variant])}
   role={variant === "error" ? "alert" : "status"}
 >
   <slot />
@@ -28,5 +28,11 @@ const variantClasses: Record<Variant, string> = {
     color: inherit;
     text-decoration: underline;
     font-weight: 600;
+  }
+  /* The same ring as buttonVariants (ring/50, 3px); >=3:1 on all three banner surfaces. */
+  .banner :global(a:focus-visible) {
+    outline: 3px solid color-mix(in oklab, var(--ring) 50%, transparent);
+    outline-offset: 2px;
+    border-radius: 2px;
   }
 </style>

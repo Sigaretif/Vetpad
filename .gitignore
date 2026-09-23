@@ -26,3 +26,6 @@ pnpm-debug.log*
 
 # jetbrains setting folder
 .idea/
+
+# screenshots of real otodom listings (third-party photos and text) — keep local, never commit
+context/**/screenshots/*offer-real*

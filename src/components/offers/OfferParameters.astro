@@ -73,7 +73,7 @@ const features = Array.isArray(offer.features) ? offer.features.map(featureLabel
               <th scope="row" class="text-muted-foreground py-2 pr-4 text-left font-normal">
                 {row.label}
               </th>
-              <td class:list={cn("py-2 text-right", row.value !== null && "text-foreground font-medium")}>
+              <td class:list={cn("py-2 text-right", row.value !== null && "text-foreground")}>
                 {row.value ?? <Unstated>nie podano w ogłoszeniu</Unstated>}
               </td>
             </tr>

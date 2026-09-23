@@ -355,6 +355,14 @@ Brak danych i migracji. Wycofanie = revert commitów fazy; tokeny i komponenty n
 - Lekcja: `context/praca-nad-interfejsem-graficznym-aplikacji-ui.md:349`, `:360`
 - Wzorzec 404: `src/pages/offers/[id].astro:35-38`; wzorzec URL z wiersza: `src/lib/safe-url.ts`
 
+## Addendum: poza planem
+
+Dodane świadomie w trakcie implementacji, opisane po `/10x-impl-review` (F4, `reviews/impl-review.md`):
+
+- `scripts/ui-screenshots.mjs` — zrzuty do bramki wizualnej: Chrome headless przez DevTools Protocol, bez zależności; zestawy `before`, `p2`, `p3`, `gate`. Loguje się kontem z `supabase/seed.sql`, więc wymaga lokalnego Supabase i działającego `npm run dev`. Narzędzie debugowania, nie test: nie biegnie w CI.
+- `.gitignore`: `context/**/screenshots/*offer-real*` — zrzuty prawdziwego ogłoszenia z otodom (cudze zdjęcia i tekst) zostają lokalnie.
+- `context/changes/ui-offer-card/screenshots/` — dowód bramki; w repo idą wszystkie zrzuty poza `*offer-real*`.
+
 ## Progress
 
 > Convention: `- [ ]` pending, `- [x]` done. Append ` — <commit sha>` when a step lands. Do not rename step titles. See `references/progress-format.md`.

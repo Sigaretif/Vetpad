@@ -157,7 +157,7 @@ None. Every absent or partial layer in the Baseline is first needed by a user-fa
 - **Parallel with:** S-03, S-04, S-05, S-07, S-08, S-09, S-11
 - **Blockers:** —
 - **Unknowns:** —
-- **Risk:** Until it lands, a saved card is only reachable right after pasting it — the team cannot abandon the spreadsheet without a board. Every card reads "Not Audited" until S-04 exists.
+- **Risk:** Until it lands, a saved card is only reachable right after pasting it — the team cannot abandon the spreadsheet without a board. Every card reads "Not Audited" until S-04 exists. The Topbar's „Oferty" (`src/components/Topbar.astro`) and the card's „← Wróć do ofert" (`src/pages/offers/[id].astro`) already point at `/dashboard` and promise this board, while `/dashboard` still renders only the add-offer form; this slice makes the board that destination, or moves both links if the board takes another route.
 - **Status:** proposed
 
 ### S-07: Duplicate listing notice
