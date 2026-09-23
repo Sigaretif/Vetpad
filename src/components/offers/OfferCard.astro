@@ -1,0 +1,57 @@
+---
+import { buttonVariants } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import OfferDescription from "@/components/offers/OfferDescription.astro";
+import OfferGallery from "@/components/offers/OfferGallery.astro";
+import OfferParameters from "@/components/offers/OfferParameters.astro";
+import Unstated from "@/components/offers/Unstated.astro";
+import { formatMoney } from "@/lib/otodom/labels";
+import type { OfferRow } from "@/lib/otodom/types";
+import { safeHttpsUrl } from "@/lib/safe-url";
+import { cn } from "@/lib/utils";
+
+interface Props {
+  offer: OfferRow;
+}
+
+const { offer } = Astro.props;
+
+/** `null` stays "not stated"; only a stated amount is formatted. */
+function money(amount: number | null, currency: string | null, suffix = ""): string | null {
+  return amount === null ? null : `${formatMoney(amount, currency)}${suffix}`;
+}
+
+const images = Array.isArray(offer.images) ? offer.images : [];
+const price = money(offer.price, offer.price_currency);
+const pricePerM = money(offer.price_per_m, offer.price_currency, "/m²");
+const sourceUrl = safeHttpsUrl(offer.source_url);
+---
+
+<header>
+  <Card>
+    <CardContent>
+      <h1 class="mb-3 text-2xl font-bold wrap-anywhere sm:text-3xl">{offer.title}</h1>
+      <div class="flex flex-wrap items-baseline gap-x-6 gap-y-1">
+        <p class="text-2xl font-semibold">{price ?? <Unstated>Cena: nie podano w ogłoszeniu</Unstated>}</p>
+        <p class="text-muted-foreground">{pricePerM ?? <Unstated>Cena za m²: nie podano w ogłoszeniu</Unstated>}</p>
+      </div>
+      <p class="text-muted-foreground mt-2">
+        {offer.location_label ?? <Unstated>Lokalizacja: nie podano w ogłoszeniu</Unstated>}
+      </p>
+      {sourceUrl && (
+        <a
+          href={sourceUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          class:list={cn(buttonVariants({ variant: "link" }), "mt-4 h-auto p-0")}
+        >
+          Otwórz oryginał na otodom.pl ↗
+        </a>
+      )}
+    </CardContent>
+  </Card>
+</header>
+
+<OfferParameters offer={offer} />
+<OfferDescription description={offer.description} />
+<OfferGallery images={images} title={offer.title} />

@@ -17,6 +17,9 @@ import {
   marketLabel,
   windowsTypeLabel,
 } from "@/lib/otodom/labels";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import Unstated from "@/components/offers/Unstated.astro";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -57,33 +60,41 @@ const rows: { label: string; value: string | null }[] = [
 const features = Array.isArray(offer.features) ? offer.features.map(featureLabel) : [];
 ---
 
-<section class="rounded-2xl border border-white/10 bg-white/10 p-6 text-white backdrop-blur-xl">
-  <h2 class="mb-4 text-xl font-semibold">Parametry</h2>
-  <table class="w-full text-sm">
-    <tbody>
-      {rows.map((row) => (
-        <tr class="border-b border-white/10 last:border-b-0">
-          <th scope="row" class="py-2 pr-4 text-left font-normal text-blue-100/70">
-            {row.label}
-          </th>
-          <td
-            class:list={cn("py-2 text-right", row.value === null ? "text-white/40 italic" : "font-medium text-white")}
-          >
-            {row.value ?? "nie podano w ogłoszeniu"}
-          </td>
-        </tr>
-      ))}
-    </tbody>
-  </table>
+<section>
+  <Card>
+    <CardHeader>
+      <h2 class="text-xl font-semibold">Parametry</h2>
+    </CardHeader>
+    <CardContent>
+      <table class="w-full text-sm">
+        <tbody>
+          {rows.map((row) => (
+            <tr class="border-border border-b last:border-b-0">
+              <th scope="row" class="text-muted-foreground py-2 pr-4 text-left font-normal">
+                {row.label}
+              </th>
+              <td class:list={cn("py-2 text-right", row.value !== null && "text-foreground font-medium")}>
+                {row.value ?? <Unstated>nie podano w ogłoszeniu</Unstated>}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
 
-  <h3 class="mt-6 mb-2 text-base font-semibold">Udogodnienia</h3>
-  {features.length === 0 ? (
-    <p class="text-sm text-white/40 italic">ogłoszenie nie wymienia udogodnień</p>
-  ) : (
-    <ul class="flex flex-wrap gap-2 text-sm">
-      {features.map((feature) => (
-        <li class="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-blue-50">{feature}</li>
-      ))}
-    </ul>
-  )}
+      <h3 class="mt-6 mb-2 text-base font-semibold">Udogodnienia</h3>
+      {features.length === 0 ? (
+        <p class="text-sm">
+          <Unstated>ogłoszenie nie wymienia udogodnień</Unstated>
+        </p>
+      ) : (
+        <ul class="flex flex-wrap gap-2">
+          {features.map((feature) => (
+            <li>
+              <Badge variant="outline">{feature}</Badge>
+            </li>
+          ))}
+        </ul>
+      )}
+    </CardContent>
+  </Card>
 </section>

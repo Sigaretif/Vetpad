@@ -376,30 +376,30 @@ Brak danych i migracji. Wycofanie = revert commitów fazy; tokeny i komponenty n
 
 #### Automated
 
-- [x] 2.1 `npx astro sync && npm run lint && npx astro check && npm run build` przechodzą
-- [x] 2.2 `grep -n '#[0-9a-fA-F]\{3,6\}' src/components/Banner.astro` nic nie zwraca
-- [x] 2.3 `grep -c 'class="dark"' src/layouts/Layout.astro` = 1; `global.css` zawiera `--color-link`, `--color-info`, `--color-warning` w `@theme inline`
-- [x] 2.4 Skrypt kontrastu potwierdza progi dla `link`, `muted-foreground`, `info`/`warning`, `ring` 50%
+- [x] 2.1 `npx astro sync && npm run lint && npx astro check && npm run build` przechodzą — 29c6f3b
+- [x] 2.2 `grep -n '#[0-9a-fA-F]\{3,6\}' src/components/Banner.astro` nic nie zwraca — 29c6f3b
+- [x] 2.3 `grep -c 'class="dark"' src/layouts/Layout.astro` = 1; `global.css` zawiera `--color-link`, `--color-info`, `--color-warning` w `@theme inline` — 29c6f3b
+- [x] 2.4 Skrypt kontrastu potwierdza progi dla `link`, `muted-foreground`, `info`/`warning`, `ring` 50% — 29c6f3b
 
 #### Manual
 
-- [x] 2.5 Signin, dashboard i strona główna bez zmian poza fontem, ciemnym banerem i kontrolkami natywnymi (zrzut przed/po)
-- [x] 2.6 Polskie znaki renderują się w Roboto
+- [x] 2.5 Signin, dashboard i strona główna bez zmian poza fontem, ciemnym banerem i kontrolkami natywnymi (zrzut przed/po) — 29c6f3b
+- [x] 2.6 Polskie znaki renderują się w Roboto — 29c6f3b
 
 ### Phase 3: Jeden widok — karta i rama
 
 #### Automated
 
-- [ ] 3.1 `npx astro sync && npm run lint && npx astro check && npm run build` przechodzą
-- [ ] 3.2 Grep literałów (`white/`, `blue-`, `purple-`, `bg-cosmic`, `backdrop-blur`, `bg-gradient`, `text-transparent`) w karcie, Topbarze i AppLayout nic nie zwraca
-- [ ] 3.3 `Unstated` używany w `OfferCard`, `OfferParameters`, `OfferGallery`; `CLAUDE.md` wskazuje `Unstated.astro` jako wzorzec
-- [ ] 3.4 Smoke na buildzie produkcyjnym przechodzi (kroki karty bez zmian)
+- [x] 3.1 `npx astro sync && npm run lint && npx astro check && npm run build` przechodzą
+- [x] 3.2 Grep literałów (`white/`, `blue-`, `purple-`, `bg-cosmic`, `backdrop-blur`, `bg-gradient`, `text-transparent`) w karcie, Topbarze i AppLayout nic nie zwraca
+- [x] 3.3 `Unstated` używany w `OfferCard`, `OfferParameters`, `OfferGallery`; `CLAUDE.md` wskazuje `Unstated.astro` jako wzorzec
+- [x] 3.4 Smoke na buildzie produkcyjnym przechodzi (kroki karty bez zmian)
 
 #### Manual
 
-- [ ] 3.5 Prawdziwa karta na desktopie: tokeny, `Card`, linki cyan, czytelne „nie podano", baner duplikatu pod Topbarem
-- [ ] 3.6 Przewijanie karty bez GPU płynne po usunięciu blur
-- [ ] 3.7 Strona główna: polski Topbar na tokenach, brak innych zmian
+- [x] 3.5 Prawdziwa karta na desktopie: tokeny, `Card`, linki cyan, czytelne „nie podano", baner duplikatu pod Topbarem
+- [x] 3.6 Przewijanie karty bez GPU płynne po usunięciu blur
+- [x] 3.7 Strona główna: polski Topbar na tokenach, brak innych zmian
 
 ### Phase 4: Stany i kitchen sink
 

@@ -1,0 +1,28 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import Topbar from "@/components/Topbar.astro";
+
+interface Props {
+  title?: string;
+}
+
+const { title } = Astro.props;
+// Page notices (e.g. the duplicate-offer banner) sit under the Topbar, in the container's width.
+// Their wrapper is `contents`, so each notice is a row of the frame and an empty slot leaves no
+// box and no extra gap — a false `{cond && <X slot="notice" />}` still counts as filled for
+// Astro.slots.has, so the wrapper cannot be made conditional on it.
+---
+
+<Layout title={title} lang="pl">
+  <div class="bg-background text-foreground min-h-screen p-4 sm:p-8">
+    <div class="mx-auto flex max-w-4xl flex-col gap-6">
+      <Topbar />
+      <div class="contents *:rounded-lg *:border">
+        <slot name="notice" />
+      </div>
+      <main class="flex flex-col gap-6">
+        <slot />
+      </main>
+    </div>
+  </div>
+</Layout>

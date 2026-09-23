@@ -1,0 +1,11 @@
+---
+/*
+ * The one presentation of "the listing did not state it" (prd.md, Success Criteria → Guardrails):
+ * an unstated fact is shown as unstated in muted italics, never as "no", `0` or an empty value.
+ * Callers pass the wording; this component owns how it looks.
+ */
+---
+
+<span class="text-muted-foreground italic">
+  <slot />
+</span>
