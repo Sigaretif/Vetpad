@@ -3,7 +3,7 @@ project: Vetpad
 version: 1
 status: draft
 created: 2026-09-21
-updated: 2026-09-22
+updated: 2026-09-23
 prd_version: 1
 main_goal: market-feedback
 top_blocker: time
@@ -42,7 +42,7 @@ A small group searching for an apartment together keeps blind links in spreadshe
 | ID   | Change ID                | Outcome (user can …)                                                                | Prerequisites | PRD refs                      | Status      |
 | ---- | ------------------------ | ----------------------------------------------------------------------------------- | ------------- | ----------------------------- | ----------- |
 | S-01 | closed-team-sign-in      | sign in only with a pre-seeded account; nobody can register                         | —             | FR-001                        | done        |
-| S-02 | paste-listing-to-card    | paste an otodom.pl URL and read the saved listing's text, parameters and photos     | S-01          | US-01, FR-004, FR-005, FR-007 | in-progress |
+| S-02 | paste-listing-to-card    | paste an otodom.pl URL and read the saved listing's text, parameters and photos     | S-01          | US-01, FR-004, FR-005, FR-007 | done        |
 | S-03 | team-search-criteria     | define and edit the team's shared hard limits and their own additional requirements | S-01          | FR-002, FR-003                | proposed    |
 | S-04 | grounded-listing-audit   | run an AI audit on a saved listing and read findings, each quoted from the listing  | S-02, S-03    | US-01, FR-010, FR-011         | proposed    |
 | S-05 | member-notes             | write their own Pros / Cons / Observations note and read everyone's, attributed     | S-02          | US-01, FR-012, FR-013         | proposed    |
@@ -107,7 +107,7 @@ None. Every absent or partial layer in the Baseline is first needed by a user-fa
   - Does otodom.pl serve requests from the hosting platform's egress addresses, reliably? The extraction-service fallback is documented but adopting it is a user decision. — Owner: user. Block: no.
   - How does "unknown" look on the card (PRD Open Question 2)? The semantics are binding — the plan picks a presentation and says so. — Owner: user. Block: no.
 - **Risk:** The north star, and it carries the product guardrails that are easiest to break silently: the seller's phone and name must be dropped at the fetch boundary, a stated `"0"` for rent (and any similar numeric field) must read as unknown, and a failed fetch must never leave a blank or partial offer. Ingestion must also show progress and give up within about a minute (Non-Functional Requirements).
-- **Status:** in-progress
+- **Status:** done
 
 ### S-03: Team search criteria
 
@@ -227,11 +227,11 @@ None. Every absent or partial layer in the Baseline is first needed by a user-fa
 | Roadmap ID | Issue                                                | Change ID                | Suggested issue title                                       | Ready for `/10x-plan` | Notes                                                                                                                                    |
 | ---------- | ---------------------------------------------------- | ------------------------ | ----------------------------------------------------------- | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | S-01       | [#12](https://github.com/Sigaretif/Vetpad/issues/12) | closed-team-sign-in      | Close registration; sign-in only for pre-seeded accounts    | done                  | Done; archived 2026-09-22                                                                                                                |
-| S-02       | [#13](https://github.com/Sigaretif/Vetpad/issues/13) | paste-listing-to-card    | Save an otodom listing from a pasted URL and show its card  | implemented           | North star; implemented 2026-09-22, awaiting ship and `/10x-archive` → `context/changes/paste-listing-to-card/plan.md`                   |
+| S-02       | [#13](https://github.com/Sigaretif/Vetpad/issues/13) | paste-listing-to-card    | Save an otodom listing from a pasted URL and show its card  | done                  | Done; archived 2026-09-23 → `context/archive/2026-09-22-paste-listing-to-card/`                                                          |
 | S-03       | [#14](https://github.com/Sigaretif/Vetpad/issues/14) | team-search-criteria     | Shared hard limits and per-member additional requirements   | yes                   | S-01 done; independent of S-02 — run `/10x-plan team-search-criteria`                                                                    |
-| S-04       | [#15](https://github.com/Sigaretif/Vetpad/issues/15) | grounded-listing-audit   | AI audit of a saved listing with verbatim excerpts          | no                    | S-02 implemented; waits on S-03                                                                                                          |
-| S-05       | [#16](https://github.com/Sigaretif/Vetpad/issues/16) | member-notes             | Per-member Pros / Cons / Observations notes, attributed     | yes                   | S-02 implemented; notes hang off `public.offers` — run `/10x-plan member-notes`                                                          |
-| S-06       | [#17](https://github.com/Sigaretif/Vetpad/issues/17) | shared-offer-board       | Shared board of saved listings with audit status            | yes                   | S-02 implemented; card at `/offers/<id>` to link from the board — run `/10x-plan shared-offer-board`                                     |
+| S-04       | [#15](https://github.com/Sigaretif/Vetpad/issues/15) | grounded-listing-audit   | AI audit of a saved listing with verbatim excerpts          | no                    | S-02 done; waits on S-03                                                                                                                 |
+| S-05       | [#16](https://github.com/Sigaretif/Vetpad/issues/16) | member-notes             | Per-member Pros / Cons / Observations notes, attributed     | yes                   | S-02 done; notes hang off `public.offers` — run `/10x-plan member-notes`                                                                 |
+| S-06       | [#17](https://github.com/Sigaretif/Vetpad/issues/17) | shared-offer-board       | Shared board of saved listings with audit status            | yes                   | S-02 done; card at `/offers/<id>` to link from the board — run `/10x-plan shared-offer-board`                                            |
 | S-07       | [#18](https://github.com/Sigaretif/Vetpad/issues/18) | duplicate-listing-notice | Redirect duplicate URLs to the existing card with notice    | yes                   | S-02 already redirects duplicates to `/offers/<id>?duplicate=1` with a banner and stores `created_by`; this slice adds only who saved it |
 | S-08       | [#19](https://github.com/Sigaretif/Vetpad/issues/19) | location-map-link        | One-click Google Maps search from listing location          | yes                   | S-02 already stores `location_label`, `latitude`, `longitude` — run `/10x-plan location-map-link`                                        |
 | S-09       | [#20](https://github.com/Sigaretif/Vetpad/issues/20) | refetch-and-stale-audit  | Manual re-fetch that preserves notes and flags stale audits | no                    | After S-04 and S-05                                                                                                                      |
@@ -269,3 +269,4 @@ None. Every absent or partial layer in the Baseline is first needed by a user-fa
 ## Done
 
 - **S-01: user can sign in only with one of the team's pre-seeded accounts; the registration page and route are gone, and an outsider cannot create an account.** — Archived 2026-09-22 → `context/archive/2026-09-21-closed-team-sign-in/`. Lesson: —.
+- **S-02: user can paste an otodom.pl listing URL, press "Add", and read the saved card — description, parameters and hotlinked photo gallery — without reopening the portal; an invalid URL shows an error, and a failed fetch is reported as a fetch problem with nothing saved.** — Archived 2026-09-23 → `context/archive/2026-09-22-paste-listing-to-card/`. Lesson: —.
