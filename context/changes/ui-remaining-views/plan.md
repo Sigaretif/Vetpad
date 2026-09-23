@@ -457,33 +457,33 @@ Brak danych do migracji. Zakładki na `/` dla zalogowanych prowadzą teraz na `/
 
 #### Automated
 
-- [x] 1.1 `npm run lint` przechodzi, a pliki w `src/components/form/` nie są na liście `ignores`
-- [x] 1.2 `npx astro sync && npx astro check` przechodzi bez błędów
-- [x] 1.3 `npm run build` przechodzi
-- [x] 1.4 grep na `useFormStatus` i stare ścieżki kompozytów w `src` i `CLAUDE.md` nie zwraca nic
-- [x] 1.5 `git diff package.json` nie dodaje zależności
-- [x] 1.6 grep na `"use client"`, `from "cn"`, `from "radix-ui"` w `src/components/ui` nie zwraca nic
+- [x] 1.1 `npm run lint` przechodzi, a pliki w `src/components/form/` nie są na liście `ignores` — 2573520
+- [x] 1.2 `npx astro sync && npx astro check` przechodzi bez błędów — 2573520
+- [x] 1.3 `npm run build` przechodzi — 2573520
+- [x] 1.4 grep na `useFormStatus` i stare ścieżki kompozytów w `src` i `CLAUDE.md` nie zwraca nic — 2573520
+- [x] 1.5 `git diff package.json` nie dodaje zależności — 2573520
+- [x] 1.6 grep na `"use client"`, `from "cn"`, `from "radix-ui"` w `src/components/ui` nie zwraca nic — 2573520
 
 #### Manual
 
-- [x] 1.7 Pusty formularz logowania pokazuje polskie błędy pól z `aria-invalid` i `aria-describedby`
-- [x] 1.8 Wysłanie logowania blokuje przycisk z „Loguję…”, a powrót „Wstecz” go odblokowuje
-- [x] 1.9 „Dodaj ofertę” dalej pokazuje „Pobieram ogłoszenie…” w trakcie wysyłki
+- [x] 1.7 Pusty formularz logowania pokazuje polskie błędy pól z `aria-invalid` i `aria-describedby` — 2573520
+- [x] 1.8 Wysłanie logowania blokuje przycisk z „Loguję…”, a powrót „Wstecz” go odblokowuje — 2573520
+- [x] 1.9 „Dodaj ofertę” dalej pokazuje „Pobieram ogłoszenie…” w trakcie wysyłki — 2573520
 
 ### Phase 2: Tokeny i reguła lintu
 
 #### Automated
 
-- [ ] 2.1 `npm run lint` przechodzi, a `ignores` zawiera dokładnie `signin.astro`, `dashboard.astro` i `Welcome.astro`
-- [ ] 2.2 Sonda lintu `src/__lint-probe.tsx` daje 3 błędy `COLOUR_MESSAGE` i jest usunięta
-- [ ] 2.3 `npx astro check` przechodzi
-- [ ] 2.4 `npm run build` przechodzi
-- [ ] 2.5 `destructive-foreground` jest w `:root`, `.dark` i `@theme inline`
+- [x] 2.1 `npm run lint` przechodzi, a `ignores` zawiera dokładnie `signin.astro`, `dashboard.astro` i `Welcome.astro`
+- [x] 2.2 Sonda lintu `src/__lint-probe.tsx` daje 3 błędy `COLOUR_MESSAGE` i jest usunięta
+- [x] 2.3 `npx astro check` przechodzi
+- [x] 2.4 `npm run build` przechodzi
+- [x] 2.5 `destructive-foreground` jest w `:root`, `.dark` i `@theme inline`
 
 #### Manual
 
-- [ ] 2.6 Kontrast `--input`, pierścienia błędu i `destructive-foreground` potwierdzony obliczeniem i wpisany w komentarze
-- [ ] 2.7 Zrzuty `gate` karty bez regresji względem archiwum `ui-offer-card`
+- [x] 2.6 Kontrast `--input`, pierścienia błędu i `destructive-foreground` potwierdzony obliczeniem i wpisany w komentarze
+- [x] 2.7 Zrzuty `gate` karty bez regresji względem archiwum `ui-offer-card`
 
 ### Phase 3: Widoki
 

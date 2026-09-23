@@ -73,26 +73,28 @@ const astroConfig = defineConfig({
 // Views take colours from the tokens in src/styles/global.css (CLAUDE.md, "### UI"): a Tailwind
 // palette utility, an arbitrary hex colour, bg-cosmic or backdrop-blur in a class string is a bug.
 // The ignored files predate the token contract; remove each one when it is migrated, never add one.
+// border(?:-[trblxy])? also catches side borders such as border-t-white.
 const COLOUR_LITERAL =
-  "/\\b(?:bg|text|border|ring|outline|fill|stroke|from|via|to|shadow|decoration|divide|placeholder|caret|accent)-(?:white|black|slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)\\b|-\\[#|\\bbg-cosmic\\b|\\bbackdrop-blur/";
+  "/\\b(?:bg|text|border(?:-[trblxy])?|ring|outline|fill|stroke|from|via|to|shadow|decoration|divide|placeholder|caret|accent)-(?:white|black|slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)\\b|-\\[#|\\bbg-cosmic\\b|\\bbackdrop-blur/";
 const COLOUR_MESSAGE =
   "Colour literal in a class string. Use a role token from src/styles/global.css (bg-card, text-muted-foreground, text-link, …) — CLAUDE.md, ### UI.";
+// Narrowed to the style attribute: a bare hex/rgba() regex over any string would also catch
+// anchors like href="#add".
+const STYLE_COLOUR = "/rgba?\\(|#[0-9a-fA-F]{3,8}\\b/";
 const tokensOnlyConfig = defineConfig({
   files: ["src/**/*.{astro,ts,tsx}"],
-  ignores: [
-    // Views not yet migrated to tokens.
-    "src/pages/auth/signin.astro",
-    "src/pages/dashboard.astro",
-    "src/components/Welcome.astro",
-    // shadcn's upstream destructive variant sets text-white on bg-destructive.
-    "src/components/ui/button.tsx",
-    "src/components/ui/badge.tsx",
-  ],
+  // Views not yet migrated to tokens. This list only shrinks — nothing is ever added to it.
+  ignores: ["src/pages/auth/signin.astro", "src/pages/dashboard.astro", "src/components/Welcome.astro"],
   rules: {
     "no-restricted-syntax": [
       "error",
       { selector: `Literal[value=${COLOUR_LITERAL}]`, message: COLOUR_MESSAGE },
       { selector: `TemplateElement[value.raw=${COLOUR_LITERAL}]`, message: COLOUR_MESSAGE },
+      { selector: `JSXAttribute[name.name="style"] Literal[value=${STYLE_COLOUR}]`, message: COLOUR_MESSAGE },
+      {
+        selector: `JSXAttribute[name.name="style"] TemplateElement[value.raw=${STYLE_COLOUR}]`,
+        message: COLOUR_MESSAGE,
+      },
     ],
   },
 });

@@ -25,6 +25,10 @@
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
+  /* Deviation from the preset (no destructive-foreground): this value on destructive is 4,56:1
+     here (pure white would be 4,76:1). The light theme is never rendered (class="dark" in
+     Layout.astro is the only theme), so this value only has to clear the threshold on paper. */
+  --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
@@ -69,8 +73,14 @@
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
+  /* Deviation from the preset (no destructive-foreground): 5,77:1 on destructive/60 over card
+     (research), needed on the token so button.tsx/badge.tsx can drop text-white and leave
+     `ignores` (lessons.md, "Kolory widoku tylko z tokenów ról"). */
+  --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
+  /* Deviation from the preset (15%): border 3,82:1 on card, 3,77:1 on background, placeholder
+     muted-foreground on the input/30 fill 4,88:1 (research T8, decision 7). */
+  --input: oklch(1 0 0 / 40%);
   /* Deviation from the preset (which keeps the neutral oklch(0.556 0 0)): preset chart-1.
      Focus is drawn as ring/50 (button.tsx focus-visible:ring-ring/50, outline-ring/50 in
      @layer base) and must reach >=3:1 on background and card (research T7); the neutral
@@ -124,6 +134,7 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-link: var(--link);
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
