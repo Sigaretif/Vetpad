@@ -363,28 +363,28 @@ Brak danych i migracji. Wycofanie = revert commitów fazy; tokeny i komponenty n
 
 #### Automated
 
-- [x] 1.1 `npx astro sync && npm run lint && npx astro check && npm run build` przechodzą
-- [x] 1.2 `grep -rn 'from "cn"\|"use client"\|from "radix-ui"' src/components/ui` nic nie zwraca
-- [x] 1.3 `package.json` nie zawiera `"cn"` ani `"radix-ui"`, zawiera `@fontsource-variable/roboto`
-- [x] 1.4 `src/components/ui/LibBadge.astro` nie istnieje, `grep -rn LibBadge src` nic nie zwraca
+- [x] 1.1 `npx astro sync && npm run lint && npx astro check && npm run build` przechodzą — 08f1759
+- [x] 1.2 `grep -rn 'from "cn"\|"use client"\|from "radix-ui"' src/components/ui` nic nie zwraca — 08f1759
+- [x] 1.3 `package.json` nie zawiera `"cn"` ani `"radix-ui"`, zawiera `@fontsource-variable/roboto` — 08f1759
+- [x] 1.4 `src/components/ui/LibBadge.astro` nie istnieje, `grep -rn LibBadge src` nic nie zwraca — 08f1759
 
 #### Manual
 
-- [x] 1.5 Diff `card.tsx`/`badge.tsx` względem wyjścia CLI ogranicza się do importów i dyrektywy
+- [x] 1.5 Diff `card.tsx`/`badge.tsx` względem wyjścia CLI ogranicza się do importów i dyrektywy — 08f1759
 
 ### Phase 2: Tokeny
 
 #### Automated
 
-- [ ] 2.1 `npx astro sync && npm run lint && npx astro check && npm run build` przechodzą
-- [ ] 2.2 `grep -n '#[0-9a-fA-F]\{3,6\}' src/components/Banner.astro` nic nie zwraca
-- [ ] 2.3 `grep -c 'class="dark"' src/layouts/Layout.astro` = 1; `global.css` zawiera `--color-link`, `--color-info`, `--color-warning` w `@theme inline`
-- [ ] 2.4 Skrypt kontrastu potwierdza progi dla `link`, `muted-foreground`, `info`/`warning`, `ring` 50%
+- [x] 2.1 `npx astro sync && npm run lint && npx astro check && npm run build` przechodzą
+- [x] 2.2 `grep -n '#[0-9a-fA-F]\{3,6\}' src/components/Banner.astro` nic nie zwraca
+- [x] 2.3 `grep -c 'class="dark"' src/layouts/Layout.astro` = 1; `global.css` zawiera `--color-link`, `--color-info`, `--color-warning` w `@theme inline`
+- [x] 2.4 Skrypt kontrastu potwierdza progi dla `link`, `muted-foreground`, `info`/`warning`, `ring` 50%
 
 #### Manual
 
-- [ ] 2.5 Signin, dashboard i strona główna bez zmian poza fontem, ciemnym banerem i kontrolkami natywnymi (zrzut przed/po)
-- [ ] 2.6 Polskie znaki renderują się w Roboto
+- [x] 2.5 Signin, dashboard i strona główna bez zmian poza fontem, ciemnym banerem i kontrolkami natywnymi (zrzut przed/po)
+- [x] 2.6 Polskie znaki renderują się w Roboto
 
 ### Phase 3: Jeden widok — karta i rama
 
