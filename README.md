@@ -202,10 +202,10 @@ npm run otodom:inspect -- https://www.otodom.pl/pl/oferta/<slug>
 ## Screenshots for the visual gate
 
 ```bash
-node scripts/ui-screenshots.mjs gate
+node scripts/ui-screenshots.mjs gate context/changes/<change-id>/screenshots
 ```
 
-`scripts/ui-screenshots.mjs` drives headless Chrome over the DevTools Protocol (no dependencies) and saves full-page PNGs of a named set of pages — `gate` is the offer-card kitchen sink `/dev/offer-card` on desktop, at 375 px and with keyboard focus on each kind of link. It needs `npm run dev` running, the local Supabase with the seed (it signs in as `sigaretif1@vetpad.local`) and `google-chrome` (or `CHROME=<path>`); `node scripts/ui-screenshots.mjs` with no arguments lists the sets and options. Shots whose names contain `offer-real` show a third-party listing and are git-ignored. It is a debugging tool, not a test, and it never runs in CI.
+`scripts/ui-screenshots.mjs` drives headless Chrome over the DevTools Protocol (no dependencies) and saves full-page PNGs of a named set of pages — `gate` is the offer-card kitchen sink `/dev/offer-card` on desktop, at 375 px and with keyboard focus on each kind of link. The output directory is a required argument — the screenshots folder of the change being worked on. It needs `npm run dev` running, the local Supabase with the seed (it signs in as `sigaretif1@vetpad.local`) and `google-chrome` (or `CHROME=<path>`); `node scripts/ui-screenshots.mjs` with no arguments lists the sets and options. Shots whose names contain `offer-real` show a third-party listing and are git-ignored. It is a debugging tool, not a test, and it never runs in CI.
 
 ## CI
 

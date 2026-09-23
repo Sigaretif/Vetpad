@@ -84,10 +84,6 @@ const tokensOnlyConfig = defineConfig({
     "src/pages/auth/signin.astro",
     "src/pages/dashboard.astro",
     "src/components/Welcome.astro",
-    "src/components/auth/FormField.tsx",
-    "src/components/auth/PasswordToggle.tsx",
-    "src/components/auth/ServerError.tsx",
-    "src/components/auth/SubmitButton.tsx",
     // shadcn's upstream destructive variant sets text-white on bg-destructive.
     "src/components/ui/button.tsx",
     "src/components/ui/badge.tsx",

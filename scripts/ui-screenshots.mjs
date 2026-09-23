@@ -3,7 +3,7 @@
 // Zero dependencies on purpose: it drives Chrome over the DevTools Protocol with Node's built-in
 // WebSocket. Needs a running dev server and google-chrome (or CHROME=<path>). Never runs in CI.
 //
-//   node scripts/ui-screenshots.mjs <set> [outDir]
+//   node scripts/ui-screenshots.mjs <set> <outDir>
 
 /* global WebSocket, setTimeout */
 
@@ -62,7 +62,7 @@ const SETS = {
   ],
 };
 
-const USAGE = `Usage: node scripts/ui-screenshots.mjs <set> [outDir]
+const USAGE = `Usage: node scripts/ui-screenshots.mjs <set> <outDir>
 
 Sets:
   before  signin (signed out), home, dashboard, the real offer card
@@ -71,20 +71,20 @@ Sets:
   gate    ${KITCHEN_SINK}: desktop, mobile 375 px, and focus on the Topbar link,
           the external link, a gallery thumbnail and a banner link
 
-outDir defaults to context/changes/ui-offer-card/screenshots. Files named *offer-real*
-show a third-party listing and are git-ignored.
+outDir is required: the change folder's screenshots directory, e.g.
+context/changes/<change-id>/screenshots. Files named *offer-real* show a
+third-party listing and are git-ignored.
 Env: BASE_URL, OFFER_ID, CHROME, SMOKE_EMAIL, SMOKE_PASSWORD.
 Exit codes: 0 every shot saved, 1 a shot failed, 2 usage or setup error.`;
 
-const setName = process.argv[2];
+const [setName, outArg] = process.argv.slice(2);
 const shots = SETS[setName];
-if (shots === undefined) {
+// No default directory: a default names one change, and every later change would write into it.
+if (shots === undefined || outArg === undefined) {
   console.error(USAGE);
   process.exit(2);
 }
-const outDir = path.resolve(
-  process.argv[3] ?? path.join(import.meta.dirname, "../context/changes/ui-offer-card/screenshots"),
-);
+const outDir = path.resolve(outArg);
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
