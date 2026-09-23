@@ -70,6 +70,37 @@ const astroConfig = defineConfig({
   },
 });
 
+// Views take colours from the tokens in src/styles/global.css (CLAUDE.md, "### UI"): a Tailwind
+// palette utility, an arbitrary hex colour, bg-cosmic or backdrop-blur in a class string is a bug.
+// The ignored files predate the token contract; remove each one when it is migrated, never add one.
+const COLOUR_LITERAL =
+  "/\\b(?:bg|text|border|ring|outline|fill|stroke|from|via|to|shadow|decoration|divide|placeholder|caret|accent)-(?:white|black|slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)\\b|-\\[#|\\bbg-cosmic\\b|\\bbackdrop-blur/";
+const COLOUR_MESSAGE =
+  "Colour literal in a class string. Use a role token from src/styles/global.css (bg-card, text-muted-foreground, text-link, …) — CLAUDE.md, ### UI.";
+const tokensOnlyConfig = defineConfig({
+  files: ["src/**/*.{astro,ts,tsx}"],
+  ignores: [
+    // Views not yet migrated to tokens.
+    "src/pages/auth/signin.astro",
+    "src/pages/dashboard.astro",
+    "src/components/Welcome.astro",
+    "src/components/auth/FormField.tsx",
+    "src/components/auth/PasswordToggle.tsx",
+    "src/components/auth/ServerError.tsx",
+    "src/components/auth/SubmitButton.tsx",
+    // shadcn's upstream destructive variant sets text-white on bg-destructive.
+    "src/components/ui/button.tsx",
+    "src/components/ui/badge.tsx",
+  ],
+  rules: {
+    "no-restricted-syntax": [
+      "error",
+      { selector: `Literal[value=${COLOUR_LITERAL}]`, message: COLOUR_MESSAGE },
+      { selector: `TemplateElement[value.raw=${COLOUR_LITERAL}]`, message: COLOUR_MESSAGE },
+    ],
+  },
+});
+
 const scriptsConfig = defineConfig({
   files: ["scripts/**/*.mjs"],
   extends: [tseslint.configs.disableTypeChecked],
@@ -86,6 +117,7 @@ export default defineConfig(
   eslintPluginAstro.configs["flat/recommended"],
   eslintPluginAstro.configs["flat/jsx-a11y-recommended"],
   astroConfig,
+  tokensOnlyConfig,
   scriptsConfig,
   eslintPluginPrettier,
 );
