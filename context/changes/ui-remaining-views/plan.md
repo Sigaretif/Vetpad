@@ -474,36 +474,36 @@ Brak danych do migracji. Zakładki na `/` dla zalogowanych prowadzą teraz na `/
 
 #### Automated
 
-- [x] 2.1 `npm run lint` przechodzi, a `ignores` zawiera dokładnie `signin.astro`, `dashboard.astro` i `Welcome.astro`
-- [x] 2.2 Sonda lintu `src/__lint-probe.tsx` daje 3 błędy `COLOUR_MESSAGE` i jest usunięta
-- [x] 2.3 `npx astro check` przechodzi
-- [x] 2.4 `npm run build` przechodzi
-- [x] 2.5 `destructive-foreground` jest w `:root`, `.dark` i `@theme inline`
+- [x] 2.1 `npm run lint` przechodzi, a `ignores` zawiera dokładnie `signin.astro`, `dashboard.astro` i `Welcome.astro` — 59de3fa
+- [x] 2.2 Sonda lintu `src/__lint-probe.tsx` daje 3 błędy `COLOUR_MESSAGE` i jest usunięta — 59de3fa
+- [x] 2.3 `npx astro check` przechodzi — 59de3fa
+- [x] 2.4 `npm run build` przechodzi — 59de3fa
+- [x] 2.5 `destructive-foreground` jest w `:root`, `.dark` i `@theme inline` — 59de3fa
 
 #### Manual
 
-- [x] 2.6 Kontrast `--input`, pierścienia błędu i `destructive-foreground` potwierdzony obliczeniem i wpisany w komentarze
-- [x] 2.7 Zrzuty `gate` karty bez regresji względem archiwum `ui-offer-card`
+- [x] 2.6 Kontrast `--input`, pierścienia błędu i `destructive-foreground` potwierdzony obliczeniem i wpisany w komentarze — 59de3fa
+- [x] 2.7 Zrzuty `gate` karty bez regresji względem archiwum `ui-offer-card` — 59de3fa
 
 ### Phase 3: Widoki
 
 #### Automated
 
-- [ ] 3.1 `npm run lint` przechodzi przy pustej liście `ignores`
-- [ ] 3.2 grep na `bg-cosmic` i `backdrop-blur` w `src` nie zwraca nic
-- [ ] 3.3 grep na `rgba(` i hex w widokach nie zwraca koloru
-- [ ] 3.4 `npx astro check` przechodzi
-- [ ] 3.5 `npm run build` przechodzi
-- [ ] 3.6 Smoke na podglądzie produkcyjnym przechodzi, w tym „home redirects signed-in user”
-- [ ] 3.7 Zero-config: `/` i `/auth/signin` 200, `/dashboard` 302, logowanie wraca z polskim `?error=`
-- [ ] 3.8 Zestaw zrzutów `views` zapisany w `context/changes/ui-remaining-views/screenshots`
+- [x] 3.1 `npm run lint` przechodzi przy pustej liście `ignores`
+- [x] 3.2 grep na `bg-cosmic` i `backdrop-blur` w `src` nie zwraca nic
+- [x] 3.3 grep na `rgba(` i hex w widokach nie zwraca koloru
+- [x] 3.4 `npx astro check` przechodzi
+- [x] 3.5 `npm run build` przechodzi
+- [x] 3.6 Smoke na podglądzie produkcyjnym przechodzi, w tym „home redirects signed-in user”
+- [x] 3.7 Zero-config: `/` i `/auth/signin` 200, `/dashboard` 302, logowanie wraca z polskim `?error=`
+- [x] 3.8 Zestaw zrzutów `views` zapisany w `context/changes/ui-remaining-views/screenshots`
 
 #### Manual
 
-- [ ] 3.9 Zrzuty `views-*` wobec `before-*`: tokeny, `primary`, Topbar w ramie
-- [ ] 3.10 Na `/dashboard` jeden „Wyloguj”, przejście karta → „Oferty” zachowuje pasek
-- [ ] 3.11 Złe hasło daje polski komunikat w `Alert` ogłaszanym jako alert
-- [ ] 3.12 `views-signin-mobile` bez przewijania poziomego przy 375 px
+- [x] 3.9 Zrzuty `views-*` wobec `before-*`: tokeny, `primary`, Topbar w ramie
+- [x] 3.10 Na `/dashboard` jeden „Wyloguj”, przejście karta → „Oferty” zachowuje pasek
+- [x] 3.11 Złe hasło daje polski komunikat w `Alert` ogłaszanym jako alert
+- [x] 3.12 `views-signin-mobile` bez przewijania poziomego przy 375 px
 
 ### Phase 4: Stany i kitchen sink `/dev/forms`
 

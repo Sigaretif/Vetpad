@@ -72,7 +72,6 @@ const astroConfig = defineConfig({
 
 // Views take colours from the tokens in src/styles/global.css (CLAUDE.md, "### UI"): a Tailwind
 // palette utility, an arbitrary hex colour, bg-cosmic or backdrop-blur in a class string is a bug.
-// The ignored files predate the token contract; remove each one when it is migrated, never add one.
 // border(?:-[trblxy])? also catches side borders such as border-t-white.
 const COLOUR_LITERAL =
   "/\\b(?:bg|text|border(?:-[trblxy])?|ring|outline|fill|stroke|from|via|to|shadow|decoration|divide|placeholder|caret|accent)-(?:white|black|slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)\\b|-\\[#|\\bbg-cosmic\\b|\\bbackdrop-blur/";
@@ -83,8 +82,8 @@ const COLOUR_MESSAGE =
 const STYLE_COLOUR = "/rgba?\\(|#[0-9a-fA-F]{3,8}\\b/";
 const tokensOnlyConfig = defineConfig({
   files: ["src/**/*.{astro,ts,tsx}"],
-  // Views not yet migrated to tokens. This list only shrinks — nothing is ever added to it.
-  ignores: ["src/pages/auth/signin.astro", "src/pages/dashboard.astro", "src/components/Welcome.astro"],
+  // Every view is on tokens. Nothing is ever added here again — a lint error is fixed with a token.
+  ignores: [],
   rules: {
     "no-restricted-syntax": [
       "error",

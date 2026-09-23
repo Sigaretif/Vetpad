@@ -1,32 +1,19 @@
 ---
-import Layout from "@/layouts/Layout.astro";
+import AppLayout from "@/layouts/AppLayout.astro";
 import AddOfferForm from "@/components/offers/AddOfferForm";
+import { Card, CardHeader, CardDescription, CardContent } from "@/components/ui/card";
 
-const { user } = Astro.locals;
 const error = Astro.url.searchParams.get("error");
 ---
 
-<Layout title="Dashboard">
-  <div class="bg-cosmic flex min-h-screen items-center justify-center p-4">
-    <div class="rounded-2xl border border-white/10 bg-white/10 p-8 text-center text-white backdrop-blur-xl">
-      <h1 class="mb-4 bg-gradient-to-r from-blue-200 to-purple-200 bg-clip-text text-3xl font-bold text-transparent">
-        Dashboard
-      </h1>
-      <p class="text-blue-100/80">
-        Welcome, <span class="font-semibold text-white">{user?.email}</span>
-      </p>
-      <p class="mt-2 text-sm text-blue-100/50">This page is only for authenticated users.</p>
-      <div class="mt-6 w-full max-w-md text-left">
-        <AddOfferForm serverError={error} client:load />
-      </div>
-      <form method="POST" action="/api/auth/signout" class="mt-6">
-        <button
-          type="submit"
-          class="rounded-lg border border-white/20 bg-white/10 px-4 py-2 text-sm transition-colors hover:bg-white/20"
-        >
-          Sign out
-        </button>
-      </form>
-    </div>
-  </div>
-</Layout>
+<AppLayout title="Nowa oferta — Vetpad">
+  <Card>
+    <CardHeader>
+      <h1 class="text-foreground text-2xl font-bold">Nowa oferta</h1>
+      <CardDescription>Wklej adres ogłoszenia sprzedaży mieszkania z otodom.pl.</CardDescription>
+    </CardHeader>
+    <CardContent>
+      <AddOfferForm serverError={error} client:load />
+    </CardContent>
+  </Card>
+</AppLayout>

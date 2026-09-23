@@ -38,19 +38,19 @@ const FOCUS = {
 const SETS = {
   before: [
     { name: "before-signin", path: "/auth/signin", auth: false },
-    { name: "before-home", path: "/" },
+    { name: "before-home", path: "/", auth: false },
     { name: "before-dashboard", path: "/dashboard" },
     { name: "before-offer-real", path: OFFER },
   ],
   p2: [
     { name: "after-p2-signin", path: "/auth/signin", auth: false },
-    { name: "after-p2-home", path: "/" },
+    { name: "after-p2-home", path: "/", auth: false },
     { name: "after-p2-dashboard", path: "/dashboard" },
   ],
   p3: [
     { name: "after-offer-real", path: OFFER },
     { name: "after-offer-real-duplicate", path: `${OFFER}?duplicate=1`, viewport: true },
-    { name: "after-p3-home", path: "/" },
+    { name: "after-p3-home", path: "/", auth: false },
   ],
   gate: [
     { name: "gate-desktop", path: KITCHEN_SINK },
@@ -59,6 +59,21 @@ const SETS = {
     { name: "gate-focus-link", path: KITCHEN_SINK, focus: "external" },
     { name: "gate-focus-thumb", path: KITCHEN_SINK, focus: "thumb" },
     { name: "gate-focus-banner", path: KITCHEN_SINK, focus: "banner" },
+  ],
+  views: [
+    { name: "views-signin", path: "/auth/signin", auth: false },
+    {
+      name: "views-signin-error",
+      path: "/auth/signin?error=Nieprawid%C5%82owy%20e-mail%20lub%20has%C5%82o.",
+      auth: false,
+    },
+    { name: "views-signin-mobile", path: "/auth/signin", auth: false, device: MOBILE },
+    { name: "views-home", path: "/", auth: false },
+    { name: "views-dashboard", path: "/dashboard" },
+    {
+      name: "views-dashboard-error",
+      path: "/dashboard?error=Vetpad%20obs%C5%82uguje%20wy%C5%82%C4%85cznie%20og%C5%82oszenia%20z%20otodom.pl.",
+    },
   ],
 };
 
@@ -70,6 +85,8 @@ Sets:
   p3      the real offer card (full page and ?duplicate=1 banner), home
   gate    ${KITCHEN_SINK}: desktop, mobile 375 px, and focus on the Topbar link,
           the external link, a gallery thumbnail and a banner link
+  views   signin, signin with an error, signin mobile 375 px, home (signed out),
+          dashboard, dashboard with a server error
 
 outDir is required: the change folder's screenshots directory, e.g.
 context/changes/<change-id>/screenshots. Files named *offer-real* show a
