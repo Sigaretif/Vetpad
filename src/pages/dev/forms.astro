@@ -1,0 +1,228 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import SignInForm from "@/components/auth/SignInForm";
+import AddOfferForm from "@/components/offers/AddOfferForm";
+import { FormField } from "@/components/form/FormField";
+import { PasswordToggle } from "@/components/form/PasswordToggle";
+import { SubmitButton } from "@/components/form/SubmitButton";
+import { ServerError } from "@/components/form/ServerError";
+import { Mail, Lock, LogIn, Link as LinkIcon, Plus } from "lucide-react";
+import { createElement } from "react";
+
+// Visual gate for the shared form composites: every named state of SignInForm and AddOfferForm
+// at once, in `astro dev` only. Anywhere else (a production build, `npm run preview`) it answers
+// 404 — `scripts/smoke.mjs` checks that on the production preview. The status is set on
+// Astro.response, not returned, because a top-level `return` crashes
+// @typescript-eslint/no-misused-promises. Pattern: `src/pages/dev/offer-card.astro`.
+const isDev = import.meta.env.DEV;
+if (!isDev) {
+  Astro.response.status = 404;
+}
+
+// Composites rendered server-side (no client:*) never call onChange; this satisfies the prop.
+const noop = () => undefined;
+
+// Astro's own template syntax has no JSX-expression runtime, so a React element built for a prop
+// (an icon, a `PasswordToggle`) is created with `createElement`, not with a nested `<Tag />`
+// literal inside `{}` — that compiles, but the resulting page silently renders as an empty body.
+const mailIcon = createElement(Mail, { className: "size-4" });
+const lockIcon = createElement(Lock, { className: "size-4" });
+const linkIcon = createElement(LinkIcon, { className: "size-4" });
+const logInIcon = createElement(LogIn, { className: "size-4" });
+const plusIcon = createElement(Plus, { className: "size-4" });
+const hiddenPasswordToggle = createElement(PasswordToggle, { visible: false, onToggle: noop });
+
+const stateClass = "border-border flex flex-col gap-6 border-t pt-6";
+const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppercase";
+const gridClass = "grid gap-8 sm:grid-cols-2";
+const columnClass = "flex flex-col gap-4";
+const labelClass = "text-foreground text-sm font-medium";
+const noteClass = "text-muted-foreground text-sm";
+---
+
+{isDev ? (
+  <AppLayout title="Formularze — stany — Vetpad">
+    <p class="text-muted-foreground text-sm">
+      Strona testowa (tylko <code>astro dev</code>): <code>SignInForm</code> i <code>AddOfferForm</code> w każdym
+      nazwanym stanie, złożonym z tych samych kompozytów (<code>src/components/form/</code>), których używają formularze
+      w produkcji. Zmiana wyglądu formularza przechodzi przez zrzut tej strony.
+    </p>
+
+    <div class:list={stateClass} data-state="default">
+      <p class:list={captionClass}>Stan: default</p>
+      <div class:list={gridClass}>
+        <div class:list={columnClass} data-form="signin">
+          <p class:list={labelClass}>SignInForm</p>
+          <SignInForm client:load />
+        </div>
+        <div class:list={columnClass} data-form="offer">
+          <p class:list={labelClass}>AddOfferForm</p>
+          <AddOfferForm client:load />
+        </div>
+      </div>
+    </div>
+
+    <div class:list={stateClass} data-state="hover">
+      <p class:list={captionClass}>Stan: hover</p>
+      <div class:list={gridClass}>
+        <div class:list={columnClass} data-form="signin">
+          <p class:list={labelClass}>SignInForm</p>
+          <p class:list={noteClass}>
+            Przycisk „Zaloguj”: zrzut <code>forms-hover-button</code> wymusza <code>:hover</code> (CDP{" "}
+            <code>CSS.forcePseudoState</code>) na ten sam przycisk w stanie „default” powyżej.
+          </p>
+          <p class:list={noteClass}>
+            Pole: nie dotyczy — <code>Input</code> nie ma stanu hover, a pole sygnalizuje interakcję fokusem.
+          </p>
+        </div>
+        <div class:list={columnClass} data-form="offer">
+          <p class:list={labelClass}>AddOfferForm</p>
+          <p class:list={noteClass}>
+            Przycisk „Dodaj ofertę”: ten sam <code>SubmitButton</code>/<code>Button</code>, więc pokryty zrzutem obok.
+          </p>
+          <p class:list={noteClass}>Pole: nie dotyczy (jak obok).</p>
+        </div>
+      </div>
+    </div>
+
+    <div class:list={stateClass} data-state="focus">
+      <p class:list={captionClass}>Stan: focus</p>
+      <div class:list={gridClass}>
+        <div class:list={columnClass} data-form="signin">
+          <p class:list={labelClass}>SignInForm</p>
+          <p class:list={noteClass}>
+            Pole e-mail, przełącznik hasła i przycisk „Zaloguj” w stanie „default” powyżej, prawdziwymi naciśnięciami
+            Tab (zrzuty <code>forms-focus-field</code>, <code>forms-focus-toggle</code>, <code>forms-focus-button</code>
+            ). Pole z błędem: zrzut <code>forms-focus-field-error</code> celuje w pole e-mail w stanie „error” poniżej.
+          </p>
+        </div>
+        <div class:list={columnClass} data-form="offer">
+          <p class:list={labelClass}>AddOfferForm</p>
+          <p class:list={noteClass}>
+            Pole adresu i przycisk „Dodaj ofertę”: te same <code>FormField</code>/<code>SubmitButton</code>, co zrzuty
+            obok.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class:list={stateClass} data-state="disabled">
+      <p class:list={captionClass}>Stan: disabled</p>
+      <div class:list={gridClass}>
+        <div class:list={columnClass} data-form="signin">
+          <p class:list={labelClass}>SignInForm</p>
+          <p class:list={noteClass}>
+            Przycisk: ten sam render co „loading” poniżej — <code>SubmitButton</code> blokuje się tylko w trakcie
+            wysyłki, a osobny <code>disabled</code> byłby propsem tylko dla testów.
+          </p>
+          <p class:list={noteClass}>
+            Pole: nie dotyczy — nigdy nie jest blokowane, bo POST jest już wysłany, a strona się przeładuje.
+          </p>
+        </div>
+        <div class:list={columnClass} data-form="offer">
+          <p class:list={labelClass}>AddOfferForm</p>
+          <p class:list={noteClass}>Jak obok.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class:list={stateClass} data-state="error">
+      <p class:list={captionClass}>Stan: error</p>
+      <p class:list={noteClass}>
+        Kompozyty: błąd pola i <code>ServerError</code>. Cały formularz z <code>serverError</code> jest na zrzutach{" "}
+        <code>views-signin-error</code> i <code>views-dashboard-error</code> — drugi egzemplarz formularza na tej
+        stronie zdublowałby identyfikatory pól.
+      </p>
+      <div class:list={gridClass}>
+        <div class:list={columnClass} data-form="signin">
+          <p class:list={labelClass}>SignInForm</p>
+          <FormField
+            id="email-error"
+            type="email"
+            label="E-mail"
+            value="nie-adres"
+            onChange={noop}
+            error="Podaj poprawny adres e-mail"
+            icon={mailIcon}
+          />
+          <ServerError message="Nieprawidłowy e-mail lub hasło." />
+        </div>
+        <div class:list={columnClass} data-form="offer">
+          <p class:list={labelClass}>AddOfferForm</p>
+          <FormField
+            id="url-error"
+            type="url"
+            label="Adres ogłoszenia"
+            value="otodom oferta 123"
+            onChange={noop}
+            error="To nie wygląda na poprawny adres URL."
+            icon={linkIcon}
+          />
+          <ServerError message="Vetpad obsługuje wyłącznie ogłoszenia z otodom.pl." />
+        </div>
+      </div>
+    </div>
+
+    <div class:list={stateClass} data-state="empty">
+      <p class:list={captionClass}>Stan: empty</p>
+      <div class:list={gridClass}>
+        <div class:list={columnClass} data-form="signin">
+          <p class:list={labelClass}>SignInForm</p>
+          <FormField
+            id="email-empty"
+            type="email"
+            label="E-mail"
+            value=""
+            onChange={noop}
+            error="Podaj adres e-mail"
+            icon={mailIcon}
+          />
+          <FormField
+            id="password-empty"
+            type="password"
+            label="Hasło"
+            value=""
+            onChange={noop}
+            error="Podaj hasło"
+            icon={lockIcon}
+            endContent={hiddenPasswordToggle}
+          />
+        </div>
+        <div class:list={columnClass} data-form="offer">
+          <p class:list={labelClass}>AddOfferForm</p>
+          <FormField
+            id="url-empty"
+            type="url"
+            label="Adres ogłoszenia"
+            value=""
+            onChange={noop}
+            error="Wklej adres ogłoszenia z otodom.pl"
+            icon={linkIcon}
+          />
+        </div>
+      </div>
+    </div>
+
+    <div class:list={stateClass} data-state="loading">
+      <p class:list={captionClass}>Stan: loading</p>
+      <div class:list={gridClass}>
+        <div class:list={columnClass} data-form="signin">
+          <p class:list={labelClass}>SignInForm</p>
+          <SubmitButton pending pendingText="Loguję…" icon={logInIcon}>
+            Zaloguj
+          </SubmitButton>
+        </div>
+        <div class:list={columnClass} data-form="offer">
+          <p class:list={labelClass}>AddOfferForm</p>
+          <SubmitButton pending pendingText="Pobieram ogłoszenie…" icon={plusIcon}>
+            Dodaj ofertę
+          </SubmitButton>
+        </div>
+      </div>
+    </div>
+  </AppLayout>
+) : (
+  <AppLayout title="Nie znaleziono — Vetpad">
+    <p class="text-muted-foreground">Nie znaleziono.</p>
+  </AppLayout>
+)}

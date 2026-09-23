@@ -21,6 +21,7 @@ const email = process.env.SMOKE_EMAIL ?? "sigaretif1@vetpad.local";
 const password = process.env.SMOKE_PASSWORD ?? "qwerty123456";
 const OFFER = `/offers/${process.env.OFFER_ID ?? "8360a2e2-264f-48ab-aaaf-894984275c42"}`;
 const KITCHEN_SINK = "/dev/offer-card";
+const FORMS_KITCHEN_SINK = "/dev/forms";
 
 const DESKTOP = { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false };
 const MOBILE = { width: 375, height: 812, deviceScaleFactor: 2, mobile: true };
@@ -32,9 +33,17 @@ const FOCUS = {
   external: `el.matches("[data-slot=card] a[target=_blank]") && !el.querySelector("img")`,
   thumb: `el.matches("[data-slot=card] a") && el.querySelector("img") !== null`,
   banner: `el.matches(".banner a")`,
+  // /dev/forms: the real SignInForm island in the "default" section, reached with real Tab
+  // presses; the errored field lives in the "error" section instead (its own composite).
+  emailField: `el.matches("[data-state=default] [data-form=signin] input[type=email]")`,
+  passwordToggle: `el.matches("[data-state=default] [data-form=signin] button[aria-pressed]")`,
+  submitButton: `el.matches("[data-state=default] [data-form=signin] button[type=submit]")`,
+  erroredField: `el.matches("[data-state=error] input[aria-invalid=true]")`,
 };
 
-// A shot is a full page unless `viewport` or `focus` says otherwise; `auth: false` drops the session.
+// A shot is a full page unless `viewport`, `focus` or `hover` says otherwise; `auth: false` drops
+// the session. `hover: "<CSS selector>"` forces `:hover` on the matched element via CDP
+// (`CSS.forcePseudoState`), so a hover state needs no manual check.
 const SETS = {
   before: [
     { name: "before-signin", path: "/auth/signin", auth: false },
@@ -59,6 +68,19 @@ const SETS = {
     { name: "gate-focus-link", path: KITCHEN_SINK, focus: "external" },
     { name: "gate-focus-thumb", path: KITCHEN_SINK, focus: "thumb" },
     { name: "gate-focus-banner", path: KITCHEN_SINK, focus: "banner" },
+  ],
+  forms: [
+    { name: "forms-desktop", path: FORMS_KITCHEN_SINK },
+    { name: "forms-mobile", path: FORMS_KITCHEN_SINK, device: MOBILE },
+    { name: "forms-focus-field", path: FORMS_KITCHEN_SINK, focus: "emailField" },
+    { name: "forms-focus-toggle", path: FORMS_KITCHEN_SINK, focus: "passwordToggle" },
+    { name: "forms-focus-button", path: FORMS_KITCHEN_SINK, focus: "submitButton" },
+    { name: "forms-focus-field-error", path: FORMS_KITCHEN_SINK, focus: "erroredField" },
+    {
+      name: "forms-hover-button",
+      path: FORMS_KITCHEN_SINK,
+      hover: "[data-state=default] [data-form=signin] button[type=submit]",
+    },
   ],
   views: [
     { name: "views-signin", path: "/auth/signin", auth: false },
@@ -85,6 +107,9 @@ Sets:
   p3      the real offer card (full page and ?duplicate=1 banner), home
   gate    ${KITCHEN_SINK}: desktop, mobile 375 px, and focus on the Topbar link,
           the external link, a gallery thumbnail and a banner link
+  forms   ${FORMS_KITCHEN_SINK}: desktop, mobile 375 px, focus on the email field,
+          the password toggle, the submit button and the errored field, and a
+          forced :hover on the submit button
   views   signin, signin with an error, signin mobile 375 px, home (signed out),
           dashboard, dashboard with a server error
 
@@ -131,6 +156,9 @@ async function launchChrome() {
       `--remote-debugging-port=${DEBUG_PORT}`,
       `--user-data-dir=${profile}`,
       "--hide-scrollbars",
+      // Tailwind 4 wraps every hover: utility in @media (hover: hover), which headless Chrome (no
+      // pointer) never matches, and Emulation.setEmulatedMedia cannot switch it; declare a mouse.
+      "--blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4",
       "--no-first-run",
       "about:blank",
     ],
@@ -220,6 +248,18 @@ const SETTLE = `(async () => {
   return [...document.images].filter((img) => !img.complete || img.naturalWidth === 0).length;
 })()`;
 
+// Forces `:hover` on the element the selector matches, via the DOM/CSS domains (not a real mouse
+// move, which headless Chrome has no pointer for). Mirrors pressTabUntil's failure mode: no match
+// throws, same as "no focusable element matched".
+async function forceHover(cdp, selector) {
+  const { root } = await cdp.send("DOM.getDocument");
+  const { nodeId } = await cdp.send("DOM.querySelector", { nodeId: root.nodeId, selector });
+  if (!nodeId) throw new Error(`no element matched hover selector "${selector}"`);
+  await cdp.send("CSS.forcePseudoState", { nodeId, forcedPseudoClasses: ["hover"] });
+  await cdp.evaluate(`document.querySelector(${JSON.stringify(selector)})?.scrollIntoView({ block: "center" })`);
+  await sleep(200);
+}
+
 async function pressTabUntil(cdp, predicate) {
   await cdp.evaluate(`document.activeElement?.blur(); scrollTo(0, 0);`);
   for (let press = 0; press < 300; press++) {
@@ -262,8 +302,11 @@ async function capture(cdp, shot, cookies) {
   if (shot.focus !== undefined && !(await pressTabUntil(cdp, FOCUS[shot.focus]))) {
     throw new Error(`no focusable element matched "${shot.focus}"`);
   }
+  if (shot.hover !== undefined) {
+    await forceHover(cdp, shot.hover);
+  }
 
-  const fullPage = shot.viewport !== true && shot.focus === undefined;
+  const fullPage = shot.viewport !== true && shot.focus === undefined && shot.hover === undefined;
   const params = { format: "png" };
   if (fullPage) {
     const { cssContentSize } = await cdp.send("Page.getLayoutMetrics");
@@ -298,6 +341,8 @@ try {
   const cdp = await connect(wsUrl);
   await cdp.send("Page.enable");
   await cdp.send("Network.enable");
+  await cdp.send("DOM.enable");
+  await cdp.send("CSS.enable");
   await cdp.send("Emulation.setFocusEmulationEnabled", { enabled: true });
   for (const shot of shots) {
     try {

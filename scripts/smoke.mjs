@@ -1,8 +1,8 @@
 // Smoke test: proves the built app, the Cloudflare adapter and the Supabase auth flow still work together,
 // that registration is closed both in the app and in Supabase Auth (FR-001), and that /api/offers refuses
 // anonymous callers and URLs that are not otodom.pl offers before any request reaches otodom.pl.
-// It also checks that the dev-only kitchen sink /dev/offer-card answers 404: in CI this runs against the
-// production preview, where the page must not exist (on `npm run dev` that step fails by design).
+// It also checks that the dev-only kitchen sinks /dev/offer-card and /dev/forms answer 404: in CI this runs
+// against the production preview, where the pages must not exist (on `npm run dev` those steps fail by design).
 // Zero dependencies on purpose. Run against a live server: BASE_URL=http://localhost:4321 npm run smoke
 
 import { randomUUID } from "node:crypto";
@@ -62,6 +62,7 @@ const steps = [
   ["dashboard redirects anonymous user", () => request("/dashboard"), { status: 302, location: "/auth/signin" }],
   ["signup page is gone", () => request("/auth/signup"), { status: 404 }],
   ["dev kitchen sink is absent from the build", () => request("/dev/offer-card"), { status: 404 }],
+  ["dev forms kitchen sink is absent from the build", () => request("/dev/forms"), { status: 404 }],
   [
     "signup route is gone",
     () => request("/api/auth/signup", { method: "POST", form: { email, password } }),

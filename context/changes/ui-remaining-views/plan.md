@@ -489,38 +489,38 @@ Brak danych do migracji. Zakładki na `/` dla zalogowanych prowadzą teraz na `/
 
 #### Automated
 
-- [x] 3.1 `npm run lint` przechodzi przy pustej liście `ignores`
-- [x] 3.2 grep na `bg-cosmic` i `backdrop-blur` w `src` nie zwraca nic
-- [x] 3.3 grep na `rgba(` i hex w widokach nie zwraca koloru
-- [x] 3.4 `npx astro check` przechodzi
-- [x] 3.5 `npm run build` przechodzi
-- [x] 3.6 Smoke na podglądzie produkcyjnym przechodzi, w tym „home redirects signed-in user”
-- [x] 3.7 Zero-config: `/` i `/auth/signin` 200, `/dashboard` 302, logowanie wraca z polskim `?error=`
-- [x] 3.8 Zestaw zrzutów `views` zapisany w `context/changes/ui-remaining-views/screenshots`
+- [x] 3.1 `npm run lint` przechodzi przy pustej liście `ignores` — 3d223d0
+- [x] 3.2 grep na `bg-cosmic` i `backdrop-blur` w `src` nie zwraca nic — 3d223d0
+- [x] 3.3 grep na `rgba(` i hex w widokach nie zwraca koloru — 3d223d0
+- [x] 3.4 `npx astro check` przechodzi — 3d223d0
+- [x] 3.5 `npm run build` przechodzi — 3d223d0
+- [x] 3.6 Smoke na podglądzie produkcyjnym przechodzi, w tym „home redirects signed-in user” — 3d223d0
+- [x] 3.7 Zero-config: `/` i `/auth/signin` 200, `/dashboard` 302, logowanie wraca z polskim `?error=` — 3d223d0
+- [x] 3.8 Zestaw zrzutów `views` zapisany w `context/changes/ui-remaining-views/screenshots` — 3d223d0
 
 #### Manual
 
-- [x] 3.9 Zrzuty `views-*` wobec `before-*`: tokeny, `primary`, Topbar w ramie
-- [x] 3.10 Na `/dashboard` jeden „Wyloguj”, przejście karta → „Oferty” zachowuje pasek
-- [x] 3.11 Złe hasło daje polski komunikat w `Alert` ogłaszanym jako alert
-- [x] 3.12 `views-signin-mobile` bez przewijania poziomego przy 375 px
+- [x] 3.9 Zrzuty `views-*` wobec `before-*`: tokeny, `primary`, Topbar w ramie — 3d223d0
+- [x] 3.10 Na `/dashboard` jeden „Wyloguj”, przejście karta → „Oferty” zachowuje pasek — 3d223d0
+- [x] 3.11 Złe hasło daje polski komunikat w `Alert` ogłaszanym jako alert — 3d223d0
+- [x] 3.12 `views-signin-mobile` bez przewijania poziomego przy 375 px — 3d223d0
 
 ### Phase 4: Stany i kitchen sink `/dev/forms`
 
 #### Automated
 
-- [ ] 4.1 `npm run lint` przechodzi
-- [ ] 4.2 `npx astro check` przechodzi
-- [ ] 4.3 `npm run build` przechodzi
-- [ ] 4.4 Smoke na podglądzie produkcyjnym przechodzi, w tym `/dev/forms` → 404
-- [ ] 4.5 `/dev/forms` pod `npm run dev` zwraca 200
-- [ ] 4.6 Zestaw zrzutów `forms` zapisuje wszystkie 7 zrzutów
-- [ ] 4.7 Zestaw zrzutów `gate` karty zapisuje wszystkie zrzuty
+- [x] 4.1 `npm run lint` przechodzi
+- [x] 4.2 `npx astro check` przechodzi
+- [x] 4.3 `npm run build` przechodzi
+- [x] 4.4 Smoke na podglądzie produkcyjnym przechodzi, w tym `/dev/forms` → 404
+- [x] 4.5 `/dev/forms` pod `npm run dev` zwraca 200
+- [x] 4.6 Zestaw zrzutów `forms` zapisuje wszystkie 7 zrzutów
+- [x] 4.7 Zestaw zrzutów `gate` karty zapisuje wszystkie zrzuty
 
 #### Manual
 
-- [ ] 4.8 Bramka: każda komórka macierzy widoczna na `forms-desktop`, „nie dotyczy” z podpisem
-- [ ] 4.9 Zrzuty fokusu: pierścień 3 px na polu, przełączniku i przycisku, czerwony na polu z błędem
-- [ ] 4.10 `forms-hover-button` pokazuje hover przycisku
-- [ ] 4.11 `forms-mobile` bez przewijania poziomego, przełącznik w polu
+- [x] 4.8 Bramka: każda komórka macierzy widoczna na `forms-desktop`, „nie dotyczy” z podpisem
+- [x] 4.9 Zrzuty fokusu: pierścień 3 px na polu, przełączniku i przycisku, czerwony na polu z błędem
+- [x] 4.10 `forms-hover-button` pokazuje hover przycisku
+- [x] 4.11 `forms-mobile` bez przewijania poziomego, przełącznik w polu
 - [ ] 4.12 Bramka `forms` i `views` powtórzona po triażu `/10x-impl-review` przed commitem
