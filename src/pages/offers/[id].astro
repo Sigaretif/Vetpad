@@ -8,6 +8,7 @@ import OfferGallery from "@/components/offers/OfferGallery.astro";
 import { createClient } from "@/lib/supabase";
 import { formatMoney } from "@/lib/otodom/labels";
 import type { OfferRow } from "@/lib/otodom/types";
+import { safeHttpsUrl } from "@/lib/safe-url";
 import { cn } from "@/lib/utils";
 
 // Checked before the query: Postgres rejects a non-uuid with 22P02, which must not surface as a 500.
@@ -45,6 +46,7 @@ const duplicate = offer !== null && Astro.url.searchParams.get("duplicate") === 
 const images = offer && Array.isArray(offer.images) ? offer.images : [];
 const price = offer ? money(offer.price, offer.price_currency) : null;
 const pricePerM = offer ? money(offer.price_per_m, offer.price_currency, "/m²") : null;
+const sourceUrl = offer ? safeHttpsUrl(offer.source_url) : null;
 const unstated = "text-white/40 italic";
 ---
 
@@ -80,14 +82,16 @@ const unstated = "text-white/40 italic";
             <p class:list={cn("mt-2 text-blue-100/80", offer.location_label === null && unstated)}>
               {offer.location_label ?? "Lokalizacja: nie podano w ogłoszeniu"}
             </p>
-            <a
-              href={offer.source_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              class="mt-4 inline-block text-sm text-purple-300 transition-colors hover:text-purple-100 hover:underline"
-            >
-              Otwórz oryginał na otodom.pl ↗
-            </a>
+            {sourceUrl && (
+              <a
+                href={sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="mt-4 inline-block text-sm text-purple-300 transition-colors hover:text-purple-100 hover:underline"
+              >
+                Otwórz oryginał na otodom.pl ↗
+              </a>
+            )}
           </header>
 
           <OfferParameters offer={offer} />

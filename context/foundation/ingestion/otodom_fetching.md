@@ -316,7 +316,10 @@ Checks worth having in that function:
 | Condition                                                   | Meaning                           | Suggested handling                             |
 | ----------------------------------------------------------- | --------------------------------- | ---------------------------------------------- |
 | `HTTPError 404` or `410`                                    | Offer removed or wrong URL        | Mark inactive locally, do not retry            |
-| Any other non-2xx (`403`, `429`, `5xx`)                     | Portal refused to serve the page  | Report with the status; see section 9.1        |
+| Any other `4xx` (`403`, `429` above all)                    | Portal refused to serve the page  | Report with the status; see section 9.1        |
+| `5xx`                                                       | Portal failing, not refusing      | Report as unavailable; never read as a block   |
+| Redirect lands off otodom                                   | Consent or anti-bot page          | Treat as refused; see section 9.1              |
+| Redirect lands on otodom, but not on `/(pl/)oferta/<slug>`  | No listing at this address        | Treat as not found                             |
 | `pageProps.ad` missing but `shouldShowExpiredAdPage` truthy | Offer expired, page still renders | Mark expired, keep last known snapshot         |
 | `ad.shouldShowExpiredAdPage === true`                       | Same flag, carried on `ad` itself | Check it too — `ad` can be present and expired |
 | `__NEXT_DATA__` regex miss                                  | Site shape changed                | Fail loudly; do not fall back to HTML scraping |

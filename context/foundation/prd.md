@@ -125,6 +125,7 @@ The moment they reach for this product: when a listing has been saved and must l
 - The advertiser's personal data is never stored. The portal returns the seller's phone number and name with every listing, and an extraction service would pass them through as well; they are discarded at the point of fetch and no part of the product retains them.
 - That rule covers the portal's contact fields, not the listing's own words. The listing's title and description are stored exactly as the advertiser wrote them, even when the advertiser typed a phone number or a name into them: redacting the text would break the verbatim excerpts the audit must quote (FR-011).
 - Data is retained indefinitely; nothing expires automatically. Removal is always a deliberate member action.
+- A saved offer belongs to the team, not to the member who saved it. Deleting a member's account leaves every offer they saved in place; wherever the interface would name that member as the one who saved it (FR-005), it reads „konto usunięte" instead. What happens to a deleted member's notes (FR-013) is not decided here.
 - The product is usable on current desktop browsers. No mobile usability is promised in the MVP.
 
 ## Business Logic
@@ -174,6 +175,7 @@ Multi-user, single shared space.
 ## Open Questions
 
 1. **How is a parser failure told apart from a real listing change?** A broken scrape returns different data and would mark an audit stale for the wrong reason; repeated false staleness trains the team to ignore the flag. Surfaced during the Socratic round on FR-009 and left unresolved. Owner: user. By: no date set. Block: no — the MVP ships either way, but the stale flag's credibility depends on it.
-   _Resolved during implementation, recorded so they are not reopened: what "unknown" looks like in the interface (resolved 2026-09-22 in S-02) — an unstated attribute reads „nie podano w ogłoszeniu", and every parameter on the card always has its row, so an absence is shown rather than hidden by a missing line; an empty amenity list reads „ogłoszenie nie wymienia udogodnień", never as the amenities being absent._
+
+_Resolved during implementation, recorded so they are not reopened: what "unknown" looks like in the interface (resolved 2026-09-22 in S-02) — an unstated attribute reads „nie podano w ogłoszeniu", and every parameter on the card always has its row, so an absence is shown rather than hidden by a missing line; an empty amenity list reads „ogłoszenie nie wymienia udogodnień", never as the amenities being absent._
 
 _Resolved during shaping, recorded so they are not reopened: concurrent note editing (dissolved by the access model — notes are per-person and never co-edited); aspect and room note structure, fixed list versus free tags (cut for the MVP in favour of Pros / Cons / General Observations); which criteria are hard requirements versus preferences (hard limits shared board-wide, soft requirements per-person free text)._

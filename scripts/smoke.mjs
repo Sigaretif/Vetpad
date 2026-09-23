@@ -26,7 +26,7 @@ function storeCookies(response) {
   }
 }
 
-async function request(path, { method = "GET", form } = {}) {
+async function request(path, { method = "GET", form, json } = {}) {
   const response = await fetch(BASE_URL + path, {
     method,
     redirect: "manual",
@@ -34,8 +34,9 @@ async function request(path, { method = "GET", form } = {}) {
       Cookie: cookieHeader(),
       Origin: BASE_URL,
       ...(form ? { "Content-Type": "application/x-www-form-urlencoded" } : {}),
+      ...(json ? { "Content-Type": "application/json" } : {}),
     },
-    body: form ? new URLSearchParams(form).toString() : undefined,
+    body: form ? new URLSearchParams(form).toString() : json ? JSON.stringify(json) : undefined,
   });
   storeCookies(response);
   return { status: response.status, location: response.headers.get("location") ?? "" };
@@ -70,6 +71,11 @@ const steps = [
     { status: 302, locationPrefix: "/auth/signin?error=" },
   ],
   [
+    "signin rejects a non-form body",
+    () => request("/api/auth/signin", { method: "POST", json: { email, password } }),
+    { status: 302, locationPrefix: "/auth/signin?error=" },
+  ],
+  [
     "offer save redirects anonymous user",
     () => request("/api/offers", { method: "POST", form: { url: "https://www.otodom.pl/pl/oferta/x-ID1" } }),
     { status: 302, location: "/auth/signin" },
@@ -86,6 +92,12 @@ const steps = [
   ],
   ["dashboard renders for signed-in user", () => request("/dashboard"), { status: 200 }],
   ["offer card 404s on a non-uuid id", () => request("/offers/not-a-uuid"), { status: 404 }],
+  ["offer card 404s on an unknown uuid", () => request(`/offers/${randomUUID()}`), { status: 404 }],
+  [
+    "offer save rejects a non-form body",
+    () => request("/api/offers", { method: "POST", json: { url: "https://www.otodom.pl/pl/oferta/x-ID1" } }),
+    { status: 302, locationPrefix: "/dashboard?error=" },
+  ],
   [
     "offer save rejects empty url",
     () => request("/api/offers", { method: "POST", form: { url: "" } }),

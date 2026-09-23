@@ -1,5 +1,6 @@
 ---
 import type { OfferImage } from "@/lib/otodom/types";
+import { safeHttpsUrl } from "@/lib/safe-url";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -7,7 +8,13 @@ interface Props {
   title: string;
 }
 
-const { images, title } = Astro.props;
+const { title } = Astro.props;
+// Row data lands in href/src, so only entries whose both URLs are https: are rendered.
+const images = Astro.props.images.flatMap((image) => {
+  const thumbnail = safeHttpsUrl(image.thumbnail);
+  const large = safeHttpsUrl(image.large);
+  return thumbnail !== null && large !== null ? [{ thumbnail, large }] : [];
+});
 const total = images.length;
 ---
 

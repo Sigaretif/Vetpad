@@ -6,7 +6,8 @@ export type UrlFailureReason = "empty" | "malformed" | "foreign_host" | "not_an_
 
 export type NormalizeUrlResult = { ok: true; url: string } | { ok: false; reason: UrlFailureReason };
 
-export type FetchFailureReason = "http_denied" | "not_found" | "expired" | "shape_changed" | "timeout" | "network";
+export type FetchFailureReason =
+  "http_denied" | "upstream_error" | "not_found" | "expired" | "shape_changed" | "timeout" | "network";
 
 export type FetchOfferResult = { ok: true; ad: unknown } | { ok: false; reason: FetchFailureReason; status?: number };
 
@@ -76,7 +77,8 @@ export interface OfferInsert {
 export interface OfferRow extends OfferInsert {
   id: string;
   source_url: string;
-  created_by: string;
+  /** `null` only when the author's account was deleted — the offer outlives it. */
+  created_by: string | null;
   created_at: string;
   fetched_at: string;
 }

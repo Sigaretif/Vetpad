@@ -469,6 +469,15 @@ Pierwsza migracja w historii repozytorium. Powstaje wyłącznie przez `npx supab
 - Wzorzec rozszerzania smoke: `scripts/smoke.mjs:54-77`
 - Reguły RLS, zero-config i runtime'u Workera: `CLAUDE.md`
 
+## Odstępstwa od planu
+
+Zapisane po implementacji (impl-review 2026-09-23, F2). Każde jest świadome i udokumentowane w źródle wskazanym obok.
+
+- **D1 — 404 karty (Faza 4, `src/pages/offers/[id].astro:32-37`).** Zamiast `return new Response(null, { status: 404 })` strona ustawia `Astro.response.status = 404` i renderuje gałąź „Nie znaleziono oferty". Top-level `return` we frontmatterze wywraca regułę `@typescript-eslint/no-misused-promises` w `npm run lint`. Reguła i instancja odniesienia: `CLAUDE.md` → Framework.
+- **D2 — `target` w `raw` zawężony (Faza 2, `src/lib/otodom/map.ts`, `RAW_TARGET_KEYS`).** Biała lista miała przyjmować `target` w całości; żywa sonda pokazała, że `target` powtarza `seller_id` i `user_type` ogłoszeniodawcy, więc do `raw` trafiają wyłącznie `OfferType` i `ProperType`. Ostrzejsze niż plan. Źródła: `otodom_fetching.md` § 7.4, `CLAUDE.md` → Secrets and data access.
+- **D3 — klasyfikacja statusów w `fetchOfferAd` (Faza 2, `src/lib/otodom/fetch.ts:34-41,64-65`).** `410` obok `404` daje `not_found`; `expired` rozpoznawane także przy `ad.shouldShowExpiredAdPage === true`, gdy `ad` jest obecne. Pierwotnie każdy inny status nie-OK (także 5xx) dawał `http_denied`; po F3 z `reviews/impl-review.md` każde inne 4xx to `http_denied`, 5xx to osobny powód `upstream_error` (awaria portalu nie udaje blokady egressu, czyli wyzwalacza fallbacku Apify), a przekierowanie kończące się poza otodom daje `http_denied` bez statusu, na otodom poza `/(pl/)oferta/<slug>` — `not_found`. Źródło: tabela błędów w `otodom_fetching.md` § 7.1.
+- **Kontrola 2.11 potwierdzona strukturalnie, nie porównaniem wartości.** Kontrola zakładała porównanie numeru telefonu i nazwiska z tym, co skrypt inspekcyjny pokazuje w surowym payloadzie, ale `scripts/otodom-inspect.mjs` nigdy nie drukuje `owner` ani `contactDetails`. Dowodem jest biała lista `raw` w `src/lib/otodom/map.ts` (`RAW_AD_KEYS`, `RAW_TARGET_KEYS`, `RAW_LOCATION_KEYS`) i grep z kontroli 2.5 — pola z danymi ogłoszeniodawcy nie są nigdzie czytane (impl-review 2026-09-23, F8).
+
 ## Progress
 
 > Convention: `- [ ]` pending, `- [x]` done. Append ` — <commit sha>` when a step lands. Do not rename step titles. See `references/progress-format.md`.

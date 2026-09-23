@@ -2,7 +2,13 @@ import type { APIRoute } from "astro";
 import { createClient } from "@/lib/supabase";
 
 export const POST: APIRoute = async (context) => {
-  const form = await context.request.formData();
+  let form: FormData;
+  try {
+    form = await context.request.formData();
+  } catch {
+    // A body that is not a form (a hand-crafted request) is a failed sign-in, never a 500.
+    return context.redirect(`/auth/signin?error=${encodeURIComponent("Invalid sign-in request")}`);
+  }
   const email = form.get("email") as string;
   const password = form.get("password") as string;
 

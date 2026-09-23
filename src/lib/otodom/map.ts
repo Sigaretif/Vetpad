@@ -44,6 +44,20 @@ function nonEmptyString(value: unknown): string | null {
 }
 
 /**
+ * An absolute `https:` URL, or `null`. Mirrors `safeHttpsUrl` in `@/lib/safe-url` — kept local
+ * because this module may only have type imports (scripts/otodom-inspect.mjs loads it in Node).
+ */
+function httpsUrl(value: unknown): string | null {
+  const url = nonEmptyString(value);
+  if (url === null) return null;
+  try {
+    return new URL(url).protocol === "https:" ? url : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * The single path for every numeric fact. Absent, empty, unparseable and any value
  * `<= 0` all mean "not stated": otodom sends `rent` as "0" when the advertiser left
  * it blank, so a zero cannot be told apart from an omission.
@@ -102,17 +116,24 @@ function decodeEntity(entity: string, body: string): string {
  * of blank lines collapse into one. The result carries no `<` or `>`.
  */
 export function htmlToPlainText(html: string): string {
-  return html
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/p\s*>/gi, "\n\n")
-    .replace(/<\/li\s*>/gi, "\n")
-    .replace(/<[^>]*>/g, "")
-    .replace(/&(#x[0-9a-f]+|#\d+|[a-z][a-z0-9]*);/gi, decodeEntity)
-    .replace(/[<>]/g, "")
-    .replace(/\r\n?/g, "\n")
-    .replace(/[ \t\u00a0]+\n/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+  return (
+    html
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<\/p\s*>/gi, "\n\n")
+      .replace(/<\/li\s*>/gi, "\n")
+      // [^<>], not [^>]: a run of "<" with no ">" would otherwise backtrack quadratically.
+      .replace(/<[^<>]*>/g, "")
+      .replace(/&(#x[0-9a-f]+|#\d+|[a-z][a-z0-9]*);/gi, decodeEntity)
+      .replace(/[<>]/g, "")
+      .replace(/\r\n?/g, "\n")
+      // Per-line trimEnd, not /[ \t\u00a0]+\n/: that regex backtracks quadratically on a long
+      // run of spaces the advertiser controls (50k spaces ≈ 1.5 s CPU against the Free plan's 10 ms).
+      .split("\n")
+      .map((line) => line.trimEnd())
+      .join("\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim()
+  );
 }
 
 function pickKeys(source: Record<string, unknown>, keys: readonly string[]): Record<string, unknown> {
@@ -152,7 +173,9 @@ function streetName(location: Record<string, unknown>): string | null {
 function coordinate(location: Record<string, unknown>, axis: "latitude" | "longitude"): number | null {
   const coordinates = location.coordinates;
   const value = isRecord(coordinates) ? coordinates[axis] : undefined;
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
+  const limit = axis === "latitude" ? 90 : 180;
+  // 0 is a placeholder, not a place; out of range is corrupt. Either is "not stated".
+  return typeof value === "number" && Number.isFinite(value) && value !== 0 && Math.abs(value) <= limit ? value : null;
 }
 
 function mapImages(images: unknown): OfferImage[] {
@@ -160,8 +183,8 @@ function mapImages(images: unknown): OfferImage[] {
   const mapped: OfferImage[] = [];
   for (const image of images as unknown[]) {
     if (!isRecord(image)) continue;
-    const thumbnail = nonEmptyString(image.thumbnail);
-    const large = nonEmptyString(image.large);
+    const thumbnail = httpsUrl(image.thumbnail);
+    const large = httpsUrl(image.large);
     if (thumbnail !== null && large !== null) mapped.push({ thumbnail, large });
   }
   return mapped;
@@ -224,6 +247,7 @@ export function mapAdToOffer(ad: unknown): MapOfferResult {
   };
 
   const [price, priceCurrency] = amountWithCurrency("price");
+  const [pricePerM, pricePerMCurrency] = amountWithCurrency("price_per_m");
   const [rent, rentCurrency] = amountWithCurrency("rent");
   const freeFrom = token("free_from");
   const location = isRecord(ad.location) ? ad.location : {};
@@ -237,8 +261,10 @@ export function mapAdToOffer(ad: unknown): MapOfferResult {
     description,
 
     price,
-    price_currency: priceCurrency,
-    price_per_m: numericOrUnknown(value("price_per_m")),
+    // The currency of the sale amounts: with the price unstated but the price per m² stated,
+    // it comes from that entry, so "12 345/m²" never renders without a currency.
+    price_currency: priceCurrency ?? pricePerMCurrency,
+    price_per_m: pricePerM,
     area_m2: numericOrUnknown(value("m")),
     rooms: integerOrUnknown(value("rooms_num")),
     floors_total: integerOrUnknown(value("building_floors_num")),

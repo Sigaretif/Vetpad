@@ -24,7 +24,9 @@ function failureMessage(reason: IngestFailureReason, status?: number): string {
     case "expired":
       return "Ogłoszenie nie istnieje lub wygasło. Nic nie zostało zapisane.";
     case "http_denied":
-      return `otodom.pl odmówił pobrania ogłoszenia (HTTP ${status ?? "?"}). Nic nie zostało zapisane — spróbuj ponownie za chwilę.`;
+      return `otodom.pl odmówił pobrania ogłoszenia${status === undefined ? "" : ` (HTTP ${status})`}. Nic nie zostało zapisane — spróbuj ponownie za chwilę.`;
+    case "upstream_error":
+      return `otodom.pl jest chwilowo niedostępny (HTTP ${status ?? "?"}). Nic nie zostało zapisane — spróbuj ponownie za chwilę.`;
     case "shape_changed":
       return "Nie udało się odczytać treści ogłoszenia — strona otodom.pl mogła zmienić format. Nic nie zostało zapisane.";
     case "timeout":
@@ -51,7 +53,13 @@ export const POST: APIRoute = async (context) => {
     return fail(NOT_CONFIGURED);
   }
 
-  const form = await context.request.formData();
+  let form: FormData;
+  try {
+    form = await context.request.formData();
+  } catch {
+    // A body that is not a form (a hand-crafted request) reads as an empty field, never a 500.
+    return fail(failureMessage("empty"));
+  }
   const rawUrl = form.get("url");
   const normalized = normalizeOfferUrl(typeof rawUrl === "string" ? rawUrl : "");
   if (!normalized.ok) {

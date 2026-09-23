@@ -11,6 +11,11 @@ const REQUEST_HEADERS = {
 // HTML parser: CLAUDE.md, Cloudflare Workers runtime.
 const NEXT_DATA = /id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/;
 
+// Where a followed redirect may land. Mirrors ACCEPTED_HOSTS in url.ts — kept local
+// because this module may only have type imports (scripts/otodom-inspect.mjs).
+const OTODOM_HOSTS = new Set(["otodom.pl", "www.otodom.pl"]);
+const OFFER_PATH = /^\/(?:pl\/)?oferta\/[^/]+\/?$/;
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -34,10 +39,21 @@ export async function fetchOfferAd(url: string, signal: AbortSignal): Promise<Fe
     if (response.status === 404 || response.status === 410) {
       return { ok: false, reason: "not_found", status: response.status };
     }
+    if (response.status >= 500) {
+      // The portal failing, not refusing: kept apart from http_denied so an outage is
+      // never read as a blocked egress (the Apify fallback trigger).
+      return { ok: false, reason: "upstream_error", status: response.status };
+    }
     if (!response.ok) {
-      // 403/429 are the egress-blocking signatures; any other non-OK status (5xx) is
-      // still the portal refusing to serve the page, and the status says which.
+      // 403/429 are the egress-blocking signatures; any other 4xx is still a refusal.
       return { ok: false, reason: "http_denied", status: response.status };
+    }
+    if (response.url !== "") {
+      const landed = new URL(response.url);
+      // Sent off otodom (a consent or anti-bot page): the portal did not serve the offer.
+      if (!OTODOM_HOSTS.has(landed.hostname)) return { ok: false, reason: "http_denied" };
+      // Still otodom but no longer an offer page: there is no listing at this address.
+      if (!OFFER_PATH.test(landed.pathname)) return { ok: false, reason: "not_found" };
     }
     html = await response.text();
   } catch (error) {
