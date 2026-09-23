@@ -390,29 +390,29 @@ Brak danych i migracji. Wycofanie = revert commitów fazy; tokeny i komponenty n
 
 #### Automated
 
-- [x] 3.1 `npx astro sync && npm run lint && npx astro check && npm run build` przechodzą
-- [x] 3.2 Grep literałów (`white/`, `blue-`, `purple-`, `bg-cosmic`, `backdrop-blur`, `bg-gradient`, `text-transparent`) w karcie, Topbarze i AppLayout nic nie zwraca
-- [x] 3.3 `Unstated` używany w `OfferCard`, `OfferParameters`, `OfferGallery`; `CLAUDE.md` wskazuje `Unstated.astro` jako wzorzec
-- [x] 3.4 Smoke na buildzie produkcyjnym przechodzi (kroki karty bez zmian)
+- [x] 3.1 `npx astro sync && npm run lint && npx astro check && npm run build` przechodzą — 3b0f18a
+- [x] 3.2 Grep literałów (`white/`, `blue-`, `purple-`, `bg-cosmic`, `backdrop-blur`, `bg-gradient`, `text-transparent`) w karcie, Topbarze i AppLayout nic nie zwraca — 3b0f18a
+- [x] 3.3 `Unstated` używany w `OfferCard`, `OfferParameters`, `OfferGallery`; `CLAUDE.md` wskazuje `Unstated.astro` jako wzorzec — 3b0f18a
+- [x] 3.4 Smoke na buildzie produkcyjnym przechodzi (kroki karty bez zmian) — 3b0f18a
 
 #### Manual
 
-- [x] 3.5 Prawdziwa karta na desktopie: tokeny, `Card`, linki cyan, czytelne „nie podano", baner duplikatu pod Topbarem
-- [x] 3.6 Przewijanie karty bez GPU płynne po usunięciu blur
-- [x] 3.7 Strona główna: polski Topbar na tokenach, brak innych zmian
+- [x] 3.5 Prawdziwa karta na desktopie: tokeny, `Card`, linki cyan, czytelne „nie podano", baner duplikatu pod Topbarem — 3b0f18a
+- [x] 3.6 Przewijanie karty bez GPU płynne po usunięciu blur — 3b0f18a
+- [x] 3.7 Strona główna: polski Topbar na tokenach, brak innych zmian — 3b0f18a
 
 ### Phase 4: Stany i kitchen sink
 
 #### Automated
 
-- [ ] 4.1 `npx astro sync && npm run lint && npx astro check && npm run build` przechodzą
-- [ ] 4.2 Smoke na buildzie produkcyjnym przechodzi, w tym `/dev/offer-card` → 404
-- [ ] 4.3 `/dev/offer-card` na `npm run dev` bez `.env` zwraca 200
-- [ ] 4.4 `grep -rn 'otodom.pl' src/pages/dev` nic nie zwraca
+- [x] 4.1 `npx astro sync && npm run lint && npx astro check && npm run build` przechodzą
+- [x] 4.2 Smoke na buildzie produkcyjnym przechodzi, w tym `/dev/offer-card` → 404
+- [x] 4.3 `/dev/offer-card` na `npm run dev` bez `.env` zwraca 200
+- [x] 4.4 `grep -rn 'otodom.pl' src/pages/dev` nic nie zwraca
 
 #### Manual
 
-- [ ] 4.5 Zrzut desktop kitchen sinka pokazuje wszystkie stany, w tym działanie filtra URL
-- [ ] 4.6 Zrzut z fokusem: pierścień widoczny na `card` i `background`
-- [ ] 4.7 Jeden zrzut mobilny (~375 px) jako kontrola: brak przewijania poziomego
-- [ ] 4.8 Checklist `ui-quality-checklist.md` przejrzany; odstępstwo i odłożone nazwane
+- [x] 4.5 Zrzut desktop kitchen sinka pokazuje wszystkie stany, w tym działanie filtra URL
+- [x] 4.6 Zrzut z fokusem: pierścień widoczny na `card` i `background`
+- [x] 4.7 Jeden zrzut mobilny (~375 px) jako kontrola: brak przewijania poziomego
+- [x] 4.8 Checklist `ui-quality-checklist.md` przejrzany; odstępstwo i odłożone nazwane

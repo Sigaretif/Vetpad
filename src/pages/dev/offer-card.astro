@@ -1,0 +1,76 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import Banner from "@/components/Banner.astro";
+import OfferCard from "@/components/offers/OfferCard.astro";
+import OfferNotFound from "@/components/offers/OfferNotFound.astro";
+import {
+  fullOffer,
+  longTitleOffer,
+  singleImageOffer,
+  unknownOffer,
+  unsafeImagesOffer,
+} from "@/pages/dev/_offer-fixtures";
+
+// Visual gate for the offer card: every named state at once, from fixtures, in `astro dev` only.
+// Anywhere else (a production build, `npm run preview`) it answers 404 — `scripts/smoke.mjs`
+// checks that on the production preview. The status is set on Astro.response, not returned,
+// because a top-level `return` crashes @typescript-eslint/no-misused-promises.
+const isDev = import.meta.env.DEV;
+if (!isDev) {
+  Astro.response.status = 404;
+}
+
+const states = [
+  { caption: "Pełna oferta", offer: fullOffer },
+  { caption: "Wszystko nieznane (brak linku do oryginału)", offer: unknownOffer },
+  { caption: "Jedno zdjęcie", offer: singleImageOffer },
+  { caption: "Filtr adresów zdjęć (http: i javascript: odrzucone)", offer: unsafeImagesOffer },
+  { caption: "Długi tytuł bez spacji, długi opis", offer: longTitleOffer },
+];
+
+const stateClass = "border-border flex flex-col gap-6 border-t pt-6";
+const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppercase";
+---
+
+{isDev ? (
+  <AppLayout title="Karta oferty — stany — Vetpad">
+    <Banner slot="notice" variant="info">
+      Ta oferta była już zapisana — otwieramy istniejącą kartę.
+    </Banner>
+    <Banner slot="notice" variant="warning">
+      <strong>Uwaga:</strong> Supabase nie jest skonfigurowany — funkcje uwierzytelniania są wyłączone.{" "}
+      <a href="https://github.com/Sigaretif/Vetpad#supabase-configuration" target="_blank" rel="noopener noreferrer">
+        Zobacz instrukcję konfiguracji
+      </a>
+      .
+    </Banner>
+    <Banner slot="notice" variant="error">
+      <strong>Uwaga:</strong> Supabase nie jest skonfigurowany — funkcje uwierzytelniania są wyłączone.{" "}
+      <a href="https://github.com/Sigaretif/Vetpad#supabase-configuration" target="_blank" rel="noopener noreferrer">
+        Zobacz instrukcję konfiguracji
+      </a>
+      .
+    </Banner>
+
+    <p class="text-muted-foreground text-sm">
+      Strona testowa (tylko <code>astro dev</code>): karta oferty w każdym stanie, z danych testowych. Zmiana wyglądu
+      karty przechodzi przez zrzut tej strony.
+    </p>
+
+    {states.map((state) => (
+      <div class:list={stateClass}>
+        <p class:list={captionClass}>Stan: {state.caption}</p>
+        <OfferCard offer={state.offer} />
+      </div>
+    ))}
+
+    <div class:list={stateClass}>
+      <p class:list={captionClass}>Stan: nie znaleziono oferty</p>
+      <OfferNotFound />
+    </div>
+  </AppLayout>
+) : (
+  <AppLayout title="Nie znaleziono — Vetpad">
+    <OfferNotFound />
+  </AppLayout>
+)}

@@ -178,12 +178,14 @@ The full deployment plan, including prerequisites, edge cases and the operationa
 
 ## Smoke test
 
-`scripts/smoke.mjs` is a dependency-free Node script that walks the auth flow over HTTP: it signs in with a seeded account (sign-in, protected page, sign-out) and checks that registration is closed — the app's signup routes return 404 and Supabase Auth answers a sign-up attempt with `signup_disabled`. It also checks that `/offers/<id>` and `POST /api/offers` turn anonymous visitors away, and that `POST /api/offers` refuses an empty URL, a foreign host and a non-offer otodom.pl address without ever reaching otodom.pl. Run it against the dev server or the production preview after dependency upgrades:
+`scripts/smoke.mjs` is a dependency-free Node script that walks the auth flow over HTTP: it signs in with a seeded account (sign-in, protected page, sign-out) and checks that registration is closed — the app's signup routes return 404 and Supabase Auth answers a sign-up attempt with `signup_disabled`. It also checks that `/offers/<id>` and `POST /api/offers` turn anonymous visitors away, and that `POST /api/offers` refuses an empty URL, a foreign host and a non-offer otodom.pl address without ever reaching otodom.pl. It also checks that the dev-only kitchen sink `/dev/offer-card` answers 404, which keeps that test page out of production. Run it against the production preview after dependency upgrades:
 
 ```bash
-npm run dev            # or: npm run build && npm run preview
+npm run build && npm run preview
 BASE_URL=http://localhost:4321 npm run smoke
 ```
+
+Against `npm run dev` every step works except `/dev/offer-card` → 404, which fails there by design: the page renders under `astro dev` only.
 
 It needs the local Supabase started with the seed (`npx supabase start`) and `SUPABASE_URL`/`SUPABASE_KEY` in `.env`, which `npm run smoke` loads. Credentials default to `sigaretif1@vetpad.local` and can be overridden with `SMOKE_EMAIL`/`SMOKE_PASSWORD`. Never run it against production: the seeded account exists only locally, and the sign-up attempt is only harmless on a throwaway database.
 

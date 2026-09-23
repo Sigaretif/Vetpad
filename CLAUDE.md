@@ -84,6 +84,13 @@ Scripts are in `@package.json`. Two commands CI runs that are **not** npm script
 - Do not add `zod`, `valibot` or another validation library to `@package.json` without the user's explicit go-ahead. Validation is hand-rolled inline today — `src/lib/otodom/url.ts` is the reference for URL normalisation (FR-005). Expect this to come up again for parsing the model's structured audit output — raise it as a decision, do not just install one.
 - A rule in this file names a reference instance — never a count, never a paraphrase of a file that already states it. Write "`src/pages/api/auth/signin.ts` is the reference", not "all three auth routes". A count drifts silently; a named path fails loudly when it moves.
 
+### UI
+
+- A new view is built only from the tokens in `src/styles/global.css` — role classes such as `bg-card`, `text-muted-foreground`, `text-link` — and the components in `src/components/ui`. A colour literal in a view (`white/10`, `blue-100/80`, a hex) is a bug. The dark theme is the only one; `class="dark"` in `src/layouts/Layout.astro` switches it on.
+- A new app view renders inside `src/layouts/AppLayout.astro` (frame, Topbar, a `notice` slot for page banners); `src/pages/offers/[id].astro` is the reference. `bg-cosmic` and `backdrop-blur` on the views not yet migrated are legacy, not a pattern to copy.
+- A missing primitive comes from `npx shadcn add <name>`, followed in the same change by the ritual the CLI makes necessary here: import `cn` from `@/lib/utils`, delete `"use client"`, import `Slot` from `@radix-ui/react-slot` (`src/components/ui/button.tsx` is the reference), and drop the `cn` and `radix-ui` packages from `@package.json` if the CLI added them.
+- A change to how the offer card looks goes through `/dev/offer-card` (`src/pages/dev/offer-card.astro`, fixtures in `src/pages/dev/_offer-fixtures.ts`): screenshot every state. A new card state gets a fixture there. The page renders under `astro dev` only and answers 404 everywhere else, which `scripts/smoke.mjs` checks on the production preview.
+
 ## Testing
 
 There is no unit-test runner; `scripts/smoke.mjs` is the only test surface — what it covers and what it needs to run: `@README.md`. It is the only command that requires a live Supabase.
