@@ -12,15 +12,17 @@ import type { BoardResult, BoardSort as BoardSortValue } from "@/lib/offer-board
 interface Props {
   result: BoardResult;
   sort: BoardSortValue;
+  /** Unique per page: a page that renders more than one board (/dev/board) passes its own. */
+  headingId?: string;
 }
 
-const { result, sort } = Astro.props;
+const { result, sort, headingId = "board-heading" } = Astro.props;
 const offers = result.ok ? result.offers : [];
 ---
 
-<section aria-labelledby="board-heading" data-board-state={result.ok ? "ok" : "error"} class="flex flex-col gap-4">
+<section aria-labelledby={headingId} data-board-state={result.ok ? "ok" : "error"} class="flex flex-col gap-4">
   <div class="flex flex-wrap items-center justify-between gap-3">
-    <h2 id="board-heading" class="text-xl font-semibold">
+    <h2 id={headingId} class="text-xl font-semibold">
       {result.ok ? `Zapisane oferty (${offers.length})` : "Zapisane oferty"}
     </h2>
     {offers.length > 0 && <BoardSort sort={sort} />}

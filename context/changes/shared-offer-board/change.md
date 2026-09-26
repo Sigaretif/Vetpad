@@ -1,7 +1,7 @@
 ---
 change_id: shared-offer-board
 title: Shared board of saved listings with audit status
-status: implemented
+status: impl_reviewed
 created: 2026-09-26
 updated: 2026-09-26
 archived_at: null

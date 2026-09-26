@@ -19,10 +19,13 @@ interface Props {
 const { offer } = Astro.props;
 
 // Row data lands in src, so the thumbnail is the first one that passes safeHttpsUrl (lessons.md).
+// The loop stops at that first one: every row runs this, and each check parses a URL.
 const images: unknown[] = Array.isArray(offer.images) ? offer.images : [];
-const thumbnail =
-  images.map((image) => safeHttpsUrl((image as Partial<OfferImage> | null)?.thumbnail)).find((url) => url !== null) ??
-  null;
+let thumbnail: string | null = null;
+for (const image of images) {
+  thumbnail = safeHttpsUrl((image as Partial<OfferImage> | null)?.thumbnail);
+  if (thumbnail !== null) break;
+}
 
 const location = [offer.location_label, offer.street_name]
   .filter((part): part is string => part !== null && part.trim() !== "")
@@ -49,11 +52,11 @@ const location = [offer.location_label, offer.street_name]
     <div class="flex min-w-0 flex-1 flex-col gap-1">
       <h3 class="line-clamp-2 font-semibold wrap-anywhere">{offer.title}</h3>
       <p class="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-        <span class="font-semibold">
+        <span>
           {offer.price === null ? (
             <Unstated>Cena: nie podano w ogłoszeniu</Unstated>
           ) : (
-            formatMoney(offer.price, offer.price_currency)
+            <span class="font-semibold">{formatMoney(offer.price, offer.price_currency)}</span>
           )}
         </span>
         <span>

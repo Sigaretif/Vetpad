@@ -70,12 +70,12 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
 
     <div class:list={stateClass} data-state="empty">
       <p class:list={captionClass}>Stan: brak ofert</p>
-      <OfferBoard result={{ ok: true, offers: [] }} sort={defaultSort} />
+      <OfferBoard result={{ ok: true, offers: [] }} sort={defaultSort} headingId="board-heading-empty" />
     </div>
 
     <div class:list={stateClass} data-state="error">
       <p class:list={captionClass}>Stan: błąd odczytu</p>
-      <OfferBoard result={{ ok: false }} sort={defaultSort} />
+      <OfferBoard result={{ ok: false }} sort={defaultSort} headingId="board-heading-error" />
     </div>
 
     {rows.map((row) => (
