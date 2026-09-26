@@ -1,6 +1,6 @@
 ---
 import Banner from "@/components/Banner.astro";
-import type { Saver } from "@/lib/members";
+import { saverName, type Saver } from "@/lib/members";
 
 /*
  * The duplicate-offer notice (FR-005): the offer was already saved, and by whom. One component,
@@ -14,25 +14,7 @@ interface Props {
 
 const { saver } = Astro.props;
 
-/** Who to name after „przez", or `null` when the author could not be established. */
-function savedBy(value: Saver): string | null {
-  switch (value.kind) {
-    case "member":
-      return value.email;
-    case "self":
-      return "Ciebie";
-    case "deleted":
-      return "osobę z usuniętym kontem";
-    case "unknown":
-      return null;
-    default: {
-      const unhandled: never = value;
-      return unhandled;
-    }
-  }
-}
-
-const who = savedBy(saver);
+const who = saverName(saver);
 ---
 
 <Banner variant="info">

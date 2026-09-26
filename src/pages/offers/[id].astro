@@ -4,7 +4,7 @@ import DuplicateNotice from "@/components/offers/DuplicateNotice.astro";
 import OfferCard from "@/components/offers/OfferCard.astro";
 import OfferNotFound from "@/components/offers/OfferNotFound.astro";
 import { buttonVariants } from "@/components/ui/button";
-import { resolveSaver } from "@/lib/members";
+import { resolveSaver, type Saver } from "@/lib/members";
 import { createClient } from "@/lib/supabase";
 import type { OfferRow } from "@/lib/otodom/types";
 import { cn } from "@/lib/utils";
@@ -40,16 +40,18 @@ if (!offer) {
 // The author comes from the offer row, never from the URL: anyone can type `?duplicate=1`.
 // resolveSaver never throws, so a missing `members` table or a failed read degrades the notice
 // and the card's author line to the unnamed variant instead of a 500.
-const saver = offer ? await resolveSaver(supabase, offer.created_by, Astro.locals.user?.id) : null;
+const saver: Saver = offer
+  ? await resolveSaver(supabase, offer.created_by, Astro.locals.user?.id)
+  : { kind: "unknown" };
 const duplicate = offer !== null && Astro.url.searchParams.get("duplicate") === "1";
 ---
 
 <AppLayout title={offer ? `${offer.title} — Vetpad` : "Nie znaleziono oferty — Vetpad"}>
-  {duplicate && saver && <DuplicateNotice slot="notice" saver={saver} />}
+  {duplicate && <DuplicateNotice slot="notice" saver={saver} />}
 
   <a href="/dashboard" class:list={cn(buttonVariants({ variant: "link" }), "h-auto self-start p-0")}>
     ← Wróć do ofert
   </a>
 
-  {offer === null || saver === null ? <OfferNotFound /> : <OfferCard offer={offer} saver={saver} />}
+  {offer === null ? <OfferNotFound /> : <OfferCard offer={offer} saver={saver} />}
 </AppLayout>

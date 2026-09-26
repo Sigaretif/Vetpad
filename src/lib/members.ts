@@ -17,6 +17,10 @@ export type Saver = { kind: "self" } | { kind: "member"; email: string } | { kin
 /**
  * Who saved the offer, as the viewer should read it. `createdBy` comes from the offer row,
  * never from the URL. Never throws: any failure is `unknown`, so the card keeps rendering.
+ *
+ * One author, one query. A view naming many authors (S-05's notes) reads them in one
+ * `.in("id", ids)` instead of calling this per row: `offers.created_by` references auth.users,
+ * not `members`, so PostgREST cannot embed the name in the offer or note query.
  */
 export async function resolveSaver(
   supabase: SupabaseClient | null,
@@ -33,5 +37,26 @@ export async function resolveSaver(
     return typeof email === "string" && email.trim() !== "" ? { kind: "member", email } : { kind: "unknown" };
   } catch {
     return { kind: "unknown" };
+  }
+}
+
+/**
+ * Who to name after „przez", in the accusative the notice and the card's author line both use,
+ * or `null` when the author could not be established — `unknown` names nobody.
+ */
+export function saverName(saver: Saver): string | null {
+  switch (saver.kind) {
+    case "member":
+      return saver.email;
+    case "self":
+      return "Ciebie";
+    case "deleted":
+      return "osobę z usuniętym kontem";
+    case "unknown":
+      return null;
+    default: {
+      const unhandled: never = saver;
+      return unhandled;
+    }
   }
 }

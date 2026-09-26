@@ -52,6 +52,7 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
 
 {isDev ? (
   <AppLayout title="Karta oferty — stany — Vetpad">
+    <DuplicateNotice slot="notice" saver={memberSaver} />
     <DuplicateNotice slot="notice" saver={longEmailSaver} />
     <DuplicateNotice slot="notice" saver={selfSaver} />
     <DuplicateNotice slot="notice" saver={deletedSaver} />
