@@ -45,7 +45,7 @@ A small group searching for an apartment together keeps blind links in spreadshe
 | S-02 | paste-listing-to-card    | paste an otodom.pl URL and read the saved listing's text, parameters and photos     | S-01          | US-01, FR-004, FR-005, FR-007 | done     |
 | S-03 | team-search-criteria     | define and edit the team's shared hard limits and their own additional requirements | S-01          | FR-002, FR-003                | proposed |
 | S-04 | grounded-listing-audit   | run an AI audit on a saved listing and read findings, each quoted from the listing  | S-02, S-03    | US-01, FR-010, FR-011         | proposed |
-| S-05 | member-notes             | write their own Pros / Cons / Observations note and read everyone's, attributed     | S-02          | US-01, FR-012, FR-013         | proposed |
+| S-05 | member-notes             | write their own Pros / Cons / Observations note and read everyone's, attributed     | S-02          | US-01, FR-012, FR-013         | in-progress |
 | S-06 | shared-offer-board       | browse every saved listing on one board with its audit status                       | S-02          | FR-006                        | done     |
 | S-07 | duplicate-listing-notice | paste an already-saved URL and land on the existing card, told who saved it         | S-02          | FR-005                        | done     |
 | S-08 | location-map-link        | open a Google Maps search for a listing's location in one click                     | S-02          | FR-008                        | proposed |
@@ -146,7 +146,7 @@ None. Every absent or partial layer in the Baseline is first needed by a user-fa
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Authorship is the only restriction in the access model: a member edits and deletes only their own note, while every member reads all of them. A missing or permissive access policy here is a live exposure, not a later hardening task.
-- **Status:** proposed
+- **Status:** in-progress
 
 ### S-06: Shared offer board
 
