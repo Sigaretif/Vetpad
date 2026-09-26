@@ -14,7 +14,8 @@ export function PasswordToggle({ visible, onToggle }: PasswordToggleProps) {
       size="icon"
       onClick={onToggle}
       className="text-muted-foreground hover:text-foreground absolute top-1/2 right-1 size-7 -translate-y-1/2"
-      aria-label={visible ? "Ukryj hasło" : "Pokaż hasło"}
+      // A toggle button keeps one label and reports its state through aria-pressed (WAI-ARIA APG).
+      aria-label="Pokaż hasło"
       aria-pressed={visible}
     >
       {visible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}

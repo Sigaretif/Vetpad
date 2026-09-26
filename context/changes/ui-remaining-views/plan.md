@@ -35,7 +35,7 @@ Weryfikacja: automatyczne kontrole w każdej fazie, smoke na podglądzie produkc
   - `--destructive-foreground` = `oklch(0.985 0 0)` na `destructive/60`: 5,77:1 na `card` (research). Na `/50`, czyli ciemniejszym tle hovera, kontrast jest wyższy.
 - `input.tsx` z rejestru ustawia `ring-color` dwiema regułami: `focus-visible:ring-ring/50` i `aria-invalid:ring-destructive/…`. Szerokość pierścienia pojawia się tylko przy `focus-visible`, więc alfa `aria-invalid` zmienia wyłącznie fokus na polu z błędem.
 - Wariantu `outline` przycisku, jedynego poza `Input` konsumenta `--input`, nikt nie używa (grep `src/`). Zmiana `--input` dotyka więc tylko pól.
-- Supabase: `AuthError` ma `error.code` (`invalid_credentials`, `email_not_confirmed`, `over_request_rate_limit`, `user_banned`), a dokumentacja każe rozgałęziać po `code` (Context7, `/supabase/supabase`, „handling-errors-in-supabase-js”). Błąd sieci, np. przy wstrzymanym projekcie (`deployment-runbook.md`), przychodzi jako `AuthRetryableFetchError` bez kodu z serwera.
+- Supabase: `AuthError` ma `error.code` (`invalid_credentials`, `email_not_confirmed`, `over_request_rate_limit`, `user_banned`), a dokumentacja każe rozgałęziać po `code` (Context7, `/supabase/supabase`, „handling-errors-in-supabase-js”). Błąd sieci (odmowa połączenia, DNS, 500–504, 520–530) przychodzi jako `AuthRetryableFetchError` bez kodu z serwera. Wstrzymany projekt (`deployment-runbook.md`) odpowiada jednak HTTP 540, którego `auth-js` nie uznaje za sieciowy: przychodzi jako `AuthApiError` bez `code` albo `AuthUnknownError`, więc trasa traktuje każdy status ≥500 i `AuthUnknownError` jak brak odpowiedzi serwera (impl-review F1).
 - `/dev/offer-card` (`src/pages/dev/offer-card.astro:18-21`) to wzorzec strony dev: `import.meta.env.DEV`, `Astro.response.status = 404` poza dev, krok 404 w `scripts/smoke.mjs:64`.
 
 ## What We're NOT Doing
@@ -91,7 +91,7 @@ Prymitywy `input`, `label` i `alert` z rytuałem. Kompozyty przeniesione do `src
 
 **Intent**: Wspólne pola wychodzą z folderu logowania (A7, decyzja 8) i przestają nieść fiolet (T2–T5, K1–K4).
 - `FormField` to `Label` + `Input` z ikoną po lewej (`text-muted-foreground`) i `endContent` po prawej.
-- `PasswordToggle` stoi na `Button variant="ghost" size="icon"`, z polskim `aria-label` i `aria-pressed`.
+- `PasswordToggle` stoi na `Button variant="ghost" size="icon"`, ze stałym polskim `aria-label` („Pokaż hasło”) i stanem w `aria-pressed` (WAI-ARIA APG; impl-review F7).
 - `SubmitButton` to `Button` default bez nadpisań koloru i kształtu, pełnej szerokości, ze spinnerem `Loader2 animate-spin` zamiast ręcznego obramowania.
 - `ServerError` to cienki wrapper na `Alert variant="destructive"`: dla pustego `message` nic nie renderuje, treść stoi w `AlertDescription` (`AlertTitle` ucina tekst przez `line-clamp-1`).
 
@@ -254,7 +254,7 @@ Trzy ekrany przechodzą na tokeny i polski. Dashboard i strona główna trafiaj�
 | `invalid_credentials` | „Nieprawidłowy e-mail lub hasło.” |
 | `over_request_rate_limit` | „Zbyt wiele prób logowania. Spróbuj ponownie za kilka minut.” |
 | `email_not_confirmed`, `user_banned` | „To konto jest nieaktywne. Skontaktuj się z administratorem zespołu.” |
-| `isAuthRetryableFetchError(error)` | „Serwer logowania nie odpowiada. Spróbuj ponownie za chwilę.” |
+| `isAuthRetryableFetchError(error)`, status ≥500 albo `AuthUnknownError` (impl-review F1) | „Serwer logowania nie odpowiada. Spróbuj ponownie za chwilę.” |
 | każdy inny błąd | „Nie udało się zalogować. Spróbuj ponownie.” |
 
 Mapowanie to jedna funkcja w pliku trasy. Każda porażka dalej kończy się `302 /auth/signin?error=<encoded>`, a sukces `302 /`.
@@ -407,13 +407,24 @@ Strona testowa pokazuje oba formularze w macierzy 7 stanów, złożonej z tych s
 
 - Bramka: każda komórka macierzy jest widoczna na `forms-desktop`, a komórki „nie dotyczy” mają podpis z powodem
 - `forms-focus-field`, `forms-focus-toggle`, `forms-focus-button`: pierścień 3 px widoczny na każdej kontrolce. `forms-focus-field-error`: pierścień czerwony, wyraźny na `card`
-- `forms-hover-button`: przycisk jaśniejszy niż w `forms-desktop` (`primary/90`)
+- `forms-hover-button`: przycisk ciemniejszy niż w `forms-desktop` (`primary/90` nad ciemnym tłem: rgb(0,95,120) → rgb(1,86,109), ~1,07:1 — domyślne zachowanie rejestru, mocniejszy hover to projektowanie poza zakresem; impl-review F4)
 - `forms-mobile`: brak przewijania poziomego przy 375 px, przełącznik hasła mieści się w polu
 - Po triażu `/10x-impl-review` zestawy `forms` i `views` są wykonane ponownie przed commitem, a zrzuty porównane z tymi sprzed poprawek
 
 **Implementation Note**: Po automatycznej weryfikacji zatrzymać się na potwierdzenie ręczne, potem `/10x-impl-review`. Bramka jest powtarzana po triażu review, przed commitem poprawek.
 
 ---
+
+## Odstępstwa przyjęte w implementacji
+
+Decyzje podjęte w trakcie faz, ocenione w `reviews/impl-review.md` jako słuszne:
+
+- **`/dev/forms`, komórka „error” bez całego formularza z `serverError`.** `SignInForm` ma na sztywno `id="email"`/`"password"`, a plan wymaga unikalnych id i zakazuje propsów tylko dla testów. Cały formularz z `serverError` pokazują zrzuty `views-signin-error` i `views-dashboard-error`.
+- **Sekcje hover/focus/disabled na `/dev/forms` tylko z podpisem.** Stany wymusza skrypt na formularzach w sekcjach default/error (`forms-hover-button`, `forms-focus-*`), a disabled to render loading — zgodnie z macierzą.
+- **Ikony i `PasswordToggle` w `forms.astro` przez `createElement`.** Element JSX w propie Reacta w `.astro` jest elementem Astro i daje pustą stronę.
+- **Chrome z `--blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4`.** Tailwind 4 opakowuje `hover:` w `@media (hover: hover)`, którego headless Chrome nie spełnia, a `Emulation.setEmulatedMedia` go nie przełącza. Flaga działa na wszystkie zestawy.
+- **`PasswordToggle` `size-7` zamiast `size-9`.** `size-9` to cała wysokość pola `h-9`; 28 px spełnia WCAG 2.5.8 i mieści się w `pr-10`.
+- **Karta „Nowa oferta” na pełną szerokość ramy.** Tak samo jak `OfferCard` na `/offers/[id]` w ramie `max-w-4xl`.
 
 ## Testing Strategy
 
@@ -468,6 +479,7 @@ Brak danych do migracji. Zakładki na `/` dla zalogowanych prowadzą teraz na `/
 
 - [x] 1.7 Pusty formularz logowania pokazuje polskie błędy pól z `aria-invalid` i `aria-describedby` — 2573520
 - [x] 1.8 Wysłanie logowania blokuje przycisk z „Loguję…”, a powrót „Wstecz” go odblokowuje — 2573520
+  - Dowód (impl-review F5, 2026-09-26): sonda CDP w headless Chrome na `astro preview` — po poprawnym haśle przycisk `disabled` z „Loguję…”, `/dashboard` → `history.back()` → przywrócenie z bfcache (`pageshow.persisted === true`), przycisk aktywny z „Zaloguj”. Firefox: do ręcznego sprawdzenia (logowanie → `/dashboard` → Wstecz → przycisk aktywny). Safari niesprawdzony.
 - [x] 1.9 „Dodaj ofertę” dalej pokazuje „Pobieram ogłoszenie…” w trakcie wysyłki — 2573520
 
 ### Phase 2: Tokeny i reguła lintu
@@ -509,18 +521,18 @@ Brak danych do migracji. Zakładki na `/` dla zalogowanych prowadzą teraz na `/
 
 #### Automated
 
-- [x] 4.1 `npm run lint` przechodzi
-- [x] 4.2 `npx astro check` przechodzi
-- [x] 4.3 `npm run build` przechodzi
-- [x] 4.4 Smoke na podglądzie produkcyjnym przechodzi, w tym `/dev/forms` → 404
-- [x] 4.5 `/dev/forms` pod `npm run dev` zwraca 200
-- [x] 4.6 Zestaw zrzutów `forms` zapisuje wszystkie 7 zrzutów
-- [x] 4.7 Zestaw zrzutów `gate` karty zapisuje wszystkie zrzuty
+- [x] 4.1 `npm run lint` przechodzi — 1285f23
+- [x] 4.2 `npx astro check` przechodzi — 1285f23
+- [x] 4.3 `npm run build` przechodzi — 1285f23
+- [x] 4.4 Smoke na podglądzie produkcyjnym przechodzi, w tym `/dev/forms` → 404 — 1285f23
+- [x] 4.5 `/dev/forms` pod `npm run dev` zwraca 200 — 1285f23
+- [x] 4.6 Zestaw zrzutów `forms` zapisuje wszystkie 7 zrzutów — 1285f23
+- [x] 4.7 Zestaw zrzutów `gate` karty zapisuje wszystkie zrzuty — 1285f23
 
 #### Manual
 
-- [x] 4.8 Bramka: każda komórka macierzy widoczna na `forms-desktop`, „nie dotyczy” z podpisem
-- [x] 4.9 Zrzuty fokusu: pierścień 3 px na polu, przełączniku i przycisku, czerwony na polu z błędem
-- [x] 4.10 `forms-hover-button` pokazuje hover przycisku
-- [x] 4.11 `forms-mobile` bez przewijania poziomego, przełącznik w polu
-- [ ] 4.12 Bramka `forms` i `views` powtórzona po triażu `/10x-impl-review` przed commitem
+- [x] 4.8 Bramka: każda komórka macierzy widoczna na `forms-desktop`, „nie dotyczy” z podpisem — 1285f23
+- [x] 4.9 Zrzuty fokusu: pierścień 3 px na polu, przełączniku i przycisku, czerwony na polu z błędem — 1285f23
+- [x] 4.10 `forms-hover-button` pokazuje hover przycisku — 1285f23
+- [x] 4.11 `forms-mobile` bez przewijania poziomego, przełącznik w polu — 1285f23
+- [x] 4.12 Bramka `forms` i `views` powtórzona po triażu `/10x-impl-review` przed commitem

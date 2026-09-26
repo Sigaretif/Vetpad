@@ -1,9 +1,9 @@
 ---
 change_id: ui-remaining-views
 title: Migrate remaining views and auth form components to design tokens
-status: implementing
+status: impl_reviewed
 created: 2026-09-23
-updated: 2026-09-23
+updated: 2026-09-26
 archived_at: null
 ---
 

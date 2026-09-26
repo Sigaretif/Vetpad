@@ -137,7 +137,8 @@ const noteClass = "text-muted-foreground text-sm";
         <div class:list={columnClass} data-form="signin">
           <p class:list={labelClass}>SignInForm</p>
           <FormField
-            id="email-error"
+            id="error-email"
+            placeholder="ty@przyklad.pl"
             type="email"
             label="E-mail"
             value="nie-adres"
@@ -150,7 +151,8 @@ const noteClass = "text-muted-foreground text-sm";
         <div class:list={columnClass} data-form="offer">
           <p class:list={labelClass}>AddOfferForm</p>
           <FormField
-            id="url-error"
+            id="error-url"
+            placeholder="https://www.otodom.pl/pl/oferta/…"
             type="url"
             label="Adres ogłoszenia"
             value="otodom oferta 123"
@@ -169,7 +171,8 @@ const noteClass = "text-muted-foreground text-sm";
         <div class:list={columnClass} data-form="signin">
           <p class:list={labelClass}>SignInForm</p>
           <FormField
-            id="email-empty"
+            id="empty-email"
+            placeholder="ty@przyklad.pl"
             type="email"
             label="E-mail"
             value=""
@@ -178,7 +181,8 @@ const noteClass = "text-muted-foreground text-sm";
             icon={mailIcon}
           />
           <FormField
-            id="password-empty"
+            id="empty-password"
+            placeholder="Twoje hasło"
             type="password"
             label="Hasło"
             value=""
@@ -191,7 +195,8 @@ const noteClass = "text-muted-foreground text-sm";
         <div class:list={columnClass} data-form="offer">
           <p class:list={labelClass}>AddOfferForm</p>
           <FormField
-            id="url-empty"
+            id="empty-url"
+            placeholder="https://www.otodom.pl/pl/oferta/…"
             type="url"
             label="Adres ogłoszenia"
             value=""

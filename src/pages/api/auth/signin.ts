@@ -4,7 +4,9 @@ import { createClient } from "@/lib/supabase";
 
 /** One Polish message per failure reason; Supabase's raw error.message is English and never reaches ?error=. */
 function signInErrorMessage(error: AuthError): string {
-  if (isAuthRetryableFetchError(error)) {
+  // auth-js marks only 500–504 and 520–530 as retryable; a paused project answers 540 (an
+  // AuthApiError without a code, or AuthUnknownError for an HTML body), so any 5xx counts here.
+  if (isAuthRetryableFetchError(error) || (error.status ?? 0) >= 500 || error.name === "AuthUnknownError") {
     return "Serwer logowania nie odpowiada. Spróbuj ponownie za chwilę.";
   }
   switch (error.code) {

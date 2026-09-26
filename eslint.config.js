@@ -72,14 +72,18 @@ const astroConfig = defineConfig({
 
 // Views take colours from the tokens in src/styles/global.css (CLAUDE.md, "### UI"): a Tailwind
 // palette utility, an arbitrary hex colour, bg-cosmic or backdrop-blur in a class string is a bug.
-// border(?:-[trblxy])? also catches side borders such as border-t-white.
+// border(?:-(?:[trblxyse]|b[se]))? also catches physical and logical side borders (border-t-white,
+// border-s-white, border-bs-white). The palette list is Tailwind 4.3's, mauve/olive/mist/taupe
+// included. The arbitrary group catches hex, colour functions and white/black inside [...],
+// with or without a color: hint. A role token named after a palette word (bg-red-flag) is
+// rejected too — name new tokens by role, not by hue.
 const COLOUR_LITERAL =
-  "/\\b(?:bg|text|border(?:-[trblxy])?|ring|outline|fill|stroke|from|via|to|shadow|decoration|divide|placeholder|caret|accent)-(?:white|black|slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)\\b|-\\[#|\\bbg-cosmic\\b|\\bbackdrop-blur/";
+  "/\\b(?:bg|text|border(?:-(?:[trblxyse]|b[se]))?|ring(?:-offset)?|outline|fill|stroke|from|via|to|shadow|decoration|divide|placeholder|caret|accent)-(?:white|black|slate|gray|zinc|neutral|stone|mauve|olive|mist|taupe|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)\\b|-\\[(?:color:)?(?:#|rgba?\\(|hsla?\\(|okl(?:ch|ab)\\(|l(?:ab|ch)\\(|hwb\\(|color-mix\\(|white\\]|black\\])|\\bbg-cosmic\\b|\\bbackdrop-blur/";
 const COLOUR_MESSAGE =
   "Colour literal in a class string. Use a role token from src/styles/global.css (bg-card, text-muted-foreground, text-link, …) — CLAUDE.md, ### UI.";
 // Narrowed to the style attribute: a bare hex/rgba() regex over any string would also catch
 // anchors like href="#add".
-const STYLE_COLOUR = "/rgba?\\(|#[0-9a-fA-F]{3,8}\\b/";
+const STYLE_COLOUR = "/rgba?\\(|hsla?\\(|okl(?:ch|ab)\\(|l(?:ab|ch)\\(|hwb\\(|color-mix\\(|#[0-9a-fA-F]{3,8}\\b/";
 const tokensOnlyConfig = defineConfig({
   files: ["src/**/*.{astro,ts,tsx}"],
   // Every view is on tokens. Nothing is ever added here again — a lint error is fixed with a token.
