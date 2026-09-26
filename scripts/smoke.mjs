@@ -1,6 +1,9 @@
 // Smoke test: proves the built app, the Cloudflare adapter and the Supabase auth flow still work together,
 // that registration is closed both in the app and in Supabase Auth (FR-001), and that /api/offers refuses
 // anonymous callers and URLs that are not otodom.pl offers before any request reaches otodom.pl.
+// Signed in, it checks that the offer board on /dashboard reads offers for the default, price, area and an unknown
+// sort: each must answer 200 with data-board-state="ok" in the body, because a broken board query also renders
+// with 200 (as data-board-state="error") and only the marker tells it apart from an empty board.
 // It also checks that the dev-only kitchen sinks /dev/offer-card and /dev/forms answer 404: in CI this runs
 // against the production preview, where the pages must not exist (on `npm run dev` those steps fail by design).
 // Zero dependencies on purpose. Run against a live server: BASE_URL=http://localhost:4321 npm run smoke
@@ -13,6 +16,8 @@ const { SUPABASE_URL, SUPABASE_KEY } = process.env;
 const email = process.env.SMOKE_EMAIL ?? "sigaretif1@vetpad.local";
 const password = process.env.SMOKE_PASSWORD ?? "qwerty123456";
 const jar = new Map();
+// The board's marker for a successful read (list or empty); a failed read renders data-board-state="error".
+const BOARD_OK = 'data-board-state="ok"';
 
 function cookieHeader() {
   return [...jar.entries()].map(([k, v]) => `${k}=${v}`).join("; ");
@@ -41,7 +46,11 @@ async function request(path, { method = "GET", form, json } = {}) {
     body: form ? new URLSearchParams(form).toString() : json ? JSON.stringify(json) : undefined,
   });
   storeCookies(response);
-  return { status: response.status, location: response.headers.get("location") ?? "" };
+  return {
+    status: response.status,
+    location: response.headers.get("location") ?? "",
+    body: await response.text(),
+  };
 }
 
 async function supabaseSignup() {
@@ -96,6 +105,22 @@ const steps = [
   ],
   ["home redirects signed-in user", () => request("/"), { status: 302, location: "/dashboard" }],
   ["dashboard renders for signed-in user", () => request("/dashboard"), { status: 200 }],
+  ["board reads offers without error", () => request("/dashboard"), { status: 200, bodyIncludes: BOARD_OK }],
+  [
+    "board sorts by price ascending",
+    () => request("/dashboard?sort=price&dir=asc"),
+    { status: 200, bodyIncludes: BOARD_OK },
+  ],
+  [
+    "board sorts by area descending",
+    () => request("/dashboard?sort=area&dir=desc"),
+    { status: 200, bodyIncludes: BOARD_OK },
+  ],
+  [
+    "board ignores an unknown sort",
+    () => request("/dashboard?sort=bogus&dir=sideways"),
+    { status: 200, bodyIncludes: BOARD_OK },
+  ],
   ["offer card 404s on a non-uuid id", () => request("/offers/not-a-uuid"), { status: 404 }],
   ["offer card 404s on an unknown uuid", () => request(`/offers/${randomUUID()}`), { status: 404 }],
   [
@@ -134,13 +159,14 @@ for (const [name, run, expected] of steps) {
     actual.status === expected.status &&
     (expected.location === undefined || actual.location === expected.location) &&
     (expected.locationPrefix === undefined || actual.location.startsWith(expected.locationPrefix)) &&
-    (expected.errorCode === undefined || actual.errorCode === expected.errorCode);
+    (expected.errorCode === undefined || actual.errorCode === expected.errorCode) &&
+    (expected.bodyIncludes === undefined || (actual.body ?? "").includes(expected.bodyIncludes));
   const detail = actual.error ?? `${actual.status} ${actual.errorCode ?? actual.location}`;
   console.log(`${ok ? "PASS" : "FAIL"}  ${name}  -> ${detail}`);
   if (!ok) {
     failed++;
     console.log(
-      `      expected ${expected.status} ${expected.errorCode ?? expected.location ?? expected.locationPrefix ?? ""}`,
+      `      expected ${expected.status} ${expected.errorCode ?? expected.location ?? expected.locationPrefix ?? expected.bodyIncludes ?? ""}`,
     );
   }
 }

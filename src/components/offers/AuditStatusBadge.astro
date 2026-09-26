@@ -1,0 +1,20 @@
+---
+/*
+ * The one presentation of an offer's audit status: on the board now, on the card once S-04
+ * (grounded-listing-audit) adds audits. A new status gets its label here and nowhere else.
+ */
+import { Badge } from "@/components/ui/badge";
+import type { AuditStatus } from "@/lib/offer-board";
+
+interface Props {
+  status: AuditStatus;
+}
+
+const LABEL: Record<AuditStatus, string> = {
+  not_audited: "Nie audytowano",
+};
+
+const { status } = Astro.props;
+---
+
+<Badge variant="outline">{LABEL[status]}</Badge>

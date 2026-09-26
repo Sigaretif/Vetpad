@@ -1,0 +1,71 @@
+---
+/*
+ * One offer on the board. The whole row is one link to the card, so each offer is one Tab stop;
+ * the thumbnail is decorative (alt="") because the title inside the link names it. A fact the
+ * listing does not state reads as unstated, never as 0 or an empty value (prd.md, Guardrails).
+ */
+import AuditStatusBadge from "@/components/offers/AuditStatusBadge.astro";
+import Unstated from "@/components/offers/Unstated.astro";
+import { Card } from "@/components/ui/card";
+import { auditStatus, type OfferBoardItem } from "@/lib/offer-board";
+import { formatArea, formatMoney } from "@/lib/otodom/labels";
+import type { OfferImage } from "@/lib/otodom/types";
+import { safeHttpsUrl } from "@/lib/safe-url";
+
+interface Props {
+  offer: OfferBoardItem;
+}
+
+const { offer } = Astro.props;
+
+// Row data lands in src, so the thumbnail is the first one that passes safeHttpsUrl (lessons.md).
+const images: unknown[] = Array.isArray(offer.images) ? offer.images : [];
+const thumbnail =
+  images.map((image) => safeHttpsUrl((image as Partial<OfferImage> | null)?.thumbnail)).find((url) => url !== null) ??
+  null;
+
+const location = [offer.location_label, offer.street_name]
+  .filter((part): part is string => part !== null && part.trim() !== "")
+  .join(", ");
+---
+
+<a
+  href={`/offers/${offer.id}`}
+  class="group focus-visible:ring-ring/50 block rounded-xl outline-none focus-visible:ring-[3px]"
+>
+  <Card className="group-hover:bg-accent flex-row items-start gap-4 p-3 transition-colors sm:p-4">
+    {thumbnail === null ? (
+      <div class="bg-muted h-20 w-28 shrink-0 rounded-lg" aria-hidden="true"></div>
+    ) : (
+      <img
+        src={thumbnail}
+        alt=""
+        loading="lazy"
+        decoding="async"
+        referrerpolicy="no-referrer"
+        class="bg-muted h-20 w-28 shrink-0 rounded-lg object-cover"
+      />
+    )}
+    <div class="flex min-w-0 flex-1 flex-col gap-1">
+      <h3 class="line-clamp-2 font-semibold wrap-anywhere">{offer.title}</h3>
+      <p class="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+        <span class="font-semibold">
+          {offer.price === null ? (
+            <Unstated>Cena: nie podano w ogłoszeniu</Unstated>
+          ) : (
+            formatMoney(offer.price, offer.price_currency)
+          )}
+        </span>
+        <span>
+          {offer.area_m2 === null ? <Unstated>Metraż: nie podano w ogłoszeniu</Unstated> : formatArea(offer.area_m2)}
+        </span>
+      </p>
+      <p class="text-muted-foreground text-sm wrap-anywhere">
+        {location === "" ? <Unstated>Lokalizacja: nie podano w ogłoszeniu</Unstated> : location}
+      </p>
+      <div class="mt-1">
+        <AuditStatusBadge status={auditStatus(offer)} />
+      </div>
+    </div>
+  </Card>
+</a>

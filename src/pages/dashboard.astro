@@ -1,19 +1,51 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import AddOfferForm from "@/components/offers/AddOfferForm";
+import OfferBoard from "@/components/offers/OfferBoard.astro";
 import { Card, CardHeader, CardDescription, CardContent } from "@/components/ui/card";
+import { BOARD_COLUMNS, BOARD_SORT_COLUMN, parseBoardSort, type BoardResult, type BoardSort } from "@/lib/offer-board";
+import { createClient } from "@/lib/supabase";
 
 const error = Astro.url.searchParams.get("error");
+const sort = parseBoardSort(Astro.url.searchParams);
+
+/**
+ * Every saved offer in the chosen order, or `{ ok: false }` for unconfigured Supabase (the
+ * zero-config state), a query error or a thrown exception — each renders the board's error
+ * state, never a 500 and never an empty board. `nullsFirst: false` holds in both directions:
+ * an offer that does not state its price or area is always last (prd.md, Guardrails).
+ */
+async function loadBoard({ key, dir }: BoardSort): Promise<BoardResult> {
+  const supabase = createClient(Astro.request.headers, Astro.cookies);
+  if (!supabase) return { ok: false };
+  try {
+    const result = await supabase
+      .from("offers")
+      .select(BOARD_COLUMNS)
+      .order(BOARD_SORT_COLUMN[key], { ascending: dir === "asc", nullsFirst: false })
+      .order("id", { ascending: true });
+    // The client is untyped, so `data` is already accepted as OfferBoardItem[] (BOARD_COLUMNS is that Pick).
+    return result.error ? { ok: false } : { ok: true, offers: result.data };
+  } catch {
+    return { ok: false };
+  }
+}
+
+const board = await loadBoard(sort);
 ---
 
-<AppLayout title="Nowa oferta — Vetpad">
+<AppLayout title="Oferty — Vetpad">
+  <h1 class="text-foreground text-2xl font-bold">Oferty</h1>
+
   <Card>
     <CardHeader>
-      <h1 class="text-foreground text-2xl font-bold">Nowa oferta</h1>
+      <h2 class="text-foreground text-xl font-semibold">Nowa oferta</h2>
       <CardDescription>Wklej adres ogłoszenia sprzedaży mieszkania z otodom.pl.</CardDescription>
     </CardHeader>
     <CardContent>
       <AddOfferForm serverError={error} client:load />
     </CardContent>
   </Card>
+
+  <OfferBoard result={board} sort={sort} />
 </AppLayout>

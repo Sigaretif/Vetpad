@@ -3,7 +3,7 @@ project: Vetpad
 version: 1
 status: draft
 created: 2026-09-21
-updated: 2026-09-23
+updated: 2026-09-26
 prd_version: 1
 main_goal: market-feedback
 top_blocker: time
@@ -46,7 +46,7 @@ A small group searching for an apartment together keeps blind links in spreadshe
 | S-03 | team-search-criteria     | define and edit the team's shared hard limits and their own additional requirements | S-01          | FR-002, FR-003                | proposed    |
 | S-04 | grounded-listing-audit   | run an AI audit on a saved listing and read findings, each quoted from the listing  | S-02, S-03    | US-01, FR-010, FR-011         | proposed    |
 | S-05 | member-notes             | write their own Pros / Cons / Observations note and read everyone's, attributed     | S-02          | US-01, FR-012, FR-013         | proposed    |
-| S-06 | shared-offer-board       | browse every saved listing on one board with its audit status                       | S-02          | FR-006                        | proposed    |
+| S-06 | shared-offer-board       | browse every saved listing on one board with its audit status                       | S-02          | FR-006                        | in-progress |
 | S-07 | duplicate-listing-notice | paste an already-saved URL and land on the existing card, told who saved it         | S-02          | FR-005                        | proposed    |
 | S-08 | location-map-link        | open a Google Maps search for a listing's location in one click                     | S-02          | FR-008                        | proposed    |
 | S-09 | refetch-and-stale-audit  | re-fetch a listing on demand, keep every note, and see when an audit has gone stale | S-04, S-05    | FR-009, FR-003                | proposed    |
@@ -158,7 +158,7 @@ None. Every absent or partial layer in the Baseline is first needed by a user-fa
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Until it lands, a saved card is only reachable right after pasting it — the team cannot abandon the spreadsheet without a board. Every card reads "Not Audited" until S-04 exists. The Topbar's „Oferty" (`src/components/Topbar.astro`) and the card's „← Wróć do ofert" (`src/pages/offers/[id].astro`) already point at `/dashboard` and promise this board, while `/dashboard` still renders only the add-offer form; this slice makes the board that destination, or moves both links if the board takes another route.
-- **Status:** proposed
+- **Status:** in-progress
 
 ### S-07: Duplicate listing notice
 

@@ -1,0 +1,41 @@
+---
+/*
+ * Board sort without JS: three links that reload /dashboard with ?sort=&dir=. The active one is
+ * marked for the eye (secondary surface, arrow) and for a screen reader (aria-current, direction).
+ */
+import { buttonVariants } from "@/components/ui/button";
+import { boardSortHref, type BoardSort, type BoardSortKey } from "@/lib/offer-board";
+
+interface Props {
+  sort: BoardSort;
+}
+
+const { sort } = Astro.props;
+
+const OPTIONS: { key: BoardSortKey; label: string }[] = [
+  { key: "added", label: "Data dodania" },
+  { key: "price", label: "Cena" },
+  { key: "area", label: "Metraż" },
+];
+---
+
+<nav aria-label="Sortowanie ofert" class="flex flex-wrap items-center gap-1">
+  {OPTIONS.map(({ key, label }) => {
+    const active = sort.key === key;
+    return (
+      <a
+        href={boardSortHref(sort, key)}
+        aria-current={active ? "true" : undefined}
+        class:list={buttonVariants({ variant: active ? "secondary" : "ghost", size: "sm" })}
+      >
+        {label}
+        {active && (
+          <>
+            <span aria-hidden="true">{sort.dir === "asc" ? "↑" : "↓"}</span>
+            <span class="sr-only">{sort.dir === "asc" ? "rosnąco" : "malejąco"}</span>
+          </>
+        )}
+      </a>
+    );
+  })}
+</nav>

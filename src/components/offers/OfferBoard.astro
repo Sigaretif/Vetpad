@@ -1,0 +1,46 @@
+---
+/*
+ * „Zapisane oferty”: the list, the empty board and a failed read are three different states.
+ * A failed read is never shown as an empty board. `data-board-state` carries ok (list or empty)
+ * or error into the markup, where scripts/smoke.mjs checks it — a 200 alone cannot tell them apart.
+ */
+import BoardSort from "@/components/offers/BoardSort.astro";
+import OfferBoardItem from "@/components/offers/OfferBoardItem.astro";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import type { BoardResult, BoardSort as BoardSortValue } from "@/lib/offer-board";
+
+interface Props {
+  result: BoardResult;
+  sort: BoardSortValue;
+}
+
+const { result, sort } = Astro.props;
+const offers = result.ok ? result.offers : [];
+---
+
+<section aria-labelledby="board-heading" data-board-state={result.ok ? "ok" : "error"} class="flex flex-col gap-4">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <h2 id="board-heading" class="text-xl font-semibold">
+      {result.ok ? `Zapisane oferty (${offers.length})` : "Zapisane oferty"}
+    </h2>
+    {offers.length > 0 && <BoardSort sort={sort} />}
+  </div>
+
+  {!result.ok ? (
+    <Alert variant="destructive">
+      <AlertDescription>Nie udało się wczytać ofert. Odśwież stronę za chwilę.</AlertDescription>
+    </Alert>
+  ) : offers.length === 0 ? (
+    <p class="text-muted-foreground">
+      Nie ma jeszcze zapisanych ofert. Wklej adres ogłoszenia z otodom.pl w formularzu powyżej.
+    </p>
+  ) : (
+    <ul class="flex flex-col gap-3">
+      {offers.map((offer) => (
+        <li>
+          <OfferBoardItem offer={offer} />
+        </li>
+      ))}
+    </ul>
+  )}
+</section>
