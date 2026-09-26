@@ -535,4 +535,4 @@ Brak danych do migracji. Zakładki na `/` dla zalogowanych prowadzą teraz na `/
 - [x] 4.9 Zrzuty fokusu: pierścień 3 px na polu, przełączniku i przycisku, czerwony na polu z błędem — 1285f23
 - [x] 4.10 `forms-hover-button` pokazuje hover przycisku — 1285f23
 - [x] 4.11 `forms-mobile` bez przewijania poziomego, przełącznik w polu — 1285f23
-- [x] 4.12 Bramka `forms` i `views` powtórzona po triażu `/10x-impl-review` przed commitem
+- [x] 4.12 Bramka `forms` i `views` powtórzona po triażu `/10x-impl-review` przed commitem — fb4388d
