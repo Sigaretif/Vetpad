@@ -487,12 +487,12 @@ Migracja jest addytywna — `offers` i `members` się nie zmieniają. `db push` 
 
 #### Automated
 
-- [x] 4.1 `npm run smoke` przechodzi przeciw `npm run preview` z lokalnym Supabase, włącznie z nowymi krokami, a po przebiegu w `offers` i `offer_notes` nie zostaje nic z oferty smoke
-- [x] 4.2 `npm run lint`, `npx astro check` i `npm run build` przechodzą
-- [x] 4.3 `node scripts/ui-screenshots.mjs gate …` i `node scripts/ui-screenshots.mjs forms …` do `context/changes/member-notes/screenshots` kończą się kodem 0
+- [x] 4.1 `npm run smoke` przechodzi przeciw `npm run preview` z lokalnym Supabase, włącznie z nowymi krokami, a po przebiegu w `offers` i `offer_notes` nie zostaje nic z oferty smoke — 9bb272e
+- [x] 4.2 `npm run lint`, `npx astro check` i `npm run build` przechodzą — 9bb272e
+- [x] 4.3 `node scripts/ui-screenshots.mjs gate …` i `node scripts/ui-screenshots.mjs forms …` do `context/changes/member-notes/screenshots` kończą się kodem 0 — 9bb272e
 
 #### Manual
 
-- [x] 4.4 Zrzuty pokazują każdy wiersz macierzy 7 stanów; `gate-desktop` ma dwie kolumny, `gate-mobile` jedną bez poziomego przewijania; długi e-mail i długie słowo się zawijają
-- [x] 4.5 `npx supabase db push --dry-run` wymienia tylko `…_create_offer_notes.sql`, a push nastąpił wyłącznie po zgodzie użytkownika
-- [x] 4.6 Na hostowanym projekcie dwa konta widzą nawzajem swoje notatki, a każde edytuje tylko własną
+- [x] 4.4 Zrzuty pokazują każdy wiersz macierzy 7 stanów; `gate-desktop` ma dwie kolumny, `gate-mobile` jedną bez poziomego przewijania; długi e-mail i długie słowo się zawijają — 9bb272e
+- [x] 4.5 `npx supabase db push --dry-run` wymienia tylko `…_create_offer_notes.sql`, a push nastąpił wyłącznie po zgodzie użytkownika — 9bb272e
+- [x] 4.6 Na hostowanym projekcie dwa konta widzą nawzajem swoje notatki, a każde edytuje tylko własną — 9bb272e
