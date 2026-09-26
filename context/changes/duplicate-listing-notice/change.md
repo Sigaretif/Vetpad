@@ -1,7 +1,7 @@
 ---
 change_id: duplicate-listing-notice
 title: Duplicate listing notice — paste a saved URL and land on the existing card
-status: implementing
+status: implemented
 created: 2026-09-26
 updated: 2026-09-26
 archived_at: null

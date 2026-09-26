@@ -326,12 +326,12 @@ Migracja jest addytywna — `offers` się nie zmienia. Uzupełnienie `insert …
 
 #### Automated
 
-- [x] 3.1 `npm run smoke` przechodzi przeciw `npm run preview` z lokalnym Supabase, włącznie z dwoma nowymi krokami
-- [x] 3.2 `npm run lint`, `npx astro check` i `npm run build` przechodzą
-- [x] 3.3 `node scripts/ui-screenshots.mjs gate context/changes/duplicate-listing-notice/screenshots` kończy się kodem 0
+- [x] 3.1 `npm run smoke` przechodzi przeciw `npm run preview` z lokalnym Supabase, włącznie z dwoma nowymi krokami — 4aed432
+- [x] 3.2 `npm run lint`, `npx astro check` i `npm run build` przechodzą — 4aed432
+- [x] 3.3 `node scripts/ui-screenshots.mjs gate context/changes/duplicate-listing-notice/screenshots` kończy się kodem 0 — 4aed432
 
 #### Manual
 
-- [x] 3.4 Zrzuty `gate-desktop` i `gate-mobile` pokazują cztery warianty banera i linię autora w każdym stanie karty; długi adres zawija się bez poziomego przewijania przy 375 px
-- [x] 3.5 `npx supabase db push --dry-run` wymienia tylko `…_create_members.sql`, a push nastąpił wyłącznie po zgodzie użytkownika
+- [x] 3.4 Zrzuty `gate-desktop` i `gate-mobile` pokazują cztery warianty banera i linię autora w każdym stanie karty; długi adres zawija się bez poziomego przewijania przy 375 px — 4aed432
+- [x] 3.5 `npx supabase db push --dry-run` wymienia tylko `…_create_members.sql`, a push nastąpił wyłącznie po zgodzie użytkownika — 4aed432
 - [ ] 3.6 Na hostowanym projekcie baner duplikatu nazywa członka, który zapisał ofertę
