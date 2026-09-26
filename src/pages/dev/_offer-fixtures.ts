@@ -147,3 +147,15 @@ export const longTitleOffer: OfferRow = {
   ).join("\n\n"),
   images: [image("vetpad-long-1"), image("vetpad-long-2")],
 };
+
+/** Only the street stated, no location label: the board row shows the street alone. */
+export const streetOnlyOffer: OfferRow = {
+  ...fullOffer,
+  id: "00000000-0000-4000-8000-000000000006",
+  otodom_id: 1000006,
+  source_url: "https://example.com/oferta/tylko-ulica",
+  title: "Dwa pokoje, podana tylko ulica",
+  location_label: null,
+  street_name: "ul. Przykładowa",
+  images: [image("vetpad-street")],
+};

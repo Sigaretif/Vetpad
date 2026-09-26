@@ -403,34 +403,34 @@ Brak migracji. Tablica używa istniejącej polityki `offers_select_authenticated
 
 #### Automated
 
-- [x] 1.1 Lint przechodzi (w tym `tokensOnlyConfig`, bez nowych wyjątków): `npm run lint`
-- [x] 1.2 Typy przechodzą: `npx astro sync && npx astro check`
-- [x] 1.3 Build przechodzi: `npm run build`
-- [x] 1.4 Smoke przechodzi na podglądzie produkcyjnym z lokalnym Supabase, z czterema nowymi krokami tablicy: `BASE_URL=http://localhost:4321 npm run smoke`
+- [x] 1.1 Lint przechodzi (w tym `tokensOnlyConfig`, bez nowych wyjątków): `npm run lint` — 8b0a42a
+- [x] 1.2 Typy przechodzą: `npx astro sync && npx astro check` — 8b0a42a
+- [x] 1.3 Build przechodzi: `npm run build` — 8b0a42a
+- [x] 1.4 Smoke przechodzi na podglądzie produkcyjnym z lokalnym Supabase, z czterema nowymi krokami tablicy: `BASE_URL=http://localhost:4321 npm run smoke` — 8b0a42a
 
 #### Manual
 
-- [x] 1.5 Na `npm run dev` z lokalnym Supabase i co najmniej trzema zapisanymi ofertami `/dashboard` pokazuje formularz i listę, a kliknięcie wiersza otwiera właściwą kartę
-- [x] 1.6 Oferta bez ceny (lub z ręcznie wyzerowaną na `null` ceną w lokalnej bazie) jest na końcu przy „Cena ↑” i przy „Cena ↓”, a jej wiersz czyta „Cena: nie podano w ogłoszeniu”
-- [x] 1.7 Świeżo wklejona oferta pojawia się na górze po powrocie przez „← Wróć do ofert”
-- [x] 1.8 Tab przechodzi po linkach sortowania i wierszach z widocznym pierścieniem fokusu
+- [x] 1.5 Na `npm run dev` z lokalnym Supabase i co najmniej trzema zapisanymi ofertami `/dashboard` pokazuje formularz i listę, a kliknięcie wiersza otwiera właściwą kartę — 8b0a42a
+- [x] 1.6 Oferta bez ceny (lub z ręcznie wyzerowaną na `null` ceną w lokalnej bazie) jest na końcu przy „Cena ↑” i przy „Cena ↓”, a jej wiersz czyta „Cena: nie podano w ogłoszeniu” — 8b0a42a
+- [x] 1.7 Świeżo wklejona oferta pojawia się na górze po powrocie przez „← Wróć do ofert” — 8b0a42a
+- [x] 1.8 Tab przechodzi po linkach sortowania i wierszach z widocznym pierścieniem fokusu — 8b0a42a
 
 ### Phase 2: Bramka wizualna — `/dev/board`
 
 #### Automated
 
-- [ ] 2.1 Lint przechodzi: `npm run lint`
-- [ ] 2.2 Typy przechodzą: `npx astro sync && npx astro check`
-- [ ] 2.3 Build przechodzi: `npm run build`
-- [ ] 2.4 Smoke przechodzi na podglądzie produkcyjnym, w tym `/dev/board` → 404: `BASE_URL=http://localhost:4321 npm run smoke`
-- [ ] 2.5 Zestaw zrzutów zapisuje wszystkie ujęcia (kod wyjścia 0): `node scripts/ui-screenshots.mjs board context/changes/shared-offer-board/screenshots`
+- [x] 2.1 Lint przechodzi: `npm run lint`
+- [x] 2.2 Typy przechodzą: `npx astro sync && npx astro check`
+- [x] 2.3 Build przechodzi: `npm run build`
+- [x] 2.4 Smoke przechodzi na podglądzie produkcyjnym, w tym `/dev/board` → 404: `BASE_URL=http://localhost:4321 npm run smoke`
+- [x] 2.5 Zestaw zrzutów zapisuje wszystkie ujęcia (kod wyjścia 0): `node scripts/ui-screenshots.mjs board context/changes/shared-offer-board/screenshots`
 
 #### Manual
 
-- [ ] 2.6 Zrzuty pokazują każdy stan z macierzy. „nie podano w ogłoszeniu” jest czytelne, placeholder miniatury nie wygląda jak zepsuty obrazek, a długi tytuł nie rozpycha wiersza
-- [ ] 2.7 Pierścień fokusu na wierszu i na linku sortowania jest widoczny na tle `background` i `card`
-- [ ] 2.8 Na 375 px wiersz zawija się bez poziomego przewijania strony
-- [ ] 2.9 Stan błędu i stan pusty różnią się na pierwszy rzut oka
+- [x] 2.6 Zrzuty pokazują każdy stan z macierzy. „nie podano w ogłoszeniu” jest czytelne, placeholder miniatury nie wygląda jak zepsuty obrazek, a długi tytuł nie rozpycha wiersza
+- [x] 2.7 Pierścień fokusu na wierszu i na linku sortowania jest widoczny na tle `background` i `card`
+- [x] 2.8 Na 375 px wiersz zawija się bez poziomego przewijania strony
+- [x] 2.9 Stan błędu i stan pusty różnią się na pierwszy rzut oka
 
 ### Phase 3: Dokumentacja
 

@@ -1,0 +1,96 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import BoardSort from "@/components/offers/BoardSort.astro";
+import OfferBoard from "@/components/offers/OfferBoard.astro";
+import OfferBoardItem from "@/components/offers/OfferBoardItem.astro";
+import { parseBoardSort, type BoardSort as BoardSortValue } from "@/lib/offer-board";
+import {
+  fullOffer,
+  longTitleOffer,
+  singleImageOffer,
+  streetOnlyOffer,
+  unknownOffer,
+  unsafeImagesOffer,
+} from "@/pages/dev/_offer-fixtures";
+
+// Visual gate for the offer board on /dashboard: every named state at once, from fixtures, in
+// `astro dev` only. Anywhere else (a production build, `npm run preview`) it answers 404 —
+// `scripts/smoke.mjs` checks that on the production preview. The status is set on
+// Astro.response, not returned, because a top-level `return` crashes
+// @typescript-eslint/no-misused-promises. Pattern: `src/pages/dev/offer-card.astro`.
+const isDev = import.meta.env.DEV;
+if (!isDev) {
+  Astro.response.status = 404;
+}
+
+// The sort /dashboard reads when the URL carries none.
+const defaultSort = parseBoardSort(new URLSearchParams());
+const priceAsc: BoardSortValue = { key: "price", dir: "asc" };
+const areaDesc: BoardSortValue = { key: "area", dir: "desc" };
+
+// Single rows, in the same <ul>/<li> markup OfferBoard gives a row in production.
+const rows = [
+  { state: "row-unknown", caption: "Wiersz: wszystko nieznane (placeholder zamiast miniatury)", offer: unknownOffer },
+  {
+    state: "row-unsafe-images",
+    caption: "Wiersz: filtr miniatur (http: i javascript: odrzucone)",
+    offer: unsafeImagesOffer,
+  },
+  { state: "row-long-title", caption: "Wiersz: długi tytuł bez spacji", offer: longTitleOffer },
+  { state: "row-street-only", caption: "Wiersz: tylko ulica, bez etykiety lokalizacji", offer: streetOnlyOffer },
+];
+
+const stateClass = "border-border flex flex-col gap-6 border-t pt-6";
+const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppercase";
+---
+
+{isDev ? (
+  <AppLayout title="Tablica ofert — stany — Vetpad">
+    <p class="text-muted-foreground text-sm">
+      Strona testowa (tylko <code>astro dev</code>): tablica ofert z <code>/dashboard</code> w każdym stanie, z danych
+      testowych. Hover i fokus mają własne zrzuty na sekcji „default” (<code>board-hover-row</code>,{" "}
+      <code>board-focus-row</code>, <code>board-focus-sort</code>). Stany disabled i loading: nie dotyczy — tablica nie
+      ma wyłączanych kontrolek i nie pobiera niczego po stronie klienta.
+    </p>
+
+    <div class:list={stateClass} data-state="default">
+      <p class:list={captionClass}>Stan: default (lista, sortowanie domyślne)</p>
+      <OfferBoard result={{ ok: true, offers: [fullOffer, singleImageOffer] }} sort={defaultSort} />
+    </div>
+
+    <div class:list={stateClass} data-state="sort-price-asc">
+      <p class:list={captionClass}>Stan: sortowanie „Cena ↑”</p>
+      <BoardSort sort={priceAsc} />
+    </div>
+
+    <div class:list={stateClass} data-state="sort-area-desc">
+      <p class:list={captionClass}>Stan: sortowanie „Metraż ↓”</p>
+      <BoardSort sort={areaDesc} />
+    </div>
+
+    <div class:list={stateClass} data-state="empty">
+      <p class:list={captionClass}>Stan: brak ofert</p>
+      <OfferBoard result={{ ok: true, offers: [] }} sort={defaultSort} />
+    </div>
+
+    <div class:list={stateClass} data-state="error">
+      <p class:list={captionClass}>Stan: błąd odczytu</p>
+      <OfferBoard result={{ ok: false }} sort={defaultSort} />
+    </div>
+
+    {rows.map((row) => (
+      <div class:list={stateClass} data-state={row.state}>
+        <p class:list={captionClass}>Stan: {row.caption}</p>
+        <ul class="flex flex-col gap-3">
+          <li>
+            <OfferBoardItem offer={row.offer} />
+          </li>
+        </ul>
+      </div>
+    ))}
+  </AppLayout>
+) : (
+  <AppLayout title="Nie znaleziono — Vetpad">
+    <p class="text-muted-foreground">Nie znaleziono.</p>
+  </AppLayout>
+)}

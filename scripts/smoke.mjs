@@ -4,7 +4,7 @@
 // Signed in, it checks that the offer board on /dashboard reads offers for the default, price, area and an unknown
 // sort: each must answer 200 with data-board-state="ok" in the body, because a broken board query also renders
 // with 200 (as data-board-state="error") and only the marker tells it apart from an empty board.
-// It also checks that the dev-only kitchen sinks /dev/offer-card and /dev/forms answer 404: in CI this runs
+// It also checks that the dev-only kitchen sinks /dev/offer-card, /dev/forms and /dev/board answer 404: in CI this runs
 // against the production preview, where the pages must not exist (on `npm run dev` those steps fail by design).
 // Zero dependencies on purpose. Run against a live server: BASE_URL=http://localhost:4321 npm run smoke
 
@@ -72,6 +72,7 @@ const steps = [
   ["signup page is gone", () => request("/auth/signup"), { status: 404 }],
   ["dev kitchen sink is absent from the build", () => request("/dev/offer-card"), { status: 404 }],
   ["dev forms kitchen sink is absent from the build", () => request("/dev/forms"), { status: 404 }],
+  ["dev board kitchen sink is absent from the build", () => request("/dev/board"), { status: 404 }],
   [
     "signup route is gone",
     () => request("/api/auth/signup", { method: "POST", form: { email, password } }),

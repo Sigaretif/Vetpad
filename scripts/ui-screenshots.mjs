@@ -22,6 +22,7 @@ const password = process.env.SMOKE_PASSWORD ?? "qwerty123456";
 const OFFER = `/offers/${process.env.OFFER_ID ?? "8360a2e2-264f-48ab-aaaf-894984275c42"}`;
 const KITCHEN_SINK = "/dev/offer-card";
 const FORMS_KITCHEN_SINK = "/dev/forms";
+const BOARD_KITCHEN_SINK = "/dev/board";
 
 const DESKTOP = { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false };
 const MOBILE = { width: 375, height: 812, deviceScaleFactor: 2, mobile: true };
@@ -39,6 +40,10 @@ const FOCUS = {
   passwordToggle: `el.matches("[data-state=default] [data-form=signin] button[aria-pressed]")`,
   submitButton: `el.matches("[data-state=default] [data-form=signin] button[type=submit]")`,
   erroredField: `el.matches("[data-state=error] input[aria-invalid=true]")`,
+  // /dev/board: the "default" section only — the other sections carry rows and sort navs too.
+  // Tab reaches the section's sort nav before its rows, so the first match is the first link.
+  boardRow: `el.matches("[data-state=default] a[href^='/offers/']")`,
+  boardSort: `el.matches("[data-state=default] nav[aria-label='Sortowanie ofert'] a")`,
 };
 
 // A shot is a full page unless `viewport`, `focus` or `hover` says otherwise; `auth: false` drops
@@ -82,6 +87,13 @@ const SETS = {
       hover: "[data-state=default] [data-form=signin] button[type=submit]",
     },
   ],
+  board: [
+    { name: "board-desktop", path: BOARD_KITCHEN_SINK },
+    { name: "board-mobile", path: BOARD_KITCHEN_SINK, device: MOBILE },
+    { name: "board-focus-row", path: BOARD_KITCHEN_SINK, focus: "boardRow" },
+    { name: "board-focus-sort", path: BOARD_KITCHEN_SINK, focus: "boardSort" },
+    { name: "board-hover-row", path: BOARD_KITCHEN_SINK, hover: "[data-state=default] a[href^='/offers/']" },
+  ],
   views: [
     { name: "views-signin", path: "/auth/signin", auth: false },
     {
@@ -110,6 +122,8 @@ Sets:
   forms   ${FORMS_KITCHEN_SINK}: desktop, mobile 375 px, focus on the email field,
           the password toggle, the submit button and the errored field, and a
           forced :hover on the submit button
+  board   ${BOARD_KITCHEN_SINK}: desktop, mobile 375 px, focus on the first offer row and
+          the first sort link, and a forced :hover on the first offer row
   views   signin, signin with an error, signin mobile 375 px, home (signed out),
           dashboard, dashboard with a server error
 
