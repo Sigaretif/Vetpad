@@ -334,4 +334,4 @@ Migracja jest addytywna — `offers` się nie zmienia. Uzupełnienie `insert …
 
 - [x] 3.4 Zrzuty `gate-desktop` i `gate-mobile` pokazują cztery warianty banera i linię autora w każdym stanie karty; długi adres zawija się bez poziomego przewijania przy 375 px — 4aed432
 - [x] 3.5 `npx supabase db push --dry-run` wymienia tylko `…_create_members.sql`, a push nastąpił wyłącznie po zgodzie użytkownika — 4aed432
-- [ ] 3.6 Na hostowanym projekcie baner duplikatu nazywa członka, który zapisał ofertę
+- [x] 3.6 Na hostowanym projekcie baner duplikatu nazywa członka, który zapisał ofertę

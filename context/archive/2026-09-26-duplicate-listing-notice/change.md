@@ -1,10 +1,10 @@
 ---
 change_id: duplicate-listing-notice
 title: Duplicate listing notice — paste a saved URL and land on the existing card
-status: impl_reviewed
+status: archived
 created: 2026-09-26
 updated: 2026-09-26
-archived_at: null
+archived_at: 2026-09-26T19:54:57Z
 ---
 
 ## Notes
