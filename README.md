@@ -142,12 +142,12 @@ Registration is closed (FR-001): only the team's pre-created accounts can sign i
 
 ### Auth routes
 
-| Route              | Description                                                                                                                                                                              |
-| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/auth/signin`     | Email/password sign-in form                                                                                                                                                              |
-| `/dashboard`       | Protected page with the form for adding an otodom.pl listing (redirects to `/auth/signin` if unauthenticated)                                                                            |
-| `/offers/<id>`     | Protected offer card: description, parameters and photo gallery of a saved listing                                                                                                       |
-| `POST /api/offers` | Form endpoint behind "add listing": saves a flat-sale listing and redirects to its card, or back to `/dashboard?error=…` with nothing saved; an anonymous request goes to `/auth/signin` |
+| Route              | Description                                                                                                                                                                                                        |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `/auth/signin`     | Email/password sign-in form                                                                                                                                                                                        |
+| `/dashboard`       | Protected shared board: every saved listing, newest first, sortable with `?sort=added\|price\|area&dir=asc\|desc`, under the form for adding an otodom.pl listing (redirects to `/auth/signin` if unauthenticated) |
+| `/offers/<id>`     | Protected offer card: description, parameters and photo gallery of a saved listing                                                                                                                                 |
+| `POST /api/offers` | Form endpoint behind "add listing": saves a flat-sale listing and redirects to its card, or back to `/dashboard?error=…` with nothing saved; an anonymous request goes to `/auth/signin`                           |
 
 Route protection is handled in `src/middleware.ts`: `PROTECTED_ROUTES` covers `/dashboard` and every path under `/offers`. Add paths to that array to require authentication. API routes are not covered by it — `src/pages/api/offers.ts` checks the signed-in user itself.
 
@@ -178,14 +178,14 @@ The full deployment plan, including prerequisites, edge cases and the operationa
 
 ## Smoke test
 
-`scripts/smoke.mjs` is a dependency-free Node script that walks the auth flow over HTTP: it signs in with a seeded account (sign-in, protected page, sign-out) and checks that registration is closed — the app's signup routes return 404 and Supabase Auth answers a sign-up attempt with `signup_disabled`. It also checks that `/offers/<id>` and `POST /api/offers` turn anonymous visitors away, and that `POST /api/offers` refuses an empty URL, a foreign host and a non-offer otodom.pl address without ever reaching otodom.pl. It also checks that the dev-only kitchen sink `/dev/offer-card` answers 404, which keeps that test page out of production. Run it against the production preview after dependency upgrades:
+`scripts/smoke.mjs` is a dependency-free Node script that walks the auth flow over HTTP: it signs in with a seeded account (sign-in, protected page, sign-out) and checks that registration is closed — the app's signup routes return 404 and Supabase Auth answers a sign-up attempt with `signup_disabled`. It also checks that `/offers/<id>` and `POST /api/offers` turn anonymous visitors away, and that `POST /api/offers` refuses an empty URL, a foreign host and a non-offer otodom.pl address without ever reaching otodom.pl. Signed in, it opens the board on `/dashboard` with the default, price, area and an unknown sort, and each must render `data-board-state="ok"`: a broken board query still answers 200 (rendering `data-board-state="error"`), so only that marker tells a working board from a broken one. It also checks that the dev-only kitchen sinks `/dev/offer-card`, `/dev/forms` and `/dev/board` answer 404, which keeps those test pages out of production. Run it against the production preview after dependency upgrades:
 
 ```bash
 npm run build && npm run preview
 BASE_URL=http://localhost:4321 npm run smoke
 ```
 
-Against `npm run dev` every step works except `/dev/offer-card` → 404, which fails there by design: the page renders under `astro dev` only.
+Against `npm run dev` every step works except the `/dev/*` → 404 steps, which fail there by design: those pages render under `astro dev` only.
 
 It needs the local Supabase started with the seed (`npx supabase start`) and `SUPABASE_URL`/`SUPABASE_KEY` in `.env`, which `npm run smoke` loads. Credentials default to `sigaretif1@vetpad.local` and can be overridden with `SMOKE_EMAIL`/`SMOKE_PASSWORD`. Never run it against production: the seeded account exists only locally, and the sign-up attempt is only harmless on a throwaway database.
 
@@ -205,7 +205,7 @@ npm run otodom:inspect -- https://www.otodom.pl/pl/oferta/<slug>
 node scripts/ui-screenshots.mjs gate context/changes/<change-id>/screenshots
 ```
 
-`scripts/ui-screenshots.mjs` drives headless Chrome over the DevTools Protocol (no dependencies) and saves full-page PNGs of a named set of pages — `gate` is the offer-card kitchen sink `/dev/offer-card` on desktop, at 375 px and with keyboard focus on each kind of link. `forms` is the same idea for the shared form composites: the `/dev/forms` kitchen sink on desktop, at 375 px, with keyboard focus on the email field, the password toggle, the submit button and the errored field, and one shot with `:hover` forced on the submit button (a `hover: "<CSS selector>"` field on the shot, applied through CDP's `CSS.forcePseudoState` since headless Chrome has no pointer to hover with). The output directory is a required argument — the screenshots folder of the change being worked on. It needs `npm run dev` running, the local Supabase with the seed (it signs in as `sigaretif1@vetpad.local`) and `google-chrome` (or `CHROME=<path>`); `node scripts/ui-screenshots.mjs` with no arguments lists the sets and options. Shots whose names contain `offer-real` show a third-party listing and are git-ignored. It is a debugging tool, not a test, and it never runs in CI.
+`scripts/ui-screenshots.mjs` drives headless Chrome over the DevTools Protocol (no dependencies) and saves full-page PNGs of a named set of pages — `gate` is the offer-card kitchen sink `/dev/offer-card` on desktop, at 375 px and with keyboard focus on each kind of link. `forms` is the same idea for the shared form composites: the `/dev/forms` kitchen sink on desktop, at 375 px, with keyboard focus on the email field, the password toggle, the submit button and the errored field, and one shot with `:hover` forced on the submit button (a `hover: "<CSS selector>"` field on the shot, applied through CDP's `CSS.forcePseudoState` since headless Chrome has no pointer to hover with). `board` covers the offer-board kitchen sink `/dev/board`: desktop, 375 px, keyboard focus on a board row and on a sort link, and `:hover` forced on a board row. The output directory is a required argument — the screenshots folder of the change being worked on. It needs `npm run dev` running, the local Supabase with the seed (it signs in as `sigaretif1@vetpad.local`) and `google-chrome` (or `CHROME=<path>`); `node scripts/ui-screenshots.mjs` with no arguments lists the sets and options. Shots whose names contain `offer-real` show a third-party listing and are git-ignored. It is a debugging tool, not a test, and it never runs in CI.
 
 ## CI
 

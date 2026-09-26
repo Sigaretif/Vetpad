@@ -419,26 +419,26 @@ Brak migracji. Tablica używa istniejącej polityki `offers_select_authenticated
 
 #### Automated
 
-- [x] 2.1 Lint przechodzi: `npm run lint`
-- [x] 2.2 Typy przechodzą: `npx astro sync && npx astro check`
-- [x] 2.3 Build przechodzi: `npm run build`
-- [x] 2.4 Smoke przechodzi na podglądzie produkcyjnym, w tym `/dev/board` → 404: `BASE_URL=http://localhost:4321 npm run smoke`
-- [x] 2.5 Zestaw zrzutów zapisuje wszystkie ujęcia (kod wyjścia 0): `node scripts/ui-screenshots.mjs board context/changes/shared-offer-board/screenshots`
+- [x] 2.1 Lint przechodzi: `npm run lint` — 92687ea
+- [x] 2.2 Typy przechodzą: `npx astro sync && npx astro check` — 92687ea
+- [x] 2.3 Build przechodzi: `npm run build` — 92687ea
+- [x] 2.4 Smoke przechodzi na podglądzie produkcyjnym, w tym `/dev/board` → 404: `BASE_URL=http://localhost:4321 npm run smoke` — 92687ea
+- [x] 2.5 Zestaw zrzutów zapisuje wszystkie ujęcia (kod wyjścia 0): `node scripts/ui-screenshots.mjs board context/changes/shared-offer-board/screenshots` — 92687ea
 
 #### Manual
 
-- [x] 2.6 Zrzuty pokazują każdy stan z macierzy. „nie podano w ogłoszeniu” jest czytelne, placeholder miniatury nie wygląda jak zepsuty obrazek, a długi tytuł nie rozpycha wiersza
-- [x] 2.7 Pierścień fokusu na wierszu i na linku sortowania jest widoczny na tle `background` i `card`
-- [x] 2.8 Na 375 px wiersz zawija się bez poziomego przewijania strony
-- [x] 2.9 Stan błędu i stan pusty różnią się na pierwszy rzut oka
+- [x] 2.6 Zrzuty pokazują każdy stan z macierzy. „nie podano w ogłoszeniu” jest czytelne, placeholder miniatury nie wygląda jak zepsuty obrazek, a długi tytuł nie rozpycha wiersza — 92687ea
+- [x] 2.7 Pierścień fokusu na wierszu i na linku sortowania jest widoczny na tle `background` i `card` — 92687ea
+- [x] 2.8 Na 375 px wiersz zawija się bez poziomego przewijania strony — 92687ea
+- [x] 2.9 Stan błędu i stan pusty różnią się na pierwszy rzut oka — 92687ea
 
 ### Phase 3: Dokumentacja
 
 #### Automated
 
-- [ ] 3.1 Lint przechodzi: `npm run lint`
-- [ ] 3.2 Ścieżki podane w CLAUDE.md istnieją: `ls src/pages/dev/board.astro src/lib/offer-board.ts src/pages/dashboard.astro`
+- [x] 3.1 Lint przechodzi: `npm run lint`
+- [x] 3.2 Ścieżki podane w CLAUDE.md istnieją: `ls src/pages/dev/board.astro src/lib/offer-board.ts src/pages/dashboard.astro`
 
 #### Manual
 
-- [ ] 3.3 README, CLAUDE.md i roadmapa opisują tablicę zgodnie z tym, co działa na `/dashboard` i `/dev/board`
+- [x] 3.3 README, CLAUDE.md i roadmapa opisują tablicę zgodnie z tym, co działa na `/dashboard` i `/dev/board`
