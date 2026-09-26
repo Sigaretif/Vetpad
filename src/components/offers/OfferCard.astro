@@ -5,16 +5,40 @@ import OfferDescription from "@/components/offers/OfferDescription.astro";
 import OfferGallery from "@/components/offers/OfferGallery.astro";
 import OfferParameters from "@/components/offers/OfferParameters.astro";
 import Unstated from "@/components/offers/Unstated.astro";
-import { formatMoney } from "@/lib/otodom/labels";
+import type { Saver } from "@/lib/members";
+import { formatMoney, formatTimestamp } from "@/lib/otodom/labels";
 import type { OfferRow } from "@/lib/otodom/types";
 import { safeHttpsUrl } from "@/lib/safe-url";
 import { cn } from "@/lib/utils";
 
 interface Props {
   offer: OfferRow;
+  /** Who saved the offer, resolved once per view (`resolveSaver` in `@/lib/members`). */
+  saver: Saver;
 }
 
-const { offer } = Astro.props;
+const { offer, saver } = Astro.props;
+
+/** Who to name after „Zapisane przez", or `null` when the author could not be established. */
+function savedBy(value: Saver): string | null {
+  switch (value.kind) {
+    case "member":
+      return value.email;
+    case "self":
+      return "Ciebie";
+    case "deleted":
+      return "osobę z usuniętym kontem";
+    case "unknown":
+      return null;
+    default: {
+      const unhandled: never = value;
+      return unhandled;
+    }
+  }
+}
+
+const who = savedBy(saver);
+const savedOn = formatTimestamp(offer.created_at);
 
 /** `null` stays "not stated"; only a stated amount is formatted. */
 function money(amount: number | null, currency: string | null, suffix = ""): string | null {
@@ -37,6 +61,15 @@ const sourceUrl = safeHttpsUrl(offer.source_url);
       </div>
       <p class="text-muted-foreground mt-2">
         {offer.location_label ?? <Unstated>Lokalizacja: nie podano w ogłoszeniu</Unstated>}
+      </p>
+      <p class="text-muted-foreground mt-1 text-sm">
+        {who === null ? (
+          `Zapisane ${savedOn}`
+        ) : (
+          <>
+            Zapisane przez <span class="wrap-anywhere">{who}</span> · {savedOn}
+          </>
+        )}
       </p>
       {sourceUrl && (
         <a

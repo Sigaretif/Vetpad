@@ -1,0 +1,46 @@
+---
+import Banner from "@/components/Banner.astro";
+import type { Saver } from "@/lib/members";
+
+/*
+ * The duplicate-offer notice (FR-005): the offer was already saved, and by whom. One component,
+ * so the card page and the /dev/offer-card kitchen sink render the same production text. The
+ * parent places it in AppLayout's `notice` slot. `unknown` names nobody — a failed read is
+ * never reported as a deleted account.
+ */
+interface Props {
+  saver: Saver;
+}
+
+const { saver } = Astro.props;
+
+/** Who to name after „przez", or `null` when the author could not be established. */
+function savedBy(value: Saver): string | null {
+  switch (value.kind) {
+    case "member":
+      return value.email;
+    case "self":
+      return "Ciebie";
+    case "deleted":
+      return "osobę z usuniętym kontem";
+    case "unknown":
+      return null;
+    default: {
+      const unhandled: never = value;
+      return unhandled;
+    }
+  }
+}
+
+const who = savedBy(saver);
+---
+
+<Banner variant="info">
+  {who === null ? (
+    "Ta oferta była już zapisana — otwieramy istniejącą kartę."
+  ) : (
+    <>
+      Ta oferta była już zapisana przez <span class="wrap-anywhere">{who}</span> — otwieramy istniejącą kartę.
+    </>
+  )}
+</Banner>

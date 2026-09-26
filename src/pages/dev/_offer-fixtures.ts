@@ -2,8 +2,28 @@
 // visual gate renders without Supabase (zero-config). The `_` prefix keeps this file out of
 // routing. Image URLs are an external https placeholder — never the listing portal's own
 // hosts, never `data:` or relative paths — and no row carries a phone number or a person's name.
+// Saver fixtures use `example.com` addresses that name a role, never a person.
 
+import type { Saver } from "@/lib/members";
 import type { OfferImage, OfferRow } from "@/lib/otodom/types";
+
+/** Saved by another member: the banner and the card name them by email. */
+export const memberSaver: Saver = { kind: "member", email: "czlonek-zespolu@example.com" };
+
+/** A very long address with no break points: it must wrap in the banner and the card at 375 px. */
+export const longEmailSaver: Saver = {
+  kind: "member",
+  email: "bardzo-dlugi-adres-konta-testowego-do-sprawdzenia-zawijania-w-waskim-widoku@example.com",
+};
+
+/** Saved by the viewing member. */
+export const selfSaver: Saver = { kind: "self" };
+
+/** `created_by` is `null`: the author's account was deleted. */
+export const deletedSaver: Saver = { kind: "deleted" };
+
+/** The author could not be established (failed read, no `members` row, no email) — never a deleted account. */
+export const unknownSaver: Saver = { kind: "unknown" };
 
 function image(seed: string): OfferImage {
   return {

@@ -1,13 +1,19 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import Banner from "@/components/Banner.astro";
+import DuplicateNotice from "@/components/offers/DuplicateNotice.astro";
 import OfferCard from "@/components/offers/OfferCard.astro";
 import OfferNotFound from "@/components/offers/OfferNotFound.astro";
 import {
+  deletedSaver,
   fullOffer,
+  longEmailSaver,
   longTitleOffer,
+  memberSaver,
+  selfSaver,
   singleImageOffer,
   unknownOffer,
+  unknownSaver,
   unsafeImagesOffer,
 } from "@/pages/dev/_offer-fixtures";
 
@@ -21,11 +27,23 @@ if (!isDev) {
 }
 
 const states = [
-  { caption: "Pełna oferta", offer: fullOffer },
-  { caption: "Wszystko nieznane (brak linku do oryginału)", offer: unknownOffer },
-  { caption: "Jedno zdjęcie", offer: singleImageOffer },
-  { caption: "Filtr adresów zdjęć (http: i javascript: odrzucone)", offer: unsafeImagesOffer },
-  { caption: "Długi tytuł bez spacji, długi opis", offer: longTitleOffer },
+  { caption: "Pełna oferta · autor: członek zespołu", offer: fullOffer, saver: memberSaver },
+  {
+    caption: "Wszystko nieznane (brak linku do oryginału) · autor: osoba z usuniętym kontem",
+    offer: unknownOffer,
+    saver: deletedSaver,
+  },
+  { caption: "Jedno zdjęcie · autor: oglądający (Ciebie)", offer: singleImageOffer, saver: selfSaver },
+  {
+    caption: "Filtr adresów zdjęć (http: i javascript: odrzucone) · autor nieustalony",
+    offer: unsafeImagesOffer,
+    saver: unknownSaver,
+  },
+  {
+    caption: "Długi tytuł bez spacji, długi opis · autor: członek z długim adresem",
+    offer: longTitleOffer,
+    saver: longEmailSaver,
+  },
 ];
 
 const stateClass = "border-border flex flex-col gap-6 border-t pt-6";
@@ -34,9 +52,10 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
 
 {isDev ? (
   <AppLayout title="Karta oferty — stany — Vetpad">
-    <Banner slot="notice" variant="info">
-      Ta oferta była już zapisana — otwieramy istniejącą kartę.
-    </Banner>
+    <DuplicateNotice slot="notice" saver={longEmailSaver} />
+    <DuplicateNotice slot="notice" saver={selfSaver} />
+    <DuplicateNotice slot="notice" saver={deletedSaver} />
+    <DuplicateNotice slot="notice" saver={unknownSaver} />
     <Banner slot="notice" variant="warning">
       <strong>Uwaga:</strong> Supabase nie jest skonfigurowany — funkcje uwierzytelniania są wyłączone.{" "}
       <a href="https://github.com/Sigaretif/Vetpad#supabase-configuration" target="_blank" rel="noopener noreferrer">
@@ -60,7 +79,7 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
     {states.map((state) => (
       <div class:list={stateClass}>
         <p class:list={captionClass}>Stan: {state.caption}</p>
-        <OfferCard offer={state.offer} />
+        <OfferCard offer={state.offer} saver={state.saver} />
       </div>
     ))}
 

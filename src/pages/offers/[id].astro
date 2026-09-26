@@ -1,9 +1,10 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
-import Banner from "@/components/Banner.astro";
+import DuplicateNotice from "@/components/offers/DuplicateNotice.astro";
 import OfferCard from "@/components/offers/OfferCard.astro";
 import OfferNotFound from "@/components/offers/OfferNotFound.astro";
 import { buttonVariants } from "@/components/ui/button";
+import { resolveSaver } from "@/lib/members";
 import { createClient } from "@/lib/supabase";
 import type { OfferRow } from "@/lib/otodom/types";
 import { cn } from "@/lib/utils";
@@ -11,13 +12,15 @@ import { cn } from "@/lib/utils";
 // Checked before the query: Postgres rejects a non-uuid with 22P02, which must not surface as a 500.
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// One client per view, for the offer and for its author; `null` when Supabase is unconfigured.
+const supabase = createClient(Astro.request.headers, Astro.cookies);
+
 /**
  * The saved offer, or `null` for everything that is not one: a malformed id, unconfigured
  * Supabase (the zero-config state), a query error, or no row. Each of those is a 404, never a 500.
  */
 async function loadOffer(id: string | undefined): Promise<OfferRow | null> {
   if (!id || !UUID.test(id)) return null;
-  const supabase = createClient(Astro.request.headers, Astro.cookies);
   if (!supabase) return null;
   try {
     const result = await supabase.from("offers").select("*").eq("id", id).maybeSingle();
@@ -34,19 +37,19 @@ if (!offer) {
   Astro.response.status = 404;
 }
 
+// The author comes from the offer row, never from the URL: anyone can type `?duplicate=1`.
+// resolveSaver never throws, so a missing `members` table or a failed read degrades the notice
+// and the card's author line to the unnamed variant instead of a 500.
+const saver = offer ? await resolveSaver(supabase, offer.created_by, Astro.locals.user?.id) : null;
 const duplicate = offer !== null && Astro.url.searchParams.get("duplicate") === "1";
 ---
 
 <AppLayout title={offer ? `${offer.title} — Vetpad` : "Nie znaleziono oferty — Vetpad"}>
-  {duplicate && (
-    <Banner slot="notice" variant="info">
-      Ta oferta była już zapisana — otwieramy istniejącą kartę.
-    </Banner>
-  )}
+  {duplicate && saver && <DuplicateNotice slot="notice" saver={saver} />}
 
   <a href="/dashboard" class:list={cn(buttonVariants({ variant: "link" }), "h-auto self-start p-0")}>
     ← Wróć do ofert
   </a>
 
-  {offer === null ? <OfferNotFound /> : <OfferCard offer={offer} />}
+  {offer === null || saver === null ? <OfferNotFound /> : <OfferCard offer={offer} saver={saver} />}
 </AppLayout>

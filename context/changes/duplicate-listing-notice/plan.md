@@ -296,31 +296,31 @@ Migracja jest addytywna — `offers` się nie zmienia. Uzupełnienie `insert …
 
 #### Automated
 
-- [x] 1.1 `npx supabase db reset` przechodzi bez błędów, a `select count(*) from public.members` zwraca 3 (trzy konta z `supabase/seed.sql`)
-- [x] 1.2 REST jako anon (`GET $SUPABASE_URL/rest/v1/members?select=id` z samym `apikey`) zwraca HTTP 200 i `[]`
-- [x] 1.3 REST jako `sigaretif1@vetpad.local` (token z `/auth/v1/token?grant_type=password`) zwraca 3 wiersze z e-mailami
-- [x] 1.4 REST `POST /rest/v1/members` jako zalogowany członek jest odrzucony (`new row violates row-level security policy`), a `PATCH` nie zmienia żadnego wiersza
-- [x] 1.5 Zmiana `email` w `auth.users` (psql na lokalnej bazie) zmienia `members.email`; usunięcie konta, które zapisało ofertę, usuwa jego wiersz z `members`, ustawia `offers.created_by` na `null` i kończy się powodzeniem
-- [x] 1.6 `npm run lint`, `npx astro sync`, `npx astro check` i `npm run build` przechodzą
+- [x] 1.1 `npx supabase db reset` przechodzi bez błędów, a `select count(*) from public.members` zwraca 3 (trzy konta z `supabase/seed.sql`) — 7009487
+- [x] 1.2 REST jako anon (`GET $SUPABASE_URL/rest/v1/members?select=id` z samym `apikey`) zwraca HTTP 200 i `[]` — 7009487
+- [x] 1.3 REST jako `sigaretif1@vetpad.local` (token z `/auth/v1/token?grant_type=password`) zwraca 3 wiersze z e-mailami — 7009487
+- [x] 1.4 REST `POST /rest/v1/members` jako zalogowany członek jest odrzucony (`new row violates row-level security policy`), a `PATCH` nie zmienia żadnego wiersza — 7009487
+- [x] 1.5 Zmiana `email` w `auth.users` (psql na lokalnej bazie) zmienia `members.email`; usunięcie konta, które zapisało ofertę, usuwa jego wiersz z `members`, ustawia `offers.created_by` na `null` i kończy się powodzeniem — 7009487
+- [x] 1.6 `npm run lint`, `npx astro sync`, `npx astro check` i `npm run build` przechodzą — 7009487
 
 #### Manual
 
-- [x] 1.7 W Supabase Studio (lokalnie) tabela `members` ma włączone RLS i dokładnie jedną politykę, a Security Advisor nie zgłasza jej ani funkcji wyzwalacza
+- [x] 1.7 W Supabase Studio (lokalnie) tabela `members` ma włączone RLS i dokładnie jedną politykę, a Security Advisor nie zgłasza jej ani funkcji wyzwalacza — 7009487
 
 ### Phase 2: Autor na karcie i w banerze
 
 #### Automated
 
-- [ ] 2.1 `npm run lint`, `npx astro sync`, `npx astro check` i `npm run build` przechodzą
-- [ ] 2.2 `rg -n "offers.*source_url|duplicate=1" src/pages/api/offers.ts` pokazuje niezmienioną trasę (`git diff --stat src/pages/api/` pusty)
+- [x] 2.1 `npm run lint`, `npx astro sync`, `npx astro check` i `npm run build` przechodzą
+- [x] 2.2 `rg -n "offers.*source_url|duplicate=1" src/pages/api/offers.ts` pokazuje niezmienioną trasę (`git diff --stat src/pages/api/` pusty)
 
 #### Manual
 
-- [ ] 2.3 Wklejenie adresu oferty zapisanej przez `sigaretif1` z konta `sigaretif2`, raz z `?utm_source=x`, raz bez `/pl`: karta pokazuje baner „…zapisana przez sigaretif1@vetpad.local…" i nie powstaje drugi wiersz
-- [ ] 2.4 To samo z konta `sigaretif1`: baner „…zapisana przez Ciebie…"
-- [ ] 2.5 Po usunięciu konta autora (lokalnie, psql): baner i nagłówek pokazują „konto usunięte"
-- [ ] 2.6 Wejście na kartę bez `?duplicate=1`: brak banera, nagłówek z linią autora i datą
-- [ ] 2.7 `/dev/offer-card` renderuje cztery banery i pięć stanów karty z właściwymi wariantami autora
+- [x] 2.3 Wklejenie adresu oferty zapisanej przez `sigaretif1` z konta `sigaretif2`, raz z `?utm_source=x`, raz bez `/pl`: karta pokazuje baner „…zapisana przez sigaretif1@vetpad.local…" i nie powstaje drugi wiersz
+- [x] 2.4 To samo z konta `sigaretif1`: baner „…zapisana przez Ciebie…"
+- [x] 2.5 Po usunięciu konta autora (lokalnie, psql): baner i nagłówek pokazują „konto usunięte"
+- [x] 2.6 Wejście na kartę bez `?duplicate=1`: brak banera, nagłówek z linią autora i datą
+- [x] 2.7 `/dev/offer-card` renderuje cztery banery i pięć stanów karty z właściwymi wariantami autora
 
 ### Phase 3: Smoke, dokumentacja, bramka wizualna i wdrożenie migracji
 

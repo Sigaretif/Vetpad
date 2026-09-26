@@ -125,7 +125,7 @@ The moment they reach for this product: when a listing has been saved and must l
 - The advertiser's personal data is never stored. The portal returns the seller's phone number and name with every listing, and an extraction service would pass them through as well; they are discarded at the point of fetch and no part of the product retains them.
 - That rule covers the portal's contact fields, not the listing's own words. The listing's title and description are stored exactly as the advertiser wrote them, even when the advertiser typed a phone number or a name into them: redacting the text would break the verbatim excerpts the audit must quote (FR-011).
 - Data is retained indefinitely; nothing expires automatically. Removal is always a deliberate member action.
-- A saved offer belongs to the team, not to the member who saved it. Deleting a member's account leaves every offer they saved in place; wherever the interface would name that member as the one who saved it (FR-005), it reads „konto usunięte" instead. What happens to a deleted member's notes (FR-013) is not decided here.
+- A saved offer belongs to the team, not to the member who saved it. Deleting a member's account leaves every offer they saved in place; wherever the interface would name that member as the one who saved it (FR-005), it reads „osoba z usuniętym kontem" instead (declined as the grammatical case requires: „zapisana przez osobę z usuniętym kontem"). What happens to a deleted member's notes (FR-013) is not decided here.
 - The product is usable on current desktop browsers. No mobile usability is promised in the MVP.
 
 ## Business Logic

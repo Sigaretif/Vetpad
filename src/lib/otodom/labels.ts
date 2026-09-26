@@ -157,6 +157,12 @@ export const featureLabel = (token: string): string => translate(FEATURE, token)
 const NUMBER = new Intl.NumberFormat("pl-PL", { maximumFractionDigits: 2 });
 const INTEGER = new Intl.NumberFormat("pl-PL", { maximumFractionDigits: 0, useGrouping: false });
 const DATE = new Intl.DateTimeFormat("pl-PL", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+const TIMESTAMP = new Intl.DateTimeFormat("pl-PL", {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+  timeZone: "Europe/Warsaw",
+});
 
 export function formatNumber(value: number): string {
   return NUMBER.format(value);
@@ -193,4 +199,14 @@ export function formatArea(value: number): string {
 export function formatDate(value: string): string {
   const parsed = new Date(`${value.slice(0, 10)}T00:00:00Z`);
   return Number.isNaN(parsed.getTime()) ? value : DATE.format(parsed);
+}
+
+/**
+ * A `timestamptz` column → „20 września 2026", the day as the team sees it in Poland (not in
+ * UTC, which would show the previous day for anything saved just after midnight). An
+ * unparseable value literally.
+ */
+export function formatTimestamp(value: string): string {
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? value : TIMESTAMP.format(parsed);
 }
