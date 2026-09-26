@@ -1,0 +1,62 @@
+---
+import { CircleAlert } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { NoteCard } from "@/components/offers/NoteCard";
+import NoteEditor from "@/components/offers/NoteEditor";
+import type { OfferNotes } from "@/lib/notes";
+
+/*
+ * The team column of the offer card (FR-012, FR-013): the member's own note in the editor island,
+ * then everyone else's notes, rendered without a client directive. One component for the card page
+ * and the /dev/offer-card kitchen sink.
+ *
+ * A failed read is never "no notes": the column then renders no editor, because an empty form
+ * saved as an upsert would overwrite the member's existing note.
+ */
+interface Props {
+  offerId: string;
+  notes: OfferNotes;
+  /** A failed save from the card's `?error=` — shown in the editor. */
+  serverError?: string | null;
+  startEditing?: boolean;
+  /** The section's id: the note route redirects to `#notatki`; the kitchen sink passes unique values. */
+  anchorId?: string;
+}
+
+const { offerId, notes, serverError = null, startEditing = false, anchorId = "notatki" } = Astro.props;
+
+const headingId = `${anchorId}-naglowek`;
+const own =
+  notes.state === "ok" && notes.own
+    ? {
+        pros: notes.own.pros,
+        cons: notes.own.cons,
+        observations: notes.own.observations,
+        updatedAt: notes.own.updatedAt,
+      }
+    : null;
+---
+
+<section id={anchorId} aria-labelledby={headingId} data-notes-state={notes.state} class="flex flex-col gap-4">
+  <h2 id={headingId} class="text-xl font-semibold">
+    Notatki zespołu
+  </h2>
+
+  {/* S-04 inserts the audit here, above the notes. */}
+
+  {notes.state === "ok" ? (
+    <>
+      <NoteEditor client:load offerId={offerId} note={own} serverError={serverError} startEditing={startEditing} />
+      {notes.others.length > 0 ? (
+        notes.others.map((note) => <NoteCard author={note.author} note={note} />)
+      ) : (
+        <p class="text-muted-foreground text-sm">Pozostali członkowie nie napisali jeszcze notatek.</p>
+      )}
+    </>
+  ) : (
+    <Alert variant="destructive">
+      <CircleAlert />
+      <AlertDescription>Nie udało się wczytać notatek.</AlertDescription>
+    </Alert>
+  )}
+</section>

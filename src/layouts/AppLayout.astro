@@ -1,12 +1,15 @@
 ---
 import Layout from "@/layouts/Layout.astro";
 import Topbar from "@/components/Topbar.astro";
+import { cn } from "@/lib/utils";
 
 interface Props {
   title?: string;
+  /** A wider frame for a two-column view (the offer card beside its notes); other pages keep the default. */
+  wide?: boolean;
 }
 
-const { title } = Astro.props;
+const { title, wide = false } = Astro.props;
 // Page notices (e.g. the duplicate-offer banner) sit under the Topbar, in the container's width.
 // Their wrapper is `contents`, so each notice is a row of the frame and an empty slot leaves no
 // box and no extra gap — a false `{cond && <X slot="notice" />}` still counts as filled for
@@ -15,7 +18,7 @@ const { title } = Astro.props;
 
 <Layout title={title}>
   <div class="bg-background text-foreground min-h-screen p-4 sm:p-8">
-    <div class="mx-auto flex max-w-4xl flex-col gap-6">
+    <div class:list={cn("mx-auto flex flex-col gap-6", wide ? "max-w-6xl" : "max-w-4xl")}>
       <Topbar />
       <div class="contents *:rounded-lg *:border">
         <slot name="notice" />

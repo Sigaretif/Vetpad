@@ -458,30 +458,30 @@ Migracja jest addytywna — `offers` i `members` się nie zmieniają. `db push` 
 
 #### Automated
 
-- [x] 2.1 `npm run lint`, `npx astro sync`, `npx astro check` i `npm run build` przechodzą
-- [x] 2.2 curl (z ciasteczkiem sesji `sigaretif1`, `npm run dev`, lokalny Supabase): zapis notatki → 302 `/offers/<id>#notatki` i jeden wiersz w `offer_notes`; drugi zapis zmienia ten sam wiersz (nadal jeden, `updated_at` wyższy)
-- [x] 2.3 curl: bez sesji → 302 `/auth/signin`; ciało JSON, `offer_id=not-a-uuid` i nieistniejący uuid → 302 `/dashboard?error=…`; trzy pola puste → 302 `/offers/<id>?error=…#notatki`; `author_id` dopisany do formularza jest ignorowany (wiersz ma autora z sesji); pole z 5000 znakami, w tym nowymi liniami wysłanymi jako `%0D%0A`, zapisuje się, a w bazie ma `\n`
+- [x] 2.1 `npm run lint`, `npx astro sync`, `npx astro check` i `npm run build` przechodzą — c5e0ed2
+- [x] 2.2 curl (z ciasteczkiem sesji `sigaretif1`, `npm run dev`, lokalny Supabase): zapis notatki → 302 `/offers/<id>#notatki` i jeden wiersz w `offer_notes`; drugi zapis zmienia ten sam wiersz (nadal jeden, `updated_at` wyższy) — c5e0ed2
+- [x] 2.3 curl: bez sesji → 302 `/auth/signin`; ciało JSON, `offer_id=not-a-uuid` i nieistniejący uuid → 302 `/dashboard?error=…`; trzy pola puste → 302 `/offers/<id>?error=…#notatki`; `author_id` dopisany do formularza jest ignorowany (wiersz ma autora z sesji); pole z 5000 znakami, w tym nowymi liniami wysłanymi jako `%0D%0A`, zapisuje się, a w bazie ma `\n` — c5e0ed2
 
 #### Manual
 
-- [x] 2.4 Przy Supabase niekonfigurowanym (bez `.env`) `POST /api/notes` przekierowuje z komunikatem, nie zwraca 500
+- [x] 2.4 Przy Supabase niekonfigurowanym (bez `.env`) `POST /api/notes` przekierowuje z komunikatem, nie zwraca 500 — c5e0ed2
 
 ### Phase 3: Notatki na karcie
 
 #### Automated
 
-- [ ] 3.1 `npm run lint` (w tym `tokensOnlyConfig`), `npx astro sync`, `npx astro check` i `npm run build` przechodzą
-- [ ] 3.2 `package.json` nie zawiera `radix-ui` ani `cn`; `src/components/ui/textarea.tsx` nie zawiera `"use client"`
-- [ ] 3.3 `rg -n "use client|use server" src/` nic nie znajduje
+- [x] 3.1 `npm run lint` (w tym `tokensOnlyConfig`), `npx astro sync`, `npx astro check` i `npm run build` przechodzą
+- [x] 3.2 `package.json` nie zawiera `radix-ui` ani `cn`; `src/components/ui/textarea.tsx` nie zawiera `"use client"`
+- [x] 3.3 `rg -n "use client|use server" src/` nic nie znajduje
 
 #### Manual
 
-- [ ] 3.4 Jako `sigaretif1`: pusta karta pokazuje otwarty formularz; zapis → powrót na `#notatki`, podgląd z „edytowano <dzisiaj>”; „Edytuj” → formularz z treścią i fokusem na „Zalety”; „Anuluj” przywraca podgląd bez zapisu i fokus na „Edytuj”
-- [ ] 3.5 Zapis trzech pustych pól blokuje przeglądarka z komunikatem; to samo wysłane z wyłączonym JS wraca z `?error=` i otwartym formularzem
-- [ ] 3.6 Jako `sigaretif2` na tej samej karcie: notatka `sigaretif1` podpisana e-mailem, bez „Edytuj”; własny pusty formularz
-- [ ] 3.7 Po usunięciu konta `sigaretif3` (psql lokalnie, po zapisaniu przez nie notatki): jego notatka podpisana „Osoba z usuniętym kontem”; potem `npx supabase db reset`
-- [ ] 3.8 Przy 1440 px dwie kolumny, przy 375 px jedna pod drugą bez poziomego przewijania
-- [ ] 3.9 `/dev/offer-card` i `/dev/forms` renderują wszystkie nowe stany
+- [x] 3.4 Jako `sigaretif1`: pusta karta pokazuje otwarty formularz; zapis → powrót na `#notatki`, podgląd z „edytowano <dzisiaj>”; „Edytuj” → formularz z treścią i fokusem na „Zalety”; „Anuluj” przywraca podgląd bez zapisu i fokus na „Edytuj”
+- [x] 3.5 Zapis trzech pustych pól blokuje przeglądarka z komunikatem; to samo wysłane z wyłączonym JS wraca z `?error=` i otwartym formularzem
+- [x] 3.6 Jako `sigaretif2` na tej samej karcie: notatka `sigaretif1` podpisana e-mailem, bez „Edytuj”; własny pusty formularz
+- [x] 3.7 Po usunięciu konta `sigaretif3` (psql lokalnie, po zapisaniu przez nie notatki): jego notatka podpisana „Osoba z usuniętym kontem”; potem `npx supabase db reset`
+- [x] 3.8 Przy 1440 px dwie kolumny, przy 375 px jedna pod drugą bez poziomego przewijania
+- [x] 3.9 `/dev/offer-card` i `/dev/forms` renderują wszystkie nowe stany
 
 ### Phase 4: Smoke, dokumentacja, bramka wizualna i wdrożenie migracji
 

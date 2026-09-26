@@ -2,15 +2,18 @@
 import AppLayout from "@/layouts/AppLayout.astro";
 import SignInForm from "@/components/auth/SignInForm";
 import AddOfferForm from "@/components/offers/AddOfferForm";
+import NoteEditor from "@/components/offers/NoteEditor";
 import { FormField } from "@/components/form/FormField";
 import { PasswordToggle } from "@/components/form/PasswordToggle";
 import { SubmitButton } from "@/components/form/SubmitButton";
 import { ServerError } from "@/components/form/ServerError";
-import { Mail, Lock, LogIn, Link as LinkIcon, Plus } from "lucide-react";
+import { TextareaField } from "@/components/form/TextareaField";
+import { NOTE_FIELDS, NOTE_FIELD_LABELS, NOTE_MAX_LENGTH } from "@/lib/notes";
+import { CircleAlert, Mail, Lock, LogIn, Link as LinkIcon, Plus, Save } from "lucide-react";
 import { createElement } from "react";
 
-// Visual gate for the shared form composites: every named state of SignInForm and AddOfferForm
-// at once, in `astro dev` only. Anywhere else (a production build, `npm run preview`) it answers
+// Visual gate for the shared form composites: every named state of SignInForm, AddOfferForm and
+// NoteEditor at once, in `astro dev` only. Anywhere else (a production build, `npm run preview`) it answers
 // 404 — `scripts/smoke.mjs` checks that on the production preview. The status is set on
 // Astro.response, not returned, because a top-level `return` crashes
 // @typescript-eslint/no-misused-promises. Pattern: `src/pages/dev/offer-card.astro`.
@@ -30,11 +33,17 @@ const lockIcon = createElement(Lock, { className: "size-4" });
 const linkIcon = createElement(LinkIcon, { className: "size-4" });
 const logInIcon = createElement(LogIn, { className: "size-4" });
 const plusIcon = createElement(Plus, { className: "size-4" });
+const saveIcon = createElement(Save, { className: "size-4" });
+
+// The note editor posts for an offer; this fixture offer does not exist, so a save here fails.
+const noteOfferId = "00000000-0000-4000-8000-000000000001";
+// The message NoteEditor shows under its fields on a blank save (`noteError` in @/lib/notes).
+const noteBlankMessage = "Wpisz coś w co najmniej jednym polu notatki.";
 const hiddenPasswordToggle = createElement(PasswordToggle, { visible: false, onToggle: noop });
 
 const stateClass = "border-border flex flex-col gap-6 border-t pt-6";
 const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppercase";
-const gridClass = "grid gap-8 sm:grid-cols-2";
+const gridClass = "grid gap-8 sm:grid-cols-2 lg:grid-cols-3";
 const columnClass = "flex flex-col gap-4";
 const labelClass = "text-foreground text-sm font-medium";
 const noteClass = "text-muted-foreground text-sm";
@@ -43,9 +52,10 @@ const noteClass = "text-muted-foreground text-sm";
 {isDev ? (
   <AppLayout title="Formularze — stany — Vetpad">
     <p class="text-muted-foreground text-sm">
-      Strona testowa (tylko <code>astro dev</code>): <code>SignInForm</code> i <code>AddOfferForm</code> w każdym
-      nazwanym stanie, złożonym z tych samych kompozytów (<code>src/components/form/</code>), których używają formularze
-      w produkcji. Zmiana wyglądu formularza przechodzi przez zrzut tej strony.
+      Strona testowa (tylko <code>astro dev</code>): <code>SignInForm</code>, <code>AddOfferForm</code> i{" "}
+      <code>NoteEditor</code> w każdym nazwanym stanie, złożonym z tych samych kompozytów (
+      <code>src/components/form/</code>), których używają formularze w produkcji. Zmiana wyglądu formularza przechodzi
+      przez zrzut tej strony.
     </p>
 
     <div class:list={stateClass} data-state="default">
@@ -58,6 +68,10 @@ const noteClass = "text-muted-foreground text-sm";
         <div class:list={columnClass} data-form="offer">
           <p class:list={labelClass}>AddOfferForm</p>
           <AddOfferForm client:load />
+        </div>
+        <div class:list={columnClass} data-form="note">
+          <p class:list={labelClass}>NoteEditor</p>
+          <NoteEditor client:load offerId={noteOfferId} note={null} />
         </div>
       </div>
     </div>
@@ -82,6 +96,16 @@ const noteClass = "text-muted-foreground text-sm";
           </p>
           <p class:list={noteClass}>Pole: nie dotyczy (jak obok).</p>
         </div>
+        <div class:list={columnClass} data-form="note">
+          <p class:list={labelClass}>NoteEditor</p>
+          <p class:list={noteClass}>
+            Przycisk „Zapisz notatkę”: ten sam <code>SubmitButton</code>/<code>Button</code>, więc pokryty zrzutem{" "}
+            <code>forms-hover-button</code>.
+          </p>
+          <p class:list={noteClass}>
+            Pole: nie dotyczy — <code>Textarea</code>, jak <code>Input</code>, nie ma stanu hover.
+          </p>
+        </div>
       </div>
     </div>
 
@@ -103,6 +127,14 @@ const noteClass = "text-muted-foreground text-sm";
             obok.
           </p>
         </div>
+        <div class:list={columnClass} data-form="note">
+          <p class:list={labelClass}>NoteEditor</p>
+          <p class:list={noteClass}>
+            Pola notatki i przycisk „Zapisz notatkę” w stanie „default” powyżej: <code>Textarea</code> ma ten sam
+            pierścień fokusu co <code>Input</code> (<code>focus-visible:ring-ring/50</code>, a z błędem{" "}
+            <code>ring-destructive/70</code>), przycisk to ten sam <code>SubmitButton</code>.
+          </p>
+        </div>
       </div>
     </div>
 
@@ -122,6 +154,15 @@ const noteClass = "text-muted-foreground text-sm";
         <div class:list={columnClass} data-form="offer">
           <p class:list={labelClass}>AddOfferForm</p>
           <p class:list={noteClass}>Jak obok.</p>
+        </div>
+        <div class:list={columnClass} data-form="note">
+          <p class:list={labelClass}>NoteEditor</p>
+          <SubmitButton pending pendingText="Zapisuję…" icon={saveIcon}>
+            Zapisz notatkę
+          </SubmitButton>
+          <p class:list={noteClass}>
+            Przycisk zablokowany tylko w trakcie wysyłki (ten sam render co „loading”). Pola: nie dotyczy, jak obok.
+          </p>
         </div>
       </div>
     </div>
@@ -161,6 +202,26 @@ const noteClass = "text-muted-foreground text-sm";
             icon={linkIcon}
           />
           <ServerError message="Vetpad obsługuje wyłącznie ogłoszenia z otodom.pl." />
+        </div>
+        <div class:list={columnClass} data-form="note">
+          <p class:list={labelClass}>NoteEditor</p>
+          {NOTE_FIELDS.map((field) => (
+            <TextareaField
+              id={`error-note-${field}`}
+              name={field}
+              label={NOTE_FIELD_LABELS[field]}
+              value=""
+              onChange={noop}
+              maxLength={NOTE_MAX_LENGTH}
+              invalid
+              describedBy="error-note-message"
+            />
+          ))}
+          <p id="error-note-message" class="text-destructive flex items-center gap-1 text-xs">
+            <CircleAlert className="size-3 shrink-0" />
+            {noteBlankMessage}
+          </p>
+          <ServerError message="Nie udało się zapisać notatki. Spróbuj ponownie." />
         </div>
       </div>
     </div>
@@ -205,6 +266,19 @@ const noteClass = "text-muted-foreground text-sm";
             icon={linkIcon}
           />
         </div>
+        <div class:list={columnClass} data-form="note">
+          <p class:list={labelClass}>NoteEditor</p>
+          {NOTE_FIELDS.map((field) => (
+            <TextareaField
+              id={`empty-note-${field}`}
+              name={field}
+              label={NOTE_FIELD_LABELS[field]}
+              value=""
+              onChange={noop}
+              maxLength={NOTE_MAX_LENGTH}
+            />
+          ))}
+        </div>
       </div>
     </div>
 
@@ -221,6 +295,12 @@ const noteClass = "text-muted-foreground text-sm";
           <p class:list={labelClass}>AddOfferForm</p>
           <SubmitButton pending pendingText="Pobieram ogłoszenie…" icon={plusIcon}>
             Dodaj ofertę
+          </SubmitButton>
+        </div>
+        <div class:list={columnClass} data-form="note">
+          <p class:list={labelClass}>NoteEditor</p>
+          <SubmitButton pending pendingText="Zapisuję…" icon={saveIcon}>
+            Zapisz notatkę
           </SubmitButton>
         </div>
       </div>

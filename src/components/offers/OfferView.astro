@@ -1,0 +1,37 @@
+---
+import OfferCard from "@/components/offers/OfferCard.astro";
+import OfferNotes from "@/components/offers/OfferNotes.astro";
+import type { Saver } from "@/lib/members";
+import type { OfferNotes as OfferNotesData } from "@/lib/notes";
+import type { OfferRow } from "@/lib/otodom/types";
+
+/*
+ * The offer card beside the team column: two columns from `lg` up, stacked below it (the listing
+ * first, then the notes). One component for the card page and the /dev/offer-card kitchen sink;
+ * the page renders it inside `<AppLayout wide>`.
+ */
+interface Props {
+  offer: OfferRow;
+  saver: Saver;
+  notes: OfferNotesData;
+  noteError?: string | null;
+  startEditing?: boolean;
+  /** Passed to OfferNotes as `anchorId`; unique per instance on the kitchen sink. */
+  notesAnchorId?: string;
+}
+
+const { offer, saver, notes, noteError = null, startEditing = false, notesAnchorId } = Astro.props;
+---
+
+<div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] lg:items-start">
+  <div class="flex min-w-0 flex-col gap-6">
+    <OfferCard offer={offer} saver={saver} />
+  </div>
+  <OfferNotes
+    offerId={offer.id}
+    notes={notes}
+    serverError={noteError}
+    startEditing={startEditing}
+    anchorId={notesAnchorId}
+  />
+</div>

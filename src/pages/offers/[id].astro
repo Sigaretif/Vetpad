@@ -1,16 +1,17 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import DuplicateNotice from "@/components/offers/DuplicateNotice.astro";
-import OfferCard from "@/components/offers/OfferCard.astro";
 import OfferNotFound from "@/components/offers/OfferNotFound.astro";
+import OfferView from "@/components/offers/OfferView.astro";
 import { buttonVariants } from "@/components/ui/button";
 import { resolveSaver, type Saver } from "@/lib/members";
+import { loadNotes, type OfferNotes } from "@/lib/notes";
 import { createClient } from "@/lib/supabase";
 import type { OfferRow } from "@/lib/otodom/types";
 import { cn } from "@/lib/utils";
 import { isUuid } from "@/lib/uuid";
 
-// One client per view, for the offer and for its author; `null` when Supabase is unconfigured.
+// One client per view, for the offer, its author and its notes; `null` when Supabase is unconfigured.
 const supabase = createClient(Astro.request.headers, Astro.cookies);
 
 /**
@@ -42,14 +43,25 @@ const saver: Saver = offer
   ? await resolveSaver(supabase, offer.created_by, Astro.locals.user?.id)
   : { kind: "unknown" };
 const duplicate = offer !== null && Astro.url.searchParams.get("duplicate") === "1";
+
+// Notes are read once per view, and only for an existing offer. loadNotes never throws: a failed
+// read is `{ state: "error" }`, which renders the column without the editor, never a 500.
+const notes: OfferNotes | null = offer ? await loadNotes(supabase, offer.id, Astro.locals.user?.id) : null;
+// Only POST /api/notes redirects back to the card with `?error=` (`/offers/<id>?error=…#notatki`),
+// so the message belongs to the note editor. Rendered as text, never as HTML.
+const noteError = offer ? Astro.url.searchParams.get("error") : null;
 ---
 
-<AppLayout title={offer ? `${offer.title} — Vetpad` : "Nie znaleziono oferty — Vetpad"}>
+<AppLayout wide={offer !== null} title={offer ? `${offer.title} — Vetpad` : "Nie znaleziono oferty — Vetpad"}>
   {duplicate && <DuplicateNotice slot="notice" saver={saver} />}
 
   <a href="/dashboard" class:list={cn(buttonVariants({ variant: "link" }), "h-auto self-start p-0")}>
     ← Wróć do ofert
   </a>
 
-  {offer === null ? <OfferNotFound /> : <OfferCard offer={offer} saver={saver} />}
+  {offer === null || notes === null ? (
+    <OfferNotFound />
+  ) : (
+    <OfferView offer={offer} saver={saver} notes={notes} noteError={noteError} />
+  )}
 </AppLayout>

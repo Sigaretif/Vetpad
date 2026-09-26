@@ -2,14 +2,22 @@
 import AppLayout from "@/layouts/AppLayout.astro";
 import Banner from "@/components/Banner.astro";
 import DuplicateNotice from "@/components/offers/DuplicateNotice.astro";
-import OfferCard from "@/components/offers/OfferCard.astro";
 import OfferNotFound from "@/components/offers/OfferNotFound.astro";
+import OfferView from "@/components/offers/OfferView.astro";
+import type { Saver } from "@/lib/members";
+import type { OfferNotes } from "@/lib/notes";
+import type { OfferRow } from "@/lib/otodom/types";
 import {
   deletedSaver,
+  failedNotes,
+  fullNotes,
   fullOffer,
   longEmailSaver,
+  longNotes,
   longTitleOffer,
   memberSaver,
+  noNotes,
+  othersOnlyNotes,
   selfSaver,
   singleImageOffer,
   unknownOffer,
@@ -26,23 +34,52 @@ if (!isDev) {
   Astro.response.status = 404;
 }
 
-const states = [
-  { caption: "Pełna oferta · autor: członek zespołu", offer: fullOffer, saver: memberSaver },
+interface State {
+  caption: string;
+  offer: OfferRow;
+  saver: Saver;
+  notes: OfferNotes;
+  noteError?: string;
+  startEditing?: boolean;
+}
+
+// Each state renders the whole view (card + team column); `notatki-<n>` keeps the sections' ids
+// unique on one page. The editor islands post to /api/notes for fixture offers that do not exist.
+const states: State[] = [
   {
-    caption: "Wszystko nieznane (brak linku do oryginału) · autor: osoba z usuniętym kontem",
+    caption: "Pełna oferta · autor: członek zespołu · notatki: własna w podglądzie, członka, usuniętego konta",
+    offer: fullOffer,
+    saver: memberSaver,
+    notes: fullNotes,
+  },
+  {
+    caption:
+      "Wszystko nieznane (brak linku do oryginału) · autor: osoba z usuniętym kontem · notatki: brak (pusty formularz)",
     offer: unknownOffer,
     saver: deletedSaver,
+    notes: noNotes,
   },
-  { caption: "Jedno zdjęcie · autor: oglądający (Ciebie)", offer: singleImageOffer, saver: selfSaver },
   {
-    caption: "Filtr adresów zdjęć (http: i javascript: odrzucone) · autor nieustalony",
+    caption:
+      "Jedno zdjęcie · autor: oglądający (Ciebie) · notatki: bez własnej, autor nieustalony i długi adres, puste pole",
+    offer: singleImageOffer,
+    saver: selfSaver,
+    notes: othersOnlyNotes,
+  },
+  {
+    caption: "Filtr adresów zdjęć (http: i javascript: odrzucone) · autor nieustalony · notatki: błąd odczytu",
     offer: unsafeImagesOffer,
     saver: unknownSaver,
+    notes: failedNotes,
   },
   {
-    caption: "Długi tytuł bez spacji, długi opis · autor: członek z długim adresem",
+    caption:
+      "Długi tytuł bez spacji, długi opis · autor: członek z długim adresem · notatki: własna w edycji z błędem zapisu, długie słowo i akapity",
     offer: longTitleOffer,
     saver: longEmailSaver,
+    notes: longNotes,
+    noteError: "Nie udało się zapisać notatki. Spróbuj ponownie.",
+    startEditing: true,
   },
 ];
 
@@ -51,7 +88,7 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
 ---
 
 {isDev ? (
-  <AppLayout title="Karta oferty — stany — Vetpad">
+  <AppLayout wide title="Karta oferty — stany — Vetpad">
     <DuplicateNotice slot="notice" saver={memberSaver} />
     <DuplicateNotice slot="notice" saver={longEmailSaver} />
     <DuplicateNotice slot="notice" saver={selfSaver} />
@@ -74,13 +111,20 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
 
     <p class="text-muted-foreground text-sm">
       Strona testowa (tylko <code>astro dev</code>): karta oferty w każdym stanie, z danych testowych. Zmiana wyglądu
-      karty przechodzi przez zrzut tej strony.
+      karty przechodzi przez zrzut tej strony. Każdy stan pokazuje też kolumnę „Notatki zespołu” w innym wariancie.
     </p>
 
-    {states.map((state) => (
+    {states.map((state, index) => (
       <div class:list={stateClass}>
         <p class:list={captionClass}>Stan: {state.caption}</p>
-        <OfferCard offer={state.offer} saver={state.saver} />
+        <OfferView
+          offer={state.offer}
+          saver={state.saver}
+          notes={state.notes}
+          noteError={state.noteError}
+          startEditing={state.startEditing}
+          notesAnchorId={`notatki-${index + 1}`}
+        />
       </div>
     ))}
 

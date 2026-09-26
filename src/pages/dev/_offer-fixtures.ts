@@ -2,9 +2,11 @@
 // visual gate renders without Supabase (zero-config). The `_` prefix keeps this file out of
 // routing. Image URLs are an external https placeholder — never the listing portal's own
 // hosts, never `data:` or relative paths — and no row carries a phone number or a person's name.
-// Saver fixtures use `example.com` addresses that name a role, never a person.
+// Saver fixtures use `example.com` addresses that name a role, never a person. Note fixtures talk
+// about the flat only: no people, no phone numbers, no company names.
 
 import type { Saver } from "@/lib/members";
+import type { NoteView, OfferNotes } from "@/lib/notes";
 import type { OfferImage, OfferRow } from "@/lib/otodom/types";
 
 /** Saved by another member: the banner and the card name them by email. */
@@ -179,3 +181,84 @@ export const streetOnlyOffer: OfferRow = {
   street_name: "ul. Przykładowa",
   images: [image("vetpad-street")],
 };
+
+// Notes for the /dev/offer-card kitchen sink: one set per named state of the team column.
+
+/** The viewing member's own note, shown in preview (or in the editor when a state asks for it). */
+export const ownNote: NoteView = {
+  id: "00000000-0000-4000-8000-000000000101",
+  author: selfSaver,
+  pros: "Jasny salon z wyjściem na balkon.\nOddzielna kuchnia z oknem.",
+  cons: "Łazienka do remontu, stare płytki i wanna.",
+  observations: "Warto zapytać o koszt wymiany pionów i o fundusz remontowy wspólnoty.",
+  updatedAt: "2026-09-24T18:30:00Z",
+};
+
+/** Another member's note, signed with their email. */
+export const memberNote: NoteView = {
+  id: "00000000-0000-4000-8000-000000000102",
+  author: memberSaver,
+  pros: "Cicha ulica, okna sypialni od podwórza.",
+  cons: "Brak miejsca parkingowego w cenie.",
+  observations: "Piwnica sucha, ale mała.",
+  updatedAt: "2026-09-23T09:15:00Z",
+};
+
+/** A note whose author's account was deleted: „Osoba z usuniętym kontem". */
+export const deletedNote: NoteView = {
+  id: "00000000-0000-4000-8000-000000000103",
+  author: deletedSaver,
+  pros: "Dobra komunikacja, tramwaj pod blokiem.",
+  cons: "",
+  observations: "Czynsz wydaje się wysoki jak na ten metraż.",
+  updatedAt: "2026-09-21T20:00:00Z",
+};
+
+/** A note whose author could not be established: it names nobody and is never a deleted account. */
+export const unknownNote: NoteView = {
+  id: "00000000-0000-4000-8000-000000000104",
+  author: unknownSaver,
+  pros: "Kawalerka z widokiem na park.",
+  cons: "Czwarte piętro bez windy.",
+  observations: "Kuchnia w aneksie, bez okna.",
+  updatedAt: "2026-09-22T12:00:00Z",
+};
+
+/** A very long author address and an empty field („nie wpisano"). */
+export const longEmailNote: NoteView = {
+  id: "00000000-0000-4000-8000-000000000105",
+  author: longEmailSaver,
+  pros: "",
+  cons: "Okna wymagają regulacji, w sypialni czuć przeciąg.",
+  observations: "Do obejrzenia jeszcze raz w dzień, przy świetle dziennym.",
+  updatedAt: "2026-09-25T07:45:00Z",
+};
+
+/** A word with no break points and several paragraphs: nothing may scroll horizontally. */
+export const longWordNote: NoteView = {
+  id: "00000000-0000-4000-8000-000000000106",
+  author: memberSaver,
+  pros: "Bardzo-długie-słowo-bez-spacji-do-sprawdzenia-zawijania-w-wąskiej-kolumnie-notatek-na-telefonie-i-na-komputerze",
+  cons: Array.from(
+    { length: 3 },
+    (_, index) =>
+      `Akapit ${index + 1}. Instalacja elektryczna w starym standardzie, gniazdka bez uziemienia, tablica z bezpiecznikami topikowymi. Do wymiany przed wprowadzeniem się.`,
+  ).join("\n\n"),
+  observations: "Pierwsza linia.\nDruga linia.\n\nTrzecia linia po pustej.",
+  updatedAt: "2026-09-26T08:00:00Z",
+};
+
+/** Own note in preview, plus a member's and a deleted account's note. */
+export const fullNotes: OfferNotes = { state: "ok", own: ownNote, others: [memberNote, deletedNote] };
+
+/** No notes at all: an empty form and „Pozostali członkowie nie napisali jeszcze notatek.". */
+export const noNotes: OfferNotes = { state: "ok", own: null, others: [] };
+
+/** No own note; an unnamed author and a long address, one of them with an empty field. */
+export const othersOnlyNotes: OfferNotes = { state: "ok", own: null, others: [unknownNote, longEmailNote] };
+
+/** A failed read: the column renders no editor. */
+export const failedNotes: OfferNotes = { state: "error" };
+
+/** Own note (opened in the editor with a server error) and a note with a long word and paragraphs. */
+export const longNotes: OfferNotes = { state: "ok", own: ownNote, others: [longWordNote] };
