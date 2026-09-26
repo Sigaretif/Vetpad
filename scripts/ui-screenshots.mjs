@@ -34,12 +34,16 @@ const FOCUS = {
   external: `el.matches("[data-slot=card] a[target=_blank]") && !el.querySelector("img")`,
   thumb: `el.matches("[data-slot=card] a") && el.querySelector("img") !== null`,
   banner: `el.matches(".banner a")`,
+  // The first „Edytuj" in a notes column: state „pełna oferta", whose own note is in preview.
+  noteEdit: `el.matches("[data-notes-state] button") && el.textContent.trim() === "Edytuj"`,
   // /dev/forms: the real SignInForm island in the "default" section, reached with real Tab
   // presses; the errored field lives in the "error" section instead (its own composite).
   emailField: `el.matches("[data-state=default] [data-form=signin] input[type=email]")`,
   passwordToggle: `el.matches("[data-state=default] [data-form=signin] button[aria-pressed]")`,
   submitButton: `el.matches("[data-state=default] [data-form=signin] button[type=submit]")`,
   erroredField: `el.matches("[data-state=error] input[aria-invalid=true]")`,
+  // The real NoteEditor island in the "default" section: its first field, „Zalety".
+  noteField: `el.matches("[data-state=default] [data-form=note] textarea")`,
   // /dev/board: the "default" section only — the other sections carry rows and sort navs too.
   // Tab reaches the section's sort nav before its rows, so the first match is the first link.
   boardRow: `el.matches("[data-state=default] a[href^='/offers/']")`,
@@ -73,6 +77,8 @@ const SETS = {
     { name: "gate-focus-link", path: KITCHEN_SINK, focus: "external" },
     { name: "gate-focus-thumb", path: KITCHEN_SINK, focus: "thumb" },
     { name: "gate-focus-banner", path: KITCHEN_SINK, focus: "banner" },
+    { name: "gate-focus-note-edit", path: KITCHEN_SINK, focus: "noteEdit" },
+    { name: "gate-hover-note-edit", path: KITCHEN_SINK, hover: "[data-notes-state] [data-slot=card-action] button" },
   ],
   forms: [
     { name: "forms-desktop", path: FORMS_KITCHEN_SINK },
@@ -85,6 +91,12 @@ const SETS = {
       name: "forms-hover-button",
       path: FORMS_KITCHEN_SINK,
       hover: "[data-state=default] [data-form=signin] button[type=submit]",
+    },
+    { name: "forms-focus-note-field", path: FORMS_KITCHEN_SINK, focus: "noteField" },
+    {
+      name: "forms-hover-note-submit",
+      path: FORMS_KITCHEN_SINK,
+      hover: "[data-state=default] [data-form=note] button[type=submit]",
     },
   ],
   board: [
@@ -117,11 +129,13 @@ Sets:
   before  signin (signed out), home, dashboard, the real offer card
   p2      signin, home, dashboard after the token phase
   p3      the real offer card (full page and ?duplicate=1 banner), home
-  gate    ${KITCHEN_SINK}: desktop, mobile 375 px, and focus on the Topbar link,
-          the external link, a gallery thumbnail and a banner link
+  gate    ${KITCHEN_SINK}: desktop, mobile 375 px, focus on the Topbar link,
+          the external link, a gallery thumbnail, a banner link and the own
+          note's „Edytuj" button, and a forced :hover on that button
   forms   ${FORMS_KITCHEN_SINK}: desktop, mobile 375 px, focus on the email field,
-          the password toggle, the submit button and the errored field, and a
-          forced :hover on the submit button
+          the password toggle, the submit button, the errored field and the
+          note's first field, and a forced :hover on the sign-in and the
+          note submit buttons
   board   ${BOARD_KITCHEN_SINK}: desktop, mobile 375 px, focus on the first offer row and
           the first sort link, and a forced :hover on the first offer row
   views   signin, signin with an error, signin mobile 375 px, home (signed out),

@@ -470,29 +470,29 @@ Migracja jest addytywna — `offers` i `members` się nie zmieniają. `db push` 
 
 #### Automated
 
-- [x] 3.1 `npm run lint` (w tym `tokensOnlyConfig`), `npx astro sync`, `npx astro check` i `npm run build` przechodzą
-- [x] 3.2 `package.json` nie zawiera `radix-ui` ani `cn`; `src/components/ui/textarea.tsx` nie zawiera `"use client"`
-- [x] 3.3 `rg -n "use client|use server" src/` nic nie znajduje
+- [x] 3.1 `npm run lint` (w tym `tokensOnlyConfig`), `npx astro sync`, `npx astro check` i `npm run build` przechodzą — b26249c
+- [x] 3.2 `package.json` nie zawiera `radix-ui` ani `cn`; `src/components/ui/textarea.tsx` nie zawiera `"use client"` — b26249c
+- [x] 3.3 `rg -n "use client|use server" src/` nic nie znajduje — b26249c
 
 #### Manual
 
-- [x] 3.4 Jako `sigaretif1`: pusta karta pokazuje otwarty formularz; zapis → powrót na `#notatki`, podgląd z „edytowano <dzisiaj>”; „Edytuj” → formularz z treścią i fokusem na „Zalety”; „Anuluj” przywraca podgląd bez zapisu i fokus na „Edytuj”
-- [x] 3.5 Zapis trzech pustych pól blokuje przeglądarka z komunikatem; to samo wysłane z wyłączonym JS wraca z `?error=` i otwartym formularzem
-- [x] 3.6 Jako `sigaretif2` na tej samej karcie: notatka `sigaretif1` podpisana e-mailem, bez „Edytuj”; własny pusty formularz
-- [x] 3.7 Po usunięciu konta `sigaretif3` (psql lokalnie, po zapisaniu przez nie notatki): jego notatka podpisana „Osoba z usuniętym kontem”; potem `npx supabase db reset`
-- [x] 3.8 Przy 1440 px dwie kolumny, przy 375 px jedna pod drugą bez poziomego przewijania
-- [x] 3.9 `/dev/offer-card` i `/dev/forms` renderują wszystkie nowe stany
+- [x] 3.4 Jako `sigaretif1`: pusta karta pokazuje otwarty formularz; zapis → powrót na `#notatki`, podgląd z „edytowano <dzisiaj>”; „Edytuj” → formularz z treścią i fokusem na „Zalety”; „Anuluj” przywraca podgląd bez zapisu i fokus na „Edytuj” — b26249c
+- [x] 3.5 Zapis trzech pustych pól blokuje przeglądarka z komunikatem; to samo wysłane z wyłączonym JS wraca z `?error=` i otwartym formularzem — b26249c
+- [x] 3.6 Jako `sigaretif2` na tej samej karcie: notatka `sigaretif1` podpisana e-mailem, bez „Edytuj”; własny pusty formularz — b26249c
+- [x] 3.7 Po usunięciu konta `sigaretif3` (psql lokalnie, po zapisaniu przez nie notatki): jego notatka podpisana „Osoba z usuniętym kontem”; potem `npx supabase db reset` — b26249c
+- [x] 3.8 Przy 1440 px dwie kolumny, przy 375 px jedna pod drugą bez poziomego przewijania — b26249c
+- [x] 3.9 `/dev/offer-card` i `/dev/forms` renderują wszystkie nowe stany — b26249c
 
 ### Phase 4: Smoke, dokumentacja, bramka wizualna i wdrożenie migracji
 
 #### Automated
 
-- [ ] 4.1 `npm run smoke` przechodzi przeciw `npm run preview` z lokalnym Supabase, włącznie z nowymi krokami, a po przebiegu w `offers` i `offer_notes` nie zostaje nic z oferty smoke
-- [ ] 4.2 `npm run lint`, `npx astro check` i `npm run build` przechodzą
-- [ ] 4.3 `node scripts/ui-screenshots.mjs gate …` i `node scripts/ui-screenshots.mjs forms …` do `context/changes/member-notes/screenshots` kończą się kodem 0
+- [x] 4.1 `npm run smoke` przechodzi przeciw `npm run preview` z lokalnym Supabase, włącznie z nowymi krokami, a po przebiegu w `offers` i `offer_notes` nie zostaje nic z oferty smoke
+- [x] 4.2 `npm run lint`, `npx astro check` i `npm run build` przechodzą
+- [x] 4.3 `node scripts/ui-screenshots.mjs gate …` i `node scripts/ui-screenshots.mjs forms …` do `context/changes/member-notes/screenshots` kończą się kodem 0
 
 #### Manual
 
-- [ ] 4.4 Zrzuty pokazują każdy wiersz macierzy 7 stanów; `gate-desktop` ma dwie kolumny, `gate-mobile` jedną bez poziomego przewijania; długi e-mail i długie słowo się zawijają
-- [ ] 4.5 `npx supabase db push --dry-run` wymienia tylko `…_create_offer_notes.sql`, a push nastąpił wyłącznie po zgodzie użytkownika
-- [ ] 4.6 Na hostowanym projekcie dwa konta widzą nawzajem swoje notatki, a każde edytuje tylko własną
+- [x] 4.4 Zrzuty pokazują każdy wiersz macierzy 7 stanów; `gate-desktop` ma dwie kolumny, `gate-mobile` jedną bez poziomego przewijania; długi e-mail i długie słowo się zawijają
+- [x] 4.5 `npx supabase db push --dry-run` wymienia tylko `…_create_offer_notes.sql`, a push nastąpił wyłącznie po zgodzie użytkownika
+- [x] 4.6 Na hostowanym projekcie dwa konta widzą nawzajem swoje notatki, a każde edytuje tylko własną

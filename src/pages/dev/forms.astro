@@ -99,8 +99,8 @@ const noteClass = "text-muted-foreground text-sm";
         <div class:list={columnClass} data-form="note">
           <p class:list={labelClass}>NoteEditor</p>
           <p class:list={noteClass}>
-            Przycisk „Zapisz notatkę”: ten sam <code>SubmitButton</code>/<code>Button</code>, więc pokryty zrzutem{" "}
-            <code>forms-hover-button</code>.
+            Przycisk „Zapisz notatkę” w stanie „default” powyżej: zrzut <code>forms-hover-note-submit</code> wymusza{" "}
+            <code>:hover</code>.
           </p>
           <p class:list={noteClass}>
             Pole: nie dotyczy — <code>Textarea</code>, jak <code>Input</code>, nie ma stanu hover.
@@ -130,9 +130,10 @@ const noteClass = "text-muted-foreground text-sm";
         <div class:list={columnClass} data-form="note">
           <p class:list={labelClass}>NoteEditor</p>
           <p class:list={noteClass}>
-            Pola notatki i przycisk „Zapisz notatkę” w stanie „default” powyżej: <code>Textarea</code> ma ten sam
-            pierścień fokusu co <code>Input</code> (<code>focus-visible:ring-ring/50</code>, a z błędem{" "}
-            <code>ring-destructive/70</code>), przycisk to ten sam <code>SubmitButton</code>.
+            Pole „Zalety” w stanie „default” powyżej, prawdziwymi naciśnięciami Tab (zrzut{" "}
+            <code>forms-focus-note-field</code>). <code>Textarea</code> ma ten sam pierścień fokusu co{" "}
+            <code>Input</code> (<code>focus-visible:ring-ring/50</code>, a z błędem <code>ring-destructive/70</code>),
+            przycisk to ten sam <code>SubmitButton</code>.
           </p>
         </div>
       </div>
