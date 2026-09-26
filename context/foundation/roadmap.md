@@ -39,19 +39,19 @@ A small group searching for an apartment together keeps blind links in spreadshe
 
 ## At a glance
 
-| ID   | Change ID                | Outcome (user can …)                                                                | Prerequisites | PRD refs                      | Status      |
-| ---- | ------------------------ | ----------------------------------------------------------------------------------- | ------------- | ----------------------------- | ----------- |
-| S-01 | closed-team-sign-in      | sign in only with a pre-seeded account; nobody can register                         | —             | FR-001                        | done        |
-| S-02 | paste-listing-to-card    | paste an otodom.pl URL and read the saved listing's text, parameters and photos     | S-01          | US-01, FR-004, FR-005, FR-007 | done        |
-| S-03 | team-search-criteria     | define and edit the team's shared hard limits and their own additional requirements | S-01          | FR-002, FR-003                | proposed    |
-| S-04 | grounded-listing-audit   | run an AI audit on a saved listing and read findings, each quoted from the listing  | S-02, S-03    | US-01, FR-010, FR-011         | proposed    |
-| S-05 | member-notes             | write their own Pros / Cons / Observations note and read everyone's, attributed     | S-02          | US-01, FR-012, FR-013         | proposed    |
-| S-06 | shared-offer-board       | browse every saved listing on one board with its audit status                       | S-02          | FR-006                        | done        |
-| S-07 | duplicate-listing-notice | paste an already-saved URL and land on the existing card, told who saved it         | S-02          | FR-005                        | proposed    |
-| S-08 | location-map-link        | open a Google Maps search for a listing's location in one click                     | S-02          | FR-008                        | proposed    |
-| S-09 | refetch-and-stale-audit  | re-fetch a listing on demand, keep every note, and see when an audit has gone stale | S-04, S-05    | FR-009, FR-003                | proposed    |
-| S-10 | archive-and-restore      | archive a listing off the board, see who archived it, and restore it                | S-06          | FR-014                        | proposed    |
-| S-11 | delete-offer-and-notes   | delete a mistaken listing, and delete their own notes                               | S-05          | FR-015                        | proposed    |
+| ID   | Change ID                | Outcome (user can …)                                                                | Prerequisites | PRD refs                      | Status   |
+| ---- | ------------------------ | ----------------------------------------------------------------------------------- | ------------- | ----------------------------- | -------- |
+| S-01 | closed-team-sign-in      | sign in only with a pre-seeded account; nobody can register                         | —             | FR-001                        | done     |
+| S-02 | paste-listing-to-card    | paste an otodom.pl URL and read the saved listing's text, parameters and photos     | S-01          | US-01, FR-004, FR-005, FR-007 | done     |
+| S-03 | team-search-criteria     | define and edit the team's shared hard limits and their own additional requirements | S-01          | FR-002, FR-003                | proposed |
+| S-04 | grounded-listing-audit   | run an AI audit on a saved listing and read findings, each quoted from the listing  | S-02, S-03    | US-01, FR-010, FR-011         | proposed |
+| S-05 | member-notes             | write their own Pros / Cons / Observations note and read everyone's, attributed     | S-02          | US-01, FR-012, FR-013         | proposed |
+| S-06 | shared-offer-board       | browse every saved listing on one board with its audit status                       | S-02          | FR-006                        | done     |
+| S-07 | duplicate-listing-notice | paste an already-saved URL and land on the existing card, told who saved it         | S-02          | FR-005                        | proposed |
+| S-08 | location-map-link        | open a Google Maps search for a listing's location in one click                     | S-02          | FR-008                        | proposed |
+| S-09 | refetch-and-stale-audit  | re-fetch a listing on demand, keep every note, and see when an audit has gone stale | S-04, S-05    | FR-009, FR-003                | proposed |
+| S-10 | archive-and-restore      | archive a listing off the board, see who archived it, and restore it                | S-06          | FR-014                        | proposed |
+| S-11 | delete-offer-and-notes   | delete a mistaken listing, and delete their own notes                               | S-05          | FR-015                        | proposed |
 
 ## Streams
 
@@ -61,7 +61,7 @@ Navigation aid — groups items that share a Prerequisites chain. Canonical orde
 | ------ | ----------------------------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | A      | Vetting loop                  | `S-01` → `S-02` → `S-03` → `S-04` → `S-09` | The `market-feedback` spine: ingestion, then the audit, as early as possible. `S-03` can run beside `S-02`. `S-09` joins Stream B at `S-05`. |
 | B      | Team notes                    | `S-05` → `S-11`                            | Starts once `S-02` lands; runs in parallel with the audit.                                                                                   |
-| C      | Board hygiene                 | `S-06` → `S-10`                            | Starts once `S-02` lands; the board is what makes the team stop opening the spreadsheet.                                                     |
+| C      | Board hygiene                 | `S-06` → `S-10`                            | `S-06` done — the board is on `/dashboard`; `S-10` is next and ready to plan.                                                                |
 | D      | Listing identity and location | `S-07`, `S-08`                             | Two independent slices hanging off `S-02`; either can be picked up by a spare agent run.                                                     |
 
 ## Baseline
@@ -231,11 +231,11 @@ None. Every absent or partial layer in the Baseline is first needed by a user-fa
 | S-03       | [#14](https://github.com/Sigaretif/Vetpad/issues/14) | team-search-criteria     | Shared hard limits and per-member additional requirements   | yes                   | S-01 done; independent of S-02 — run `/10x-plan team-search-criteria`                                                                                                            |
 | S-04       | [#15](https://github.com/Sigaretif/Vetpad/issues/15) | grounded-listing-audit   | AI audit of a saved listing with verbatim excerpts          | no                    | S-02 done; waits on S-03. The board already shows a status: swap it in `auditStatus()` (`src/lib/offer-board.ts`) and label it in `src/components/offers/AuditStatusBadge.astro` |
 | S-05       | [#16](https://github.com/Sigaretif/Vetpad/issues/16) | member-notes             | Per-member Pros / Cons / Observations notes, attributed     | yes                   | S-02 done; notes hang off `public.offers` — run `/10x-plan member-notes`                                                                                                         |
-| S-06       | [#17](https://github.com/Sigaretif/Vetpad/issues/17) | shared-offer-board       | Shared board of saved listings with audit status            | yes                   | S-02 done; card at `/offers/<id>` to link from the board — run `/10x-plan shared-offer-board`                                                                                    |
+| S-06       | [#17](https://github.com/Sigaretif/Vetpad/issues/17) | shared-offer-board       | Shared board of saved listings with audit status            | done                  | Done; archived 2026-09-26 → `context/archive/2026-09-26-shared-offer-board/`                                                                                                     |
 | S-07       | [#18](https://github.com/Sigaretif/Vetpad/issues/18) | duplicate-listing-notice | Redirect duplicate URLs to the existing card with notice    | yes                   | S-02 already redirects duplicates to `/offers/<id>?duplicate=1` with a banner and stores `created_by`; this slice adds only who saved it                                         |
 | S-08       | [#19](https://github.com/Sigaretif/Vetpad/issues/19) | location-map-link        | One-click Google Maps search from listing location          | yes                   | S-02 already stores `location_label`, `latitude`, `longitude` — run `/10x-plan location-map-link`                                                                                |
 | S-09       | [#20](https://github.com/Sigaretif/Vetpad/issues/20) | refetch-and-stale-audit  | Manual re-fetch that preserves notes and flags stale audits | no                    | After S-04 and S-05                                                                                                                                                              |
-| S-10       | [#21](https://github.com/Sigaretif/Vetpad/issues/21) | archive-and-restore      | Archive, restore and show who archived a listing            | no                    | After S-06. The board lives on `/dashboard`; the archive state gets a section on the `/dev/board` kitchen sink                                                                   |
+| S-10       | [#21](https://github.com/Sigaretif/Vetpad/issues/21) | archive-and-restore      | Archive, restore and show who archived a listing            | yes                   | S-06 done; board on `/dashboard`, archive state gets a section on `/dev/board` — run `/10x-plan archive-and-restore`                                                             |
 | S-11       | [#22](https://github.com/Sigaretif/Vetpad/issues/22) | delete-offer-and-notes   | Delete a listing and a member's own notes                   | no                    | After S-05                                                                                                                                                                       |
 
 ## Open Roadmap Questions
