@@ -47,7 +47,7 @@ A small group searching for an apartment together keeps blind links in spreadshe
 | S-04 | grounded-listing-audit   | run an AI audit on a saved listing and read findings, each quoted from the listing  | S-02, S-03    | US-01, FR-010, FR-011         | proposed |
 | S-05 | member-notes             | write their own Pros / Cons / Observations note and read everyone's, attributed     | S-02          | US-01, FR-012, FR-013         | proposed |
 | S-06 | shared-offer-board       | browse every saved listing on one board with its audit status                       | S-02          | FR-006                        | done     |
-| S-07 | duplicate-listing-notice | paste an already-saved URL and land on the existing card, told who saved it         | S-02          | FR-005                        | proposed |
+| S-07 | duplicate-listing-notice | paste an already-saved URL and land on the existing card, told who saved it         | S-02          | FR-005                        | in-progress |
 | S-08 | location-map-link        | open a Google Maps search for a listing's location in one click                     | S-02          | FR-008                        | proposed |
 | S-09 | refetch-and-stale-audit  | re-fetch a listing on demand, keep every note, and see when an audit has gone stale | S-04, S-05    | FR-009, FR-003                | proposed |
 | S-10 | archive-and-restore      | archive a listing off the board, see who archived it, and restore it                | S-06          | FR-014                        | proposed |
@@ -171,7 +171,7 @@ None. Every absent or partial layer in the Baseline is first needed by a user-fa
 - **Unknowns:**
   - FR-005's offer of a manual re-fetch on the duplicate notice needs the re-fetch from S-09; whichever lands second connects them. — Owner: team. Block: no.
 - **Risk:** Low. Stripping query parameters is the whole identity rule; cross-portal and relisting matching stay parked.
-- **Status:** proposed
+- **Status:** in-progress
 
 ### S-08: One-click map link
 
