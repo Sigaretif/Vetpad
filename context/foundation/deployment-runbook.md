@@ -205,11 +205,12 @@ the key would ship with them.
 ## What only a human does
 
 An agent may run `astro build`, `wrangler deploy`, `wrangler versions upload`,
-`wrangler tail` and `wrangler rollback` unattended.
+`wrangler tail` and `wrangler rollback` unattended. It may apply migrations to the
+hosted project with `npx supabase db push`, but only with the user's consent, asked
+each time after showing the `--dry-run` list (`CLAUDE.md`, Structure).
 
-A human does, by hand: creating accounts and API tokens, `wrangler login`, setting
-or rotating any production secret, applying a migration to the hosted project,
-deleting the Worker, changing the billing plan, dashboard configuration, and
+A human does, by hand: creating accounts and API tokens, `wrangler login`, `supabase login` and `supabase link`,
+setting or rotating any production secret, deleting the Worker, changing the billing plan, dashboard configuration, and
 invoking `/git-ship` or `/git-land`.
 
 ## Team accounts

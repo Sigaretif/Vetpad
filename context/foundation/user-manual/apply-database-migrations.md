@@ -2,8 +2,9 @@
 
 Schemat bazy Vetpadu leży w `supabase/migrations/`. Lokalnie migracje stosują się same
 (`npx supabase start`, `npx supabase db reset`), ale do **hostowanego** projektu trafiają
-wyłącznie ręcznie — robi to administrator poleceniem `npx supabase db push`. Agent tego
-nie wykonuje.
+poleceniem `npx supabase db push`. Możesz uruchomić je sam albo zlecić agentowi — agent
+najpierw pokazuje listę z `--dry-run` i za każdym razem pyta o zgodę, zanim nałoży migracje. Ty robisz tylko jednorazowe kroki 1–2
+(logowanie i połączenie repozytorium), bo wymagają przeglądarki albo hasła.
 
 ## Kiedy
 
