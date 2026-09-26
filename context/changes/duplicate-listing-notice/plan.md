@@ -311,27 +311,27 @@ Migracja jest addytywna — `offers` się nie zmienia. Uzupełnienie `insert …
 
 #### Automated
 
-- [x] 2.1 `npm run lint`, `npx astro sync`, `npx astro check` i `npm run build` przechodzą
-- [x] 2.2 `rg -n "offers.*source_url|duplicate=1" src/pages/api/offers.ts` pokazuje niezmienioną trasę (`git diff --stat src/pages/api/` pusty)
+- [x] 2.1 `npm run lint`, `npx astro sync`, `npx astro check` i `npm run build` przechodzą — 1217046
+- [x] 2.2 `rg -n "offers.*source_url|duplicate=1" src/pages/api/offers.ts` pokazuje niezmienioną trasę (`git diff --stat src/pages/api/` pusty) — 1217046
 
 #### Manual
 
-- [x] 2.3 Wklejenie adresu oferty zapisanej przez `sigaretif1` z konta `sigaretif2`, raz z `?utm_source=x`, raz bez `/pl`: karta pokazuje baner „…zapisana przez sigaretif1@vetpad.local…" i nie powstaje drugi wiersz
-- [x] 2.4 To samo z konta `sigaretif1`: baner „…zapisana przez Ciebie…"
-- [x] 2.5 Po usunięciu konta autora (lokalnie, psql): baner i nagłówek pokazują „konto usunięte"
-- [x] 2.6 Wejście na kartę bez `?duplicate=1`: brak banera, nagłówek z linią autora i datą
-- [x] 2.7 `/dev/offer-card` renderuje cztery banery i pięć stanów karty z właściwymi wariantami autora
+- [x] 2.3 Wklejenie adresu oferty zapisanej przez `sigaretif1` z konta `sigaretif2`, raz z `?utm_source=x`, raz bez `/pl`: karta pokazuje baner „…zapisana przez sigaretif1@vetpad.local…" i nie powstaje drugi wiersz — 1217046
+- [x] 2.4 To samo z konta `sigaretif1`: baner „…zapisana przez Ciebie…" — 1217046
+- [x] 2.5 Po usunięciu konta autora (lokalnie, psql): baner i nagłówek pokazują „konto usunięte" — 1217046
+- [x] 2.6 Wejście na kartę bez `?duplicate=1`: brak banera, nagłówek z linią autora i datą — 1217046
+- [x] 2.7 `/dev/offer-card` renderuje cztery banery i pięć stanów karty z właściwymi wariantami autora — 1217046
 
 ### Phase 3: Smoke, dokumentacja, bramka wizualna i wdrożenie migracji
 
 #### Automated
 
-- [ ] 3.1 `npm run smoke` przechodzi przeciw `npm run preview` z lokalnym Supabase, włącznie z dwoma nowymi krokami
-- [ ] 3.2 `npm run lint`, `npx astro check` i `npm run build` przechodzą
-- [ ] 3.3 `node scripts/ui-screenshots.mjs gate context/changes/duplicate-listing-notice/screenshots` kończy się kodem 0
+- [x] 3.1 `npm run smoke` przechodzi przeciw `npm run preview` z lokalnym Supabase, włącznie z dwoma nowymi krokami
+- [x] 3.2 `npm run lint`, `npx astro check` i `npm run build` przechodzą
+- [x] 3.3 `node scripts/ui-screenshots.mjs gate context/changes/duplicate-listing-notice/screenshots` kończy się kodem 0
 
 #### Manual
 
-- [ ] 3.4 Zrzuty `gate-desktop` i `gate-mobile` pokazują cztery warianty banera i linię autora w każdym stanie karty; długi adres zawija się bez poziomego przewijania przy 375 px
-- [ ] 3.5 `npx supabase db push --dry-run` wymienia tylko `…_create_members.sql`, a push nastąpił wyłącznie po zgodzie użytkownika
+- [x] 3.4 Zrzuty `gate-desktop` i `gate-mobile` pokazują cztery warianty banera i linię autora w każdym stanie karty; długi adres zawija się bez poziomego przewijania przy 375 px
+- [x] 3.5 `npx supabase db push --dry-run` wymienia tylko `…_create_members.sql`, a push nastąpił wyłącznie po zgodzie użytkownika
 - [ ] 3.6 Na hostowanym projekcie baner duplikatu nazywa członka, który zapisał ofertę

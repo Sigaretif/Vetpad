@@ -4,6 +4,9 @@
 // Signed in, it checks that the offer board on /dashboard reads offers for the default, price, area and an unknown
 // sort: each must answer 200 with data-board-state="ok" in the body, because a broken board query also renders
 // with 200 (as data-board-state="error") and only the marker tells it apart from an empty board.
+// Straight against Supabase, it checks that public.members is gated by row-level security in both directions: the
+// publishable key alone reads no rows, a signed-in member reads at least one. RLS denial answers 200 with an empty
+// array, so only the row count tells a blocked read from a working one.
 // It also checks that the dev-only kitchen sinks /dev/offer-card, /dev/forms and /dev/board answer 404: in CI this runs
 // against the production preview, where the pages must not exist (on `npm run dev` those steps fail by design).
 // Zero dependencies on purpose. Run against a live server: BASE_URL=http://localhost:4321 npm run smoke
@@ -18,6 +21,7 @@ const password = process.env.SMOKE_PASSWORD ?? "qwerty123456";
 const jar = new Map();
 // The board's marker for a successful read (list or empty); a failed read renders data-board-state="error".
 const BOARD_OK = 'data-board-state="ok"';
+const MISSING_SUPABASE = "SUPABASE_URL and SUPABASE_KEY must be set (e.g. in .env)";
 
 function cookieHeader() {
   return [...jar.entries()].map(([k, v]) => `${k}=${v}`).join("; ");
@@ -55,7 +59,7 @@ async function request(path, { method = "GET", form, json } = {}) {
 
 async function supabaseSignup() {
   if (!SUPABASE_URL || !SUPABASE_KEY) {
-    return { status: 0, location: "", error: "SUPABASE_URL and SUPABASE_KEY must be set (e.g. in .env)" };
+    return { status: 0, location: "", error: MISSING_SUPABASE };
   }
   const response = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
     method: "POST",
@@ -64,6 +68,26 @@ async function supabaseSignup() {
   });
   const body = await response.json().catch(() => ({}));
   return { status: response.status, location: "", errorCode: body.error_code ?? "" };
+}
+
+// Reads public.members over the Data API: with the publishable key alone, or with a member's session token.
+// Reports the row count, because a read blocked by row-level security is 200 with `[]`, not an error.
+async function supabaseMembers({ signedIn }) {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return { status: 0, location: "", error: MISSING_SUPABASE };
+  const headers = { apikey: SUPABASE_KEY };
+  if (signedIn) {
+    const auth = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+      method: "POST",
+      headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    const session = await auth.json().catch(() => ({}));
+    if (!session.access_token) return { status: auth.status, location: "", error: `no session for ${email}` };
+    headers.Authorization = `Bearer ${session.access_token}`;
+  }
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/members?select=id`, { headers });
+  const body = await response.json().catch(() => null);
+  return { status: response.status, location: "", rows: Array.isArray(body) ? body.length : undefined };
 }
 
 const steps = [
@@ -79,6 +103,8 @@ const steps = [
     { status: 404 },
   ],
   ["supabase auth rejects signup", () => supabaseSignup(), { status: 422, errorCode: "signup_disabled" }],
+  ["anon cannot read members", () => supabaseMembers({ signedIn: false }), { status: 200, rows: 0 }],
+  ["signed-in member reads members", () => supabaseMembers({ signedIn: true }), { status: 200, minRows: 1 }],
   [
     "signin rejects wrong password",
     () => request("/api/auth/signin", { method: "POST", form: { email, password: "wrong" } }),
@@ -152,6 +178,12 @@ const steps = [
   ["dashboard redirects after signout", () => request("/dashboard"), { status: 302, location: "/auth/signin" }],
 ];
 
+function expectedRows(expected) {
+  if (expected.rows !== undefined) return `${expected.rows} row(s)`;
+  if (expected.minRows !== undefined) return `at least ${expected.minRows} row(s)`;
+  return "";
+}
+
 let failed = 0;
 for (const [name, run, expected] of steps) {
   const actual = await run();
@@ -161,13 +193,16 @@ for (const [name, run, expected] of steps) {
     (expected.location === undefined || actual.location === expected.location) &&
     (expected.locationPrefix === undefined || actual.location.startsWith(expected.locationPrefix)) &&
     (expected.errorCode === undefined || actual.errorCode === expected.errorCode) &&
-    (expected.bodyIncludes === undefined || (actual.body ?? "").includes(expected.bodyIncludes));
-  const detail = actual.error ?? `${actual.status} ${actual.errorCode ?? actual.location}`;
+    (expected.bodyIncludes === undefined || (actual.body ?? "").includes(expected.bodyIncludes)) &&
+    (expected.rows === undefined || actual.rows === expected.rows) &&
+    (expected.minRows === undefined || (actual.rows !== undefined && actual.rows >= expected.minRows));
+  const rows = actual.rows === undefined ? undefined : `${actual.rows} row(s)`;
+  const detail = actual.error ?? `${actual.status} ${actual.errorCode ?? rows ?? actual.location}`;
   console.log(`${ok ? "PASS" : "FAIL"}  ${name}  -> ${detail}`);
   if (!ok) {
     failed++;
     console.log(
-      `      expected ${expected.status} ${expected.errorCode ?? expected.location ?? expected.locationPrefix ?? expected.bodyIncludes ?? ""}`,
+      `      expected ${expected.status} ${expected.errorCode ?? expected.location ?? expected.locationPrefix ?? expected.bodyIncludes ?? expectedRows(expected)}`,
     );
   }
 }
