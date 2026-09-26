@@ -441,30 +441,30 @@ Migracja jest addytywna — `offers` i `members` się nie zmieniają. `db push` 
 
 #### Automated
 
-- [x] 1.1 `npx supabase db reset` przechodzi bez błędów
-- [x] 1.2 REST jako `sigaretif1` tworzy ofertę testową i notatkę (`POST /rest/v1/offer_notes` z `author_id` = własny uid) — 201; drugi `POST` tej samej pary (oferta, autor) kończy się naruszeniem unikalności
-- [x] 1.3 REST jako anon: `GET /rest/v1/offer_notes?select=id` → 200 i `[]` przy istniejącej notatce
-- [x] 1.4 REST jako `sigaretif2`: `GET` zwraca notatkę `sigaretif1`; `PATCH` i `DELETE` jej po `id` z `Prefer: return=representation` → 200 i `[]`; `POST` z `author_id` = uid `sigaretif1` → odrzucony (`new row violates row-level security policy`)
-- [x] 1.5 REST jako `sigaretif1`: `POST` z trzema polami pustymi / samymi spacjami i `POST` z polem > 5000 znaków → naruszenie `check`; `PATCH` notatki z inną `offer_id` lub `author_id` zostawia oba bez zmian, a `updated_at` rośnie
-- [x] 1.6 psql (lokalnie): usunięcie konta `sigaretif3` (po zapisaniu przez nie notatki) powodzi się, jego notatka zostaje z `author_id = null` i niezmienionym `updated_at`; usunięcie oferty usuwa jej notatki; na koniec `npx supabase db reset` przywraca konto
-- [x] 1.7 `npm run lint`, `npx astro sync`, `npx astro check` i `npm run build` przechodzą
+- [x] 1.1 `npx supabase db reset` przechodzi bez błędów — 27247a0
+- [x] 1.2 REST jako `sigaretif1` tworzy ofertę testową i notatkę (`POST /rest/v1/offer_notes` z `author_id` = własny uid) — 201; drugi `POST` tej samej pary (oferta, autor) kończy się naruszeniem unikalności — 27247a0
+- [x] 1.3 REST jako anon: `GET /rest/v1/offer_notes?select=id` → 200 i `[]` przy istniejącej notatce — 27247a0
+- [x] 1.4 REST jako `sigaretif2`: `GET` zwraca notatkę `sigaretif1`; `PATCH` i `DELETE` jej po `id` z `Prefer: return=representation` → 200 i `[]`; `POST` z `author_id` = uid `sigaretif1` → odrzucony (`new row violates row-level security policy`) — 27247a0
+- [x] 1.5 REST jako `sigaretif1`: `POST` z trzema polami pustymi / samymi spacjami i `POST` z polem > 5000 znaków → naruszenie `check`; `PATCH` notatki z inną `offer_id` lub `author_id` zostawia oba bez zmian, a `updated_at` rośnie — 27247a0
+- [x] 1.6 psql (lokalnie): usunięcie konta `sigaretif3` (po zapisaniu przez nie notatki) powodzi się, jego notatka zostaje z `author_id = null` i niezmienionym `updated_at`; usunięcie oferty usuwa jej notatki; na koniec `npx supabase db reset` przywraca konto — 27247a0
+- [x] 1.7 `npm run lint`, `npx astro sync`, `npx astro check` i `npm run build` przechodzą — 27247a0
 
 #### Manual
 
-- [x] 1.8 W Supabase Studio (lokalnie) `offer_notes` ma włączone RLS i dokładnie cztery polityki, a Security Advisor nie zgłasza tabeli ani funkcji wyzwalacza
-- [x] 1.9 Zmieniony akapit PRD czyta się jako rozstrzygnięcie, bez sprzeczności z Access Control i FR-015
+- [x] 1.8 W Supabase Studio (lokalnie) `offer_notes` ma włączone RLS i dokładnie cztery polityki, a Security Advisor nie zgłasza tabeli ani funkcji wyzwalacza — 27247a0
+- [x] 1.9 Zmieniony akapit PRD czyta się jako rozstrzygnięcie, bez sprzeczności z Access Control i FR-015 — 27247a0
 
 ### Phase 2: Odczyt i zapis notatek
 
 #### Automated
 
-- [ ] 2.1 `npm run lint`, `npx astro sync`, `npx astro check` i `npm run build` przechodzą
-- [ ] 2.2 curl (z ciasteczkiem sesji `sigaretif1`, `npm run dev`, lokalny Supabase): zapis notatki → 302 `/offers/<id>#notatki` i jeden wiersz w `offer_notes`; drugi zapis zmienia ten sam wiersz (nadal jeden, `updated_at` wyższy)
-- [ ] 2.3 curl: bez sesji → 302 `/auth/signin`; ciało JSON, `offer_id=not-a-uuid` i nieistniejący uuid → 302 `/dashboard?error=…`; trzy pola puste → 302 `/offers/<id>?error=…#notatki`; `author_id` dopisany do formularza jest ignorowany (wiersz ma autora z sesji); pole z 5000 znakami, w tym nowymi liniami wysłanymi jako `%0D%0A`, zapisuje się, a w bazie ma `\n`
+- [x] 2.1 `npm run lint`, `npx astro sync`, `npx astro check` i `npm run build` przechodzą
+- [x] 2.2 curl (z ciasteczkiem sesji `sigaretif1`, `npm run dev`, lokalny Supabase): zapis notatki → 302 `/offers/<id>#notatki` i jeden wiersz w `offer_notes`; drugi zapis zmienia ten sam wiersz (nadal jeden, `updated_at` wyższy)
+- [x] 2.3 curl: bez sesji → 302 `/auth/signin`; ciało JSON, `offer_id=not-a-uuid` i nieistniejący uuid → 302 `/dashboard?error=…`; trzy pola puste → 302 `/offers/<id>?error=…#notatki`; `author_id` dopisany do formularza jest ignorowany (wiersz ma autora z sesji); pole z 5000 znakami, w tym nowymi liniami wysłanymi jako `%0D%0A`, zapisuje się, a w bazie ma `\n`
 
 #### Manual
 
-- [ ] 2.4 Przy Supabase niekonfigurowanym (bez `.env`) `POST /api/notes` przekierowuje z komunikatem, nie zwraca 500
+- [x] 2.4 Przy Supabase niekonfigurowanym (bez `.env`) `POST /api/notes` przekierowuje z komunikatem, nie zwraca 500
 
 ### Phase 3: Notatki na karcie
 

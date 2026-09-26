@@ -8,9 +8,7 @@ import { resolveSaver, type Saver } from "@/lib/members";
 import { createClient } from "@/lib/supabase";
 import type { OfferRow } from "@/lib/otodom/types";
 import { cn } from "@/lib/utils";
-
-// Checked before the query: Postgres rejects a non-uuid with 22P02, which must not surface as a 500.
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { isUuid } from "@/lib/uuid";
 
 // One client per view, for the offer and for its author; `null` when Supabase is unconfigured.
 const supabase = createClient(Astro.request.headers, Astro.cookies);
@@ -20,7 +18,7 @@ const supabase = createClient(Astro.request.headers, Astro.cookies);
  * Supabase (the zero-config state), a query error, or no row. Each of those is a 404, never a 500.
  */
 async function loadOffer(id: string | undefined): Promise<OfferRow | null> {
-  if (!id || !UUID.test(id)) return null;
+  if (!id || !isUuid(id)) return null;
   if (!supabase) return null;
   try {
     const result = await supabase.from("offers").select("*").eq("id", id).maybeSingle();
