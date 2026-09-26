@@ -436,9 +436,9 @@ Brak migracji. Tablica używa istniejącej polityki `offers_select_authenticated
 
 #### Automated
 
-- [x] 3.1 Lint przechodzi: `npm run lint`
-- [x] 3.2 Ścieżki podane w CLAUDE.md istnieją: `ls src/pages/dev/board.astro src/lib/offer-board.ts src/pages/dashboard.astro`
+- [x] 3.1 Lint przechodzi: `npm run lint` — 18f6750
+- [x] 3.2 Ścieżki podane w CLAUDE.md istnieją: `ls src/pages/dev/board.astro src/lib/offer-board.ts src/pages/dashboard.astro` — 18f6750
 
 #### Manual
 
-- [x] 3.3 README, CLAUDE.md i roadmapa opisują tablicę zgodnie z tym, co działa na `/dashboard` i `/dev/board`
+- [x] 3.3 README, CLAUDE.md i roadmapa opisują tablicę zgodnie z tym, co działa na `/dashboard` i `/dev/board` — 18f6750
