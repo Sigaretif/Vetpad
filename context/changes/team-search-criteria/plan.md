@@ -396,28 +396,28 @@ Nowa migracja bez zmian w istniejących tabelach; singletony wstawiane w tej sam
 
 #### Automated
 
-- [x] 1.1 `npx supabase db reset` stosuje migrację bez błędów, a `team_criteria` i `criteria_revision` mają po jednym wierszu
-- [x] 1.2 `npm run lint`, `npx astro sync` i `npx astro check` przechodzą
+- [x] 1.1 `npx supabase db reset` stosuje migrację bez błędów, a `team_criteria` i `criteria_revision` mają po jednym wierszu — c6ebff2
+- [x] 1.2 `npm run lint`, `npx astro sync` i `npx astro check` przechodzą — c6ebff2
 
 #### Manual
 
-- [x] 1.3 REST z tokenami dwóch kont seedowych: oba czytają limity, wymagania obu i licznik; anon dostaje `[]` ze wszystkich trzech tabel
-- [x] 1.4 `insert` i `delete` na `team_criteria` oraz jakikolwiek zapis `criteria_revision` są odrzucane (403 `42501` albo 0 wierszy); drugi członek nie zmieni ani nie usunie cudzych wymagań (0 wierszy), a wstawienie wymagań podpisanych cudzym `author_id` kończy się `42501`
-- [x] 1.5 Zmiana limitu podbija licznik i ustawia `updated_by`; zapis tych samych wartości nie zmienia ani licznika, ani `updated_by`/`updated_at`; PATCH `updated_by` na cudze id wraca do wartości z triggera
-- [x] 1.6 Dodanie, zmiana i usunięcie wymagań podbija licznik; PATCH tego samego `body` nie
-- [x] 1.7 Usunięcie lokalnego konta (poza kontami używanymi przez smoke), które ostatnio zmieniło limity i ma wymagania: konto znika bez błędu, `updated_by` staje się `null`, jego wymagania znikają, licznik rośnie
+- [x] 1.3 REST z tokenami dwóch kont seedowych: oba czytają limity, wymagania obu i licznik; anon dostaje `[]` ze wszystkich trzech tabel — c6ebff2
+- [x] 1.4 `insert` i `delete` na `team_criteria` oraz jakikolwiek zapis `criteria_revision` są odrzucane (403 `42501` albo 0 wierszy); drugi członek nie zmieni ani nie usunie cudzych wymagań (0 wierszy), a wstawienie wymagań podpisanych cudzym `author_id` kończy się `42501` — c6ebff2
+- [x] 1.5 Zmiana limitu podbija licznik i ustawia `updated_by`; zapis tych samych wartości nie zmienia ani licznika, ani `updated_by`/`updated_at`; PATCH `updated_by` na cudze id wraca do wartości z triggera — c6ebff2
+- [x] 1.6 Dodanie, zmiana i usunięcie wymagań podbija licznik; PATCH tego samego `body` nie — c6ebff2
+- [x] 1.7 Usunięcie lokalnego konta (poza kontami używanymi przez smoke), które ostatnio zmieniło limity i ma wymagania: konto znika bez błędu, `updated_by` staje się `null`, jego wymagania znikają, licznik rośnie — c6ebff2
 
 ### Phase 2: Warstwa danych, porównanie z limitami i trasy
 
 #### Automated
 
-- [ ] 2.1 `npm run lint`, `npx astro sync`, `npx astro check` i `npm run build` przechodzą
+- [x] 2.1 `npm run lint`, `npx astro sync`, `npx astro check` i `npm run build` przechodzą
 
 #### Manual
 
-- [ ] 2.2 curl z ciasteczkiem sesji: zapis limitów, zapis z `price_min > price_max`, `0` i tekstem w polu liczbowym, `clear` — każdy kończy się oczekiwanym przekierowaniem, a stan w bazie się zgadza
-- [ ] 2.3 curl: zapis, zmiana i usunięcie własnych wymagań; puste i za długie `body` → `?error=`; body nie-formularz → `?error=`, nigdy 500
-- [ ] 2.4 Bez sesji obie trasy przekierowują do `/auth/signin`
+- [x] 2.2 curl z ciasteczkiem sesji: zapis limitów, zapis z `price_min > price_max`, `0` i tekstem w polu liczbowym, `clear` — każdy kończy się oczekiwanym przekierowaniem, a stan w bazie się zgadza
+- [x] 2.3 curl: zapis, zmiana i usunięcie własnych wymagań; puste i za długie `body` → `?error=`; body nie-formularz → `?error=`, nigdy 500
+- [x] 2.4 Bez sesji obie trasy przekierowują do `/auth/signin`
 
 ### Phase 3: Widok `/criteria`
 
