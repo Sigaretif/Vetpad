@@ -3,7 +3,7 @@ project: Vetpad
 version: 1
 status: draft
 created: 2026-09-21
-updated: 2026-09-26
+updated: 2026-09-27
 prd_version: 1
 main_goal: market-feedback
 top_blocker: time
@@ -45,7 +45,7 @@ A small group searching for an apartment together keeps blind links in spreadshe
 | S-02 | paste-listing-to-card    | paste an otodom.pl URL and read the saved listing's text, parameters and photos     | S-01          | US-01, FR-004, FR-005, FR-007 | done     |
 | S-03 | team-search-criteria     | define and edit the team's shared hard limits and their own additional requirements | S-01          | FR-002, FR-003                | proposed |
 | S-04 | grounded-listing-audit   | run an AI audit on a saved listing and read findings, each quoted from the listing  | S-02, S-03    | US-01, FR-010, FR-011         | proposed |
-| S-05 | member-notes             | write their own Pros / Cons / Observations note and read everyone's, attributed     | S-02          | US-01, FR-012, FR-013         | in-progress |
+| S-05 | member-notes             | write their own Pros / Cons / Observations note and read everyone's, attributed     | S-02          | US-01, FR-012, FR-013         | done     |
 | S-06 | shared-offer-board       | browse every saved listing on one board with its audit status                       | S-02          | FR-006                        | done     |
 | S-07 | duplicate-listing-notice | paste an already-saved URL and land on the existing card, told who saved it         | S-02          | FR-005                        | done     |
 | S-08 | location-map-link        | open a Google Maps search for a listing's location in one click                     | S-02          | FR-008                        | proposed |
@@ -146,7 +146,7 @@ None. Every absent or partial layer in the Baseline is first needed by a user-fa
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Authorship is the only restriction in the access model: a member edits and deletes only their own note, while every member reads all of them. A missing or permissive access policy here is a live exposure, not a later hardening task.
-- **Status:** in-progress
+- **Status:** done
 
 ### S-06: Shared offer board
 
@@ -272,3 +272,4 @@ None. Every absent or partial layer in the Baseline is first needed by a user-fa
 - **S-02: user can paste an otodom.pl listing URL, press "Add", and read the saved card — description, parameters and hotlinked photo gallery — without reopening the portal; an invalid URL shows an error, and a failed fetch is reported as a fetch problem with nothing saved.** — Archived 2026-09-23 → `context/archive/2026-09-22-paste-listing-to-card/`. Lesson: —.
 - **S-06: user can browse every saved listing on one shared board, each marked "Not Audited" or audited.** — Archived 2026-09-26 → `context/archive/2026-09-26-shared-offer-board/`. Lesson: —.
 - **S-07: user can paste a URL that is already saved — with or without tracking parameters — and lands on the existing card with a notice naming the member who saved it, instead of creating a second entry.** — Archived 2026-09-26 → `context/archive/2026-09-26-duplicate-listing-notice/`. Lesson: —.
+- **S-05: user can write and edit their own note on a listing in three fields — Pros, Cons, General Observations — displayed alongside the audit, and read every other member's note with its author's name.** — Archived 2026-09-27 → `context/archive/2026-09-26-member-notes/`. Lesson: —.

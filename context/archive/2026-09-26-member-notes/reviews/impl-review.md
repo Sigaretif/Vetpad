@@ -132,4 +132,4 @@
 - **Location**: context/changes/member-notes/plan.md (Progress 4.6)
 - **Detail**: „Na hostowanym projekcie dwa konta widzą nawzajem swoje notatki…” zostało odhaczone na polecenie użytkownika, zanim Worker z notatkami trafił na produkcję — migracja jest wypchnięta, ale UI jeszcze nie działa na hostowanym projekcie, więc brak obserwowalnego dowodu.
 - **Fix**: Po `/git-ship`/`/git-land` i wdrożeniu przejść scenariusz na produkcji dwoma kontami przed `/10x-archive`.
-- **Decision**: ACCEPTED — użytkownik akceptuje odhaczenie 4.6 przed wdrożeniem Workera (2026-09-27)
+- **Decision**: ACCEPTED — użytkownik akceptuje odhaczenie 4.6 przed wdrożeniem Workera (2026-09-27); 2026-09-27 po wdrożeniu użytkownik przetestował scenariusz 4.6 na produkcji dwoma kontami — działa
