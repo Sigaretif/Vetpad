@@ -43,7 +43,7 @@ A small group searching for an apartment together keeps blind links in spreadshe
 | ---- | ------------------------ | ----------------------------------------------------------------------------------- | ------------- | ----------------------------- | -------- |
 | S-01 | closed-team-sign-in      | sign in only with a pre-seeded account; nobody can register                         | —             | FR-001                        | done     |
 | S-02 | paste-listing-to-card    | paste an otodom.pl URL and read the saved listing's text, parameters and photos     | S-01          | US-01, FR-004, FR-005, FR-007 | done     |
-| S-03 | team-search-criteria     | define and edit the team's shared hard limits and their own additional requirements | S-01          | FR-002, FR-003                | proposed |
+| S-03 | team-search-criteria     | define and edit the team's shared hard limits and their own additional requirements | S-01          | FR-002, FR-003                | in-progress |
 | S-04 | grounded-listing-audit   | run an AI audit on a saved listing and read findings, each quoted from the listing  | S-02, S-03    | US-01, FR-010, FR-011         | proposed |
 | S-05 | member-notes             | write their own Pros / Cons / Observations note and read everyone's, attributed     | S-02          | US-01, FR-012, FR-013         | done     |
 | S-06 | shared-offer-board       | browse every saved listing on one board with its audit status                       | S-02          | FR-006                        | done     |
@@ -119,7 +119,7 @@ None. Every absent or partial layer in the Baseline is first needed by a user-fa
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** On the audit's path, so it is sequenced alongside the north star rather than after the board. FR-003's stale flag is only completed in S-09, once audits exist to go stale; this slice records enough to tell that criteria changed.
-- **Status:** proposed
+- **Status:** in-progress
 
 ### S-04: Grounded AI audit of a saved listing
 
