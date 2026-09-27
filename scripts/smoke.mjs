@@ -17,7 +17,19 @@
 // by the triggers (the dates are always the database's). Deleting the fixture offer takes its notes with it, and is the last notes step,
 // so a failed step in between still leaves nothing behind. Because it writes and deletes an offer, it never runs
 // against production.
-// It also checks that the dev-only kitchen sinks /dev/offer-card, /dev/forms and /dev/board answer 404: in CI this runs
+// Team criteria (FR-002, FR-003): /criteria, /api/criteria and /api/requirements turn anonymous users away, and the
+// publishable key alone reads nothing from public.team_criteria, public.criteria_revision or public.member_requirements
+// nor changes the limits. Signed in, it reads the limits as they stood before the run, saves limits of its own
+// (refusing a reversed price range), saves and edits the member's requirements (refusing blank ones), and finds
+// both on /criteria with data-criteria-state="ok"; every error redirect names its form (`&form=`). The revision
+// counter is read around each save: it grows by one on a real change and stays put on a refused save or on
+// re-saving the same limits. The fixture offer gets a PLN price above the saved ceiling, and its row on /dashboard
+// carries data-limit-breach="price_above" under data-limits-state="ok". `intent=clear` leaves four empty limits.
+// Against Supabase: nobody inserts or deletes the team_criteria row or writes the counter (0 rows / 42501), and the
+// second member reads the first member's requirements but cannot edit, delete or forge them. Cleanup runs whatever
+// failed before it: the limits read at the start are written back (signed by the first member, as any restore
+// would be), and both members' requirements are deleted.
+// It also checks that the dev-only kitchen sinks /dev/offer-card, /dev/forms, /dev/board and /dev/criteria answer 404: in CI this runs
 // against the production preview, where the pages must not exist (on `npm run dev` those steps fail by design).
 // Zero dependencies on purpose. Run against a live server: BASE_URL=http://localhost:4321 npm run smoke
 
@@ -60,6 +72,19 @@ const NOTE_FIRST = `smoke-note-${FIXTURE_OFFER_ID}-first`;
 const NOTE_EDITED = `smoke-note-${FIXTURE_OFFER_ID}-edited`;
 // An id the author tries to give the note; the freeze trigger must keep the database's own.
 const FORGED_NOTE_ID = randomUUID();
+// The criteria page's and the board's markers for a successful read; a failed read renders "error".
+const CRITERIA_OK = 'data-criteria-state="ok"';
+const LIMITS_OK = 'data-limits-state="ok"';
+// Limits this run saves. The city is new on every run, so saving it is always a real change of the limits.
+const SMOKE_CITY = `smoke-miasto-${FIXTURE_OFFER_ID.slice(0, 8)}`;
+const SMOKE_PRICE_MAX = 500000;
+const LIMIT_COLUMNS = "city,price_min,price_max,area_min";
+// The first member's requirements as written and as edited, and the second member's own.
+const REQUIREMENTS_FIRST = `smoke-wymagania-${FIXTURE_OFFER_ID}-first`;
+const REQUIREMENTS_EDITED = `smoke-wymagania-${FIXTURE_OFFER_ID}-edited`;
+const REQUIREMENTS_OTHER = `smoke-wymagania-${FIXTURE_OFFER_ID}-other`;
+// The shared limits as they stood before this run, read by the first criteria step and written back by cleanup.
+let limitsBefore = null;
 
 function cookieHeader() {
   return [...jar.entries()].map(([k, v]) => `${k}=${v}`).join("; ");
@@ -232,6 +257,91 @@ async function noteIdentityAfterPatch() {
   );
 }
 
+// The criteria revision (public.criteria_revision) as a member reads it. Throws when it cannot be read, which
+// fails the step that asked for it.
+async function readRevision() {
+  const response = await supabaseRest("criteria_revision?select=revision", { as: MEMBER });
+  if (response.error) throw new Error(response.error);
+  const [row] = response.rows === 1 ? JSON.parse(response.body) : [];
+  if (response.status !== 200 || row === undefined) {
+    throw new Error(`criteria revision unreadable (${response.status}, ${response.rows ?? 0} row(s))`);
+  }
+  return Number(row.revision);
+}
+
+// Runs one request between two reads of the revision, and reports by how much the revision moved.
+async function withRevision(run) {
+  const before = await readRevision();
+  const result = await run();
+  const after = await readRevision();
+  return { ...result, revisionDelta: after - before };
+}
+
+// Reads the shared limits as a member and keeps them for cleanup to write back.
+async function readLimitsBefore() {
+  const response = await supabaseRest(`team_criteria?select=${LIMIT_COLUMNS}`, { as: MEMBER });
+  if (response.status === 200 && response.rows === 1) [limitsBefore] = JSON.parse(response.body);
+  return response;
+}
+
+// Writes back the limits read at the start. The signature trigger signs the row with the first member whenever
+// that changes a value; who set the limits before the run cannot be restored, only what they were.
+function restoreLimits() {
+  if (limitsBefore === null) {
+    return { status: 0, location: "", error: "the limits were never read at the start, so they cannot be restored" };
+  }
+  return supabaseRest("team_criteria?id=eq.true", {
+    as: MEMBER,
+    method: "PATCH",
+    prefer: "return=representation",
+    body: limitsBefore,
+  });
+}
+
+// One member's requirements (`owner`) over the Data API, as `as` or with the publishable key alone. A read
+// selects the body, so a step can look for the text.
+async function requirementsRest(owner, { method = "GET", ...options } = {}) {
+  const author = await memberId(owner);
+  if (author.error) return { status: 0, location: "", error: author.error };
+  const select = method === "GET" ? "&select=body" : "";
+  return supabaseRest(`member_requirements?author_id=eq.${author.userId}${select}`, { method, ...options });
+}
+
+// The second member saves requirements of their own straight through the Data API, as an upsert: the insert
+// policy admits an author writing their own row, and the first member's /criteria then shows them. PostgREST
+// answers 201 when the upsert inserts and 200 when it replaces requirements the account already had (a local
+// database a person has used); cleanup deletes them either way.
+async function saveOtherRequirements() {
+  const other = await memberId(OTHER_MEMBER);
+  if (other.error) return { status: 0, location: "", error: other.error };
+  return supabaseRest("member_requirements?on_conflict=author_id", {
+    as: OTHER_MEMBER,
+    method: "POST",
+    prefer: "resolution=merge-duplicates,return=representation",
+    body: { author_id: other.userId, body: REQUIREMENTS_OTHER },
+  });
+}
+
+// The second member tries to write requirements signed with the first member's uid.
+async function writeRequirementsAsAnotherAuthor() {
+  const member = await memberId(MEMBER);
+  if (member.error) return { status: 0, location: "", error: member.error };
+  return supabaseRest("member_requirements", {
+    as: OTHER_MEMBER,
+    method: "POST",
+    body: { author_id: member.userId, body: "smoke: podszywanie się" },
+  });
+}
+
+// The fixture offer's row on /dashboard: from its link to the link's end, so a mark on another offer (the local
+// database may hold real ones) cannot pass for the fixture's. No row is an empty body.
+async function fixtureBoardRow() {
+  const response = await request("/dashboard");
+  const start = response.body.indexOf(`href="${FIXTURE_CARD}"`);
+  const end = start === -1 ? -1 : response.body.indexOf("</a>", start);
+  return { ...response, body: end === -1 ? "" : response.body.slice(start, end) };
+}
+
 const steps = [
   ["home renders", () => request("/"), { status: 200 }],
   ["dashboard redirects anonymous user", () => request("/dashboard"), { status: 302, location: "/auth/signin" }],
@@ -239,6 +349,7 @@ const steps = [
   ["dev kitchen sink is absent from the build", () => request("/dev/offer-card"), { status: 404 }],
   ["dev forms kitchen sink is absent from the build", () => request("/dev/forms"), { status: 404 }],
   ["dev board kitchen sink is absent from the build", () => request("/dev/board"), { status: 404 }],
+  ["dev criteria kitchen sink is absent from the build", () => request("/dev/criteria"), { status: 404 }],
   [
     "signup route is gone",
     () => request("/api/auth/signup", { method: "POST", form: { email, password } }),
@@ -247,6 +358,33 @@ const steps = [
   ["supabase auth rejects signup", () => supabaseSignup(), { status: 422, errorCode: "signup_disabled" }],
   ["anon cannot read members", () => supabaseMembers({ signedIn: false }), { status: 200, rows: 0 }],
   ["signed-in member reads members", () => supabaseMembers({ signedIn: true }), { status: 200, minRows: 1 }],
+  // Both criteria singletons always hold their one row, so 0 rows here is the denial, not an empty table.
+  ["anon cannot read the team limits", () => supabaseRest("team_criteria?select=id"), { status: 200, rows: 0 }],
+  [
+    "signed-in member reads the team limits",
+    () => supabaseRest("team_criteria?select=id", { as: MEMBER }),
+    { status: 200, rows: 1 },
+  ],
+  [
+    "anon cannot read the criteria revision",
+    () => supabaseRest("criteria_revision?select=id"),
+    { status: 200, rows: 0 },
+  ],
+  [
+    "signed-in member reads the criteria revision",
+    () => supabaseRest("criteria_revision?select=id", { as: MEMBER }),
+    { status: 200, rows: 1 },
+  ],
+  [
+    "anon cannot change the team limits",
+    () =>
+      supabaseRest("team_criteria?id=eq.true", {
+        method: "PATCH",
+        prefer: "return=representation",
+        body: { city: "smoke: anon" },
+      }),
+    { status: 200, rows: 0 },
+  ],
   [
     "signin rejects wrong password",
     () => request("/api/auth/signin", { method: "POST", form: { email, password: "wrong" } }),
@@ -267,6 +405,17 @@ const steps = [
     () => request("/api/notes", { method: "POST", form: { offer_id: randomUUID(), pros: "smoke" } }),
     { status: 302, location: "/auth/signin" },
   ],
+  [
+    "limits save redirects anonymous user",
+    () => request("/api/criteria", { method: "POST", form: { city: "smoke" } }),
+    { status: 302, location: "/auth/signin" },
+  ],
+  [
+    "requirements save redirects anonymous user",
+    () => request("/api/requirements", { method: "POST", form: { body: "smoke" } }),
+    { status: 302, location: "/auth/signin" },
+  ],
+  ["criteria page redirects anonymous user", () => request("/criteria"), { status: 302, location: "/auth/signin" }],
   [
     "offer card redirects anonymous user",
     () => request(`/offers/${randomUUID()}`),
@@ -409,7 +558,190 @@ const steps = [
   ],
   ["author's patch of the note's identity is accepted", () => patchNoteIdentity(), { status: 200, rows: 1 }],
   ["note keeps its offer, author, id and database-set dates", () => noteIdentityAfterPatch(), { status: 200, rows: 1 }],
+  // Team criteria. The limits are one row the whole team shares, and the local database may hold limits a person
+  // set, so they are read first and written back by cleanup.
+  ["team limits before the run are read", () => readLimitsBefore(), { status: 200, rows: 1 }],
+  [
+    "member cannot insert a second limits row",
+    () => supabaseRest("team_criteria", { as: MEMBER, method: "POST", body: { id: true } }),
+    { status: 403, errorCode: "42501" },
+  ],
+  [
+    "member cannot delete the limits row",
+    () => supabaseRest("team_criteria?id=eq.true", { as: MEMBER, method: "DELETE", prefer: "return=representation" }),
+    { status: 200, rows: 0 },
+  ],
+  [
+    "member cannot write the criteria revision",
+    () =>
+      supabaseRest("criteria_revision?id=eq.true", {
+        as: MEMBER,
+        method: "PATCH",
+        prefer: "return=representation",
+        body: { revision: 0 },
+      }),
+    { status: 200, rows: 0 },
+  ],
+  [
+    "limits save rejects a reversed price range",
+    () =>
+      withRevision(() =>
+        request("/api/criteria", {
+          method: "POST",
+          form: { city: SMOKE_CITY, price_min: "900000", price_max: "800000", area_min: "" },
+        }),
+      ),
+    { status: 302, locationPrefix: "/criteria?error=", locationIncludes: "&form=limits#limity", revisionDelta: 0 },
+  ],
+  [
+    "limits save stores the limits and bumps the revision",
+    () =>
+      withRevision(() =>
+        request("/api/criteria", {
+          method: "POST",
+          form: { intent: "save", city: SMOKE_CITY, price_min: "", price_max: String(SMOKE_PRICE_MAX), area_min: "" },
+        }),
+      ),
+    { status: 302, location: "/criteria#limity", revisionDelta: 1 },
+  ],
+  [
+    "saving the same limits again keeps the revision",
+    () =>
+      withRevision(() =>
+        request("/api/criteria", {
+          method: "POST",
+          form: { city: SMOKE_CITY, price_min: "", price_max: String(SMOKE_PRICE_MAX), area_min: "" },
+        }),
+      ),
+    { status: 302, location: "/criteria#limity", revisionDelta: 0 },
+  ],
+  [
+    "requirements save rejects blank requirements",
+    () => withRevision(() => request("/api/requirements", { method: "POST", form: { body: "   " } })),
+    {
+      status: 302,
+      locationPrefix: "/criteria?error=",
+      locationIncludes: "&form=requirements#wymagania",
+      revisionDelta: 0,
+    },
+  ],
+  [
+    "requirements save stores them and bumps the revision",
+    () =>
+      withRevision(() =>
+        request("/api/requirements", { method: "POST", form: { intent: "save", body: REQUIREMENTS_FIRST } }),
+      ),
+    { status: 302, location: "/criteria#wymagania", revisionDelta: 1 },
+  ],
+  [
+    "requirements save edits them and bumps the revision",
+    () => withRevision(() => request("/api/requirements", { method: "POST", form: { body: REQUIREMENTS_EDITED } })),
+    { status: 302, location: "/criteria#wymagania", revisionDelta: 1 },
+  ],
+  ["another member saves their own requirements", () => saveOtherRequirements(), { status: [201, 200], rows: 1 }],
+  [
+    "criteria page shows the limits and both members' requirements",
+    () => request("/criteria"),
+    { status: 200, bodyIncludes: [CRITERIA_OK, SMOKE_CITY, REQUIREMENTS_EDITED, REQUIREMENTS_OTHER] },
+  ],
+  // RLS from every side, only now that the first member's requirements exist: before them, `[]` would prove nothing.
+  ["member keeps one set of requirements", () => requirementsRest(MEMBER, { as: MEMBER }), { status: 200, rows: 1 }],
+  [
+    "anon cannot read requirements",
+    () => supabaseRest("member_requirements?select=author_id"),
+    { status: 200, rows: 0 },
+  ],
+  [
+    "another member reads the requirements",
+    () => requirementsRest(MEMBER, { as: OTHER_MEMBER }),
+    { status: 200, rows: 1, bodyIncludes: REQUIREMENTS_EDITED },
+  ],
+  [
+    "another member cannot edit the requirements",
+    () =>
+      requirementsRest(MEMBER, {
+        as: OTHER_MEMBER,
+        method: "PATCH",
+        prefer: "return=representation",
+        body: { body: "smoke: nadpisane przez innego członka" },
+      }),
+    { status: 200, rows: 0 },
+  ],
+  [
+    "another member cannot delete the requirements",
+    () => requirementsRest(MEMBER, { as: OTHER_MEMBER, method: "DELETE", prefer: "return=representation" }),
+    { status: 200, rows: 0 },
+  ],
+  [
+    "another member cannot write requirements as their author",
+    () => writeRequirementsAsAnotherAuthor(),
+    { status: 403, errorCode: "42501" },
+  ],
+  [
+    "requirements are unchanged after the other member's attempts",
+    () => requirementsRest(MEMBER, { as: MEMBER }),
+    { status: 200, rows: 1, bodyIncludes: REQUIREMENTS_EDITED },
+  ],
+  // The limit mark: a stated PLN price above the saved ceiling.
+  [
+    "fixture offer gets a price above the limit",
+    () =>
+      supabaseRest(`offers?id=eq.${FIXTURE_OFFER_ID}`, {
+        as: MEMBER,
+        method: "PATCH",
+        prefer: "return=representation",
+        body: { price: SMOKE_PRICE_MAX + 1, price_currency: "PLN" },
+      }),
+    { status: 200, rows: 1 },
+  ],
+  ["board reads the team limits", () => request("/dashboard"), { status: 200, bodyIncludes: [BOARD_OK, LIMITS_OK] }],
+  [
+    "board marks the fixture offer above the price limit",
+    () => fixtureBoardRow(),
+    { status: 200, bodyIncludes: 'data-limit-breach="price_above"' },
+  ],
+  [
+    "requirements delete removes them and bumps the revision",
+    () => withRevision(() => request("/api/requirements", { method: "POST", form: { intent: "delete" } })),
+    { status: 302, location: "/criteria#wymagania", revisionDelta: 1 },
+  ],
+  ["member's requirements are gone", () => requirementsRest(MEMBER, { as: MEMBER }), { status: 200, rows: 0 }],
+  [
+    "limits clear removes every limit and bumps the revision",
+    () => withRevision(() => request("/api/criteria", { method: "POST", form: { intent: "clear" } })),
+    { status: 302, location: "/criteria#limity", revisionDelta: 1 },
+  ],
+  [
+    "cleared limits are all empty",
+    () =>
+      supabaseRest("team_criteria?city=is.null&price_min=is.null&price_max=is.null&area_min=is.null&select=id", {
+        as: MEMBER,
+      }),
+    { status: 200, rows: 1 },
+  ],
   // Cleanup: runs even when a step above failed, because every step runs.
+  ["team limits are restored to their state before the run", () => restoreLimits(), { status: 200, rows: 1 }],
+  [
+    "member's smoke requirements are deleted",
+    () => requirementsRest(MEMBER, { as: MEMBER, method: "DELETE" }),
+    { status: 204 },
+  ],
+  [
+    "other member's smoke requirements are deleted",
+    () => requirementsRest(OTHER_MEMBER, { as: OTHER_MEMBER, method: "DELETE" }),
+    { status: 204 },
+  ],
+  [
+    "no smoke requirements remain",
+    async () => {
+      const [member, other] = [await memberId(MEMBER), await memberId(OTHER_MEMBER)];
+      if (member.error || other.error) return { status: 0, location: "", error: member.error ?? other.error };
+      return supabaseRest(`member_requirements?author_id=in.(${member.userId},${other.userId})&select=author_id`, {
+        as: MEMBER,
+      });
+    },
+    { status: 200, rows: 0 },
+  ],
   [
     "fixture offer is deleted with its notes",
     () =>
@@ -435,6 +767,11 @@ function expectedRows(expected) {
   return "";
 }
 
+// How far a step moved the criteria revision, for the report line; empty when the step does not measure it.
+function revisionMoved({ revisionDelta }) {
+  return revisionDelta === undefined ? "" : `, revision +${revisionDelta}`;
+}
+
 function includesAll(body, expected) {
   return [expected].flat().every((text) => (body ?? "").includes(text));
 }
@@ -445,20 +782,23 @@ for (const [name, run, expected] of steps) {
   const actual = await run().catch((error) => ({ status: 0, location: "", error: error.message }));
   const ok =
     !actual.error &&
-    actual.status === expected.status &&
+    [expected.status].flat().includes(actual.status) &&
     (expected.location === undefined || actual.location === expected.location) &&
     (expected.locationPrefix === undefined || actual.location.startsWith(expected.locationPrefix)) &&
+    (expected.locationIncludes === undefined || actual.location.includes(expected.locationIncludes)) &&
     (expected.errorCode === undefined || actual.errorCode === expected.errorCode) &&
     (expected.bodyIncludes === undefined || includesAll(actual.body, expected.bodyIncludes)) &&
     (expected.rows === undefined || actual.rows === expected.rows) &&
-    (expected.minRows === undefined || (actual.rows !== undefined && actual.rows >= expected.minRows));
+    (expected.minRows === undefined || (actual.rows !== undefined && actual.rows >= expected.minRows)) &&
+    (expected.revisionDelta === undefined || actual.revisionDelta === expected.revisionDelta);
   const rows = actual.rows === undefined ? undefined : `${actual.rows} row(s)`;
-  const detail = actual.error ?? `${actual.status} ${actual.errorCode ?? rows ?? actual.location}`;
+  const detail =
+    actual.error ?? `${actual.status} ${actual.errorCode ?? rows ?? actual.location}${revisionMoved(actual)}`;
   console.log(`${ok ? "PASS" : "FAIL"}  ${name}  -> ${detail}`);
   if (!ok) {
     failed++;
     console.log(
-      `      expected ${expected.status} ${expected.errorCode ?? expected.location ?? expected.locationPrefix ?? expected.bodyIncludes ?? expectedRows(expected)}`,
+      `      expected ${[expected.status].flat().join(" or ")} ${expected.errorCode ?? expected.location ?? expected.locationPrefix ?? expected.bodyIncludes ?? expectedRows(expected)}${expected.locationIncludes === undefined ? "" : ` with ${expected.locationIncludes}`}${revisionMoved(expected)}`,
     );
   }
 }

@@ -122,8 +122,10 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
     <p class="text-muted-foreground text-sm">
       Strona testowa (tylko <code>astro dev</code>): tablica ofert z <code>/dashboard</code> w każdym stanie, z danych
       testowych. Hover i fokus mają własne zrzuty na sekcji „default” (<code>board-hover-row</code>,{" "}
-      <code>board-focus-row</code>, <code>board-focus-sort</code>). Stany disabled i loading: nie dotyczy — tablica nie
-      ma wyłączanych kontrolek i nie pobiera niczego po stronie klienta.
+      <code>board-focus-row</code>, <code>board-focus-sort</code>); hover na wierszu ze złamanym limitem —{" "}
+      <code>board-hover-breach-row</code> na sekcji „breaches”. Sekcje „breaches” i „limits-error” mają też zrzuty
+      samych siebie (<code>board-breaches</code>, <code>board-limits-error</code>). Stany disabled i loading: nie
+      dotyczy — tablica nie ma wyłączanych kontrolek i nie pobiera niczego po stronie klienta.
     </p>
 
     <div class:list={stateClass} data-state="default">

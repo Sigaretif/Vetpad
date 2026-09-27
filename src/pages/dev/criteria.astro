@@ -86,7 +86,9 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
     <p class="text-muted-foreground text-sm">
       Strona testowa (tylko <code>astro dev</code>): widok <code>/criteria</code> w każdym stanie, z danych testowych.
       Zmiana wyglądu kryteriów przechodzi przez zrzut tej strony. Formularze są prawdziwymi wyspami — zapis stąd zmienia
-      kryteria w lokalnej bazie.
+      kryteria w lokalnej bazie. Fokus i hover mają własne zrzuty na sekcji „full” (<code>criteria-focus-city</code>,{" "}
+      <code>criteria-focus-requirements-edit</code>, <code>criteria-hover-limits-submit</code>); stany disabled i
+      loading formularzy są na <code>/dev/forms</code>.
     </p>
 
     {states.map((state) => (

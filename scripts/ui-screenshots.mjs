@@ -23,6 +23,7 @@ const OFFER = `/offers/${process.env.OFFER_ID ?? "8360a2e2-264f-48ab-aaaf-894984
 const KITCHEN_SINK = "/dev/offer-card";
 const FORMS_KITCHEN_SINK = "/dev/forms";
 const BOARD_KITCHEN_SINK = "/dev/board";
+const CRITERIA_KITCHEN_SINK = "/dev/criteria";
 
 const DESKTOP = { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false };
 const MOBILE = { width: 375, height: 812, deviceScaleFactor: 2, mobile: true };
@@ -48,11 +49,18 @@ const FOCUS = {
   // Tab reaches the section's sort nav before its rows, so the first match is the first link.
   boardRow: `el.matches("[data-state=default] a[href^='/offers/']")`,
   boardSort: `el.matches("[data-state=default] nav[aria-label='Sortowanie ofert'] a")`,
+  // /dev/forms: the real TeamLimitsForm island in the "default" section, its first field („Miasto").
+  limitsField: `el.matches("[data-state=default] [data-form=limits] input[name=city]")`,
+  // /dev/criteria: the "full" section only — every section renders the whole view.
+  criteriaCity: `el.matches("[data-state=full] [data-criteria-section=limits] input[name=city]")`,
+  // The own requirements' „Edytuj" in preview; „Usuń" beside it is a button too.
+  requirementsEdit: `el.matches("[data-state=full] [data-criteria-section=requirements] button") && el.textContent.trim() === "Edytuj"`,
 };
 
 // A shot is a full page unless `viewport`, `focus` or `hover` says otherwise; `auth: false` drops
 // the session. `hover: "<CSS selector>"` forces `:hover` on the matched element via CDP
-// (`CSS.forcePseudoState`), so a hover state needs no manual check.
+// (`CSS.forcePseudoState`), so a hover state needs no manual check. `clip: "<CSS selector>"` saves
+// only the first element it matches — one state section of a kitchen sink.
 const SETS = {
   before: [
     { name: "before-signin", path: "/auth/signin", auth: false },
@@ -98,6 +106,12 @@ const SETS = {
       path: FORMS_KITCHEN_SINK,
       hover: "[data-state=default] [data-form=note] button[type=submit]",
     },
+    { name: "forms-focus-limits-field", path: FORMS_KITCHEN_SINK, focus: "limitsField" },
+    {
+      name: "forms-hover-requirements-submit",
+      path: FORMS_KITCHEN_SINK,
+      hover: "[data-state=default] [data-form=requirements] button[type=submit]",
+    },
   ],
   board: [
     { name: "board-desktop", path: BOARD_KITCHEN_SINK },
@@ -105,6 +119,24 @@ const SETS = {
     { name: "board-focus-row", path: BOARD_KITCHEN_SINK, focus: "boardRow" },
     { name: "board-focus-sort", path: BOARD_KITCHEN_SINK, focus: "boardSort" },
     { name: "board-hover-row", path: BOARD_KITCHEN_SINK, hover: "[data-state=default] a[href^='/offers/']" },
+    { name: "board-breaches", path: BOARD_KITCHEN_SINK, clip: "[data-state=breaches]" },
+    { name: "board-limits-error", path: BOARD_KITCHEN_SINK, clip: "[data-state=limits-error]" },
+    {
+      name: "board-hover-breach-row",
+      path: BOARD_KITCHEN_SINK,
+      hover: "[data-state=breaches] a[href^='/offers/']",
+    },
+  ],
+  criteria: [
+    { name: "criteria-desktop", path: CRITERIA_KITCHEN_SINK },
+    { name: "criteria-mobile", path: CRITERIA_KITCHEN_SINK, device: MOBILE },
+    { name: "criteria-focus-city", path: CRITERIA_KITCHEN_SINK, focus: "criteriaCity" },
+    { name: "criteria-focus-requirements-edit", path: CRITERIA_KITCHEN_SINK, focus: "requirementsEdit" },
+    {
+      name: "criteria-hover-limits-submit",
+      path: CRITERIA_KITCHEN_SINK,
+      hover: "[data-state=full] [data-criteria-section=limits] button[type=submit]",
+    },
   ],
   views: [
     { name: "views-signin", path: "/auth/signin", auth: false },
@@ -133,11 +165,16 @@ Sets:
           the external link, a gallery thumbnail, a banner link and the own
           note's „Edytuj" button, and a forced :hover on that button
   forms   ${FORMS_KITCHEN_SINK}: desktop, mobile 375 px, focus on the email field,
-          the password toggle, the submit button, the errored field and the
-          note's first field, and a forced :hover on the sign-in and the
-          note submit buttons
+          the password toggle, the submit button, the errored field, the
+          note's first field and the limits' city field, and a forced :hover
+          on the sign-in, the note and the requirements submit buttons
   board   ${BOARD_KITCHEN_SINK}: desktop, mobile 375 px, focus on the first offer row and
-          the first sort link, and a forced :hover on the first offer row
+          the first sort link, a forced :hover on the first offer row and on
+          a row outside the team's limits, and the sections with limit
+          breaches and with a failed limits read on their own
+  criteria ${CRITERIA_KITCHEN_SINK}: desktop, mobile 375 px, focus on the city field
+          and on the own requirements' „Edytuj", and a forced :hover on
+          „Zapisz limity"
   views   signin, signin with an error, signin mobile 375 px, home (signed out),
           dashboard, dashboard with a server error
 
@@ -336,7 +373,18 @@ async function capture(cdp, shot, cookies) {
 
   const fullPage = shot.viewport !== true && shot.focus === undefined && shot.hover === undefined;
   const params = { format: "png" };
-  if (fullPage) {
+  if (shot.clip !== undefined) {
+    // The element's box in page coordinates, captured beyond the viewport like a full page.
+    const box = await cdp.evaluate(`(() => {
+      const el = document.querySelector(${JSON.stringify(shot.clip)});
+      if (!el) return null;
+      const rect = el.getBoundingClientRect();
+      return { x: rect.left + scrollX, y: rect.top + scrollY, width: rect.width, height: rect.height };
+    })()`);
+    if (box === null) throw new Error(`no element matched clip selector "${shot.clip}"`);
+    params.captureBeyondViewport = true;
+    params.clip = { ...box, scale: 1 };
+  } else if (fullPage) {
     const { cssContentSize } = await cdp.send("Page.getLayoutMetrics");
     params.captureBeyondViewport = true;
     params.clip = { x: 0, y: 0, width: cssContentSize.width, height: cssContentSize.height, scale: 1 };

@@ -436,24 +436,24 @@ Nowa migracja bez zmian w istniejących tabelach; singletony wstawiane w tej sam
 
 #### Automated
 
-- [x] 4.1 `npm run lint`, `npx astro sync`, `npx astro check` i `npm run build` przechodzą
+- [x] 4.1 `npm run lint`, `npx astro sync`, `npx astro check` i `npm run build` przechodzą — 77b02c9
 
 #### Manual
 
-- [x] 4.2 Z limitami ustawionymi na `/criteria` tablica oznacza tylko oferty, których podany fakt łamie limit; oferta bez ceny, metrażu albo lokalizacji nie dostaje znacznika za ten limit; cena równa limitowi się mieści
-- [x] 4.3 Limit „lodz” oznacza ofertę spoza Łodzi i nie oznacza oferty z „Łódź” w lokalizacji
-- [x] 4.4 Wyczyszczenie limitów usuwa wszystkie znaczniki; `/dev/board` renderuje nowe stany
+- [x] 4.2 Z limitami ustawionymi na `/criteria` tablica oznacza tylko oferty, których podany fakt łamie limit; oferta bez ceny, metrażu albo lokalizacji nie dostaje znacznika za ten limit; cena równa limitowi się mieści — 77b02c9
+- [x] 4.3 Limit „lodz” oznacza ofertę spoza Łodzi i nie oznacza oferty z „Łódź” w lokalizacji — 77b02c9
+- [x] 4.4 Wyczyszczenie limitów usuwa wszystkie znaczniki; `/dev/board` renderuje nowe stany — 77b02c9
 
 ### Phase 5: Smoke, dokumentacja, bramka wizualna i wdrożenie migracji
 
 #### Automated
 
-- [ ] 5.1 `npm run smoke` przechodzi na lokalnym Supabase
-- [ ] 5.2 `npm run lint`, `npx astro sync`, `npx astro check` i `npm run build` przechodzą
-- [ ] 5.3 `node scripts/ui-screenshots.mjs criteria …`, `… forms …` i `… board …` do `context/changes/team-search-criteria/screenshots` kończą się kodem 0
+- [x] 5.1 `npm run smoke` przechodzi na lokalnym Supabase
+- [x] 5.2 `npm run lint`, `npx astro sync`, `npx astro check` i `npm run build` przechodzą
+- [x] 5.3 `node scripts/ui-screenshots.mjs criteria …`, `… forms …` i `… board …` do `context/changes/team-search-criteria/screenshots` kończą się kodem 0
 
 #### Manual
 
-- [ ] 5.4 Zrzuty pokazują każdy wiersz macierzy 7 stanów; `criteria-mobile` bez poziomego przewijania; długi e-mail i długie słowo się zawijają
-- [ ] 5.5 PRD, `CLAUDE.md` i README opisują decyzje i nowe trasy zgodnie z planem
-- [ ] 5.6 `npx supabase db push --dry-run` pokazuje tylko migrację kryteriów, a push odbył się po zgodzie użytkownika
+- [x] 5.4 Zrzuty pokazują każdy wiersz macierzy 7 stanów; `criteria-mobile` bez poziomego przewijania; długi e-mail i długie słowo się zawijają
+- [x] 5.5 PRD, `CLAUDE.md` i README opisują decyzje i nowe trasy zgodnie z planem
+- [x] 5.6 `npx supabase db push --dry-run` pokazuje tylko migrację kryteriów, a push odbył się po zgodzie użytkownika
