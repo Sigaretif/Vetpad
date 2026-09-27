@@ -46,6 +46,7 @@ Weryfikacja: `npx supabase db reset`, REST z tokenami dwóch kont, zapis notatki
 - Czyszczenie notatki do zera — zapis trzech pustych pól jest odrzucany; wyczyszczenie to usunięcie, czyli S-11.
 - Audyt (S-04) — kolumna zespołu zostawia mu miejsce nad notatkami, bez atrapy w UI.
 - Zachowanie wpisanego tekstu po błędzie serwera — trasa formularza przekierowuje z `?error=` (konwencja CLAUDE.md), więc tekst przepada; pola puste i za długie łapie walidacja w przeglądarce, zostają rzadkie błędy bazy.
+- Ochrona przed zapisem z nieaktualnego formularza (lost update) — `/api/notes` robi upsert, więc gdy członek zapisze własną notatkę w dwóch oknach, drugi zapis po cichu zastępuje pierwszy. Zaakceptowane ryzyko (impl-review F1, 2026-09-27): dotyczy tylko własnej notatki autora, przy trzech członkach edycja w wielu oknach jest rzadka. Wracamy do tego przy S-11 (usuwanie notatki zmienia ten sam kontrakt).
 - Notatki lub ich liczba na tablicy (`/dashboard`), historia edycji, powiadomienia, edycja w czasie rzeczywistym (Non-Goals PRD).
 - Wysyłanie notatek do dostawcy modelu — nigdy (PRD, Non-Functional Requirements); ten slice nie dotyka audytu.
 - Obietnica używalności na telefonie — układ się składa, ale nie jest projektowany pod mobile (PRD).

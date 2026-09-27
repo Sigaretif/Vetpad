@@ -1,6 +1,7 @@
 ---
 import { CircleAlert } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ServerError } from "@/components/form/ServerError";
 import { NoteCard } from "@/components/offers/NoteCard";
 import NoteEditor from "@/components/offers/NoteEditor";
 import type { OfferNotes } from "@/lib/notes";
@@ -54,9 +55,13 @@ const own =
       )}
     </>
   ) : (
-    <Alert variant="destructive">
-      <CircleAlert />
-      <AlertDescription>Nie udało się wczytać notatek.</AlertDescription>
-    </Alert>
+    <>
+      {/* A failed save that landed on a failed read: the member still has to learn the save did not happen. */}
+      <ServerError message={serverError} />
+      <Alert variant="destructive">
+        <CircleAlert />
+        <AlertDescription>Nie udało się wczytać notatek.</AlertDescription>
+      </Alert>
+    </>
   )}
 </section>

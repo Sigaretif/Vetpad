@@ -13,7 +13,8 @@
 // data-notes-state="ok". Against Supabase it checks public.offer_notes from every side once that note exists: one
 // note per member per offer, the publishable key alone reads none, a second seeded member (SMOKE_EMAIL_2) reads it
 // but cannot edit or delete it (200 with no rows) nor write a note in the first member's name (403, 42501), and
-// the note is unchanged afterwards. Deleting the fixture offer takes its notes with it, and is the last notes step,
+// the note is unchanged afterwards. The author's own PATCH of the note's offer, author, id and dates is then undone
+// by the triggers (the dates are always the database's). Deleting the fixture offer takes its notes with it, and is the last notes step,
 // so a failed step in between still leaves nothing behind. Because it writes and deletes an offer, it never runs
 // against production.
 // It also checks that the dev-only kitchen sinks /dev/offer-card, /dev/forms and /dev/board answer 404: in CI this runs
@@ -21,9 +22,21 @@
 // Zero dependencies on purpose. Run against a live server: BASE_URL=http://localhost:4321 npm run smoke
 
 import { randomUUID } from "node:crypto";
+import { URL } from "node:url";
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:4321";
 const { SUPABASE_URL, SUPABASE_KEY } = process.env;
+// Smoke writes a fixture offer and a note and deletes them again, so it refuses a Supabase that is not on this
+// machine unless the caller opts in with SMOKE_ALLOW_REMOTE=1. CI's smoke job starts a local Supabase.
+if (SUPABASE_URL && process.env.SMOKE_ALLOW_REMOTE !== "1") {
+  const { hostname } = new URL(SUPABASE_URL);
+  if (!["localhost", "127.0.0.1", "[::1]"].includes(hostname)) {
+    console.error(
+      `Refusing to run against ${hostname}: smoke writes and deletes data. Set SMOKE_ALLOW_REMOTE=1 to override.`,
+    );
+    process.exit(1);
+  }
+}
 // Default credentials are the first and second team accounts seeded by supabase/seed.sql (local database only).
 const email = process.env.SMOKE_EMAIL ?? "sigaretif1@vetpad.local";
 const password = process.env.SMOKE_PASSWORD ?? "qwerty123456";
@@ -45,6 +58,8 @@ const FIXTURE_NOTES = `offer_notes?offer_id=eq.${FIXTURE_OFFER_ID}`;
 // The saved note's text, first as written and then as edited: the card must show the edited one.
 const NOTE_FIRST = `smoke-note-${FIXTURE_OFFER_ID}-first`;
 const NOTE_EDITED = `smoke-note-${FIXTURE_OFFER_ID}-edited`;
+// An id the author tries to give the note; the freeze trigger must keep the database's own.
+const FORGED_NOTE_ID = randomUUID();
 
 function cookieHeader() {
   return [...jar.entries()].map(([k, v]) => `${k}=${v}`).join("; ");
@@ -184,6 +199,37 @@ async function writeNoteAsAnotherAuthor() {
     method: "POST",
     body: { offer_id: FIXTURE_OFFER_ID, author_id: member.userId, pros: "smoke: podszywanie się" },
   });
+}
+
+// The author tries to move their note to another offer, hand it to the second member, re-id it and date it
+// themselves. RLS allows the update (it is their note); the triggers must keep all of that from the stored row.
+async function patchNoteIdentity() {
+  const other = await memberId(OTHER_MEMBER);
+  if (other.error) return { status: 0, location: "", error: other.error };
+  return supabaseRest(FIXTURE_NOTES, {
+    as: MEMBER,
+    method: "PATCH",
+    prefer: "return=representation",
+    body: {
+      id: FORGED_NOTE_ID,
+      offer_id: randomUUID(),
+      author_id: other.userId,
+      created_at: "2000-01-01T00:00:00Z",
+      updated_at: "2099-01-01T00:00:00Z",
+    },
+  });
+}
+
+// The note as the author sees it after that attempt: still theirs, on the fixture offer, under its own id, with
+// dates the database set.
+async function noteIdentityAfterPatch() {
+  const member = await memberId(MEMBER);
+  if (member.error) return { status: 0, location: "", error: member.error };
+  return supabaseRest(
+    `${FIXTURE_NOTES}&author_id=eq.${member.userId}&id=neq.${FORGED_NOTE_ID}` +
+      "&created_at=gt.2001-01-01&updated_at=lt.2098-01-01&select=id",
+    { as: MEMBER },
+  );
 }
 
 const steps = [
@@ -361,6 +407,8 @@ const steps = [
     () => supabaseRest(`${FIXTURE_NOTES}&select=pros`, { as: MEMBER }),
     { status: 200, rows: 1, bodyIncludes: NOTE_EDITED },
   ],
+  ["author's patch of the note's identity is accepted", () => patchNoteIdentity(), { status: 200, rows: 1 }],
+  ["note keeps its offer, author, id and database-set dates", () => noteIdentityAfterPatch(), { status: 200, rows: 1 }],
   // Cleanup: runs even when a step above failed, because every step runs.
   [
     "fixture offer is deleted with its notes",

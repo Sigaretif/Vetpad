@@ -8,7 +8,7 @@ import { PasswordToggle } from "@/components/form/PasswordToggle";
 import { SubmitButton } from "@/components/form/SubmitButton";
 import { ServerError } from "@/components/form/ServerError";
 import { TextareaField } from "@/components/form/TextareaField";
-import { NOTE_FIELDS, NOTE_FIELD_LABELS, NOTE_MAX_LENGTH } from "@/lib/notes";
+import { NOTE_BLANK, NOTE_FIELDS, NOTE_FIELD_LABELS, NOTE_MAX_LENGTH } from "@/lib/notes";
 import { CircleAlert, Mail, Lock, LogIn, Link as LinkIcon, Plus, Save } from "lucide-react";
 import { createElement } from "react";
 
@@ -37,8 +37,6 @@ const saveIcon = createElement(Save, { className: "size-4" });
 
 // The note editor posts for an offer; this fixture offer does not exist, so a save here fails.
 const noteOfferId = "00000000-0000-4000-8000-000000000001";
-// The message NoteEditor shows under its fields on a blank save (`noteError` in @/lib/notes).
-const noteBlankMessage = "Wpisz coś w co najmniej jednym polu notatki.";
 const hiddenPasswordToggle = createElement(PasswordToggle, { visible: false, onToggle: noop });
 
 const stateClass = "border-border flex flex-col gap-6 border-t pt-6";
@@ -220,7 +218,7 @@ const noteClass = "text-muted-foreground text-sm";
           ))}
           <p id="error-note-message" class="text-destructive flex items-center gap-1 text-xs">
             <CircleAlert className="size-3 shrink-0" />
-            {noteBlankMessage}
+            {NOTE_BLANK}
           </p>
           <ServerError message="Nie udało się zapisać notatki. Spróbuj ponownie." />
         </div>

@@ -97,7 +97,7 @@ export async function loadNotes(
   }
 }
 
-const NOTE_BLANK = "Wpisz coś w co najmniej jednym polu notatki.";
+export const NOTE_BLANK = "Wpisz coś w co najmniej jednym polu notatki.";
 const NOTE_TOO_LONG = `Każde pole notatki może mieć najwyżej ${NOTE_MAX_LENGTH} znaków.`;
 
 /**

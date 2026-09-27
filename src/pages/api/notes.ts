@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro";
 import { createClient } from "@/lib/supabase";
-import { noteError, type NoteField } from "@/lib/notes";
+import { NOTE_BLANK, noteError, type NoteField } from "@/lib/notes";
 import { isUuid } from "@/lib/uuid";
 
 const NOT_CONFIGURED = "Supabase nie jest skonfigurowany — nie można zapisać notatki.";
@@ -8,6 +8,7 @@ const UNREADABLE_FORM = "Nie udało się odczytać formularza notatki.";
 const OFFER_NOT_FOUND = "Nie znaleziono oferty, do której należy notatka.";
 const SAVE_FAILED = "Nie udało się zapisać notatki. Spróbuj ponownie.";
 const FOREIGN_KEY_VIOLATION = "23503";
+const CHECK_VIOLATION = "23514";
 
 /**
  * A form field as it will be stored: a form submits a textarea's line breaks as CRLF, while its
@@ -71,6 +72,11 @@ export const POST: APIRoute = async (context) => {
       // The offer does not exist (never did, or was deleted while the note was being written).
       if (saved.error.code === FOREIGN_KEY_VIOLATION) {
         return fail(OFFER_NOT_FOUND);
+      }
+      // noteError already rejects an over-long field (JS length never counts fewer characters than char_length),
+      // so a check violation here is offer_notes_not_blank: whitespace trim() keeps but Postgres `\S` does not.
+      if (saved.error.code === CHECK_VIOLATION) {
+        return failOnCard(NOTE_BLANK);
       }
       return failOnCard(SAVE_FAILED);
     }

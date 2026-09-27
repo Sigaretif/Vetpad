@@ -39,14 +39,17 @@ if (!offer) {
 // The author comes from the offer row, never from the URL: anyone can type `?duplicate=1`.
 // resolveSaver never throws, so a missing `members` table or a failed read degrades the notice
 // and the card's author line to the unnamed variant instead of a 500.
-const saver: Saver = offer
-  ? await resolveSaver(supabase, offer.created_by, Astro.locals.user?.id)
-  : { kind: "unknown" };
-const duplicate = offer !== null && Astro.url.searchParams.get("duplicate") === "1";
-
 // Notes are read once per view, and only for an existing offer. loadNotes never throws: a failed
 // read is `{ state: "error" }`, which renders the column without the editor, never a 500.
-const notes: OfferNotes | null = offer ? await loadNotes(supabase, offer.id, Astro.locals.user?.id) : null;
+// Both reads are independent and never throw, so they run side by side.
+const [saver, notes]: [Saver, OfferNotes | null] = offer
+  ? await Promise.all([
+      resolveSaver(supabase, offer.created_by, Astro.locals.user?.id),
+      loadNotes(supabase, offer.id, Astro.locals.user?.id),
+    ])
+  : [{ kind: "unknown" }, null];
+const duplicate = offer !== null && Astro.url.searchParams.get("duplicate") === "1";
+
 // Only POST /api/notes redirects back to the card with `?error=` (`/offers/<id>?error=…#notatki`),
 // so the message belongs to the note editor. Rendered as text, never as HTML.
 const noteError = offer ? Astro.url.searchParams.get("error") : null;
