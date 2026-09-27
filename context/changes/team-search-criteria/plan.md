@@ -411,26 +411,26 @@ Nowa migracja bez zmian w istniejących tabelach; singletony wstawiane w tej sam
 
 #### Automated
 
-- [x] 2.1 `npm run lint`, `npx astro sync`, `npx astro check` i `npm run build` przechodzą
+- [x] 2.1 `npm run lint`, `npx astro sync`, `npx astro check` i `npm run build` przechodzą — e9ad61c
 
 #### Manual
 
-- [x] 2.2 curl z ciasteczkiem sesji: zapis limitów, zapis z `price_min > price_max`, `0` i tekstem w polu liczbowym, `clear` — każdy kończy się oczekiwanym przekierowaniem, a stan w bazie się zgadza
-- [x] 2.3 curl: zapis, zmiana i usunięcie własnych wymagań; puste i za długie `body` → `?error=`; body nie-formularz → `?error=`, nigdy 500
-- [x] 2.4 Bez sesji obie trasy przekierowują do `/auth/signin`
+- [x] 2.2 curl z ciasteczkiem sesji: zapis limitów, zapis z `price_min > price_max`, `0` i tekstem w polu liczbowym, `clear` — każdy kończy się oczekiwanym przekierowaniem, a stan w bazie się zgadza — e9ad61c
+- [x] 2.3 curl: zapis, zmiana i usunięcie własnych wymagań; puste i za długie `body` → `?error=`; body nie-formularz → `?error=`, nigdy 500 — e9ad61c
+- [x] 2.4 Bez sesji obie trasy przekierowują do `/auth/signin` — e9ad61c
 
 ### Phase 3: Widok `/criteria`
 
 #### Automated
 
-- [ ] 3.1 `npm run lint`, `npx astro sync`, `npx astro check` i `npm run build` przechodzą
+- [x] 3.1 `npm run lint`, `npx astro sync`, `npx astro check` i `npm run build` przechodzą
 
 #### Manual
 
-- [ ] 3.2 `/criteria` z lokalnym Supabase: zapis, zmiana i wyczyszczenie limitów; zapis, edycja i usunięcie własnych wymagań; drugie konto widzi wymagania pierwszego podpisane e-mailem i „ostatnio zmienił(a)” z właściwą osobą
-- [ ] 3.3 Nieustawiony limit czyta się „bez limitu”; błąd walidacji zostaje w formularzu z wpisanymi wartościami, błąd serwera pokazuje `ServerError`
-- [ ] 3.4 Bez sesji `/criteria` przekierowuje do `/auth/signin`; bez `.env` strona się renderuje w stanie błędu, bez 500
-- [ ] 3.5 `/dev/criteria` i nowe kolumny `/dev/forms` renderują każdy stan
+- [x] 3.2 `/criteria` z lokalnym Supabase: zapis, zmiana i wyczyszczenie limitów; zapis, edycja i usunięcie własnych wymagań; drugie konto widzi wymagania pierwszego podpisane e-mailem i „ostatnio zmienił(a)” z właściwą osobą
+- [x] 3.3 Nieustawiony limit czyta się „bez limitu”; błąd walidacji zostaje w formularzu z wpisanymi wartościami, błąd serwera pokazuje `ServerError`
+- [x] 3.4 Bez sesji `/criteria` przekierowuje do `/auth/signin`; bez `.env` strona się renderuje w stanie błędu, bez 500
+- [x] 3.5 `/dev/criteria` i nowe kolumny `/dev/forms` renderują każdy stan
 
 ### Phase 4: Znacznik „poza limitem” na tablicy
 

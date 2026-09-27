@@ -1,0 +1,171 @@
+---
+import { CircleAlert } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
+import { ServerError } from "@/components/form/ServerError";
+import { RequirementsCard } from "@/components/criteria/RequirementsCard";
+import RequirementsEditor from "@/components/criteria/RequirementsEditor";
+import TeamLimitsForm from "@/components/criteria/TeamLimitsForm";
+import type { CriteriaResult } from "@/lib/criteria";
+import { formatTimestamp } from "@/lib/format";
+import { saverName } from "@/lib/members";
+import { formatArea, formatMoney } from "@/lib/otodom/labels";
+
+/*
+ * The team's search criteria (FR-002, FR-003): the shared limits with who last changed them and
+ * the form that edits them, then the member's own requirements in the editor island and everyone
+ * else's, rendered without a client directive. One component for /criteria and the
+ * /dev/criteria kitchen sink.
+ *
+ * A failed read is never "no limits": the view then renders no form, because a form prefilled
+ * from it would overwrite the team's row with blanks. `data-criteria-state` carries ok or error
+ * into the markup, where scripts/smoke.mjs can check it — a 200 alone cannot tell them apart.
+ */
+interface Props {
+  criteria: CriteriaResult;
+  /** The page's `?error=`, and which form it belongs to (`?form=`); `null` when none is named. */
+  serverError?: string | null;
+  serverErrorFor?: "limits" | "requirements" | null;
+  startEditing?: boolean;
+  /** Appended to the sections' ids: the routes redirect to `#limity`/`#wymagania`; the kitchen sink passes unique values. */
+  anchorSuffix?: string;
+}
+
+const { criteria, serverError = null, serverErrorFor = null, startEditing = false, anchorSuffix = "" } = Astro.props;
+
+const limitsId = `limity${anchorSuffix}`;
+const requirementsId = `wymagania${anchorSuffix}`;
+const limitsError = serverErrorFor === "limits" ? serverError : null;
+const requirementsError = serverErrorFor === "requirements" ? serverError : null;
+// A message that names no form is still shown once, above both, rather than lost.
+const unattributedError = serverErrorFor === null ? serverError : null;
+
+const NO_LIMIT = "bez limitu";
+
+const limitRows =
+  criteria.state === "ok"
+    ? [
+        { label: "Miasto", value: criteria.limits.city },
+        {
+          label: "Cena od",
+          value: criteria.limits.priceMin === null ? null : formatMoney(criteria.limits.priceMin, "PLN"),
+        },
+        {
+          label: "Cena do",
+          value: criteria.limits.priceMax === null ? null : formatMoney(criteria.limits.priceMax, "PLN"),
+        },
+        {
+          label: "Minimalny metraż",
+          value: criteria.limits.areaMin === null ? null : formatArea(criteria.limits.areaMin),
+        },
+      ]
+    : [];
+
+// „przez" takes the accusative saverName gives („Ciebie", „osobę z usuniętym kontem"); an author
+// we could not establish is not named at all, and limits never set carry no signature.
+const changedAt = criteria.state === "ok" ? criteria.limitsChangedAt : null;
+const changedBy = criteria.state === "ok" && criteria.limitsChangedBy ? saverName(criteria.limitsChangedBy) : null;
+
+const sectionClass = "flex scroll-mt-4 flex-col gap-4";
+const labelClass = "text-muted-foreground mb-1 text-xs font-medium tracking-wide uppercase";
+---
+
+<div data-criteria-state={criteria.state} class="flex flex-col gap-8">
+  {criteria.state === "ok" ? (
+    <>
+      <ServerError message={unattributedError} />
+
+      <section
+        id={limitsId}
+        aria-labelledby={`${limitsId}-naglowek`}
+        data-criteria-section="limits"
+        class:list={sectionClass}
+      >
+        <div class="flex flex-col gap-1">
+          <h2 id={`${limitsId}-naglowek`} class="text-xl font-semibold">
+            Limity zespołu
+          </h2>
+          <p class="text-muted-foreground text-sm">Wspólne dla całego zespołu — każdy członek może je zmienić.</p>
+        </div>
+
+        <div class="grid gap-4 md:grid-cols-2 md:items-start">
+          <Card className="gap-4">
+            <CardHeader>
+              <h3 class="leading-snug font-semibold">Obowiązujące limity</h3>
+              {changedAt !== null && (
+                <CardDescription>
+                  Ostatnio zmienione {changedBy !== null && <span class="wrap-anywhere">przez {changedBy},</span>}{" "}
+                  <time datetime={changedAt}>{formatTimestamp(changedAt)}</time>
+                </CardDescription>
+              )}
+            </CardHeader>
+            <CardContent>
+              <dl class="flex flex-col gap-3 text-sm">
+                {limitRows.map((row) => (
+                  <div>
+                    <dt class:list={labelClass}>{row.label}</dt>
+                    <dd class="wrap-anywhere">{row.value ?? <span class="text-muted-foreground">{NO_LIMIT}</span>}</dd>
+                  </div>
+                ))}
+              </dl>
+            </CardContent>
+          </Card>
+
+          <Card className="gap-4">
+            <CardHeader>
+              <h3 class="leading-snug font-semibold">Zmień limity</h3>
+            </CardHeader>
+            <CardContent>
+              <TeamLimitsForm client:load limits={criteria.limits} serverError={limitsError} />
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+
+      <section
+        id={requirementsId}
+        aria-labelledby={`${requirementsId}-naglowek`}
+        data-criteria-section="requirements"
+        class:list={sectionClass}
+      >
+        <div class="flex flex-col gap-1">
+          <h2 id={`${requirementsId}-naglowek`} class="text-xl font-semibold">
+            Wymagania dodatkowe
+          </h2>
+          <p class="text-muted-foreground text-sm">
+            Każdy członek pisze własne — czytają je wszyscy, zmienić może tylko autor.
+          </p>
+        </div>
+
+        <RequirementsEditor
+          client:load
+          own={criteria.own}
+          serverError={requirementsError}
+          startEditing={startEditing}
+        />
+
+        <h3 class="text-lg font-semibold">Wymagania pozostałych członków</h3>
+        {criteria.others.length > 0 ? (
+          criteria.others.map((requirements) => (
+            <RequirementsCard
+              author={requirements.author}
+              body={requirements.body}
+              updatedAt={requirements.updatedAt}
+            />
+          ))
+        ) : (
+          <p class="text-muted-foreground text-sm">Nikt inny nie wpisał jeszcze wymagań.</p>
+        )}
+      </section>
+    </>
+  ) : (
+    <>
+      {/* A failed save that landed on a failed read: the member still has to learn the save did not happen. */}
+      <ServerError message={serverError} />
+      <Alert variant="destructive">
+        <CircleAlert />
+        <AlertDescription>Nie udało się wczytać kryteriów.</AlertDescription>
+      </Alert>
+    </>
+  )}
+</div>

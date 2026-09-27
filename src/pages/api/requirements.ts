@@ -29,7 +29,10 @@ function bodyField(form: FormData): string {
  * `intent=save` (or no intent, as a form submitted with Enter may send) writes the body.
  */
 export const POST: APIRoute = async (context) => {
-  const fail = (message: string) => context.redirect(`/criteria?error=${encodeURIComponent(message)}#wymagania`);
+  // `form=` names the form the message belongs to: the page cannot see the `#` fragment, and
+  // both criteria forms redirect to the same page.
+  const fail = (message: string) =>
+    context.redirect(`/criteria?error=${encodeURIComponent(message)}&form=requirements#wymagania`);
 
   const user = context.locals.user;
   if (!user) {

@@ -1,0 +1,109 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import CriteriaView from "@/components/criteria/CriteriaView.astro";
+import type { CriteriaResult } from "@/lib/criteria";
+import {
+  deletedSaverCriteria,
+  emptyCriteria,
+  failedCriteria,
+  fullCriteria,
+  longCriteria,
+  partialCriteria,
+  unknownAuthorCriteria,
+} from "@/pages/dev/_criteria-fixtures";
+
+// Visual gate for /criteria: every named state of the view at once, from fixtures, in `astro dev`
+// only. Anywhere else (a production build, `npm run preview`) it answers 404. The status is set
+// on Astro.response, not returned, because a top-level `return` crashes
+// @typescript-eslint/no-misused-promises. Pattern: `src/pages/dev/board.astro`.
+const isDev = import.meta.env.DEV;
+if (!isDev) {
+  Astro.response.status = 404;
+}
+
+interface State {
+  state: string;
+  caption: string;
+  criteria: CriteriaResult;
+  serverError?: string;
+  serverErrorFor?: "limits" | "requirements";
+  startEditing?: boolean;
+}
+
+// Each state renders the whole view; `-<state>` keeps the sections' ids unique on one page. The
+// islands post to the real routes, so a save here changes the local database's criteria.
+const states: State[] = [
+  {
+    state: "full",
+    caption: "Pełne: wszystkie limity (zmienił członek zespołu), własne wymagania w podglądzie, dwa cudze",
+    criteria: fullCriteria,
+  },
+  {
+    state: "empty",
+    caption: "Puste: bez limitów (nikt ich nie zmieniał), bez wymagań — od razu pusty formularz",
+    criteria: emptyCriteria,
+  },
+  {
+    state: "partial",
+    caption: "Częściowe limity (zmieniłeś Ty) · formularz limitów z błędem serwera · bez własnych wymagań",
+    criteria: partialCriteria,
+    serverError: "Nie udało się zapisać limitów. Spróbuj ponownie.",
+    serverErrorFor: "limits",
+  },
+  {
+    state: "deleted-saver",
+    caption: "Limity zmienione przez osobę z usuniętym kontem · nikt inny nie wpisał wymagań",
+    criteria: deletedSaverCriteria,
+  },
+  {
+    state: "unknown-author",
+    caption: "Autor nieustalony: limity i cudze wymagania nie nazywają nikogo",
+    criteria: unknownAuthorCriteria,
+  },
+  {
+    state: "error",
+    caption: "Błąd odczytu po nieudanym zapisie: bez formularzy",
+    criteria: failedCriteria,
+    serverError: "Nie udało się zapisać wymagań. Spróbuj ponownie.",
+    serverErrorFor: "requirements",
+  },
+  {
+    state: "long",
+    caption: "Długa nazwa miasta, długi adres, długie słowo i akapity · własne wymagania w edycji z błędem serwera",
+    criteria: longCriteria,
+    serverError: "Nie udało się zapisać wymagań. Spróbuj ponownie.",
+    serverErrorFor: "requirements",
+    startEditing: true,
+  },
+];
+
+const stateClass = "border-border flex flex-col gap-6 border-t pt-6";
+const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppercase";
+---
+
+{isDev ? (
+  <AppLayout title="Kryteria — stany — Vetpad">
+    <p class="text-muted-foreground text-sm">
+      Strona testowa (tylko <code>astro dev</code>): widok <code>/criteria</code> w każdym stanie, z danych testowych.
+      Zmiana wyglądu kryteriów przechodzi przez zrzut tej strony. Formularze są prawdziwymi wyspami — zapis stąd zmienia
+      kryteria w lokalnej bazie.
+    </p>
+
+    {states.map((state) => (
+      <div class:list={stateClass} data-state={state.state}>
+        <p class:list={captionClass}>Stan: {state.caption}</p>
+        <CriteriaView
+          criteria={state.criteria}
+          serverError={state.serverError}
+          serverErrorFor={state.serverErrorFor}
+          startEditing={state.startEditing}
+          anchorSuffix={`-${state.state}`}
+        />
+      </div>
+    ))}
+  </AppLayout>
+) : (
+  <AppLayout title="Nie znaleziono — Vetpad">
+    <p class="text-muted-foreground">Nie znaleziono.</p>
+  </AppLayout>
+)}

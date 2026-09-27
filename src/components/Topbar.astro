@@ -8,13 +8,16 @@ const link = cn(buttonVariants({ variant: "link" }), "h-auto p-0");
 ---
 
 <header class="bg-card text-card-foreground border-border rounded-xl border px-4 py-2 text-sm">
-  <nav aria-label="Konto" class="flex items-center justify-between gap-4">
+  <nav aria-label="Konto" class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
     {user ? (
       <>
-        <span class="text-muted-foreground">{user.email}</span>
+        <span class="text-muted-foreground min-w-0 wrap-anywhere">{user.email}</span>
         <div class="flex items-center gap-3">
           <a href="/dashboard" class:list={link}>
             Oferty
+          </a>
+          <a href="/criteria" class:list={link}>
+            Kryteria
           </a>
           <form method="POST" action="/api/auth/signout">
             <button type="submit" class:list={link}>

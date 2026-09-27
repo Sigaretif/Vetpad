@@ -9,6 +9,8 @@ interface FormFieldProps {
   name?: string;
   label: string;
   type?: string;
+  /** The on-screen keyboard for a `type="text"` number: `numeric` for whole amounts, `decimal` for a fraction. */
+  inputMode?: "numeric" | "decimal";
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
@@ -23,6 +25,7 @@ export function FormField({
   name,
   label,
   type = "text",
+  inputMode,
   value,
   onChange,
   placeholder,
@@ -44,6 +47,7 @@ export function FormField({
           id={id}
           name={name ?? id}
           type={type}
+          inputMode={inputMode}
           value={value}
           onChange={(e) => {
             onChange(e.target.value);

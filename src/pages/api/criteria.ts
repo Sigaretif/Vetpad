@@ -29,7 +29,10 @@ function textField(form: FormData, name: string): string {
  * may send) writes the parsed form. Clearing is never the default.
  */
 export const POST: APIRoute = async (context) => {
-  const fail = (message: string) => context.redirect(`/criteria?error=${encodeURIComponent(message)}#limity`);
+  // `form=` names the form the message belongs to: the page cannot see the `#` fragment, and
+  // both criteria forms redirect to the same page.
+  const fail = (message: string) =>
+    context.redirect(`/criteria?error=${encodeURIComponent(message)}&form=limits#limity`);
 
   const user = context.locals.user;
   if (!user) {

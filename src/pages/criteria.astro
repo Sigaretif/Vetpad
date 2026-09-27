@@ -1,0 +1,23 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import CriteriaView from "@/components/criteria/CriteriaView.astro";
+import { loadCriteria } from "@/lib/criteria";
+import { createClient } from "@/lib/supabase";
+
+// `null` when Supabase is unconfigured: loadCriteria then answers `{ state: "error" }`, which
+// renders the error state without forms — never a 500 (the zero-config rule).
+const supabase = createClient(Astro.request.headers, Astro.cookies);
+const criteria = await loadCriteria(supabase, Astro.locals.user?.id);
+
+// POST /api/criteria and POST /api/requirements redirect here with `?error=` and `?form=` naming
+// the form it belongs to. Rendered as text, never as HTML.
+const serverError = Astro.url.searchParams.get("error");
+const form = Astro.url.searchParams.get("form");
+const serverErrorFor = form === "limits" || form === "requirements" ? form : null;
+---
+
+<AppLayout title="Kryteria — Vetpad">
+  <h1 class="text-foreground text-2xl font-bold">Kryteria wyszukiwania</h1>
+
+  <CriteriaView criteria={criteria} serverError={serverError} serverErrorFor={serverErrorFor} />
+</AppLayout>
