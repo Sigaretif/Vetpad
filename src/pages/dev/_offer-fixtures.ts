@@ -5,6 +5,7 @@
 // Saver fixtures use `example.com` addresses that name a role, never a person. Note fixtures talk
 // about the flat only: no people, no phone numbers, no company names.
 
+import type { TeamLimitsResult } from "@/lib/criteria";
 import type { Saver } from "@/lib/members";
 import type { NoteView, OfferNotes } from "@/lib/notes";
 import type { OfferImage, OfferRow } from "@/lib/otodom/types";
@@ -180,6 +181,122 @@ export const streetOnlyOffer: OfferRow = {
   location_label: null,
   street_name: "ul. Przykładowa",
   images: [image("vetpad-street")],
+};
+
+// Team limits for the /dev/board kitchen sink, and offers that break them one way each. Against
+// `boardLimits` (Warszawa, 600 000–850 000 zł, from 60 m²) `fullOffer` breaks two limits at once.
+
+/** No limit set: the board compares nothing and no row carries a mark (the existing sections). */
+export const noLimits: TeamLimitsResult = {
+  ok: true,
+  limits: { city: null, priceMin: null, priceMax: null, areaMin: null },
+};
+
+/** Every limit set. */
+export const boardLimits: TeamLimitsResult = {
+  ok: true,
+  limits: { city: "Warszawa", priceMin: 600000, priceMax: 850000, areaMin: 60 },
+};
+
+/** The city typed without diacritics, the price and area at the limits: nothing is broken (bounds are inclusive). */
+export const lodzLimits: TeamLimitsResult = {
+  ok: true,
+  limits: { city: "lodz", priceMin: 600000, priceMax: 850000, areaMin: 60 },
+};
+
+/** A city name of 100 characters with no break points: the badge must wrap at 375 px. */
+export const longCityLimits: TeamLimitsResult = {
+  ok: true,
+  limits: {
+    city: "Bardzo-długa-nazwa-miejscowości-wpisana-przez-członka-zespołu-do-sprawdzenia-zawijania-odznak-wiersz",
+    priceMin: null,
+    priceMax: null,
+    areaMin: null,
+  },
+};
+
+/** A failed limits read: the board says so above the list and no row carries a mark. */
+export const failedLimits: TeamLimitsResult = { ok: false };
+
+/** Inside every `boardLimits` limit except the city. */
+export const outsideCityOffer: OfferRow = {
+  ...fullOffer,
+  id: "00000000-0000-4000-8000-000000000007",
+  otodom_id: 1000007,
+  source_url: "https://example.com/oferta/inne-miasto",
+  title: "Trzy pokoje z ogródkiem pod Warszawą",
+  price: 790000,
+  area_m2: 64,
+  location_label: "Ząbki, wołomiński, mazowieckie",
+  street_name: null,
+  images: [image("vetpad-city")],
+};
+
+/** Above `boardLimits.priceMax` only. */
+export const priceAboveOffer: OfferRow = {
+  ...fullOffer,
+  id: "00000000-0000-4000-8000-000000000008",
+  otodom_id: 1000008,
+  source_url: "https://example.com/oferta/cena-powyzej",
+  title: "Apartament z tarasem na Powiślu",
+  price: 1150000,
+  area_m2: 72.5,
+  location_label: "Warszawa, Śródmieście, Powiśle",
+  images: [image("vetpad-price-above")],
+};
+
+/** Below `boardLimits.priceMin` only. */
+export const priceBelowOffer: OfferRow = {
+  ...fullOffer,
+  id: "00000000-0000-4000-8000-000000000009",
+  otodom_id: 1000009,
+  source_url: "https://example.com/oferta/cena-ponizej",
+  title: "Trzy pokoje do remontu na Pradze",
+  price: 540000,
+  area_m2: 61,
+  location_label: "Warszawa, Praga-Północ",
+  images: [image("vetpad-price-below")],
+};
+
+/** Below `boardLimits.areaMin` only. */
+export const areaBelowOffer: OfferRow = {
+  ...fullOffer,
+  id: "00000000-0000-4000-8000-000000000010",
+  otodom_id: 1000010,
+  source_url: "https://example.com/oferta/metraz-ponizej",
+  title: "Dwa pokoje przy metrze Wilanowska",
+  price: 720000,
+  area_m2: 45.5,
+  location_label: "Warszawa, Mokotów, Służew",
+  images: [image("vetpad-area-below")],
+};
+
+/** Outside the city, above the price and below the area of `boardLimits` at once. */
+export const manyBreachesOffer: OfferRow = {
+  ...fullOffer,
+  id: "00000000-0000-4000-8000-000000000011",
+  otodom_id: 1000011,
+  source_url: "https://example.com/oferta/wiele-limitow",
+  title: "Dwupoziomowe mieszkanie w Józefowie",
+  price: 980000,
+  area_m2: 52,
+  location_label: "Józefów, otwocki, mazowieckie",
+  street_name: null,
+  images: [image("vetpad-many")],
+};
+
+/** In Łódź, at `lodzLimits`' price ceiling and area floor: within every limit. */
+export const withinLimitsOffer: OfferRow = {
+  ...fullOffer,
+  id: "00000000-0000-4000-8000-000000000012",
+  otodom_id: 1000012,
+  source_url: "https://example.com/oferta/w-limitach",
+  title: "Loft w dawnej fabryce na Bałutach",
+  price: 850000,
+  area_m2: 60,
+  location_label: "Bałuty, Łódź, łódzkie",
+  street_name: null,
+  images: [image("vetpad-within")],
 };
 
 // Notes for the /dev/offer-card kitchen sink: one set per named state of the team column.

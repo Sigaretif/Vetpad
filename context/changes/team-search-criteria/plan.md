@@ -423,26 +423,26 @@ Nowa migracja bez zmian w istniejących tabelach; singletony wstawiane w tej sam
 
 #### Automated
 
-- [x] 3.1 `npm run lint`, `npx astro sync`, `npx astro check` i `npm run build` przechodzą
+- [x] 3.1 `npm run lint`, `npx astro sync`, `npx astro check` i `npm run build` przechodzą — dd04810
 
 #### Manual
 
-- [x] 3.2 `/criteria` z lokalnym Supabase: zapis, zmiana i wyczyszczenie limitów; zapis, edycja i usunięcie własnych wymagań; drugie konto widzi wymagania pierwszego podpisane e-mailem i „ostatnio zmienił(a)” z właściwą osobą
-- [x] 3.3 Nieustawiony limit czyta się „bez limitu”; błąd walidacji zostaje w formularzu z wpisanymi wartościami, błąd serwera pokazuje `ServerError`
-- [x] 3.4 Bez sesji `/criteria` przekierowuje do `/auth/signin`; bez `.env` strona się renderuje w stanie błędu, bez 500
-- [x] 3.5 `/dev/criteria` i nowe kolumny `/dev/forms` renderują każdy stan
+- [x] 3.2 `/criteria` z lokalnym Supabase: zapis, zmiana i wyczyszczenie limitów; zapis, edycja i usunięcie własnych wymagań; drugie konto widzi wymagania pierwszego podpisane e-mailem i „ostatnio zmienił(a)” z właściwą osobą — dd04810
+- [x] 3.3 Nieustawiony limit czyta się „bez limitu”; błąd walidacji zostaje w formularzu z wpisanymi wartościami, błąd serwera pokazuje `ServerError` — dd04810
+- [x] 3.4 Bez sesji `/criteria` przekierowuje do `/auth/signin`; bez `.env` strona się renderuje w stanie błędu, bez 500 — dd04810
+- [x] 3.5 `/dev/criteria` i nowe kolumny `/dev/forms` renderują każdy stan — dd04810
 
 ### Phase 4: Znacznik „poza limitem” na tablicy
 
 #### Automated
 
-- [ ] 4.1 `npm run lint`, `npx astro sync`, `npx astro check` i `npm run build` przechodzą
+- [x] 4.1 `npm run lint`, `npx astro sync`, `npx astro check` i `npm run build` przechodzą
 
 #### Manual
 
-- [ ] 4.2 Z limitami ustawionymi na `/criteria` tablica oznacza tylko oferty, których podany fakt łamie limit; oferta bez ceny, metrażu albo lokalizacji nie dostaje znacznika za ten limit; cena równa limitowi się mieści
-- [ ] 4.3 Limit „lodz” oznacza ofertę spoza Łodzi i nie oznacza oferty z „Łódź” w lokalizacji
-- [ ] 4.4 Wyczyszczenie limitów usuwa wszystkie znaczniki; `/dev/board` renderuje nowe stany
+- [x] 4.2 Z limitami ustawionymi na `/criteria` tablica oznacza tylko oferty, których podany fakt łamie limit; oferta bez ceny, metrażu albo lokalizacji nie dostaje znacznika za ten limit; cena równa limitowi się mieści
+- [x] 4.3 Limit „lodz” oznacza ofertę spoza Łodzi i nie oznacza oferty z „Łódź” w lokalizacji
+- [x] 4.4 Wyczyszczenie limitów usuwa wszystkie znaczniki; `/dev/board` renderuje nowe stany
 
 ### Phase 5: Smoke, dokumentacja, bramka wizualna i wdrożenie migracji
 

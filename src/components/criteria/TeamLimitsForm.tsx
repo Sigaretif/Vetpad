@@ -61,7 +61,11 @@ function fieldErrors(values: LimitsFormValues): FieldErrors {
 export default function TeamLimitsForm({ limits, serverError }: Props) {
   const [values, setValues] = useState<LimitsFormValues>(() => initialValues(limits));
   const [errors, setErrors] = useState<FieldErrors>({});
-  const [clearing, setClearing] = useState(false);
+  // The intent travels in a hidden field, not only on the clicked button: marking the form pending
+  // disables that button in the same render, before the browser builds the form data, and Firefox
+  // then leaves the disabled button out — the route read no intent and saved instead of clearing.
+  // The field is controlled so that same render also writes the intent into it.
+  const [intent, setIntent] = useState<"save" | "clear">("save");
   const { pending, markPending } = usePendingSubmit();
 
   const baseId = useId();
@@ -75,6 +79,11 @@ export default function TeamLimitsForm({ limits, serverError }: Props) {
   function handleSubmit(e: React.SubmitEvent<HTMLFormElement>) {
     // Clearing writes four nulls, whatever the fields hold: nothing to validate.
     const isClear = e.nativeEvent.submitter?.getAttribute("value") === "clear";
+    // Asked on submit, as „Usuń" in RequirementsEditor does.
+    if (isClear && !window.confirm(CLEAR_CONFIRMATION)) {
+      e.preventDefault();
+      return;
+    }
     if (!isClear) {
       const next = fieldErrors(values);
       if (Object.keys(next).length > 0) {
@@ -83,12 +92,8 @@ export default function TeamLimitsForm({ limits, serverError }: Props) {
         return;
       }
     }
-    setClearing(isClear);
+    setIntent(isClear ? "clear" : "save");
     markPending();
-  }
-
-  function confirmClear(e: React.MouseEvent<HTMLButtonElement>) {
-    if (!window.confirm(CLEAR_CONFIRMATION)) e.preventDefault();
   }
 
   const field = (name: LimitField) => ({
@@ -135,16 +140,20 @@ export default function TeamLimitsForm({ limits, serverError }: Props) {
       <div className="flex flex-col gap-2">
         <SubmitButton
           pending={pending}
-          pendingText={clearing ? "Czyszczę limity…" : "Zapisuję…"}
+          pendingText={intent === "clear" ? "Czyszczę limity…" : "Zapisuję…"}
           icon={<Save className="size-4" />}
         >
           Zapisz limity
         </SubmitButton>
-        <Button type="submit" name="intent" value="clear" variant="outline" onClick={confirmClear} disabled={pending}>
+        <Button type="submit" name="intent" value="clear" variant="outline" disabled={pending}>
           <Eraser />
           Wyczyść limity
         </Button>
       </div>
+      {/* After the buttons: without JavaScript the clicked „Wyczyść limity" comes first in the form
+          data and the route reads its `intent`; with JavaScript this field carries the intent
+          handleSubmit set. */}
+      <input type="hidden" name="intent" value={intent} />
     </form>
   );
 }

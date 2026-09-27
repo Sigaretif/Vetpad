@@ -5,12 +5,23 @@ import OfferBoard from "@/components/offers/OfferBoard.astro";
 import OfferBoardItem from "@/components/offers/OfferBoardItem.astro";
 import { parseBoardSort, type BoardSort as BoardSortValue } from "@/lib/offer-board";
 import {
+  areaBelowOffer,
+  boardLimits,
+  failedLimits,
   fullOffer,
+  lodzLimits,
+  longCityLimits,
   longTitleOffer,
+  manyBreachesOffer,
+  noLimits,
+  outsideCityOffer,
+  priceAboveOffer,
+  priceBelowOffer,
   singleImageOffer,
   streetOnlyOffer,
   unknownOffer,
   unsafeImagesOffer,
+  withinLimitsOffer,
 } from "@/pages/dev/_offer-fixtures";
 
 // Visual gate for the offer board on /dashboard: every named state at once, from fixtures, in
@@ -28,16 +39,78 @@ const defaultSort = parseBoardSort(new URLSearchParams());
 const priceAsc: BoardSortValue = { key: "price", dir: "asc" };
 const areaDesc: BoardSortValue = { key: "area", dir: "desc" };
 
-// Single rows, in the same <ul>/<li> markup OfferBoard gives a row in production.
+// Single rows, in the same <ul>/<li> markup OfferBoard gives a row in production. The rows that
+// predate the team's limits render with no limit set, as before; the rest name the limits they
+// are compared with.
+const BOARD_LIMITS = "limity: Warszawa, 600 000–850 000 zł, od 60 m²";
 const rows = [
-  { state: "row-unknown", caption: "Wiersz: wszystko nieznane (placeholder zamiast miniatury)", offer: unknownOffer },
+  {
+    state: "row-unknown",
+    caption: "Wiersz: wszystko nieznane (placeholder zamiast miniatury)",
+    offer: unknownOffer,
+    limits: noLimits,
+  },
   {
     state: "row-unsafe-images",
     caption: "Wiersz: filtr miniatur (http: i javascript: odrzucone)",
     offer: unsafeImagesOffer,
+    limits: noLimits,
   },
-  { state: "row-long-title", caption: "Wiersz: długi tytuł bez spacji", offer: longTitleOffer },
-  { state: "row-street-only", caption: "Wiersz: tylko ulica, bez etykiety lokalizacji", offer: streetOnlyOffer },
+  { state: "row-long-title", caption: "Wiersz: długi tytuł bez spacji", offer: longTitleOffer, limits: noLimits },
+  {
+    state: "row-street-only",
+    caption: "Wiersz: tylko ulica, bez etykiety lokalizacji",
+    offer: streetOnlyOffer,
+    limits: noLimits,
+  },
+  {
+    state: "row-breach-city",
+    caption: `Wiersz: inne miasto (${BOARD_LIMITS})`,
+    offer: outsideCityOffer,
+    limits: boardLimits,
+  },
+  {
+    state: "row-breach-price-above",
+    caption: `Wiersz: cena powyżej limitu (${BOARD_LIMITS})`,
+    offer: priceAboveOffer,
+    limits: boardLimits,
+  },
+  {
+    state: "row-breach-price-below",
+    caption: `Wiersz: cena poniżej limitu (${BOARD_LIMITS})`,
+    offer: priceBelowOffer,
+    limits: boardLimits,
+  },
+  {
+    state: "row-breach-area-below",
+    caption: `Wiersz: metraż poniżej limitu (${BOARD_LIMITS})`,
+    offer: areaBelowOffer,
+    limits: boardLimits,
+  },
+  {
+    state: "row-breach-many",
+    caption: `Wiersz: trzy złamane limity naraz (${BOARD_LIMITS})`,
+    offer: manyBreachesOffer,
+    limits: boardLimits,
+  },
+  {
+    state: "row-breach-long-city",
+    caption: "Wiersz: inne miasto, limit miasta o długości 100 znaków bez spacji",
+    offer: outsideCityOffer,
+    limits: longCityLimits,
+  },
+  {
+    state: "row-unknown-with-limits",
+    caption: `Wiersz: cena, metraż i lokalizacja nieznane — bez znacznika (${BOARD_LIMITS})`,
+    offer: unknownOffer,
+    limits: boardLimits,
+  },
+  {
+    state: "row-within-limits",
+    caption: "Wiersz: w limitach — „Łódź” przy limicie „lodz”, cena i metraż równe limitom (850 000 zł, 60 m²)",
+    offer: withinLimitsOffer,
+    limits: lodzLimits,
+  },
 ];
 
 const stateClass = "border-border flex flex-col gap-6 border-t pt-6";
@@ -55,7 +128,27 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
 
     <div class:list={stateClass} data-state="default">
       <p class:list={captionClass}>Stan: default (lista, sortowanie domyślne)</p>
-      <OfferBoard result={{ ok: true, offers: [fullOffer, singleImageOffer] }} sort={defaultSort} />
+      <OfferBoard result={{ ok: true, offers: [fullOffer, singleImageOffer] }} limits={noLimits} sort={defaultSort} />
+    </div>
+
+    <div class:list={stateClass} data-state="breaches">
+      <p class:list={captionClass}>Stan: oferty poza limitami ({BOARD_LIMITS})</p>
+      <OfferBoard
+        result={{ ok: true, offers: [fullOffer, outsideCityOffer, unknownOffer] }}
+        limits={boardLimits}
+        sort={defaultSort}
+        headingId="board-heading-breaches"
+      />
+    </div>
+
+    <div class:list={stateClass} data-state="limits-error">
+      <p class:list={captionClass}>Stan: błąd odczytu limitów (lista ofert bez znaczników)</p>
+      <OfferBoard
+        result={{ ok: true, offers: [fullOffer, singleImageOffer] }}
+        limits={failedLimits}
+        sort={defaultSort}
+        headingId="board-heading-limits-error"
+      />
     </div>
 
     <div class:list={stateClass} data-state="sort-price-asc">
@@ -70,12 +163,17 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
 
     <div class:list={stateClass} data-state="empty">
       <p class:list={captionClass}>Stan: brak ofert</p>
-      <OfferBoard result={{ ok: true, offers: [] }} sort={defaultSort} headingId="board-heading-empty" />
+      <OfferBoard
+        result={{ ok: true, offers: [] }}
+        limits={noLimits}
+        sort={defaultSort}
+        headingId="board-heading-empty"
+      />
     </div>
 
     <div class:list={stateClass} data-state="error">
       <p class:list={captionClass}>Stan: błąd odczytu</p>
-      <OfferBoard result={{ ok: false }} sort={defaultSort} headingId="board-heading-error" />
+      <OfferBoard result={{ ok: false }} limits={noLimits} sort={defaultSort} headingId="board-heading-error" />
     </div>
 
     {rows.map((row) => (
@@ -83,7 +181,7 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
         <p class:list={captionClass}>Stan: {row.caption}</p>
         <ul class="flex flex-col gap-3">
           <li>
-            <OfferBoardItem offer={row.offer} />
+            <OfferBoardItem offer={row.offer} limits={row.limits} />
           </li>
         </ul>
       </div>

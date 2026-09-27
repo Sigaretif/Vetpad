@@ -3,11 +3,13 @@ import AppLayout from "@/layouts/AppLayout.astro";
 import AddOfferForm from "@/components/offers/AddOfferForm";
 import OfferBoard from "@/components/offers/OfferBoard.astro";
 import { Card, CardHeader, CardDescription, CardContent } from "@/components/ui/card";
+import { loadTeamLimits } from "@/lib/criteria";
 import { BOARD_COLUMNS, BOARD_SORT_COLUMN, parseBoardSort, type BoardResult, type BoardSort } from "@/lib/offer-board";
 import { createClient } from "@/lib/supabase";
 
 const error = Astro.url.searchParams.get("error");
 const sort = parseBoardSort(Astro.url.searchParams);
+const supabase = createClient(Astro.request.headers, Astro.cookies);
 
 /**
  * Every saved offer in the chosen order, or `{ ok: false }` for unconfigured Supabase (the
@@ -16,7 +18,6 @@ const sort = parseBoardSort(Astro.url.searchParams);
  * an offer that does not state its price or area is always last (prd.md, Guardrails).
  */
 async function loadBoard({ key, dir }: BoardSort): Promise<BoardResult> {
-  const supabase = createClient(Astro.request.headers, Astro.cookies);
   if (!supabase) return { ok: false };
   try {
     const result = await supabase
@@ -31,7 +32,8 @@ async function loadBoard({ key, dir }: BoardSort): Promise<BoardResult> {
   }
 }
 
-const board = await loadBoard(sort);
+// The team's limits are read beside the offers, not after them; either read may fail on its own.
+const [board, limits] = await Promise.all([loadBoard(sort), loadTeamLimits(supabase)]);
 ---
 
 <AppLayout title="Oferty — Vetpad">
@@ -47,5 +49,5 @@ const board = await loadBoard(sort);
     </CardContent>
   </Card>
 
-  <OfferBoard result={board} sort={sort} />
+  <OfferBoard result={board} limits={limits} sort={sort} />
 </AppLayout>

@@ -3,20 +3,28 @@
  * One offer on the board. The whole row is one link to the card, so each offer is one Tab stop;
  * the thumbnail is decorative (alt="") because the title inside the link names it. A fact the
  * listing does not state reads as unstated, never as 0 or an empty value (prd.md, Guardrails).
+ * Beside the audit status sit the team's limits the offer's stated facts break — only when the
+ * limits were read: a failed read marks nothing here, the board says so once above the list.
  */
 import AuditStatusBadge from "@/components/offers/AuditStatusBadge.astro";
+import LimitBreachBadges from "@/components/offers/LimitBreachBadges.astro";
 import Unstated from "@/components/offers/Unstated.astro";
 import { Card } from "@/components/ui/card";
+import type { TeamLimitsResult } from "@/lib/criteria";
 import { auditStatus, type OfferBoardItem } from "@/lib/offer-board";
 import { formatArea, formatMoney } from "@/lib/otodom/labels";
 import type { OfferImage } from "@/lib/otodom/types";
 import { safeHttpsUrl } from "@/lib/safe-url";
+import { limitBreaches } from "@/lib/team-limits";
 
 interface Props {
   offer: OfferBoardItem;
+  limits: TeamLimitsResult;
 }
 
-const { offer } = Astro.props;
+const { offer, limits } = Astro.props;
+
+const breaches = limits.ok ? limitBreaches(offer, limits.limits) : [];
 
 // Row data lands in src, so the thumbnail is the first one that passes safeHttpsUrl (lessons.md).
 // The loop stops at that first one: every row runs this, and each check parses a URL.
@@ -66,8 +74,9 @@ const location = [offer.location_label, offer.street_name]
       <p class="text-muted-foreground text-sm wrap-anywhere">
         {location === "" ? <Unstated>Lokalizacja: nie podano w ogłoszeniu</Unstated> : location}
       </p>
-      <div class="mt-1">
+      <div class="mt-1 flex flex-wrap gap-2">
         <AuditStatusBadge status={auditStatus(offer)} />
+        {limits.ok && breaches.length > 0 && <LimitBreachBadges breaches={breaches} limits={limits.limits} />}
       </div>
     </div>
   </Card>

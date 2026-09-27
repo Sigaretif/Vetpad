@@ -3,24 +3,35 @@
  * „Zapisane oferty”: the list, the empty board and a failed read are three different states.
  * A failed read is never shown as an empty board. `data-board-state` carries ok (list or empty)
  * or error into the markup, where scripts/smoke.mjs checks it — a 200 alone cannot tell them apart.
+ * The team's limits are a second, independent read: `data-limits-state` carries its ok or error
+ * whatever the offers read did. A failed limits read is never "no breaches": above a list it is
+ * one sentence saying the offers were not compared, and no row carries a mark. Offers outside the
+ * limits are marked, never hidden.
  */
 import BoardSort from "@/components/offers/BoardSort.astro";
 import OfferBoardItem from "@/components/offers/OfferBoardItem.astro";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import type { TeamLimitsResult } from "@/lib/criteria";
 import type { BoardResult, BoardSort as BoardSortValue } from "@/lib/offer-board";
 
 interface Props {
   result: BoardResult;
+  limits: TeamLimitsResult;
   sort: BoardSortValue;
   /** Unique per page: a page that renders more than one board (/dev/board) passes its own. */
   headingId?: string;
 }
 
-const { result, sort, headingId = "board-heading" } = Astro.props;
+const { result, limits, sort, headingId = "board-heading" } = Astro.props;
 const offers = result.ok ? result.offers : [];
 ---
 
-<section aria-labelledby={headingId} data-board-state={result.ok ? "ok" : "error"} class="flex flex-col gap-4">
+<section
+  aria-labelledby={headingId}
+  data-board-state={result.ok ? "ok" : "error"}
+  data-limits-state={limits.ok ? "ok" : "error"}
+  class="flex flex-col gap-4"
+>
   <div class="flex flex-wrap items-center justify-between gap-3">
     <h2 id={headingId} class="text-xl font-semibold">
       {result.ok ? `Zapisane oferty (${offers.length})` : "Zapisane oferty"}
@@ -37,12 +48,19 @@ const offers = result.ok ? result.offers : [];
       Nie ma jeszcze zapisanych ofert. Wklej adres ogłoszenia z otodom.pl w formularzu powyżej.
     </p>
   ) : (
-    <ul class="flex flex-col gap-3">
-      {offers.map((offer) => (
-        <li>
-          <OfferBoardItem offer={offer} />
-        </li>
-      ))}
-    </ul>
+    <>
+      {!limits.ok && (
+        <Alert variant="destructive">
+          <AlertDescription>Nie udało się wczytać limitów zespołu — oferty nie są z nimi porównane.</AlertDescription>
+        </Alert>
+      )}
+      <ul class="flex flex-col gap-3">
+        {offers.map((offer) => (
+          <li>
+            <OfferBoardItem offer={offer} limits={limits} />
+          </li>
+        ))}
+      </ul>
+    </>
   )}
 </section>

@@ -1,0 +1,45 @@
+---
+/*
+ * The one presentation of the team's limits an offer breaks (FR-002), as AuditStatusBadge.astro is
+ * for the audit status: a new breach gets its label here and nowhere else. Each label names the
+ * limit as the team set it on /criteria (amounts through formatMoney/formatArea, as CriteriaView
+ * shows them). `limitBreaches` only reports a breach whose limit is set; a label that would still
+ * lack its value renders no badge rather than an empty amount. The city is member input of up to
+ * 100 characters, so a badge wraps instead of scrolling the row at 375 px.
+ */
+import { Badge } from "@/components/ui/badge";
+import type { TeamLimits } from "@/lib/criteria";
+import { formatArea, formatMoney } from "@/lib/otodom/labels";
+import type { LimitBreach } from "@/lib/team-limits";
+
+interface Props {
+  breaches: LimitBreach[];
+  limits: TeamLimits;
+}
+
+const { breaches, limits } = Astro.props;
+
+const LABEL: Record<LimitBreach, (limits: TeamLimits) => string | null> = {
+  city: ({ city }) => (city === null ? null : `Inne miasto niż ${city}`),
+  price_above: ({ priceMax }) =>
+    priceMax === null ? null : `Cena powyżej limitu (do ${formatMoney(priceMax, "PLN")})`,
+  price_below: ({ priceMin }) =>
+    priceMin === null ? null : `Cena poniżej limitu (od ${formatMoney(priceMin, "PLN")})`,
+  area_below: ({ areaMin }) => (areaMin === null ? null : `Metraż poniżej limitu (od ${formatArea(areaMin)})`),
+};
+
+const badges = breaches.flatMap((breach) => {
+  const label = LABEL[breach](limits);
+  return label === null ? [] : [{ breach, label }];
+});
+---
+
+{badges.map(({ breach, label }) => (
+  <Badge
+    variant="warning"
+    data-limit-breach={breach}
+    className="max-w-full shrink rounded-md whitespace-normal wrap-anywhere"
+  >
+    {label}
+  </Badge>
+))}
