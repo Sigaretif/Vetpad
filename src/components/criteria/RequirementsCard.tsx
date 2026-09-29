@@ -9,6 +9,8 @@ interface RequirementsCardProps {
   updatedAt: string;
   /** Rendered in the header, next to the author (the editor's „Edytuj" and „Usuń"). */
   action?: ReactNode;
+  /** 4 under the „Wymagania pozostałych członków" heading, so the cards sit below it, not beside it. */
+  headingLevel?: 3 | 4;
 }
 
 /**
@@ -17,13 +19,14 @@ interface RequirementsCardProps {
  * without a client directive, so they ship no JavaScript. Pattern: `NoteCard.tsx`. `unknown`
  * names nobody and is never shown as a deleted account.
  */
-export function RequirementsCard({ author, body, updatedAt, action }: RequirementsCardProps) {
+export function RequirementsCard({ author, body, updatedAt, action, headingLevel = 3 }: RequirementsCardProps) {
   const name = authorName(author);
+  const Heading = headingLevel === 4 ? "h4" : "h3";
 
   return (
     <Card className="gap-4">
       <CardHeader>
-        <h3 className="leading-snug font-semibold wrap-anywhere">{name ?? "Wymagania członka zespołu"}</h3>
+        <Heading className="leading-snug font-semibold wrap-anywhere">{name ?? "Wymagania członka zespołu"}</Heading>
         <CardDescription>
           edytowano <time dateTime={updatedAt}>{formatTimestamp(updatedAt)}</time>
         </CardDescription>

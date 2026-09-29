@@ -25,9 +25,11 @@
 // counter is read around each save: it grows by one on a real change and stays put on a refused save or on
 // re-saving the same limits. The fixture offer gets a PLN price above the saved ceiling, and its row on /dashboard
 // carries data-limit-breach="price_above" under data-limits-state="ok". `intent=clear` leaves four empty limits.
-// Against Supabase: nobody inserts or deletes the team_criteria row or writes the counter (0 rows / 42501), and the
-// second member reads the first member's requirements but cannot edit, delete or forge them. Cleanup runs whatever
-// failed before it: the limits read at the start are written back (signed by the first member, as any restore
+// Against Supabase: nobody inserts or deletes the team_criteria row or writes the counter (0 rows / 42501), a limit
+// the form would refuse (a fractional price) is refused by the table's check too (23514), and the second member
+// reads the first member's requirements but cannot edit, delete or forge them. A member's PATCH of the limits'
+// signature, date and id, or of their own requirements' author and dates, is accepted and undone by the triggers,
+// with no revision bump. Cleanup runs whatever failed before it: the limits read at the start are written back (signed by the first member, as any restore
 // would be), and both members' requirements are deleted.
 // It also checks that the dev-only kitchen sinks /dev/offer-card, /dev/forms, /dev/board and /dev/criteria answer 404: in CI this runs
 // against the production preview, where the pages must not exist (on `npm run dev` those steps fail by design).
@@ -253,6 +255,52 @@ async function noteIdentityAfterPatch() {
   return supabaseRest(
     `${FIXTURE_NOTES}&author_id=eq.${member.userId}&id=neq.${FORGED_NOTE_ID}` +
       "&created_at=gt.2001-01-01&updated_at=lt.2098-01-01&select=id",
+    { as: MEMBER },
+  );
+}
+
+// A member re-signs the limits for the second member, dates them and re-ids the row, changing no limit. RLS allows
+// the update (any member edits the limits); the signature trigger must keep the stored signature, date and id.
+async function patchLimitsSignature() {
+  const other = await memberId(OTHER_MEMBER);
+  if (other.error) return { status: 0, location: "", error: other.error };
+  return supabaseRest("team_criteria?id=eq.true", {
+    as: MEMBER,
+    method: "PATCH",
+    prefer: "return=representation",
+    body: { id: false, updated_by: other.userId, updated_at: "2099-01-01T00:00:00Z" },
+  });
+}
+
+// The limits after that attempt: still signed by the member whose save changed them last, dated by the database.
+async function limitsSignatureAfterPatch() {
+  const member = await memberId(MEMBER);
+  if (member.error) return { status: 0, location: "", error: member.error };
+  return supabaseRest(`team_criteria?id=eq.true&updated_by=eq.${member.userId}&updated_at=lt.2098-01-01&select=id`, {
+    as: MEMBER,
+  });
+}
+
+// The author hands their requirements to the second member and dates them themselves. RLS allows the update (they
+// are theirs); the triggers must keep the author and the database's dates.
+async function patchRequirementsIdentity() {
+  const other = await memberId(OTHER_MEMBER);
+  if (other.error) return { status: 0, location: "", error: other.error };
+  return requirementsRest(MEMBER, {
+    as: MEMBER,
+    method: "PATCH",
+    prefer: "return=representation",
+    body: { author_id: other.userId, created_at: "2000-01-01T00:00:00Z", updated_at: "2099-01-01T00:00:00Z" },
+  });
+}
+
+// The requirements after that attempt: still the author's, with dates the database set.
+async function requirementsIdentityAfterPatch() {
+  const member = await memberId(MEMBER);
+  if (member.error) return { status: 0, location: "", error: member.error };
+  return supabaseRest(
+    `member_requirements?author_id=eq.${member.userId}&created_at=gt.2001-01-01&updated_at=lt.2098-01-01` +
+      "&select=author_id",
     { as: MEMBER },
   );
 }
@@ -583,6 +631,17 @@ const steps = [
     { status: 200, rows: 0 },
   ],
   [
+    "member cannot store a limit the form would refuse",
+    () =>
+      supabaseRest("team_criteria?id=eq.true", {
+        as: MEMBER,
+        method: "PATCH",
+        prefer: "return=representation",
+        body: { price_min: 850000.5 },
+      }),
+    { status: 400, errorCode: "23514" },
+  ],
+  [
     "limits save rejects a reversed price range",
     () =>
       withRevision(() =>
@@ -615,6 +674,12 @@ const steps = [
       ),
     { status: 302, location: "/criteria#limity", revisionDelta: 0 },
   ],
+  [
+    "member's patch of the limits' signature is accepted",
+    () => withRevision(() => patchLimitsSignature()),
+    { status: 200, rows: 1, revisionDelta: 0 },
+  ],
+  ["limits keep their signature, date and id", () => limitsSignatureAfterPatch(), { status: 200, rows: 1 }],
   [
     "requirements save rejects blank requirements",
     () => withRevision(() => request("/api/requirements", { method: "POST", form: { body: "   " } })),
@@ -681,6 +746,16 @@ const steps = [
     "requirements are unchanged after the other member's attempts",
     () => requirementsRest(MEMBER, { as: MEMBER }),
     { status: 200, rows: 1, bodyIncludes: REQUIREMENTS_EDITED },
+  ],
+  [
+    "author's patch of the requirements' identity is accepted",
+    () => withRevision(() => patchRequirementsIdentity()),
+    { status: 200, rows: 1, revisionDelta: 0 },
+  ],
+  [
+    "requirements keep their author and database-set dates",
+    () => requirementsIdentityAfterPatch(),
+    { status: 200, rows: 1 },
   ],
   // The limit mark: a stated PLN price above the saved ceiling.
   [

@@ -1,9 +1,9 @@
 ---
 change_id: team-search-criteria
 title: Team search criteria
-status: implemented
+status: impl_reviewed
 created: 2026-09-27
-updated: 2026-09-27
+updated: 2026-09-28
 archived_at: null
 ---
 

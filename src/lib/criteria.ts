@@ -35,6 +35,7 @@ export type ParsedLimits = { ok: true; limits: TeamLimits } | { ok: false; error
 export const CITY_MAX_LENGTH = 100;
 
 const CITY_TOO_LONG = `Nazwa miasta może mieć najwyżej ${CITY_MAX_LENGTH} znaków.`;
+const CITY_HAS_COMMA = "Wpisz samo miasto, bez przecinka, np. „Warszawa”.";
 const PRICE_RANGE_REVERSED = "Cena od nie może być wyższa niż cena do.";
 
 type NumberField = Exclude<LimitField, "city">;
@@ -86,8 +87,9 @@ function parseNumber(raw: string, rule: NumberRule): ParsedNumber {
   if (!rule.pattern.test(compact)) return { ok: false, error: rule.notANumber };
 
   const value = Number(compact.replace(",", "."));
-  // A whole price beyond 2^53 would be stored as a different number than the one typed.
-  const exact = rule.pattern === WHOLE ? Number.isSafeInteger(value) : Number.isFinite(value);
+  // A whole price beyond 2^53 would be stored as a different number than the one typed. An area
+  // shares the bound, which the table's check also sets.
+  const exact = rule.pattern === WHOLE ? Number.isSafeInteger(value) : value <= Number.MAX_SAFE_INTEGER;
   if (!exact) return { ok: false, error: rule.notANumber };
   if (value <= 0) return { ok: false, error: rule.notPositive };
   return { ok: true, value };
@@ -96,12 +98,16 @@ function parseNumber(raw: string, rule: NumberRule): ParsedNumber {
 /**
  * The limits form as the values `team_criteria` will store, or the first reason it cannot be
  * saved — one message per reason. Mirrors every check on the table, so a limit this accepts is
- * never rejected by the database. The city is trimmed and an empty one is no limit; `.length`
- * counts UTF-16 units, never fewer than the characters Postgres counts.
+ * never rejected by the database, and the checks mirror it back, so a stored limit is never one the
+ * form refuses to save unchanged. The city is trimmed and an empty one is no limit; its length is
+ * counted in code points, as Postgres `char_length` counts it.
  */
 export function parseLimitsForm(values: LimitsFormValues): ParsedLimits {
   const trimmedCity = values.city.trim();
-  if (trimmedCity.length > CITY_MAX_LENGTH) return { ok: false, error: CITY_TOO_LONG };
+  if (Array.from(trimmedCity).length > CITY_MAX_LENGTH) return { ok: false, error: CITY_TOO_LONG };
+  // The board compares the city with each comma-separated part of an offer's location, so a limit
+  // with a comma („Warszawa, mazowieckie") would match no part and mark every offer.
+  if (trimmedCity.includes(",")) return { ok: false, error: CITY_HAS_COMMA };
 
   const priceMin = parseNumber(values.price_min, NUMBER_RULES.price_min);
   if (!priceMin.ok) return priceMin;

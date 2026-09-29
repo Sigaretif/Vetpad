@@ -76,7 +76,6 @@ export const POST: APIRoute = async (context) => {
         price_min: limits.priceMin,
         price_max: limits.priceMax,
         area_min: limits.areaMin,
-        updated_by: user.id,
       })
       .eq("id", true)
       .select("id");

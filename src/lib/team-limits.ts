@@ -11,9 +11,10 @@ export type LimitBreach = "city" | "price_above" | "price_below" | "area_below";
 export type LimitedOffer = Pick<OfferBoardItem, "price" | "price_currency" | "area_m2" | "location_label">;
 
 /**
- * A place name as compared with the city limit: lowercase, diacritics removed, runs of whitespace
- * collapsed, trimmed. „ł" has no NFD decomposition, so it is mapped to „l" explicitly — otherwise
- * „Łódź" typed as „Lodz" would never match.
+ * A place name as compared with the city limit: lowercase, diacritics removed, hyphens and en
+ * dashes read as spaces („Bielsko Biała" matches „Bielsko-Biała"), runs of whitespace collapsed,
+ * trimmed. „ł" has no NFD decomposition, so it is mapped to „l" explicitly — otherwise „Łódź" typed
+ * as „Lodz" would never match.
  */
 export function normalizePlace(value: string): string {
   return value
@@ -21,6 +22,7 @@ export function normalizePlace(value: string): string {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/ł/g, "l")
+    .replace(/[-\u2010-\u2013]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }

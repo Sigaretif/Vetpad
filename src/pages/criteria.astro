@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase";
 const supabase = createClient(Astro.request.headers, Astro.cookies);
 const criteria = await loadCriteria(supabase, Astro.locals.user?.id);
 
-// POST /api/criteria and POST /api/requirements redirect here with `?error=` and `?form=` naming
+// POST /api/criteria and POST /api/requirements redirect here with `?error=` and `&form=` naming
 // the form it belongs to. Rendered as text, never as HTML.
 const serverError = Astro.url.searchParams.get("error");
 const form = Astro.url.searchParams.get("form");

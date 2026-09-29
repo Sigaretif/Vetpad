@@ -134,7 +134,7 @@ Moduły w `src/lib/` (typy, walidacja, odczyt, czyste porównanie) i dwie trasy 
 
 **Intent**: Zapis i wyczyszczenie wspólnych limitów z formularza (FR-002, FR-003), według wzorca `src/pages/api/notes.ts`.
 
-**Contract**: `POST` z FormData: `intent` = `save` | `clear`, pola `city`, `price_min`, `price_max`, `area_min`. Brak sesji → `/auth/signin`; brak klienta, nieczytelny formularz, błąd walidacji, naruszenie checku (`23514`) albo inny błąd → `/criteria?error=<komunikat>#limity`; sukces → `/criteria#limity`. `save` aktualizuje singleton (`.update(…).eq("id", true)`) wartościami z `parseLimitsForm`; `clear` zapisuje cztery `null`. `updated_by` z sesji (trigger i tak go ustawia). Nigdy JSON, nigdy 500.
+**Contract**: `POST` z FormData: `intent` = `save` | `clear`, pola `city`, `price_min`, `price_max`, `area_min`. Brak sesji → `/auth/signin`; brak klienta, nieczytelny formularz, błąd walidacji, naruszenie checku (`23514`) albo inny błąd → `/criteria?error=<komunikat>&form=limits#limity`; sukces → `/criteria#limity`. `save` aktualizuje singleton (`.update(…).eq("id", true)`) wartościami z `parseLimitsForm`; `clear` zapisuje cztery `null`. `updated_by` z sesji (trigger i tak go ustawia). Nigdy JSON, nigdy 500.
 
 #### 4. Trasa wymagań
 
@@ -142,7 +142,7 @@ Moduły w `src/lib/` (typy, walidacja, odczyt, czyste porównanie) i dwie trasy 
 
 **Intent**: Zapis, zmiana i usunięcie własnych wymagań; autor zawsze z sesji, nigdy z formularza.
 
-**Contract**: `POST` z FormData: `intent` = `save` | `delete`, `body` (CRLF → `\n`, bez przycinania, jak `noteField`). `save` → `upsert({ author_id: user.id, body }, { onConflict: "author_id" })`; `delete` → `delete().eq("author_id", user.id)` (brak wiersza to nie błąd). Błędy → `/criteria?error=<komunikat>#wymagania`; sukces → `/criteria#wymagania`.
+**Contract**: `POST` z FormData: `intent` = `save` | `delete`, `body` (CRLF → `\n`, bez przycinania, jak `noteField`). `save` → `upsert({ author_id: user.id, body }, { onConflict: "author_id" })`; `delete` → `delete().eq("author_id", user.id)` (brak wiersza to nie błąd). Błędy → `/criteria?error=<komunikat>&form=requirements#wymagania`; sukces → `/criteria#wymagania`.
 
 ### Success Criteria:
 
@@ -289,7 +289,7 @@ Smoke z dwóch kont, wpisy w PRD, `CLAUDE.md` i README, zrzuty macierzy 7 stanó
 
 **Contract**: kroki (nazwy dowolne, `expected` jak istniejące):
 
-- trasy: anon `POST /api/criteria` i `/api/requirements` → `/auth/signin`; zapis limitów → `/criteria#limity`; `price_min > price_max` → prefiks `/criteria?error=`; zapis/zmiana/usunięcie wymagań → `/criteria#wymagania`; puste wymagania → `?error=`; `/criteria` zawiera `data-criteria-state="ok"` i zapisane miasto
+- trasy: anon `POST /api/criteria` i `/api/requirements` → `/auth/signin`; zapis limitów → `/criteria#limity`; `price_min > price_max` → prefiks `/criteria?error=` z `&form=limits#limity`; zapis/zmiana/usunięcie wymagań → `/criteria#wymagania`; puste wymagania → `?error=` z `&form=requirements#wymagania`; `/criteria` zawiera `data-criteria-state="ok"` i zapisane miasto
 - licznik: rośnie po zmianie limitów i po zapisie wymagań; nie rośnie po ponownym zapisie tych samych limitów
 - RLS: anon czyta 0 wierszy z trzech tabel; `insert` do `team_criteria` → `42501`; `delete` z `team_criteria` → 0 wierszy; PATCH `criteria_revision` → 0 wierszy; drugi członek: PATCH/DELETE cudzych wymagań → 0 wierszy, `insert` z cudzym `author_id` → `42501`
 - znacznik: fixture offer dostaje przez REST cenę w PLN powyżej ustawionego `price_max`; `/dashboard` zawiera `data-limits-state="ok"` i `data-limit-breach="price_above"`
@@ -387,6 +387,22 @@ Nowa migracja bez zmian w istniejących tabelach; singletony wstawiane w tej sam
 - Tablica: `src/lib/offer-board.ts`, `src/components/offers/OfferBoardItem.astro`, `src/pages/dev/board.astro`
 - Lekcje: `context/foundation/lessons.md` („Declare `on delete`…”, „Kolory widoku…”, „Formularz z kompozytów…”)
 - Poprzedni plan: `context/archive/2026-09-26-member-notes/plan.md`
+
+## Odstępstwa w implementacji
+
+Odnotowane w `/10x-impl-review` (2026-09-28, `reviews/impl-review.md`, F1, F2):
+
+- **`&form=` przy błędzie** (p3): strona nie czyta fragmentu `#`, więc przy dwóch formularzach na jednej stronie błąd trafiałby do złego z nich. Trasy dopisują `&form=limits` / `&form=requirements`, strona i `CriteriaView` kierują komunikat do właściwego formularza, smoke sprawdza `locationIncludes`. Wzorzec zapisany w `CLAUDE.md` (Conventions).
+- **Ukryte pole `intent`** w `TeamLimitsForm.tsx` (p4) zamiast samego `name="intent"` na przycisku: wyspa blokuje przycisk przy wysyłce, a Firefox pomija zablokowany submitter w danych formularza. Wzorzec w `CLAUDE.md`.
+- **`inputMode` w `src/components/form/FormField.tsx`** (p3): opcjonalny prop wymagany przez pola liczbowe limitów; wstecznie zgodny.
+- **`resolveAuthors` zamiast `resolveSaver`** w `loadCriteria`: podpis limitów i autorzy wymagań są nazywani jednym zapytaniem; te same cztery warianty.
+- **Podpis limitów** brzmi „Ostatnio zmienione przez {X}, {data}” zamiast „ostatnio zmienił(a) X, data”.
+- **Fokus pola wymagań** nie ma osobnego zrzutu: `/dev/forms` odsyła do `forms-focus-note-field` (ten sam `TextareaField`).
+- **Checki `team_criteria` zaostrzone** w `supabase/migrations/20260928074737_tighten_team_criteria_checks.sql` (F2): baza przyjmuje dokładnie to, co `parseLimitsForm` — biały znak według JS `trim()`, ceny całkowite i metraż z ≤ 2 miejscami, oba ≤ `Number.MAX_SAFE_INTEGER` — żeby wiersz zapisany przez Data API nie mógł zablokować `/criteria` stanem błędu odczytu. Nowy krok smoke „member cannot store a limit the form would refuse”.
+- **Miasto bez przecinka, łącznik jak spacja** (F3): `parseLimitsForm` i check tabeli odrzucają przecinek w limicie miasta (inaczej nie pasowałby do żadnego członu lokalizacji i oznaczałby każdą ofertę), a `normalizePlace` czyta „-” jak spację („Bielsko Biała” = „Bielsko-Biała”).
+- **Data wymagań przy zapisie bez zmian** (F6): trigger `member_requirements_before_update` przesuwa `updated_at` tylko przy zmianie `body` — jak podpis limitów; ta sama migracja co checki.
+- **Trasa limitów nie wysyła `updated_by`** (F7): kontrakt fazy 2 mówił „`updated_by` z sesji (trigger i tak go ustawia)”; pole było martwe i sugerowało podpis od klienta, więc podpis ustawia wyłącznie trigger.
+- **Poziom nagłówka kart cudzych wymagań** (F8): `RequirementsCard` ma prop `headingLevel`; pod „Wymagania pozostałych członków” karty mają `<h4>`.
 
 ## Progress
 
