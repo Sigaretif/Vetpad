@@ -646,29 +646,29 @@ Nie dotyczy: żadnej migracji ani zmiany danych. Wiersze zapisane wcześniej z w
 
 #### Automated
 
-- [x] 2.1 `npm test` przechodzi, w tym wszystkie grupy a–d w `tests/lib/otodom/map.test.ts`
-- [x] 2.2 `npm run lint` przechodzi
-- [x] 2.3 `npx astro check` przechodzi z 0 błędów
-- [x] 2.4 `grep -rn "1e3\|0x10" tests/lib/otodom/map.test.ts` pokazuje obie granice jako oczekiwane `null`
+- [x] 2.1 `npm test` przechodzi, w tym wszystkie grupy a–d w `tests/lib/otodom/map.test.ts` — 4b9d931
+- [x] 2.2 `npm run lint` przechodzi — 4b9d931
+- [x] 2.3 `npx astro check` przechodzi z 0 błędów — 4b9d931
+- [x] 2.4 `grep -rn "1e3\|0x10" tests/lib/otodom/map.test.ts` pokazuje obie granice jako oczekiwane `null` — 4b9d931
 
 #### Manual
 
-- [x] 2.5 Mutacje, każda cofnięta, dają czerwony test: (1) powrót do `Number()` bez regexu; (2) `rent_currency` bez warunku na kwotę; (3) bramka na `ad.category`; (4) `raw.target = ad.target`
-- [x] 2.6 `npm run otodom:inspect -- <url żywej sprzedaży mieszkania>` dalej pokazuje podane liczby (zaostrzenie nie zjada prawdziwych wartości otodom)
-- [x] 2.7 Zdanie w FR-005 czyta się jednoznacznie
+- [x] 2.5 Mutacje, każda cofnięta, dają czerwony test: (1) powrót do `Number()` bez regexu; (2) `rent_currency` bez warunku na kwotę; (3) bramka na `ad.category`; (4) `raw.target = ad.target` — 4b9d931
+- [x] 2.6 `npm run otodom:inspect -- <url żywej sprzedaży mieszkania>` dalej pokazuje podane liczby (zaostrzenie nie zjada prawdziwych wartości otodom) — 4b9d931
+- [x] 2.7 Zdanie w FR-005 czyta się jednoznacznie — 4b9d931
 
 ### Phase 3: Granica fetch → zapis (#1, #6)
 
 #### Automated
 
-- [ ] 3.1 `npm test` przechodzi, w tym `tests/lib/otodom/fetch.test.ts` i `tests/pages/api/offers.test.ts`
-- [ ] 3.2 `npm test` przechodzi bez dostępu do sieci (zaślepka odrzuca każdy nieobsłużony host)
-- [ ] 3.3 `npm run lint` przechodzi
-- [ ] 3.4 `npx astro check` przechodzi z 0 błędów
+- [x] 3.1 `npm test` przechodzi, w tym `tests/lib/otodom/fetch.test.ts` i `tests/pages/api/offers.test.ts`
+- [x] 3.2 `npm test` przechodzi bez dostępu do sieci (zaślepka odrzuca każdy nieobsłużony host)
+- [x] 3.3 `npm run lint` przechodzi
+- [x] 3.4 `npx astro check` przechodzi z 0 błędów
 
 #### Manual
 
-- [ ] 3.5 Mutacje, każda cofnięta, dają czerwony test: (1) `insert` przed `if (!result.ok)` w `src/pages/api/offers.ts`; (2) `raw: ad` dopisane do wstawianego wiersza; (3) usunięcie gałęzi `shouldShowExpiredAdPage` z `fetch.ts`
+- [x] 3.5 Mutacje, każda cofnięta, dają czerwony test: (1) `insert` przed `if (!result.ok)` w `src/pages/api/offers.ts`; (2) `raw: ad` dopisane do wstawianego wiersza; (3) usunięcie gałęzi `shouldShowExpiredAdPage` z `fetch.ts`
 
 ### Phase 4: Strażnicy renderu (#7) i poprawka galerii
 

@@ -1,0 +1,165 @@
+import { vi } from "vitest";
+
+// The HTTP edge, and only the HTTP edge: tests replace `globalThis.fetch` and nothing inside
+// src/ (test-plan.md, anti-patterns — no vi.mock of @/lib/supabase or @/lib/otodom). Both the
+// otodom fetch and supabase-js look `fetch` up on the global at call time, so one stub sees
+// every request either of them makes.
+//
+// Every request goes through a handler. A request the handler does not answer is recorded as
+// unplanned and rejected; `restoreFetch` then fails the test, because supabase-js and the
+// otodom fetch both turn a rejected fetch into an ordinary error result that could otherwise
+// pass unnoticed. No test can reach the real network.
+
+/** One request as the stub saw it. `body` is the raw string that would go on the wire. */
+export interface RecordedRequest {
+  method: string;
+  url: string;
+  body: string | null;
+}
+
+/** Answers a request, or returns `undefined` for a request the test did not plan. */
+export type FetchHandler = (request: RecordedRequest) => Response | Promise<Response> | undefined;
+
+export interface FetchStub {
+  /** Every request, planned or not, in the order it was made. */
+  requests: RecordedRequest[];
+  /** Requests the handler did not answer. `restoreFetch` fails the test if this is not empty. */
+  unplanned: RecordedRequest[];
+}
+
+let active: FetchStub | undefined;
+
+function recordBody(body: unknown): string | null {
+  if (body === undefined || body === null) return null;
+  if (typeof body === "string") return body;
+  throw new Error(`fetch stub: cannot record a ${typeof body} body — extend recordBody`);
+}
+
+/** Installs a fetch stub that records every request and answers it through `handler`. */
+export function stubFetch(handler: FetchHandler): FetchStub {
+  const stub: FetchStub = { requests: [], unplanned: [] };
+  active = stub;
+  vi.stubGlobal("fetch", async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+    const request: RecordedRequest =
+      input instanceof Request
+        ? { method: input.method, url: input.url, body: input.body === null ? null : await input.text() }
+        : { method: init?.method ?? "GET", url: String(input), body: recordBody(init?.body) };
+    stub.requests.push(request);
+
+    // A real fetch rejects with the signal's reason once it is aborted; so does the stub.
+    const signal = input instanceof Request ? input.signal : init?.signal;
+    if (signal?.aborted) throw signal.reason;
+
+    const response = await handler(request);
+    if (response === undefined) {
+      stub.unplanned.push(request);
+      throw new Error(`fetch stub: unplanned request ${request.method} ${request.url}`);
+    }
+    return response;
+  });
+  return stub;
+}
+
+/** Removes the stub. Fails the test when a request reached it that no handler planned for. */
+export function restoreFetch(): void {
+  const stub = active;
+  active = undefined;
+  vi.unstubAllGlobals();
+  if (stub !== undefined && stub.unplanned.length > 0) {
+    const list = stub.unplanned.map((request) => `${request.method} ${request.url}`).join(", ");
+    throw new Error(`fetch stub: unplanned requests: ${list}`);
+  }
+}
+
+/**
+ * A `Response` as `fetch` hands it back. `new Response()` leaves `url` as "", which the otodom
+ * fetch reads as "no redirect happened"; a test of a followed redirect passes the address the
+ * redirect landed on, the way a real fetch reports it.
+ */
+export function responseAt(
+  body: string | null,
+  { status = 200, url }: { status?: number; url?: string } = {},
+): Response {
+  const response = new Response(body, { status, headers: { "Content-Type": "text/html; charset=utf-8" } });
+  if (url !== undefined) Object.defineProperty(response, "url", { value: url });
+  return response;
+}
+
+// otodom pages (otodom_fetching.md, section 7.1): the offer page embeds its data as JSON in
+// <script id="__NEXT_DATA__" type="application/json">, shaped { props: { pageProps: { ad } } }.
+
+function page(scripts: string): string {
+  return (
+    '<!DOCTYPE html><html lang="pl"><head><meta charset="utf-8"><title>Otodom</title></head>' +
+    `<body><div id="__next"><main><h1>Ogłoszenie</h1></main></div>${scripts}</body></html>`
+  );
+}
+
+/** A page whose `__NEXT_DATA__` script holds `json` as written — which may be broken JSON. */
+export function pageWithNextData(json: string): string {
+  return page(`<script id="__NEXT_DATA__" type="application/json">${json}</script>`);
+}
+
+/** A page whose `__NEXT_DATA__` holds `{ props: { pageProps } }`. */
+export function otodomPageProps(pageProps: Record<string, unknown>): string {
+  return pageWithNextData(JSON.stringify({ props: { pageProps }, page: "/[lang]/ad/[id]", buildId: "test" }));
+}
+
+/** An offer page carrying `ad` the way the portal serves it. */
+export function otodomPage(ad: unknown): string {
+  return otodomPageProps({ ad });
+}
+
+/** A page without any `__NEXT_DATA__` script: the shape the fetch cannot read. */
+export const PAGE_WITHOUT_NEXT_DATA = page('<script id="__APP_DATA__" type="application/json">{}</script>');
+
+// Supabase, as the offers route talks to it (supabase-js / postgrest-js 2.116, read from
+// node_modules/@supabase/postgrest-js/dist/index.mjs):
+//
+// - Duplicate check, `.from("offers").select("id").eq("source_url", url).maybeSingle()`:
+//   `GET <SUPABASE_URL>/rest/v1/offers?select=id&source_url=eq.<url>` with the default
+//   `Accept: application/json`. `maybeSingle()` only sets a client-side flag; PostgREST answers
+//   an array, and the client turns `200 []` into `data: null` (no duplicate), `[row]` into `row`.
+// - Insert, `.from("offers").insert(row).select("id").single()`:
+//   `POST <SUPABASE_URL>/rest/v1/offers?select=id` with `Content-Type: application/json`,
+//   `Prefer: return=representation` and `Accept: application/vnd.pgrst.object+json`; the body is
+//   `JSON.stringify(row)`. PostgREST answers `201` with the single object, here `{ "id": … }`.
+// - Every request also carries `apikey` (and `Authorization: Bearer` with the key when there is
+//   no session). With no session cookie the auth client makes no request of its own.
+// - postgrest-js retries a GET that rejects (up to 3 times, with back-off), so an unplanned
+//   GET fails slowly — but it still fails, through `restoreFetch`.
+
+/** Test values only — never a real project's. */
+export const SUPABASE_TEST_URL = "https://supabase.test";
+export const SUPABASE_TEST_KEY = "sb_publishable_test";
+
+/** The id the stubbed database gives the inserted offer. */
+export const INSERTED_OFFER_ID = "0b9f0c2e-7d1a-4c55-9a53-000000000001";
+
+const OFFERS_PATH = "/rest/v1/offers";
+
+function json(value: unknown, status: number): Response {
+  return new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json" } });
+}
+
+/** True for a request to the `public.offers` endpoint of the stubbed Supabase. */
+export function isOffersRequest(request: RecordedRequest, method: string): boolean {
+  const url = new URL(request.url);
+  return url.origin === SUPABASE_TEST_URL && url.pathname === OFFERS_PATH && request.method === method;
+}
+
+/**
+ * Answers the offers route's two planned Supabase requests: the duplicate check by `source_url`
+ * finds nothing, and the insert returns `INSERTED_OFFER_ID`. Anything else is left unplanned.
+ */
+export function emptyOffersTable(request: RecordedRequest): Response | undefined {
+  if (isOffersRequest(request, "GET") && new URL(request.url).searchParams.has("source_url")) return json([], 200);
+  if (isOffersRequest(request, "POST")) return json({ id: INSERTED_OFFER_ID }, 201);
+  return undefined;
+}
+
+/** True for a request to otodom.pl. */
+export function isOtodomRequest(request: RecordedRequest): boolean {
+  const host = new URL(request.url).hostname;
+  return host === "www.otodom.pl" || host === "otodom.pl";
+}
