@@ -1,10 +1,10 @@
 ---
 change_id: testing-ingestion-guardrails
 title: Test runner and ingestion guardrails (test-plan rollout Phase 1)
-status: implemented
+status: archived
 created: 2026-09-30
 updated: 2026-09-30
-archived_at: null
+archived_at: 2026-09-30T20:29:10Z
 ---
 
 ## Notes
