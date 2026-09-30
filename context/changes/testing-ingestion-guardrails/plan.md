@@ -631,31 +631,31 @@ Nie dotyczy: żadnej migracji ani zmiany danych. Wiersze zapisane wcześniej z w
 
 #### Automated
 
-- [x] 1.1 `npm test` przechodzi (safe-url + strażnik zero-config)
-- [x] 1.2 `npm test` przechodzi także przy obecnym `.env` z prawdziwymi wartościami
-- [x] 1.3 `npm run lint` przechodzi
-- [x] 1.4 `npx astro sync && npx astro check` przechodzi z 0 błędów
-- [x] 1.5 `npm run build` przechodzi z `vitest.config.ts` w repo
-- [x] 1.6 `.github/workflows/ci.yml` zawiera `npm test` w jobie `ci` przed `npm run build`
+- [x] 1.1 `npm test` przechodzi (safe-url + strażnik zero-config) — fe8b7ee
+- [x] 1.2 `npm test` przechodzi także przy obecnym `.env` z prawdziwymi wartościami — fe8b7ee
+- [x] 1.3 `npm run lint` przechodzi — fe8b7ee
+- [x] 1.4 `npx astro sync && npx astro check` przechodzi z 0 błędów — fe8b7ee
+- [x] 1.5 `npm run build` przechodzi z `vitest.config.ts` w repo — fe8b7ee
+- [x] 1.6 `.github/workflows/ci.yml` zawiera `npm test` w jobie `ci` przed `npm run build` — fe8b7ee
 
 #### Manual
 
-- [x] 1.7 Tymczasowe zastąpienie `safeHttpsUrl` wersją przepuszczającą `http:` daje czerwony `npm test` (mutacja cofnięta)
+- [x] 1.7 Tymczasowe zastąpienie `safeHttpsUrl` wersją przepuszczającą `http:` daje czerwony `npm test` (mutacja cofnięta) — fe8b7ee
 
 ### Phase 2: Strażnicy mappera (#1, #6)
 
 #### Automated
 
-- [ ] 2.1 `npm test` przechodzi, w tym wszystkie grupy a–d w `tests/lib/otodom/map.test.ts`
-- [ ] 2.2 `npm run lint` przechodzi
-- [ ] 2.3 `npx astro check` przechodzi z 0 błędów
-- [ ] 2.4 `grep -rn "1e3\|0x10" tests/lib/otodom/map.test.ts` pokazuje obie granice jako oczekiwane `null`
+- [x] 2.1 `npm test` przechodzi, w tym wszystkie grupy a–d w `tests/lib/otodom/map.test.ts`
+- [x] 2.2 `npm run lint` przechodzi
+- [x] 2.3 `npx astro check` przechodzi z 0 błędów
+- [x] 2.4 `grep -rn "1e3\|0x10" tests/lib/otodom/map.test.ts` pokazuje obie granice jako oczekiwane `null`
 
 #### Manual
 
-- [ ] 2.5 Mutacje, każda cofnięta, dają czerwony test: (1) powrót do `Number()` bez regexu; (2) `rent_currency` bez warunku na kwotę; (3) bramka na `ad.category`; (4) `raw.target = ad.target`
-- [ ] 2.6 `npm run otodom:inspect -- <url żywej sprzedaży mieszkania>` dalej pokazuje podane liczby (zaostrzenie nie zjada prawdziwych wartości otodom)
-- [ ] 2.7 Zdanie w FR-005 czyta się jednoznacznie
+- [x] 2.5 Mutacje, każda cofnięta, dają czerwony test: (1) powrót do `Number()` bez regexu; (2) `rent_currency` bez warunku na kwotę; (3) bramka na `ad.category`; (4) `raw.target = ad.target`
+- [x] 2.6 `npm run otodom:inspect -- <url żywej sprzedaży mieszkania>` dalej pokazuje podane liczby (zaostrzenie nie zjada prawdziwych wartości otodom)
+- [x] 2.7 Zdanie w FR-005 czyta się jednoznacznie
 
 ### Phase 3: Granica fetch → zapis (#1, #6)
 

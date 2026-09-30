@@ -57,10 +57,19 @@ function httpsUrl(value: unknown): string | null {
   }
 }
 
+/** Plain decimal notation: digits, optionally a fraction after a dot. Nothing else is a stated number. */
+const DECIMAL = /^\d+(?:\.\d+)?$/;
+
 /**
  * The single path for every numeric fact. Absent, empty, unparseable and any value
  * `<= 0` all mean "not stated": otodom sends `rent` as "0" when the advertiser left
  * it blank, so a zero cannot be told apart from an omission.
+ *
+ * A string counts as stated only in plain decimal notation. A fact never comes from
+ * interpretation: `Number()` would read "1e3" as 1000, "0x10" as 16 and "+5" as 5, and
+ * "12,5" or "1 200" could only be guessed at — each of those is unknown. The boundary is
+ * set by the PRD guardrail (prd.md, Guardrails: missing data reads "unknown", never zero),
+ * not by what `Number()` happens to accept.
  */
 export function numericOrUnknown(raw: unknown): number | null {
   let parsed: number;
@@ -68,7 +77,7 @@ export function numericOrUnknown(raw: unknown): number | null {
     parsed = raw;
   } else if (typeof raw === "string") {
     const trimmed = raw.trim();
-    if (trimmed === "") return null;
+    if (!DECIMAL.test(trimmed)) return null;
     parsed = Number(trimmed);
   } else {
     return null;
