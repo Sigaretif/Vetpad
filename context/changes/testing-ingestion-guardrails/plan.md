@@ -688,12 +688,12 @@ Nie dotyczy: żadnej migracji ani zmiany danych. Wiersze zapisane wcześniej z w
 
 #### Automated
 
-- [x] 5.1 `npm test`, `npm run lint`, `npx astro check` i `npm run build` przechodzą
-- [x] 5.2 `grep -rn "512228855\|Krupa" context/foundation src tests scripts` nic nie znajduje
-- [x] 5.3 `grep -n "TBD — see §3 Phase 1" context/foundation/test-plan.md` nic nie znajduje
-- [x] 5.4 `grep -n "npm test" CLAUDE.md README.md .github/workflows/ci.yml` trafia w każdym z trzech plików
+- [x] 5.1 `npm test`, `npm run lint`, `npx astro check` i `npm run build` przechodzą — 581d093
+- [x] 5.2 `grep -rn "512228855\|Krupa" context/foundation src tests scripts` nic nie znajduje — 581d093
+- [x] 5.3 `grep -n "TBD — see §3 Phase 1" context/foundation/test-plan.md` nic nie znajduje — 581d093
+- [x] 5.4 `grep -n "npm test" CLAUDE.md README.md .github/workflows/ci.yml` trafia w każdym z trzech plików — 581d093
 
 #### Manual
 
-- [x] 5.5 §6.1 i §6.2 wystarczą, żeby dodać nowy test ingestii albo renderu bez czytania tej rozmowy (ścieżka, nazwa, test referencyjny, komenda)
-- [x] 5.6 Świeży klon bez `.env`: `npm ci && npm test` przechodzi
+- [x] 5.5 §6.1 i §6.2 wystarczą, żeby dodać nowy test ingestii albo renderu bez czytania tej rozmowy (ścieżka, nazwa, test referencyjny, komenda) — 581d093
+- [x] 5.6 Świeży klon bez `.env`: `npm ci && npm test` przechodzi — 581d093
