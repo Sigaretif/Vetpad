@@ -93,10 +93,10 @@ named in the S-04 plan, so the code under test is built to be testable.
 | Layer | Tool | Version | Notes |
 |---|---|---|---|
 | lint + typecheck | ESLint, `astro check` | eslint ^10.10, astro 7.3.2 | Wired in CI `ci` job |
-| unit + integration (in-process) | none yet — see Phase 1 (Vitest via `getViteConfig`, checked: 2026-09-30) | vitest 5.0.3 (npm latest, 2026-09-30) | Requires explicit user go-ahead (CLAUDE.md) |
-| component render | none yet — see Phase 1 (Astro Container API, `experimental_AstroContainer`) | astro 7.3.2 | For `.astro` output assertions without a browser |
+| unit + integration (in-process) | Vitest via `getViteConfig` from `astro/config` with the Cloudflare adapter stripped (`vitest.config.ts`) — checked: 2026-09-30 | vitest 5.0.3 | `npm test`; wired in CI `ci` job since Phase 1. User go-ahead 2026-09-30 (CLAUDE.md). Runs in Node, not workerd |
+| component render | Astro Container API (`experimental_AstroContainer`) with the React container renderer — experimental, checked: 2026-09-30 | astro 7.3.2, @astrojs/react 6.0.5 | For `.astro` output assertions without a browser; runs under `npm test` |
 | integration (live, local Supabase) | `scripts/smoke.mjs` | n/a | Existing; CI `smoke` job; never reaches otodom.pl or production |
-| API/provider mocking | none yet — see Phase 3 | n/a | Stub at the HTTP edge only |
+| API/provider mocking | `globalThis.fetch` stub at the HTTP edge (`tests/fixtures/http.ts`, `stubFetch`) — checked: 2026-09-30 | vitest 5.0.3 (`vi.stubGlobal`) | Since Phase 1 (otodom + Supabase REST); Phase 3 reuses it for the model provider. Never `vi.mock` of internal modules |
 | e2e | none | n/a | Not planned; smoke against the production preview covers critical routes |
 | visual gate | `scripts/ui-screenshots.mjs` | n/a | Manual, per plan; not a CI gate (§7) |
 | (optional) AI-native | manual golden-set audit eval — checked: 2026-09-30 | n/a | When NOT to use: in CI, on every change, or to judge excerpt grounding (deterministic check does that) |
@@ -114,7 +114,7 @@ named in the S-04 plan, so the code under test is built to be testable.
 | lint (incl. `tokensOnlyConfig`) + `astro check` | local + CI `ci` job | required | syntactic, type and token drift |
 | build | CI `ci` job | required | build-time breakage |
 | smoke against production preview | CI `smoke` job | required | broken routes, closed registration, RLS on notes/criteria/members |
-| unit (`npm test`) | local + CI `ci` job | required after §3 Phase 1 | ingestion guardrail regressions |
+| unit (`npm test`) | local + CI `ci` job | required — wired in the CI `ci` job by §3 Phase 1 | ingestion guardrail regressions, unsafe stored URLs in views |
 | write-isolation smoke steps | CI `smoke` job | required after §3 Phase 2 | cross-member writes, overwritten notes |
 | audit integration (provider stub) | CI | required after §3 Phase 3 | multiplied billed calls, lost paid results |
 | post-edit hook running related unit tests | local (agent loop) | recommended after §3 Phase 1 | regressions at edit time |
@@ -125,13 +125,148 @@ named in the S-04 plan, so the code under test is built to be testable.
 How to add new tests in this project. Each sub-section is filled in once
 the relevant rollout phase ships; before that, it reads "TBD — see §3 Phase N."
 
-### 6.1 Adding a unit test for an ingestion rule (unknown-not-zero, flat-sale gate, seller-data whitelist)
+Tag each `describe` with the §2 risk it protects, as the reference tests do:
+`(#1)` for an invented or incomplete fact (unknown-not-zero, the flat-sale
+gate, no blank row, and an unknown shown as a value in a view), `(#6)` for
+seller data, `(#7)` for a stored URL in `href`/`src`.
 
-- TBD — see §3 Phase 1.
+### 6.1 Adding a unit test for an ingestion rule (unknown-not-zero on every mapped fact, flat-sale gate, seller-data whitelist)
+
+- **Where:** `tests/lib/otodom/`, mirroring `src/lib/otodom/`, one
+  `<module>.test.ts` per module (`map.test.ts`, `fetch.test.ts`). A route that
+  writes offer data gets its test at the route's path under `tests/pages/api/`.
+- **Reference test:** `tests/lib/otodom/map.test.ts`. Its four `describe`
+  blocks are the four rules: unknown-not-zero on every numeric column and its
+  currency, the flat-sale gate with its edge variants, no blank row, and the
+  seller-data whitelist. A new rule gets its own `describe`; a new input to a
+  rule already covered joins that rule's block. Unknown-not-zero is not only
+  the `characteristics` numbers: every mapped fact that can be unstated
+  (coordinates, dates, enum tokens, text) follows it.
+- **Fixtures:** build the `ad` with `tests/fixtures/otodom.ts` —
+  `flatSaleAd(overrides)` for a sale of a flat,
+  `withCharacteristic(ad, key, patch)` to change one `characteristics` entry
+  (`null` drops it), `omitKeys(ad, ...keys)` to make a key absent rather than
+  `undefined`, and the
+  §7.4 variants `rentalFlat`, `saleHouse`, `rentalHouse`, `typeDisagreement`,
+  `categoryTrap`. They are synthetic, hand-written from
+  `ingestion/otodom_fetching.md` §7, and every variant carries the same seller
+  canaries (`CANARY_PHONE` and its spellings, `CANARY_NAME`, the seller and
+  user ids — together `SELLER_CANARIES`). A new shape is added there from the
+  document; a payload recorded from the live portal is never committed.
+  Import fixtures by relative path (`../../fixtures/otodom`): `@/*` maps to
+  `src/` only. For a nested key (`location.coordinates`, `adCategory`), pass
+  the whole parent to `flatSaleAd({ location: { ...base.location, … } })`,
+  spread from `flatSaleAd()`'s own value; once a second test needs the same
+  override, move it into `tests/fixtures/otodom.ts` as a helper.
+- **Oracle:** the PRD and `ingestion/otodom_fetching.md` §7. Write each
+  expected value by hand from the fixture input and the rule, never from the
+  mapper's output. When the rule exists in the code but neither document
+  states it (the coordinate rule — `0` or out of range is unknown — is one,
+  as of 2026-09-30), do not promote the code to oracle: raise it with the
+  user, write the agreed rule into `ingestion/otodom_fetching.md` §7 (or the
+  PRD, for a product rule) in the same change, and test against that text.
+- **Seller-data pattern (#6), always both halves:** take the row, drop
+  `description` and `raw.description` from a copy, `JSON.stringify` it and
+  assert that no entry of `SELLER_CANARIES` occurs in it; and assert that
+  `description` still contains `CANARY_PHONE` and `CANARY_NAME` verbatim. A
+  canary hit is fixed in the whitelist, never by redacting the description
+  (FR-011 excerpts must stay verbatim). Allowed `raw` keys are written out in
+  the test as a list, not imported from the code under test.
+- **Every new writer of offer data** — the re-fetch (FR-009), the
+  extraction-service fallback, whose `sellerPhone`/`agencyName` carry the
+  seller (`ingestion/otodom_apify.md` §6.1) — gets the same canary test, run on
+  the row it actually sends to the database, not on an intermediate object.
+  For the fallback, its fixture carries `sellerPhone: CANARY_PHONE` and
+  `agencyName: CANARY_NAME`.
+- **Fetch and route boundary:** stub the network at the HTTP edge with
+  `stubFetch` from `tests/fixtures/http.ts` and `afterEach(restoreFetch)`;
+  pages come from `otodomPage`, `otodomPageProps`, `pageWithNextData` and
+  `PAGE_WITHOUT_NEXT_DATA`, and `responseAt(body, { status, url })` sets a
+  status or the address a redirect landed on. `tests/lib/otodom/fetch.test.ts`
+  is the reference for a fetch failure reason. `tests/pages/api/offers.test.ts`
+  is the reference for a route: it overrides the zero-config mock with its own
+  `vi.mock("astro:env/server", …)` holding `SUPABASE_TEST_URL` /
+  `SUPABASE_TEST_KEY`, calls the handler with a hand-built context, and asserts
+  on the recorded requests — no `POST /rest/v1/offers` on a refusal, exactly
+  one on success, no canary in its body. Never `vi.mock` `@/lib/supabase` or
+  `@/lib/otodom`.
+- **Run:** `npm test -- tests/lib/otodom` (one file:
+  `npm test -- tests/lib/otodom/map.test.ts`; the route:
+  `npm test -- tests/pages/api`).
+- **Pitfalls:**
+  - A new numeric `characteristics` column goes through `numericOrUnknown`
+    and gets the same list of unstated values the reference test uses
+    (absent, `""`, `"0"`, `"-5"`, `"1e3"`, `"0x10"`, `"12,5"`, `"1 200"`,
+    `null`, …), plus `"2.5"` for an integer column. A fact read by its own
+    function (coordinates take numbers only, and a negative value is a real
+    place) needs its own list, built from that fact's rule, not this one.
+  - `new Response()` has `url === ""`, which the fetch reads as "no
+    redirect"; a redirect test sets `url` through `responseAt`.
+  - A request the stub did not plan fails the test in `restoreFetch`.
+    postgrest-js retries a rejected GET up to three times with back-off, so an
+    unplanned Supabase GET fails slowly — the documented request shapes are in
+    the header comment of `tests/fixtures/http.ts`.
+  - The gate reads `adCategory`, never `category`; `categoryTrap` exists to
+    catch a gate moved onto the wrong field.
 
 ### 6.2 Adding a render test for stored content (URL guard, unknown presentation)
 
-- TBD — see §3 Phase 1.
+- **Where:** `tests/components/<folder>/`, mirroring `src/components/`. A
+  component gets `<kebab-name>.test.ts` (`offer-board-item.test.ts`);
+  `render.test.ts` holds the #7 stored-URL checks for the three offer views
+  and is where a new URL check on those views goes.
+- **Reference test:** `tests/components/offers/render.test.ts` (`OfferCard`,
+  `OfferGallery`, `OfferBoardItem`) for stored URLs;
+  `tests/components/offers/offer-board-item.test.ts` for an unknown fact.
+- **Container:** create it once in `beforeAll` with
+  `experimental_AstroContainer.create({ renderers })`, where `renderers` is
+  `await loadRenderers([getContainerRenderer()])` — `loadRenderers` from
+  `astro:container`, `getContainerRenderer` from
+  `@astrojs/react/container-renderer` — and render with
+  `container.renderToString(Component, { props })`. The React renderer is
+  needed even for an `.astro` view, because the views render React components
+  from `src/components/ui` (`Card`, `Badge`) on the server.
+  `tests/astro-modules.d.ts` types the `.astro` import for lint.
+- **Props:** from `src/pages/dev/_offer-fixtures.ts` (`fullOffer`,
+  `unknownOffer`, `memberSaver`, `noLimits`, `malformedImagesOffer`), with one
+  fact overridden by the hostile, broken or unknown value — a fact and its
+  pair together where it has one (`price` with `price_currency`). A new broken state gets a
+  fixture there and a section on `/dev/offer-card` (CLAUDE.md `### UI`).
+- **Stored-URL assertion (#7) — a whitelist, never a blacklist:** extract every `href` and
+  `src` value and assert each matches `^(?:https:\/\/|\/(?![/\\]))` — an
+  absolute https URL, or an internal path that is not protocol-relative. The
+  helper also compares the number of attribute names with the number of
+  extracted quoted values, so a single-quoted or unquoted attribute fails the
+  test instead of slipping past it. "Does not contain `javascript:`" would pass
+  `data:` and `http:`. Assert the absence too (no source link text, zero
+  `<img>`) and the exact URL where one must render.
+- **Broken inputs:** the stored row is the attack surface — any member can
+  PATCH it — so feed the view directly, with no mapper in between: schemes
+  (`javascript:`, upper-case, a leading space, `data:`, `http:`, `//host`),
+  `null` and non-string values, and for image lists an element that is `null`,
+  a number, `{}` or a bare string, and a valid `thumbnail` with a hostile
+  `large`. Each must render without throwing.
+- **Unknown-fact assertion (#1):** the oracle is the PRD — Guardrails
+  (missing data reads "unknown", never "no" and never zero) and the resolved
+  Open Questions block for the wording „nie podano w ogłoszeniu”, rendered
+  through `src/components/offers/Unstated.astro`. Assert on the visible text:
+  strip the tags and collapse every run of whitespace, NBSP included (the
+  `Intl` formatting in `@/lib/otodom/labels` uses it), into one space. Then
+  assert both halves: the unstated phrase is there (with its label, and the
+  number of times you expect it), and no zero or empty value is — a pattern
+  for a bare `0` before `zł`/`PLN`/`m²` that does not match inside
+  `890 000 zł`, plus `NaN`, `null` and `undefined`. A blacklist is right here,
+  unlike for URLs: the failure is one known value, and the positive half
+  keeps the test from passing on an empty render.
+- **Run:** `npm test -- tests/components`.
+- **Pitfalls:**
+  - Run `npx astro sync` before `npm run lint` on a render test: the types of
+    `astro:container` come from the git-ignored `.astro/` it generates, and
+    without them lint reports `no-unsafe-call` on `loadRenderers`.
+  - The Container API is experimental (`experimental_` prefix) and may break
+    on an Astro minor or patch upgrade. After upgrading `astro` or
+    `@astrojs/react`, run `npm test -- tests/components` first; a failure
+    there is the API moving, not necessarily a view regressing.
 
 ### 6.3 Adding a write-isolation check for a new write path (cross-member, re-fetch, delete, archive)
 
@@ -148,6 +283,45 @@ the relevant rollout phase ships; before that, it reads "TBD — see §3 Phase N
 ### 6.6 Per-rollout-phase notes
 
 (Appended by each phase as it ships.)
+
+**Phase 1 — Test runner and ingestion guardrails**
+(`testing-ingestion-guardrails`, 2026-09-30)
+
+- Fixtures are hand-written, not "recorded" as the §3 row says: no recording
+  exists, and none may be committed — third-party data, the advertiser's phone
+  and name, in a public repository. The same synthetic canaries replaced the
+  real seller's phone and name once quoted in `ingestion/otodom_apify.md`
+  §6.1.
+- Vitest gets the project's Vite config through `getViteConfig` with the
+  Cloudflare adapter stripped: the adapter boots workerd inside Vitest's Vite
+  server and fails at startup. Tests run in Node, so a `cloudflare:*` import
+  in `src/` would not resolve under `vitest.config.ts` and would need its own
+  configuration (`@cloudflare/vitest-pool-workers` required Vitest 4 when
+  checked, 2026-09-30).
+- `astro:env/server` resolves under Vitest but reads the real `.env`.
+  `tests/setup.ts` mocks it with unset secrets so every test starts
+  zero-config; a test file's own `vi.mock` of the module overrides it
+  (verified), and `tests/setup.test.ts` fails if the default goes.
+- "Unparseable" for a numeric string means anything but plain decimal
+  notation (`/^\d+(?:\.\d+)?$/` after trimming): `"1e3"`, `"0x10"`, `"+5"`,
+  `"12,5"`, `"1 200"` and `"Infinity"` are unknown. Checked live with
+  `npm run otodom:inspect` on a flat sale on 2026-09-30: otodom sends plain
+  decimal strings, and every stated number came through.
+- The tests found two production gaps, fixed in the same change: the decimal
+  rule above, and `OfferGallery` throwing on an `images` element that is not
+  an object (fixture `malformedImagesOffer`). FR-005 now says a rental house
+  gets the transaction message, which is checked first.
+- Every guard's test was confirmed by a deliberate break that turned it red.
+  The suite runs with no network (checked under `unshare -rn`).
+- Deferred:
+  - `raw.images` keeps unfiltered URLs. Nothing renders `raw` today; the first
+    phase that reads it (S-04, §3 Phase 4) filters and tests it.
+  - The host of `source_url` is not checked: any https host gets the „Otwórz
+    oryginał na otodom.pl” link. Outside #7's scheme rule — noted, not fixed.
+  - S-08's map link does not exist yet; its render test comes with the S-08
+    plan, per §6.2.
+  - The next writers of offer data (re-fetch FR-009, extraction-service
+    fallback) get their canary tests when they are built, per §6.1.
 
 ## 7. What We Deliberately Don't Test
 

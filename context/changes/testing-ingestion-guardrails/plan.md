@@ -674,26 +674,26 @@ Nie dotyczy: żadnej migracji ani zmiany danych. Wiersze zapisane wcześniej z w
 
 #### Automated
 
-- [x] 4.1 `npm test` przechodzi, w tym testy renderu `OfferCard`, `OfferGallery` i `OfferBoardItem`
-- [x] 4.2 `npm run lint` przechodzi (w tym `tokensOnlyConfig`, bez nowych wyjątków)
-- [x] 4.3 `npx astro check` przechodzi z 0 błędów
-- [x] 4.4 `npm run build` przechodzi
+- [x] 4.1 `npm test` przechodzi, w tym testy renderu `OfferCard`, `OfferGallery` i `OfferBoardItem` — 6547d8b
+- [x] 4.2 `npm run lint` przechodzi (w tym `tokensOnlyConfig`, bez nowych wyjątków) — 6547d8b
+- [x] 4.3 `npx astro check` przechodzi z 0 błędów — 6547d8b
+- [x] 4.4 `npm run build` przechodzi — 6547d8b
 
 #### Manual
 
-- [x] 4.5 Mutacje, każda cofnięta, dają czerwony test: (1) `href={offer.source_url}` zamiast `sourceUrl` w `OfferCard`; (2) usunięcie guardu elementu w galerii (test `[null]` pada wyjątkiem); (3) `thumbnail !== null || large !== null` w galerii
-- [x] 4.6 `/dev/offer-card` pod `npm run dev` pokazuje nową sekcję z uszkodzonymi zdjęciami jako „Ogłoszenie nie zawiera zdjęć.”, a pozostałe sekcje wyglądają jak przed zmianą
+- [x] 4.5 Mutacje, każda cofnięta, dają czerwony test: (1) `href={offer.source_url}` zamiast `sourceUrl` w `OfferCard`; (2) usunięcie guardu elementu w galerii (test `[null]` pada wyjątkiem); (3) `thumbnail !== null || large !== null` w galerii — 6547d8b
+- [x] 4.6 `/dev/offer-card` pod `npm run dev` pokazuje nową sekcję z uszkodzonymi zdjęciami jako „Ogłoszenie nie zawiera zdjęć.”, a pozostałe sekcje wyglądają jak przed zmianą — 6547d8b
 
 ### Phase 5: Dokumentacja, cookbook i redakcja danych osobowych
 
 #### Automated
 
-- [ ] 5.1 `npm test`, `npm run lint`, `npx astro check` i `npm run build` przechodzą
-- [ ] 5.2 `grep -rn "512228855\|Krupa" context/foundation src tests scripts` nic nie znajduje
-- [ ] 5.3 `grep -n "TBD — see §3 Phase 1" context/foundation/test-plan.md` nic nie znajduje
-- [ ] 5.4 `grep -n "npm test" CLAUDE.md README.md .github/workflows/ci.yml` trafia w każdym z trzech plików
+- [x] 5.1 `npm test`, `npm run lint`, `npx astro check` i `npm run build` przechodzą
+- [x] 5.2 `grep -rn "512228855\|Krupa" context/foundation src tests scripts` nic nie znajduje
+- [x] 5.3 `grep -n "TBD — see §3 Phase 1" context/foundation/test-plan.md` nic nie znajduje
+- [x] 5.4 `grep -n "npm test" CLAUDE.md README.md .github/workflows/ci.yml` trafia w każdym z trzech plików
 
 #### Manual
 
-- [ ] 5.5 §6.1 i §6.2 wystarczą, żeby dodać nowy test ingestii albo renderu bez czytania tej rozmowy (ścieżka, nazwa, test referencyjny, komenda)
-- [ ] 5.6 Świeży klon bez `.env`: `npm ci && npm test` przechodzi
+- [x] 5.5 §6.1 i §6.2 wystarczą, żeby dodać nowy test ingestii albo renderu bez czytania tej rozmowy (ścieżka, nazwa, test referencyjny, komenda)
+- [x] 5.6 Świeży klon bez `.env`: `npm ci && npm test` przechodzi

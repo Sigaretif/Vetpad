@@ -54,6 +54,7 @@ npm run dev
 - `npm run preview` - Preview production build
 - `npm run lint` - Run ESLint with type-checked rules
 - `npm run lint:fix` - Auto-fix ESLint issues
+- `npm test` - Run the Vitest unit and render tests under `tests/` (no network, no secrets, no Supabase)
 - `npm run format` - Run Prettier
 - `npm run smoke` - Smoke test the auth flow against a running server (`BASE_URL`, defaults to `http://localhost:4321`)
 - `npm run otodom:inspect -- <url>` - Print what otodom.pl returns for one live offer next to what the app's mapper makes of it (debugging only, see below)
@@ -193,7 +194,7 @@ Against `npm run dev` every step works except the `/dev/*` → 404 steps, which 
 
 It needs the local Supabase started with the seed (`npx supabase start`) and `SUPABASE_URL`/`SUPABASE_KEY` in `.env`, which `npm run smoke` loads. Credentials default to `sigaretif1@vetpad.local` and can be overridden with `SMOKE_EMAIL`/`SMOKE_PASSWORD`; the second member defaults to `sigaretif2@vetpad.local` and is overridden with `SMOKE_EMAIL_2`/`SMOKE_PASSWORD_2`. Never run it against production: the seeded accounts exist only locally, the sign-up attempt is only harmless on a throwaway database, and the run writes and deletes an offer and rewrites the team's criteria. The script refuses a `SUPABASE_URL` whose host is not `localhost`/`127.0.0.1` unless `SMOKE_ALLOW_REMOTE=1` is set.
 
-> **Note:** this script exists primarily to guard the development of the starter itself — it is a fast sanity check that dependency upgrades did not break the build, the Cloudflare adapter or the Supabase auth flow. It is **not** a substitute for a real test suite. Once you build your own product on top of this starter, add proper tests (unit, integration, end-to-end) suited to your application.
+> **Note:** this script is the one test that needs a running server and a live Supabase — a fast sanity check that dependency upgrades did not break the build, the Cloudflare adapter, the Supabase auth flow or row-level security. The in-process unit and render tests are `npm test` (Vitest, `tests/`); how to add one is in [`context/foundation/test-plan.md`](./context/foundation/test-plan.md), section 6.
 
 ## Inspecting an otodom.pl listing
 
@@ -215,7 +216,7 @@ node scripts/ui-screenshots.mjs gate context/changes/<change-id>/screenshots
 
 GitHub Actions runs two jobs on every push and PR to `master`:
 
-- **ci** — lint, `astro check` and build. Configure `SUPABASE_URL` and `SUPABASE_KEY` as repository secrets for the build step.
+- **ci** — lint, `astro check`, `npm test` and build. `npm test` gets no secrets; configure `SUPABASE_URL` and `SUPABASE_KEY` as repository secrets for the build step.
 - **smoke** — starts a local Supabase via the Supabase CLI, builds, serves the production preview on the Cloudflare runtime and runs `npm run smoke` against it. No secrets required.
 
 ## License

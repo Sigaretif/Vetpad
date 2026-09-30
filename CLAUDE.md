@@ -6,7 +6,7 @@ Astro 7 SSR app (React 19 islands, Tailwind 4, Supabase auth) deployed to Cloudf
 
 ### The project runs with zero configuration — keep it that way
 
-- The app must start, build, lint and typecheck on a fresh clone with **no `.env`, no `.dev.vars`, no Supabase, no API keys**. Verified in that exact state: `npm run dev`, `npm run build`, `npm run lint` and `npx astro check` all pass, `/` and `/auth/signin` return 200, `/dashboard` redirects to `/auth/signin`, and `src/layouts/Layout.astro` renders the warning banner from `missingConfigs`. Only `npm run smoke` needs a live Supabase.
+- The app must start, build, lint and typecheck on a fresh clone with **no `.env`, no `.dev.vars`, no Supabase, no API keys**. Verified in that exact state: `npm run dev`, `npm run build`, `npm run lint`, `npx astro check` and `npm test` all pass, `/` and `/auth/signin` return 200, `/dashboard` redirects to `/auth/signin`, and `src/layouts/Layout.astro` renders the warning banner from `missingConfigs`. Only `npm run smoke` needs a live Supabase.
 - **Never refuse to run, build, or implement a task because a secret or an external service is absent.** Missing configuration is a supported, first-class state of this app — not a blocker, and never a reason to stop and ask the user to set something up. Build the feature, let its integration degrade, and surface the gap in the banner.
 - Every new integration repeats the existing pattern, in all four places: an `envField(...)` with `optional: true` in `@astro.config.mjs`; a factory that returns `null` when its secrets are missing (`src/lib/supabase.ts`); a null-check at every call site (`src/middleware.ts`, `src/pages/api/auth/signin.ts`); and a `ConfigStatus` entry in `src/lib/config-status.ts` so the absence shows up in the banner instead of as a crash.
 - Never make an env field required, never `throw` at module load over a missing secret, and never let a route return 500 because an integration is unconfigured. Degrade the feature, keep the page rendering.
@@ -76,7 +76,7 @@ Layout and route protection are in `@README.md`. The part it does not state: `sr
 
 ## Commands
 
-Scripts are in `@package.json`. Two commands CI runs that are **not** npm scripts: `npx astro sync` and `npx astro check` — run both locally before pushing, or the `ci` job fails on something `npm run lint` never sees.
+Scripts are in `@package.json`. Two commands CI runs that are **not** npm scripts: `npx astro sync` and `npx astro check` — run both locally before pushing, or the `ci` job fails on something `npm run lint` never sees. The `ci` job also runs `npm test`, after `npx astro check` and before `npm run build`, with no secrets.
 
 ## Conventions
 
@@ -103,12 +103,13 @@ Scripts are in `@package.json`. Two commands CI runs that are **not** npm script
 
 ## Testing
 
-There is no unit-test runner; `scripts/smoke.mjs` is the only test surface — what it covers and what it needs to run: `@README.md`. It is the only command that requires a live Supabase.
+`npm test` (Vitest, configured in `vitest.config.ts`) runs the unit and render tests under `tests/`, with no network and no secrets; `scripts/smoke.mjs` stays the only test surface that needs a live Supabase — what it covers and what it needs to run: `@README.md`.
 
 - Any change to the surface of `src/pages/api/` — adding a route, removing one, or changing an existing route's contract — must be reflected in `scripts/smoke.mjs`, and in the `smoke` job of `@.github/workflows/ci.yml` if the flow needs different setup.
 - `scripts/smoke.mjs` signs in with an account from `supabase/seed.sql` and checks that registration is closed, both in the app's routes and in Supabase Auth (FR-001). A change that re-enables registration, or removes that account from the seed, turns the smoke job red.
 - `scripts/smoke.mjs` also creates one fixture offer as the first seeded account, straight through the Data API, hangs a note on it, checks `public.offer_notes` RLS with the second seeded account (`sigaretif2@vetpad.local`), and deletes the offer again as its last notes step — which is why it never runs against production. It also changes the team's shared limits and saves requirements for both seeded accounts; its cleanup writes back the limits it read at the start and deletes both accounts' requirements, so requirements typed by hand for those accounts in the local database do not survive a run.
-- Do not add `vitest`, `jest` or `playwright` to `@package.json` without the user's explicit go-ahead.
+- Do not add `jest` or `playwright` to `@package.json` without the user's explicit go-ahead. `vitest` had that go-ahead on 2026-09-30 (`testing-ingestion-guardrails`).
+- A test lives under `tests/` at the path of the `src/` file it covers, and `context/foundation/test-plan.md` §6 is the cookbook for adding one. `tests/fixtures/otodom.ts` is the reference for ingestion fixtures: synthetic, hand-written from `@context/foundation/ingestion/otodom_fetching.md` § 7 with seller canaries, never a recorded payload — the repository is public and a live listing carries a real advertiser's phone and name. `tests/pages/api/offers.test.ts` is the reference for a route test stubbed at the HTTP edge (`tests/fixtures/http.ts`), never by mocking `@/lib/*`. `tests/components/offers/render.test.ts` is the reference for rendering a view through the Container API. `tests/setup.ts` puts every test in the zero-config state by mocking `astro:env/server`; a test that needs a configured client overrides it with its own `vi.mock`, and `tests/setup.test.ts` fails if the default goes.
 - `scripts/otodom-inspect.mjs` (`npm run otodom:inspect -- <url>`) is a debugging tool that hits the live portal, not a test surface: it never runs in CI, and smoke must never reach otodom.pl.
 - `scripts/ui-screenshots.mjs` (`node scripts/ui-screenshots.mjs gate context/changes/<change-id>/screenshots` — the output directory is required) takes the `/dev/offer-card` screenshots the UI rules above ask for — a debugging tool, not a test surface: it signs in with a `supabase/seed.sql` account against `npm run dev` and never runs in CI. Its output directory git-ignores `*offer-real*`, because those shots show a third-party listing. The `forms` set takes the `/dev/forms` screenshots the same way, plus a forced `:hover` on a state: a shot's `hover: "<CSS selector>"` field drives that element's `:hover` through CDP (`CSS.forcePseudoState`) instead of a real pointer, which headless Chrome has none of.
 

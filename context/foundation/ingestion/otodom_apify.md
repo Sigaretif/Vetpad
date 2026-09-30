@@ -295,9 +295,11 @@ Fields observed `null` on this offer: `district`, `subdistrict`, `parkingType`,
 For a listing whose `sellerType` is `private`, the response contained:
 
 ```
-sellerPhone : '+48512228855'
-agencyName  : 'Robert Krupa'
+sellerPhone : '+48 600 000 001'
+agencyName  : 'Kanarek Testowy'
 ```
+
+Both values above are synthetic placeholders (the canaries in `tests/fixtures/otodom.ts`), substituted on 2026-09-30; the original response carried a real private seller's phone number and full name.
 
 A private individual's phone number and full name, the latter in a field called
 `agencyName`. There is no input flag to suppress them, and they traverse Apify's
