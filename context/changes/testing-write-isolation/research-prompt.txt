@@ -1,0 +1,12 @@
+/10x-research Ground rollout Phase 2 of context/foundation/test-plan.md.
+
+Risks to verify: #5.
+Risk response guidance to verify, not blindly accept:
+- #5: prove that after every write operation (offer re-fetch, note insert/update/delete, offer delete with its cascade, team limits update, requirements insert/update/delete) other members' rows — notes, requirements, author columns — are identical to before, and that an RLS denial is recognised as such (HTTP 200 with [] on read, 42501 on a blocked write); challenge "the UPDATE succeeded, so only the targeted row changed" and the assumption that a denied cross-member update/delete surfaces as an error at all (PostgREST may answer 200/204 with zero rows affected); avoid asserting only "no error".
+Hot-spot directories that raised these risks (likelihood evidence — NOT anchors): supabase/migrations/, src/, scripts/.
+Stack: integration against local Supabase through scripts/smoke.mjs (CI smoke job); Vitest + HTTP-edge fetch stub for in-process tests; no e2e.
+
+The test plan carries evidence and response intent, not code anchors. For each risk, ground the real failure path in code, quote relevant lines, verify or correct the response guidance, locate existing tests (including what scripts/smoke.mjs already asserts about offer_notes and requirements RLS), identify the cheapest useful test layer, and flag speculative risks or misleading hot-spot evidence.
+
+Write findings to context/changes/testing-write-isolation/research.md.
+Then follow the downstream continuation rule.

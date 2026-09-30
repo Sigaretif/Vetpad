@@ -78,8 +78,8 @@ orchestrator updates Status as artifacts appear on disk.
 
 | # | Phase name | Goal (one line) | Risks covered | Test types | Status | Change folder |
 |---|---|---|---|---|---|---|
-| 1 | Test runner and ingestion guardrails | Bootstrap Vitest and prove that ingestion never saves an invented fact, a non-flat-sale, seller data, or an unsafe URL; wire `npm test` into CI | #1, #6 (storage), #7 | unit (recorded fixtures) | planned | context/changes/testing-ingestion-guardrails/ |
-| 2 | Write isolation | Prove that a write on X leaves every other member's data untouched, before S-09/S-10/S-11 add more writes | #5 | integration (smoke) | not started | — |
+| 1 | Test runner and ingestion guardrails | Bootstrap Vitest and prove that ingestion never saves an invented fact, a non-flat-sale, seller data, or an unsafe URL; wire `npm test` into CI | #1, #6 (storage), #7 | unit (recorded fixtures) | complete | context/changes/testing-ingestion-guardrails/ |
+| 2 | Write isolation | Prove that a write on X leaves every other member's data untouched, before S-09/S-10/S-11 add more writes | #5 | integration (smoke) | change opened | context/changes/testing-write-isolation/ |
 | 3 | Audit cost and durability | Prove that a paid model call cannot be multiplied and a paid result cannot be silently lost — starts only after S-04 ships | #2, #3 | integration (provider stub) | not started | — |
 | 4 | Audit grounding and prompt privacy | Prove that no finding without a verbatim excerpt is shown and no note or seller data reaches the prompt — starts only after S-04 ships | #4, #6 (prompt) | unit, optional manual golden set | not started | — |
 
