@@ -661,28 +661,28 @@ Nie dotyczy: żadnej migracji ani zmiany danych. Wiersze zapisane wcześniej z w
 
 #### Automated
 
-- [x] 3.1 `npm test` przechodzi, w tym `tests/lib/otodom/fetch.test.ts` i `tests/pages/api/offers.test.ts`
-- [x] 3.2 `npm test` przechodzi bez dostępu do sieci (zaślepka odrzuca każdy nieobsłużony host)
-- [x] 3.3 `npm run lint` przechodzi
-- [x] 3.4 `npx astro check` przechodzi z 0 błędów
+- [x] 3.1 `npm test` przechodzi, w tym `tests/lib/otodom/fetch.test.ts` i `tests/pages/api/offers.test.ts` — 580d500
+- [x] 3.2 `npm test` przechodzi bez dostępu do sieci (zaślepka odrzuca każdy nieobsłużony host) — 580d500
+- [x] 3.3 `npm run lint` przechodzi — 580d500
+- [x] 3.4 `npx astro check` przechodzi z 0 błędów — 580d500
 
 #### Manual
 
-- [x] 3.5 Mutacje, każda cofnięta, dają czerwony test: (1) `insert` przed `if (!result.ok)` w `src/pages/api/offers.ts`; (2) `raw: ad` dopisane do wstawianego wiersza; (3) usunięcie gałęzi `shouldShowExpiredAdPage` z `fetch.ts`
+- [x] 3.5 Mutacje, każda cofnięta, dają czerwony test: (1) `insert` przed `if (!result.ok)` w `src/pages/api/offers.ts`; (2) `raw: ad` dopisane do wstawianego wiersza; (3) usunięcie gałęzi `shouldShowExpiredAdPage` z `fetch.ts` — 580d500
 
 ### Phase 4: Strażnicy renderu (#7) i poprawka galerii
 
 #### Automated
 
-- [ ] 4.1 `npm test` przechodzi, w tym testy renderu `OfferCard`, `OfferGallery` i `OfferBoardItem`
-- [ ] 4.2 `npm run lint` przechodzi (w tym `tokensOnlyConfig`, bez nowych wyjątków)
-- [ ] 4.3 `npx astro check` przechodzi z 0 błędów
-- [ ] 4.4 `npm run build` przechodzi
+- [x] 4.1 `npm test` przechodzi, w tym testy renderu `OfferCard`, `OfferGallery` i `OfferBoardItem`
+- [x] 4.2 `npm run lint` przechodzi (w tym `tokensOnlyConfig`, bez nowych wyjątków)
+- [x] 4.3 `npx astro check` przechodzi z 0 błędów
+- [x] 4.4 `npm run build` przechodzi
 
 #### Manual
 
-- [ ] 4.5 Mutacje, każda cofnięta, dają czerwony test: (1) `href={offer.source_url}` zamiast `sourceUrl` w `OfferCard`; (2) usunięcie guardu elementu w galerii (test `[null]` pada wyjątkiem); (3) `thumbnail !== null || large !== null` w galerii
-- [ ] 4.6 `/dev/offer-card` pod `npm run dev` pokazuje nową sekcję z uszkodzonymi zdjęciami jako „Ogłoszenie nie zawiera zdjęć.”, a pozostałe sekcje wyglądają jak przed zmianą
+- [x] 4.5 Mutacje, każda cofnięta, dają czerwony test: (1) `href={offer.source_url}` zamiast `sourceUrl` w `OfferCard`; (2) usunięcie guardu elementu w galerii (test `[null]` pada wyjątkiem); (3) `thumbnail !== null || large !== null` w galerii
+- [x] 4.6 `/dev/offer-card` pod `npm run dev` pokazuje nową sekcję z uszkodzonymi zdjęciami jako „Ogłoszenie nie zawiera zdjęć.”, a pozostałe sekcje wyglądają jak przed zmianą
 
 ### Phase 5: Dokumentacja, cookbook i redakcja danych osobowych
 

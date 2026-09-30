@@ -155,6 +155,27 @@ export const unsafeImagesOffer: OfferRow = {
   ],
 };
 
+/**
+ * Photo entries that are not photos, as a member can PATCH them into the column: `null`, a number,
+ * an object with no URLs, and a valid thumbnail whose large photo is unsafe. None may render, and
+ * the card must not fail on them: the gallery shows „Ogłoszenie nie zawiera zdjęć.".
+ */
+export const malformedImagesOffer: OfferRow = {
+  ...fullOffer,
+  id: "00000000-0000-4000-8000-000000000013",
+  otodom_id: 1000013,
+  source_url: "https://example.com/oferta/uszkodzone-zdjecia",
+  title: "Uszkodzone wpisy zdjęć: galeria bez zdjęć",
+  // A deliberately broken row: the cast lets it through the type the mapper writes, because the
+  // stored column holds whatever a member PATCHed into it.
+  images: [
+    null,
+    42,
+    {},
+    { thumbnail: "https://picsum.photos/seed/vetpad-malformed/320/240", large: "javascript:alert(1)" },
+  ] as unknown as OfferImage[],
+};
+
 /** A very long title with no spaces and a long description: nothing may scroll horizontally. */
 export const longTitleOffer: OfferRow = {
   ...fullOffer,

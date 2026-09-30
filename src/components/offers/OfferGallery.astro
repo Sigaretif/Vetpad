@@ -6,15 +6,18 @@ import { safeHttpsUrl } from "@/lib/safe-url";
 import { cn } from "@/lib/utils";
 
 interface Props {
-  images: OfferImage[];
+  /** The stored column as read: any member can PATCH it, so an element may be anything. */
+  images: unknown[];
   title: string;
 }
 
 const { title } = Astro.props;
 // Row data lands in href/src, so only entries whose both URLs are https: are rendered.
+// An element that is not an object (null, a number, a string) has no URLs and is skipped the
+// same way, rather than failing the whole card (as in OfferBoardItem.astro).
 const images = Astro.props.images.flatMap((image) => {
-  const thumbnail = safeHttpsUrl(image.thumbnail);
-  const large = safeHttpsUrl(image.large);
+  const thumbnail = safeHttpsUrl((image as Partial<OfferImage> | null)?.thumbnail);
+  const large = safeHttpsUrl((image as Partial<OfferImage> | null)?.large);
   return thumbnail !== null && large !== null ? [{ thumbnail, large }] : [];
 });
 const total = images.length;
