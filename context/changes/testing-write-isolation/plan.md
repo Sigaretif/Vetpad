@@ -854,7 +854,7 @@ wymaga zgody użytkownika.
 #### Manual
 
 - [x] 5.6 Celowe psucie na lokalnej bazie: funkcja triggera zamrażającego autora notatki podmieniona tak, by zawsze przywracała autora — `npm run test:db` kończy się kodem różnym od 0 z nazwą sprawdzenia; baza przywrócona przez `npx supabase db reset` za zgodą użytkownika — ecc0c74
-- [ ] 5.7 Job `smoke` w CI jest zielony z nowym krokiem (sprawdzane na PR po `/git-ship` albo na `master` po `/git-land` — wybór ścieżki należy do użytkownika)
+- [x] 5.7 Job `smoke` w CI jest zielony z nowym krokiem (sprawdzane na PR po `/git-ship` albo na `master` po `/git-land` — wybór ścieżki należy do użytkownika) — ecc0c74
 
 ### Phase 6: Dokumentacja i cookbook
 

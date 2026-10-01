@@ -1,7 +1,7 @@
 ---
 change_id: testing-write-isolation
 title: "Test plan Phase 2: prove a write on one member's data leaves others untouched"
-status: implementing
+status: implemented
 created: 2026-09-30
 updated: 2026-10-01
 archived_at: null
