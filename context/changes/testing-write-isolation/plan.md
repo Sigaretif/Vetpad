@@ -786,31 +786,31 @@ wymaga zgody użytkownika.
 
 #### Automated
 
-- [x] 1.1 Lint przechodzi: `npm run lint`
-- [x] 1.2 Smoke przechodzi na podglądzie produkcyjnym z lokalnym Supabase: `npm run build && npm run preview` + `BASE_URL=http://localhost:4321 npm run smoke`
-- [x] 1.3 Po przebiegu smoke w lokalnej bazie nie zostaje żadna oferta-fixtura (`source_url` zaczynające się od `https://example.com/smoke/`)
+- [x] 1.1 Lint przechodzi: `npm run lint` — 97ff2fa
+- [x] 1.2 Smoke przechodzi na podglądzie produkcyjnym z lokalnym Supabase: `npm run build && npm run preview` + `BASE_URL=http://localhost:4321 npm run smoke` — 97ff2fa
+- [x] 1.3 Po przebiegu smoke w lokalnej bazie nie zostaje żadna oferta-fixtura (`source_url` zaczynające się od `https://example.com/smoke/`) — 97ff2fa
 
 #### Manual
 
-- [x] 1.4 Raport smoke pokazuje oba kroki kontrolne jako PASS z wynikiem „zmienione”
-- [x] 1.5 Tymczasowa zmiana wrappera, żeby porównywał tylko `pros`, wywraca krok kontrolny „sama data”; zmiana cofnięta
+- [x] 1.4 Raport smoke pokazuje oba kroki kontrolne jako PASS z wynikiem „zmienione” — 97ff2fa
+- [x] 1.5 Tymczasowa zmiana wrappera, żeby porównywał tylko `pros`, wywraca krok kontrolny „sama data”; zmiana cofnięta — 97ff2fa
 
 ### Phase 2: Izolacja notatek i ofert (luki 1, 2, 4, 5, 6, 7)
 
 #### Automated
 
-- [ ] 2.1 Lint przechodzi: `npm run lint`
-- [ ] 2.2 Smoke przechodzi na podglądzie produkcyjnym z lokalnym Supabase: `BASE_URL=http://localhost:4321 npm run smoke`
-- [ ] 2.3 Każdy nowy krok zapisu notatki lub oferty asertuje liczbę wierszy albo wynik porównania — żaden nie polega na samym statusie
-- [ ] 2.4 Po przebiegu smoke w lokalnej bazie nie zostaje żadna oferta-fixtura ani jej notatka
+- [x] 2.1 Lint przechodzi: `npm run lint`
+- [x] 2.2 Smoke przechodzi na podglądzie produkcyjnym z lokalnym Supabase: `BASE_URL=http://localhost:4321 npm run smoke`
+- [x] 2.3 Każdy nowy krok zapisu notatki lub oferty asertuje liczbę wierszy albo wynik porównania — żaden nie polega na samym statusie
+- [x] 2.4 Po przebiegu smoke w lokalnej bazie nie zostaje żadna oferta-fixtura ani jej notatka
 
 #### Manual
 
-- [ ] 2.5 Celowe psucie na lokalnej bazie (psql), każde osobno, smoke po każdym: polityka `update` na `offer_notes` poluzowana do `true` — czerwone kroki „odmowa PATCH” i „udany PATCH obok”
-- [ ] 2.6 Polityka `delete` na `offer_notes` poluzowana do `true` — czerwone kroki „odmowa DELETE”, „DELETE bez Prefer” i „udany DELETE obok”
-- [ ] 2.7 Trigger `offers_freeze_created_by` wyłączony — czerwony krok autora oferty
-- [ ] 2.8 Tymczasowy trigger na `offers` przestawiający `updated_at` notatek — czerwony krok „zapis oferty”
-- [ ] 2.9 Lokalna baza przywrócona przez `npx supabase db reset` za zgodą użytkownika; smoke znów zielony
+- [x] 2.5 Celowe psucie na lokalnej bazie (psql), każde osobno, smoke po każdym: polityka `update` na `offer_notes` poluzowana do `true` — czerwone kroki „odmowa PATCH” i „udany PATCH obok”
+- [x] 2.6 Polityka `delete` na `offer_notes` poluzowana do `true` — czerwone kroki „odmowa DELETE”, „DELETE bez Prefer” i „udany DELETE obok”
+- [x] 2.7 Trigger `offers_freeze_created_by` wyłączony — czerwony krok autora oferty
+- [x] 2.8 Tymczasowy trigger na `offers` przestawiający `updated_at` notatek — czerwony krok „zapis oferty”
+- [x] 2.9 Lokalna baza przywrócona przez `npx supabase db reset` za zgodą użytkownika; smoke znów zielony
 
 ### Phase 3: Izolacja wymagań i limitów (luki 2, 3, 7)
 

@@ -7,19 +7,25 @@
 // Straight against Supabase, it checks that public.members is gated by row-level security in both directions: the
 // publishable key alone reads no rows, a signed-in member reads at least one. RLS denial answers 200 with an empty
 // array, so only the row count tells a blocked read from a working one.
-// Member notes (FR-012, FR-013): it creates two fixture offers as the first seeded member straight in public.offers
-// (never through otodom.pl; the second one only holds notes to compare against), then checks that /api/notes turns
-// away anonymous users, non-form bodies, unknown offers
-// and a blank note, saves and edits the member's note, and that the offer card shows it with
-// data-notes-state="ok". Against Supabase it checks public.offer_notes from every side once that note exists: one
-// note per member per offer, the publishable key alone reads none, a second seeded member (SMOKE_EMAIL_2) reads it
-// but cannot edit or delete it (200 with no rows) nor write a note in the first member's name (403, 42501), and
-// the note is unchanged afterwards. The author's own PATCH of the note's offer, author, id and dates is then undone
-// by the triggers (the dates are always the database's). Both members also get a note on each fixture offer through
-// the Data API, and two control steps prove that the whole-row comparison (withSnapshot) reports a change: one edits
-// the note's text, one re-saves it so that only its date moves. Deleting the fixture offer takes its notes with it,
-// and the last notes steps delete both fixture offers in one request, so a failed step in between leaves nothing.
-// Because it writes and deletes offers, it never runs against production.
+// Member notes (FR-009, FR-012, FR-013, FR-015): it creates two fixture offers as the first seeded member straight in
+// public.offers (never through otodom.pl), then checks that /api/notes turns away anonymous users, non-form bodies,
+// unknown offers and a blank note, saves and edits the member's note, and that the offer card shows it with
+// data-notes-state="ok". Both members (the second is SMOKE_EMAIL_2) then hold a note on each fixture offer, and
+// every write after that is judged by whole rows: withSnapshot reads the observed notes with every column, dates
+// included, before and after the step, and two control steps prove that it reports a change (an edited text, and a
+// re-save that moves only the date). Against public.offer_notes: one note per member per offer, the publishable
+// key alone reads none and inserts none (401, 42501), and the second member reads the first member's note but
+// cannot edit or delete it (200 with no rows), nor insert or upsert a note in the first member's name (403, 42501)
+// - the note is the same row after each attempt. A denied delete sent without `Prefer` (the first member's, of the
+// second member's note) answers 204, exactly as a successful one would, so there the unchanged row is the only proof. A write that does succeed stays on its own
+// row: the second member's PATCH and DELETE filtered by the offer alone reach both members' notes and touch one.
+// The author's own PATCH of the note's offer, author, id and dates is undone by the triggers (the dates are always
+// the database's) and leaves the other member's note alone. Against public.offers: the second member rewrites the
+// listing data of an offer the first one saved, as a re-fetch would, and every note on both offers is the same row
+// afterwards; the offer's author survives being reassigned and being cleared, read back with a filter rather than
+// from the PATCH's answer. Deleting the first fixture offer as the second member takes both members' notes with it
+// and nothing from the second offer; the second offer follows, and a last delete of both ids leaves nothing behind
+// whatever failed in between. Because it writes and deletes offers, it never runs against production.
 // Team criteria (FR-002, FR-003): /criteria, /api/criteria and /api/requirements turn anonymous users away, and the
 // publishable key alone reads nothing from public.team_criteria, public.criteria_revision or public.member_requirements
 // nor changes the limits. Signed in, it reads the limits as they stood before the run, saves limits of its own
@@ -71,10 +77,15 @@ const NOTES_OK = 'data-notes-state="ok"';
 // The offer this run creates (and deletes) to hang notes on; its id is chosen here so every step can name it.
 const FIXTURE_OFFER_ID = randomUUID();
 const FIXTURE_CARD = `/offers/${FIXTURE_OFFER_ID}`;
+const FIXTURE_OFFER = `offers?id=eq.${FIXTURE_OFFER_ID}`;
 const FIXTURE_NOTES = `offer_notes?offer_id=eq.${FIXTURE_OFFER_ID}`;
 // A second fixture offer, so a step can ask whether a write or a delete on the first took anything from another.
 const FIXTURE_OFFER_ID_2 = randomUUID();
+const FIXTURE_OFFER_2 = `offers?id=eq.${FIXTURE_OFFER_ID_2}`;
+const FIXTURE_NOTES_2 = `offer_notes?offer_id=eq.${FIXTURE_OFFER_ID_2}`;
 const FIXTURE_OFFERS = `offers?id=in.(${FIXTURE_OFFER_ID},${FIXTURE_OFFER_ID_2})`;
+// Every note on either fixture offer, whoever wrote it.
+const ALL_FIXTURE_NOTES = `offer_notes?offer_id=in.(${FIXTURE_OFFER_ID},${FIXTURE_OFFER_ID_2})`;
 // The saved note's text, first as written and then as edited: the card must show the edited one.
 const NOTE_FIRST = `smoke-note-${FIXTURE_OFFER_ID}-first`;
 const NOTE_EDITED = `smoke-note-${FIXTURE_OFFER_ID}-edited`;
@@ -257,15 +268,57 @@ function observedNote(author, offerId = FIXTURE_OFFER_ID) {
   return { as: author, order: "id", path: () => notePath(author, offerId) };
 }
 
-// The second member tries to insert a note signed with the first member's uid.
-async function writeNoteAsAnotherAuthor() {
+// An observed read for withSnapshot: every note under a path (an offer's, or both fixture offers'), read by the
+// first member, who reads every member's notes.
+function observedNotes(path) {
+  return { as: MEMBER, order: "id", path };
+}
+
+// The second member tries to write a note signed with the first member's uid, on the fixture offer where the first
+// member already has one: a plain insert, or the upsert /api/notes saves with, which would replace that note.
+async function forgeNote({ upsert }) {
   const member = await memberId(MEMBER);
   if (member.error) return { status: 0, location: "", error: member.error };
-  return supabaseRest("offer_notes", {
+  return supabaseRest(upsert ? "offer_notes?on_conflict=offer_id,author_id" : "offer_notes", {
     as: OTHER_MEMBER,
     method: "POST",
+    prefer: upsert ? "resolution=merge-duplicates" : undefined,
     body: { offer_id: FIXTURE_OFFER_ID, author_id: member.userId, pros: "smoke: podszywanie się" },
   });
+}
+
+// The second member writes to the first fixture offer, which the first member saved. Any member may (flat roles).
+function patchOfferAsOther(body) {
+  return supabaseRest(FIXTURE_OFFER, { as: OTHER_MEMBER, method: "PATCH", prefer: "return=representation", body });
+}
+
+// The second member rewrites the columns a re-fetch (FR-009) would, and claims the offer while at it. Stands in for
+// S-09's route, which does not exist yet: it guards the schema, not that route.
+async function rewriteListingAsOther() {
+  const other = await memberId(OTHER_MEMBER);
+  if (other.error) return { status: 0, location: "", error: other.error };
+  return patchOfferAsOther({
+    title: "Smoke: oferta testowa po ponownym pobraniu",
+    description: "Opis zmieniony przez scripts/smoke.mjs, tak jak zmieniłoby go ponowne pobranie ogłoszenia.",
+    price: SMOKE_PRICE_MAX - 1,
+    fetched_at: new Date().toISOString(),
+    created_by: other.userId,
+  });
+}
+
+// The first fixture offer, read only if the first member is still its author: a separate read, because the PATCH's
+// own answer is not where the stored author is checked.
+async function offerStillByMember() {
+  const member = await memberId(MEMBER);
+  if (member.error) return { status: 0, location: "", error: member.error };
+  return supabaseRest(`${FIXTURE_OFFER}&created_by=eq.${member.userId}&select=id`, { as: MEMBER });
+}
+
+// The notes on the first fixture offer written by the two members: one row each when both are there.
+async function bothMembersNotes() {
+  const [member, other] = [await memberId(MEMBER), await memberId(OTHER_MEMBER)];
+  if (member.error || other.error) return { status: 0, location: "", error: member.error ?? other.error };
+  return supabaseRest(`${FIXTURE_NOTES}&author_id=in.(${member.userId},${other.userId})&select=id`, { as: MEMBER });
 }
 
 // The author tries to move their note to another offer, hand it to the second member, re-id it and date it
@@ -690,34 +743,115 @@ const steps = [
     () => noteRest(MEMBER, { as: OTHER_MEMBER, select: "id" }),
     { status: 200, rows: 1 },
   ],
+  // Each attempt on the first member's note runs between two reads of that whole row: the status and the row
+  // count say the write was turned away, the comparison says the note is the same afterwards.
   [
     "another member cannot edit the note",
     () =>
-      noteRest(MEMBER, {
-        as: OTHER_MEMBER,
-        method: "PATCH",
-        prefer: "return=representation",
-        body: { pros: "smoke: nadpisane przez innego członka" },
-      }),
-    { status: 200, rows: 0 },
+      withSnapshot([observedNote(MEMBER)], () =>
+        noteRest(MEMBER, {
+          as: OTHER_MEMBER,
+          method: "PATCH",
+          prefer: "return=representation",
+          body: { pros: "smoke: nadpisane przez innego członka" },
+        }),
+      ),
+    { status: 200, rows: 0, snapshot: "same" },
   ],
   [
     "another member cannot delete the note",
-    () => noteRest(MEMBER, { as: OTHER_MEMBER, method: "DELETE", prefer: "return=representation" }),
-    { status: 200, rows: 0 },
+    () =>
+      withSnapshot([observedNote(MEMBER)], () =>
+        noteRest(MEMBER, { as: OTHER_MEMBER, method: "DELETE", prefer: "return=representation" }),
+      ),
+    { status: 200, rows: 0, snapshot: "same" },
+  ],
+  // Without `Prefer` a denied delete answers 204 with no body, exactly as a successful one does: the status proves
+  // nothing here and the unchanged row is the only evidence. The denial runs the other way round - the first member
+  // against the second member's note - so this step, the one above and the delete by offer below each have a note
+  // of their own to lose, and each turns red by itself if the delete policy lets another member through.
+  [
+    "member's delete of another member's note without Prefer answers 204 and leaves the note",
+    () => withSnapshot([observedNote(OTHER_MEMBER)], () => noteRest(OTHER_MEMBER, { as: MEMBER, method: "DELETE" })),
+    { status: 204, snapshot: "same" },
   ],
   [
     "another member cannot write a note as its author",
-    () => writeNoteAsAnotherAuthor(),
-    { status: 403, errorCode: "42501" },
+    () => withSnapshot([observedNote(MEMBER)], () => forgeNote({ upsert: false })),
+    { status: 403, errorCode: "42501", snapshot: "same" },
   ],
   [
-    "note is unchanged after the other member's attempts",
-    () => noteRest(MEMBER, { as: MEMBER, select: "pros" }),
-    { status: 200, rows: 1, bodyIncludes: NOTE_EDITED },
+    "another member cannot upsert over the note as its author",
+    () => withSnapshot([observedNote(MEMBER)], () => forgeNote({ upsert: true })),
+    { status: 403, errorCode: "42501", snapshot: "same" },
   ],
-  ["author's patch of the note's identity is accepted", () => patchNoteIdentity(), { status: 200, rows: 1 }],
-  ["note keeps its offer, author, id and database-set dates", () => noteIdentityAfterPatch(), { status: 200, rows: 1 }],
+  // No author in the body: nulls never collide with the one-note-per-member key, so were the insert admitted, the
+  // new row would show among the offers' notes instead of hiding behind a unique violation.
+  [
+    "anon cannot write a note",
+    () =>
+      withSnapshot([observedNotes(ALL_FIXTURE_NOTES)], () =>
+        supabaseRest("offer_notes", { method: "POST", body: { offer_id: FIXTURE_OFFER_ID, pros: "smoke: anon" } }),
+      ),
+    { status: 401, errorCode: "42501", snapshot: "same" },
+  ],
+  // A write that succeeds, next to another member's row: the filter names the offer and no author, so it reaches
+  // both members' notes, and the policy must let through only the writer's own.
+  [
+    "another member's edit of every note on the offer changes only their own",
+    () =>
+      withSnapshot([observedNote(MEMBER)], () =>
+        supabaseRest(FIXTURE_NOTES, {
+          as: OTHER_MEMBER,
+          method: "PATCH",
+          prefer: "return=representation",
+          body: { observations: "smoke: edycja bez filtra autora" },
+        }),
+      ),
+    { status: 200, rows: 1, snapshot: "same" },
+  ],
+  [
+    "another member's delete of every note on the second offer removes only their own",
+    () =>
+      withSnapshot([observedNote(MEMBER, FIXTURE_OFFER_ID_2)], () =>
+        supabaseRest(FIXTURE_NOTES_2, { as: OTHER_MEMBER, method: "DELETE", prefer: "return=representation" }),
+      ),
+    { status: 200, rows: 1, snapshot: "same" },
+  ],
+  // The author's patch is filtered by the offer alone too, so the second member's note there is watched.
+  [
+    "author's patch of the note's identity is accepted",
+    () => withSnapshot([observedNote(OTHER_MEMBER)], () => patchNoteIdentity()),
+    { status: 200, rows: 1, snapshot: "same" },
+  ],
+  [
+    "note keeps its offer, author, id and database-set dates",
+    () => withSnapshot([observedNote(OTHER_MEMBER)], () => noteIdentityAfterPatch()),
+    { status: 200, rows: 1, snapshot: "same" },
+  ],
+  // An offer write against the notes (FR-009) and against the offer's author. The writer is the member who did
+  // not save the offer; the notes left by now are both members' on the first offer and the first member's on the
+  // second.
+  [
+    "another member's rewrite of the listing data leaves every note as it was",
+    () => withSnapshot([observedNotes(ALL_FIXTURE_NOTES)], () => rewriteListingAsOther()),
+    { status: 200, rows: 1, snapshot: "same" },
+  ],
+  [
+    "fixture offer keeps its author after another member claims it",
+    () => offerStillByMember(),
+    { status: 200, rows: 1 },
+  ],
+  [
+    "another member's patch clearing the offer's author is accepted",
+    () => withSnapshot([observedNotes(ALL_FIXTURE_NOTES)], () => patchOfferAsOther({ created_by: null })),
+    { status: 200, rows: 1, snapshot: "same" },
+  ],
+  [
+    "fixture offer keeps its author after another member clears it",
+    () => offerStillByMember(),
+    { status: 200, rows: 1 },
+  ],
   // Team criteria. The limits are one row the whole team shares, and the local database may hold limits a person
   // set, so they are read first and written back by cleanup.
   ["team limits before the run are read", () => readLimitsBefore(), { status: 200, rows: 1 }],
@@ -869,17 +1003,19 @@ const steps = [
     () => requirementsIdentityAfterPatch(),
     { status: 200, rows: 1 },
   ],
-  // The limit mark: a stated PLN price above the saved ceiling.
+  // The limit mark: a stated PLN price above the saved ceiling. One more offer write the notes must not feel.
   [
     "fixture offer gets a price above the limit",
     () =>
-      supabaseRest(`offers?id=eq.${FIXTURE_OFFER_ID}`, {
-        as: MEMBER,
-        method: "PATCH",
-        prefer: "return=representation",
-        body: { price: SMOKE_PRICE_MAX + 1, price_currency: "PLN" },
-      }),
-    { status: 200, rows: 1 },
+      withSnapshot([observedNotes(ALL_FIXTURE_NOTES)], () =>
+        supabaseRest(FIXTURE_OFFER, {
+          as: MEMBER,
+          method: "PATCH",
+          prefer: "return=representation",
+          body: { price: SMOKE_PRICE_MAX + 1, price_currency: "PLN" },
+        }),
+      ),
+    { status: 200, rows: 1, snapshot: "same" },
   ],
   ["board reads the team limits", () => request("/dashboard"), { status: 200, bodyIncludes: [BOARD_OK, LIMITS_OK] }],
   [
@@ -929,26 +1065,38 @@ const steps = [
     },
     { status: 200, rows: 0 },
   ],
+  // The cascade (FR-015), both ways: deleting the offer takes every member's notes on it, the first member's
+  // among them although the second member has no delete policy on that note, and nothing from the other offer.
+  ["fixture offer holds both members' notes before it is deleted", () => bothMembersNotes(), { status: 200, rows: 2 }],
   [
-    "fixture offer is deleted with its notes",
+    "another member deletes the fixture offer and the second offer's notes stay as they were",
     () =>
-      supabaseRest(`offers?id=eq.${FIXTURE_OFFER_ID}`, {
-        as: MEMBER,
-        method: "DELETE",
-        prefer: "return=representation",
-      }),
-    { status: 200, rows: 1 },
+      withSnapshot([observedNotes(FIXTURE_NOTES_2)], () =>
+        supabaseRest(FIXTURE_OFFER, { as: OTHER_MEMBER, method: "DELETE", prefer: "return=representation" }),
+      ),
+    { status: 200, rows: 1, snapshot: "same" },
   ],
   [
-    "notes are gone with the offer",
+    "both members' notes are gone with the offer",
     () => supabaseRest(`${FIXTURE_NOTES}&select=id`, { as: MEMBER }),
     { status: 200, rows: 0 },
   ],
-  // The first fixture offer is gone by now, so one row is left to delete; were its delete to fail, this takes both.
   [
-    "remaining smoke fixture offers are deleted",
-    () => supabaseRest(FIXTURE_OFFERS, { as: MEMBER, method: "DELETE", prefer: "return=representation" }),
+    "second fixture offer is deleted",
+    () => supabaseRest(FIXTURE_OFFER_2, { as: MEMBER, method: "DELETE", prefer: "return=representation" }),
     { status: 200, rows: 1 },
+  ],
+  [
+    "second fixture offer's notes are gone with it",
+    () => supabaseRest(`${FIXTURE_NOTES_2}&select=id`, { as: MEMBER }),
+    { status: 200, rows: 0 },
+  ],
+  // Both fixture offers are gone by now, so this finds nothing. Were a delete above to fail or never run, this
+  // takes what is left - and fails on the count, on top of the step that failed.
+  [
+    "cleanup finds no smoke fixture offer left to delete",
+    () => supabaseRest(FIXTURE_OFFERS, { as: MEMBER, method: "DELETE", prefer: "return=representation" }),
+    { status: 200, rows: 0 },
   ],
   [
     "no smoke fixture offer remains",
