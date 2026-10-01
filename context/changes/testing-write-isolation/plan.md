@@ -831,29 +831,29 @@ wymaga zgody użytkownika.
 
 #### Automated
 
-- [x] 4.1 Testy przechodzą: `npm test`
-- [x] 4.2 Sam plik przechodzi: `npm test -- tests/pages/api/criteria.test.ts`
-- [x] 4.3 Lint przechodzi: `npx astro sync && npm run lint`
-- [x] 4.4 Typy przechodzą: `npx astro check`
-- [x] 4.5 `tests/pages/api/offers.test.ts` nadal przechodzi po zmianie fixtury
+- [x] 4.1 Testy przechodzą: `npm test` — 12b1120
+- [x] 4.2 Sam plik przechodzi: `npm test -- tests/pages/api/criteria.test.ts` — 12b1120
+- [x] 4.3 Lint przechodzi: `npx astro sync && npm run lint` — 12b1120
+- [x] 4.4 Typy przechodzą: `npx astro check` — 12b1120
+- [x] 4.5 `tests/pages/api/offers.test.ts` nadal przechodzi po zmianie fixtury — 12b1120
 
 #### Manual
 
-- [x] 4.6 Tymczasowe usunięcie gałęzi `updated.data.length === 0` z `src/pages/api/criteria.ts` wywraca przypadek `200 []`; zmiana cofnięta, `git diff src/` pusty
+- [x] 4.6 Tymczasowe usunięcie gałęzi `updated.data.length === 0` z `src/pages/api/criteria.ts` wywraca przypadek `200 []`; zmiana cofnięta, `git diff src/` pusty — 12b1120
 
 ### Phase 5: Usunięcie konta — skrypt SQL z rollbackiem
 
 #### Automated
 
-- [ ] 5.1 Skrypt przechodzi na lokalnej bazie: `npm run test:db` kończy się kodem 0
-- [ ] 5.2 Po przebiegu konto `sigaretif3@vetpad.local` istnieje, a w bazie nie ma żadnej fixtury skryptu
-- [ ] 5.3 Drugi przebieg pod rząd też przechodzi (skrypt nie zostawia stanu)
-- [ ] 5.4 Smoke nadal przechodzi: `BASE_URL=http://localhost:4321 npm run smoke`
-- [ ] 5.5 Lint przechodzi: `npm run lint`
+- [x] 5.1 Skrypt przechodzi na lokalnej bazie: `npm run test:db` kończy się kodem 0
+- [x] 5.2 Po przebiegu konto `sigaretif3@vetpad.local` istnieje, a w bazie nie ma żadnej fixtury skryptu
+- [x] 5.3 Drugi przebieg pod rząd też przechodzi (skrypt nie zostawia stanu)
+- [x] 5.4 Smoke nadal przechodzi: `BASE_URL=http://localhost:4321 npm run smoke`
+- [x] 5.5 Lint przechodzi: `npm run lint`
 
 #### Manual
 
-- [ ] 5.6 Celowe psucie na lokalnej bazie: funkcja triggera zamrażającego autora notatki podmieniona tak, by zawsze przywracała autora — `npm run test:db` kończy się kodem różnym od 0 z nazwą sprawdzenia; baza przywrócona przez `npx supabase db reset` za zgodą użytkownika
+- [x] 5.6 Celowe psucie na lokalnej bazie: funkcja triggera zamrażającego autora notatki podmieniona tak, by zawsze przywracała autora — `npm run test:db` kończy się kodem różnym od 0 z nazwą sprawdzenia; baza przywrócona przez `npx supabase db reset` za zgodą użytkownika
 - [ ] 5.7 Job `smoke` w CI jest zielony z nowym krokiem (sprawdzane na PR po `/git-ship` albo na `master` po `/git-land` — wybór ścieżki należy do użytkownika)
 
 ### Phase 6: Dokumentacja i cookbook

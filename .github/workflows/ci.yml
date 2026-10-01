@@ -40,12 +40,16 @@ jobs:
       - name: Start local Supabase
         run: |
           supabase start -x studio,imgproxy,mailpit,edge-runtime,logflare,vector,realtime,storage-api,postgres-meta,supavisor
-          supabase status -o env | grep -E '^(API_URL|ANON_KEY)=' > supabase.env
+          supabase status -o env | grep -E '^(API_URL|ANON_KEY|DB_URL)=' > supabase.env
       - name: Configure secrets for build and preview
         run: |
           source supabase.env
           printf 'SUPABASE_URL=%s\nSUPABASE_KEY=%s\n' "$API_URL" "$ANON_KEY" > .env
           cp .env .dev.vars
+      - name: Check account deletion against the local database
+        run: |
+          source supabase.env
+          DB_URL="$DB_URL" npm run test:db
       - run: npm run build
       - name: Run smoke test against production preview
         run: |

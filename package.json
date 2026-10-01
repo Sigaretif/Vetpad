@@ -9,6 +9,7 @@
     "astro": "astro",
     "lint": "eslint .",
     "test": "vitest run",
+    "test:db": "psql \"${DB_URL:-postgresql://postgres:postgres@127.0.0.1:54322/postgres}\" -X -q -v ON_ERROR_STOP=1 -f scripts/account-deletion.sql",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "smoke": "node --env-file-if-exists=.env scripts/smoke.mjs",
