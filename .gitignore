@@ -29,3 +29,7 @@ pnpm-debug.log*
 
 # screenshots of real otodom listings (third-party photos and text) — keep local, never commit
 context/**/screenshots/*offer-real*
+
+# stryker (mutation testing)
+.stryker-tmp/
+reports/
