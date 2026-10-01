@@ -860,11 +860,11 @@ wymaga zgody użytkownika.
 
 #### Automated
 
-- [x] 6.1 Lint przechodzi: `npm run lint`
-- [x] 6.2 Testy przechodzą: `npm test`
-- [x] 6.3 `context/foundation/test-plan.md` §6.3 nie zawiera „TBD” i wymienia S-09, S-10 i S-11 z ich sprawdzeniami na poziomie trasy
-- [x] 6.4 Każda ścieżka pliku nazwana w nowych fragmentach `CLAUDE.md`, `README.md` i `test-plan.md` istnieje w repozytorium
+- [x] 6.1 Lint przechodzi: `npm run lint` — 17d2e4f
+- [x] 6.2 Testy przechodzą: `npm test` — 17d2e4f
+- [x] 6.3 `context/foundation/test-plan.md` §6.3 nie zawiera „TBD” i wymienia S-09, S-10 i S-11 z ich sprawdzeniami na poziomie trasy — 17d2e4f
+- [x] 6.4 Każda ścieżka pliku nazwana w nowych fragmentach `CLAUDE.md`, `README.md` i `test-plan.md` istnieje w repozytorium — 17d2e4f
 
 #### Manual
 
-- [x] 6.5 Użytkownik czyta §6.3 i potwierdza, że da się z niej dodać sprawdzenie dla S-09 bez sięgania do `research.md`
+- [x] 6.5 Użytkownik czyta §6.3 i potwierdza, że da się z niej dodać sprawdzenie dla S-09 bez sięgania do `research.md` — 17d2e4f
