@@ -7,16 +7,19 @@
 // Straight against Supabase, it checks that public.members is gated by row-level security in both directions: the
 // publishable key alone reads no rows, a signed-in member reads at least one. RLS denial answers 200 with an empty
 // array, so only the row count tells a blocked read from a working one.
-// Member notes (FR-012, FR-013): it creates ONE fixture offer as the first seeded member straight in public.offers
-// (never through otodom.pl), then checks that /api/notes turns away anonymous users, non-form bodies, unknown offers
+// Member notes (FR-012, FR-013): it creates two fixture offers as the first seeded member straight in public.offers
+// (never through otodom.pl; the second one only holds notes to compare against), then checks that /api/notes turns
+// away anonymous users, non-form bodies, unknown offers
 // and a blank note, saves and edits the member's note, and that the offer card shows it with
 // data-notes-state="ok". Against Supabase it checks public.offer_notes from every side once that note exists: one
 // note per member per offer, the publishable key alone reads none, a second seeded member (SMOKE_EMAIL_2) reads it
 // but cannot edit or delete it (200 with no rows) nor write a note in the first member's name (403, 42501), and
 // the note is unchanged afterwards. The author's own PATCH of the note's offer, author, id and dates is then undone
-// by the triggers (the dates are always the database's). Deleting the fixture offer takes its notes with it, and is the last notes step,
-// so a failed step in between still leaves nothing behind. Because it writes and deletes an offer, it never runs
-// against production.
+// by the triggers (the dates are always the database's). Both members also get a note on each fixture offer through
+// the Data API, and two control steps prove that the whole-row comparison (withSnapshot) reports a change: one edits
+// the note's text, one re-saves it so that only its date moves. Deleting the fixture offer takes its notes with it,
+// and the last notes steps delete both fixture offers in one request, so a failed step in between leaves nothing.
+// Because it writes and deletes offers, it never runs against production.
 // Team criteria (FR-002, FR-003): /criteria, /api/criteria and /api/requirements turn anonymous users away, and the
 // publishable key alone reads nothing from public.team_criteria, public.criteria_revision or public.member_requirements
 // nor changes the limits. Signed in, it reads the limits as they stood before the run, saves limits of its own
@@ -65,13 +68,18 @@ const BOARD_OK = 'data-board-state="ok"';
 const MISSING_SUPABASE = "SUPABASE_URL and SUPABASE_KEY must be set (e.g. in .env)";
 // The notes' marker for a successful read; a failed read renders data-notes-state="error".
 const NOTES_OK = 'data-notes-state="ok"';
-// The one offer this run creates (and deletes) to hang notes on; its id is chosen here so every step can name it.
+// The offer this run creates (and deletes) to hang notes on; its id is chosen here so every step can name it.
 const FIXTURE_OFFER_ID = randomUUID();
 const FIXTURE_CARD = `/offers/${FIXTURE_OFFER_ID}`;
 const FIXTURE_NOTES = `offer_notes?offer_id=eq.${FIXTURE_OFFER_ID}`;
+// A second fixture offer, so a step can ask whether a write or a delete on the first took anything from another.
+const FIXTURE_OFFER_ID_2 = randomUUID();
+const FIXTURE_OFFERS = `offers?id=in.(${FIXTURE_OFFER_ID},${FIXTURE_OFFER_ID_2})`;
 // The saved note's text, first as written and then as edited: the card must show the edited one.
 const NOTE_FIRST = `smoke-note-${FIXTURE_OFFER_ID}-first`;
 const NOTE_EDITED = `smoke-note-${FIXTURE_OFFER_ID}-edited`;
+// What the control steps write into the first member's note, to prove that the row comparison sees a change.
+const NOTE_CONTROL = `smoke-note-${FIXTURE_OFFER_ID}-control`;
 // An id the author tries to give the note; the freeze trigger must keep the database's own.
 const FORGED_NOTE_ID = randomUUID();
 // The criteria page's and the board's markers for a successful read; a failed read renders "error".
@@ -197,8 +205,8 @@ function supabaseMembers({ signedIn }) {
   return supabaseRest("members?select=id", { as: signedIn ? MEMBER : undefined });
 }
 
-// Creates the fixture offer as the first member, in the shape /api/offers would save — but with nothing fetched.
-async function createFixtureOffer() {
+// Creates a fixture offer as the first member, in the shape /api/offers would save — but with nothing fetched.
+async function createFixtureOffer(offerId) {
   const member = await memberId(MEMBER);
   if (member.error) return { status: 0, location: "", error: member.error };
   return supabaseRest("offers", {
@@ -206,15 +214,47 @@ async function createFixtureOffer() {
     method: "POST",
     prefer: "return=representation",
     body: {
-      id: FIXTURE_OFFER_ID,
+      id: offerId,
       created_by: member.userId,
       otodom_id: Math.floor(Math.random() * 2 ** 48),
-      source_url: `https://example.com/smoke/${FIXTURE_OFFER_ID}`,
+      source_url: `https://example.com/smoke/${offerId}`,
       title: "Smoke: oferta testowa",
       description: "Oferta utworzona przez scripts/smoke.mjs i usuwana na końcu przebiegu.",
       raw: {},
     },
   });
+}
+
+// The Data API path of one member's note (`author`) on one offer. Throws when the member's uid cannot be read,
+// which fails the step that asked for it.
+async function notePath(author, offerId) {
+  const member = await memberId(author);
+  if (member.error) throw new Error(member.error);
+  return `offer_notes?offer_id=eq.${offerId}&author_id=eq.${member.userId}`;
+}
+
+// One member's note (`author`) on a fixture offer over the Data API, as `as` or with the publishable key alone.
+// Since both members hold a note on each fixture offer, a step about one note names its author.
+async function noteRest(author, { offerId = FIXTURE_OFFER_ID, select, ...options } = {}) {
+  const path = await notePath(author, offerId);
+  return supabaseRest(select ? `${path}&select=${select}` : path, options);
+}
+
+// A member writes a note of their own on a fixture offer straight through the Data API.
+async function createNote(author, offerId) {
+  const member = await memberId(author);
+  if (member.error) return { status: 0, location: "", error: member.error };
+  return supabaseRest("offer_notes", {
+    as: author,
+    method: "POST",
+    prefer: "return=representation",
+    body: { offer_id: offerId, author_id: member.userId, pros: `smoke-note-${offerId}-${author.email}` },
+  });
+}
+
+// An observed read for withSnapshot: one member's note on one offer, read by its author.
+function observedNote(author, offerId = FIXTURE_OFFER_ID) {
+  return { as: author, order: "id", path: () => notePath(author, offerId) };
 }
 
 // The second member tries to insert a note signed with the first member's uid.
@@ -323,6 +363,37 @@ async function withRevision(run) {
   const result = await run();
   const after = await readRevision();
   return { ...result, revisionDelta: after - before };
+}
+
+// Reads every observed row whole (`select=*`, so dates included) in a fixed order. An observed read is
+// `{ path, as, order }`: a Data API path that already carries its filter (a string, or a function resolving to
+// one), the account that reads, and the column to order by. Throws when a read fails or, with `requireRows`, when
+// one finds no row — which fails the step that asked for it.
+async function readSnapshot(observed, { requireRows }) {
+  const bodies = [];
+  let rows = 0;
+  for (const { path, as, order } of observed) {
+    const filter = typeof path === "function" ? await path() : path;
+    const response = await supabaseRest(`${filter}&select=*&order=${order}`, { as });
+    if (response.error) throw new Error(response.error);
+    if (response.status !== 200 || response.rows === undefined) {
+      throw new Error(`observed rows unreadable (${response.status}): ${filter}`);
+    }
+    if (requireRows && response.rows === 0) throw new Error(`nothing to observe before the step: ${filter}`);
+    bodies.push(response.body);
+    rows += response.rows;
+  }
+  return { rows, bodies: JSON.stringify(bodies) };
+}
+
+// Runs one step between two reads of the observed rows, and reports whether every row is the same afterwards,
+// column for column. An empty read before the step is an error, never "same": it would prove nothing. Composes
+// with withRevision in either order.
+async function withSnapshot(observed, run) {
+  const before = await readSnapshot(observed, { requireRows: true });
+  const result = await run();
+  const after = await readSnapshot(observed, { requireRows: false });
+  return { ...result, snapshot: before.bodies === after.bodies ? "same" : "changed", snapshotRows: before.rows };
 }
 
 // Reads the shared limits as a member and keeps them for cleanup to write back.
@@ -518,7 +589,8 @@ const steps = [
       }),
     { status: 302, locationPrefix: "/dashboard?error=" },
   ],
-  ["smoke fixture offer is created", () => createFixtureOffer(), { status: 201, rows: 1 }],
+  ["smoke fixture offer is created", () => createFixtureOffer(FIXTURE_OFFER_ID), { status: 201, rows: 1 }],
+  ["second smoke fixture offer is created", () => createFixtureOffer(FIXTURE_OFFER_ID_2), { status: 201, rows: 1 }],
   [
     "note save rejects a non-form body",
     () => request("/api/notes", { method: "POST", json: { offer_id: FIXTURE_OFFER_ID, pros: "smoke" } }),
@@ -566,22 +638,62 @@ const steps = [
     () => request(FIXTURE_CARD),
     { status: 200, bodyIncludes: [NOTE_EDITED, NOTES_OK] },
   ],
-  // RLS from every side, only now that a note exists: before it, `[]` would prove nothing.
+  // Both members' notes side by side: the second member's on the same offer, and both members' on the second offer.
   [
-    "member keeps one note per offer",
-    () => supabaseRest(`${FIXTURE_NOTES}&select=id`, { as: MEMBER }),
-    { status: 200, rows: 1 },
+    "another member writes their own note on the fixture offer",
+    () => createNote(OTHER_MEMBER, FIXTURE_OFFER_ID),
+    { status: 201, rows: 1 },
   ],
+  [
+    "member writes a note on the second fixture offer",
+    () => createNote(MEMBER, FIXTURE_OFFER_ID_2),
+    { status: 201, rows: 1 },
+  ],
+  [
+    "another member writes a note on the second fixture offer",
+    () => createNote(OTHER_MEMBER, FIXTURE_OFFER_ID_2),
+    { status: 201, rows: 1 },
+  ],
+  // Control: the row comparison must report a change when there is one, or a wrapper reading the wrong row would
+  // pass every "same" step. The second save changes no text, so only `updated_at` moves.
+  [
+    "control: an edited note is reported as changed",
+    () =>
+      withSnapshot([observedNote(MEMBER)], () =>
+        noteRest(MEMBER, {
+          as: MEMBER,
+          method: "PATCH",
+          prefer: "return=representation",
+          body: { cons: NOTE_CONTROL },
+        }),
+      ),
+    { status: 200, rows: 1, snapshot: "changed" },
+  ],
+  [
+    "control: a note saved again with the same text is reported as changed",
+    () =>
+      withSnapshot([observedNote(MEMBER)], () =>
+        noteRest(MEMBER, {
+          as: MEMBER,
+          method: "PATCH",
+          prefer: "return=representation",
+          body: { cons: NOTE_CONTROL },
+        }),
+      ),
+    { status: 200, rows: 1, snapshot: "changed" },
+  ],
+  // RLS from every side, only now that a note exists: before it, `[]` would prove nothing.
+  ["member keeps one note per offer", () => noteRest(MEMBER, { as: MEMBER, select: "id" }), { status: 200, rows: 1 }],
   ["anon cannot read notes", () => supabaseRest(`${FIXTURE_NOTES}&select=id`), { status: 200, rows: 0 }],
   [
     "another member reads the note",
-    () => supabaseRest(`${FIXTURE_NOTES}&select=id`, { as: OTHER_MEMBER }),
+    () => noteRest(MEMBER, { as: OTHER_MEMBER, select: "id" }),
     { status: 200, rows: 1 },
   ],
   [
     "another member cannot edit the note",
     () =>
-      supabaseRest(FIXTURE_NOTES, {
+      noteRest(MEMBER, {
         as: OTHER_MEMBER,
         method: "PATCH",
         prefer: "return=representation",
@@ -591,7 +703,7 @@ const steps = [
   ],
   [
     "another member cannot delete the note",
-    () => supabaseRest(FIXTURE_NOTES, { as: OTHER_MEMBER, method: "DELETE", prefer: "return=representation" }),
+    () => noteRest(MEMBER, { as: OTHER_MEMBER, method: "DELETE", prefer: "return=representation" }),
     { status: 200, rows: 0 },
   ],
   [
@@ -601,7 +713,7 @@ const steps = [
   ],
   [
     "note is unchanged after the other member's attempts",
-    () => supabaseRest(`${FIXTURE_NOTES}&select=pros`, { as: MEMBER }),
+    () => noteRest(MEMBER, { as: MEMBER, select: "pros" }),
     { status: 200, rows: 1, bodyIncludes: NOTE_EDITED },
   ],
   ["author's patch of the note's identity is accepted", () => patchNoteIdentity(), { status: 200, rows: 1 }],
@@ -832,6 +944,17 @@ const steps = [
     () => supabaseRest(`${FIXTURE_NOTES}&select=id`, { as: MEMBER }),
     { status: 200, rows: 0 },
   ],
+  // The first fixture offer is gone by now, so one row is left to delete; were its delete to fail, this takes both.
+  [
+    "remaining smoke fixture offers are deleted",
+    () => supabaseRest(FIXTURE_OFFERS, { as: MEMBER, method: "DELETE", prefer: "return=representation" }),
+    { status: 200, rows: 1 },
+  ],
+  [
+    "no smoke fixture offer remains",
+    () => supabaseRest(`${FIXTURE_OFFERS}&select=id`, { as: MEMBER }),
+    { status: 200, rows: 0 },
+  ],
   ["signout clears session", () => request("/api/auth/signout", { method: "POST" }), { status: 302, location: "/" }],
   ["dashboard redirects after signout", () => request("/dashboard"), { status: 302, location: "/auth/signin" }],
 ];
@@ -845,6 +968,12 @@ function expectedRows(expected) {
 // How far a step moved the criteria revision, for the report line; empty when the step does not measure it.
 function revisionMoved({ revisionDelta }) {
   return revisionDelta === undefined ? "" : `, revision +${revisionDelta}`;
+}
+
+// Whether the rows a step observed stayed the same, for the report line; empty when the step does not compare any.
+function snapshotResult({ snapshot, snapshotRows }) {
+  if (snapshot === undefined) return "";
+  return `, ${snapshotRows === undefined ? "observed" : `${snapshotRows} observed`} row(s) ${snapshot}`;
 }
 
 function includesAll(body, expected) {
@@ -865,15 +994,17 @@ for (const [name, run, expected] of steps) {
     (expected.bodyIncludes === undefined || includesAll(actual.body, expected.bodyIncludes)) &&
     (expected.rows === undefined || actual.rows === expected.rows) &&
     (expected.minRows === undefined || (actual.rows !== undefined && actual.rows >= expected.minRows)) &&
-    (expected.revisionDelta === undefined || actual.revisionDelta === expected.revisionDelta);
+    (expected.revisionDelta === undefined || actual.revisionDelta === expected.revisionDelta) &&
+    (expected.snapshot === undefined || actual.snapshot === expected.snapshot);
   const rows = actual.rows === undefined ? undefined : `${actual.rows} row(s)`;
   const detail =
-    actual.error ?? `${actual.status} ${actual.errorCode ?? rows ?? actual.location}${revisionMoved(actual)}`;
+    actual.error ??
+    `${actual.status} ${actual.errorCode ?? rows ?? actual.location}${revisionMoved(actual)}${snapshotResult(actual)}`;
   console.log(`${ok ? "PASS" : "FAIL"}  ${name}  -> ${detail}`);
   if (!ok) {
     failed++;
     console.log(
-      `      expected ${[expected.status].flat().join(" or ")} ${expected.errorCode ?? expected.location ?? expected.locationPrefix ?? expected.bodyIncludes ?? expectedRows(expected)}${expected.locationIncludes === undefined ? "" : ` with ${expected.locationIncludes}`}${revisionMoved(expected)}`,
+      `      expected ${[expected.status].flat().join(" or ")} ${expected.errorCode ?? expected.location ?? expected.locationPrefix ?? expected.bodyIncludes ?? expectedRows(expected)}${expected.locationIncludes === undefined ? "" : ` with ${expected.locationIncludes}`}${revisionMoved(expected)}${snapshotResult(expected)}`,
     );
   }
 }
