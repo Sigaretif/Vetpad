@@ -799,33 +799,33 @@ wymaga zgody użytkownika.
 
 #### Automated
 
-- [x] 2.1 Lint przechodzi: `npm run lint`
-- [x] 2.2 Smoke przechodzi na podglądzie produkcyjnym z lokalnym Supabase: `BASE_URL=http://localhost:4321 npm run smoke`
-- [x] 2.3 Każdy nowy krok zapisu notatki lub oferty asertuje liczbę wierszy albo wynik porównania — żaden nie polega na samym statusie
-- [x] 2.4 Po przebiegu smoke w lokalnej bazie nie zostaje żadna oferta-fixtura ani jej notatka
+- [x] 2.1 Lint przechodzi: `npm run lint` — afa4637
+- [x] 2.2 Smoke przechodzi na podglądzie produkcyjnym z lokalnym Supabase: `BASE_URL=http://localhost:4321 npm run smoke` — afa4637
+- [x] 2.3 Każdy nowy krok zapisu notatki lub oferty asertuje liczbę wierszy albo wynik porównania — żaden nie polega na samym statusie — afa4637
+- [x] 2.4 Po przebiegu smoke w lokalnej bazie nie zostaje żadna oferta-fixtura ani jej notatka — afa4637
 
 #### Manual
 
-- [x] 2.5 Celowe psucie na lokalnej bazie (psql), każde osobno, smoke po każdym: polityka `update` na `offer_notes` poluzowana do `true` — czerwone kroki „odmowa PATCH” i „udany PATCH obok”
-- [x] 2.6 Polityka `delete` na `offer_notes` poluzowana do `true` — czerwone kroki „odmowa DELETE”, „DELETE bez Prefer” i „udany DELETE obok”
-- [x] 2.7 Trigger `offers_freeze_created_by` wyłączony — czerwony krok autora oferty
-- [x] 2.8 Tymczasowy trigger na `offers` przestawiający `updated_at` notatek — czerwony krok „zapis oferty”
-- [x] 2.9 Lokalna baza przywrócona przez `npx supabase db reset` za zgodą użytkownika; smoke znów zielony
+- [x] 2.5 Celowe psucie na lokalnej bazie (psql), każde osobno, smoke po każdym: polityka `update` na `offer_notes` poluzowana do `true` — czerwone kroki „odmowa PATCH” i „udany PATCH obok” — afa4637
+- [x] 2.6 Polityka `delete` na `offer_notes` poluzowana do `true` — czerwone kroki „odmowa DELETE”, „DELETE bez Prefer” i „udany DELETE obok” — afa4637
+- [x] 2.7 Trigger `offers_freeze_created_by` wyłączony — czerwony krok autora oferty — afa4637
+- [x] 2.8 Tymczasowy trigger na `offers` przestawiający `updated_at` notatek — czerwony krok „zapis oferty” — afa4637
+- [x] 2.9 Lokalna baza przywrócona przez `npx supabase db reset` za zgodą użytkownika; smoke znów zielony — afa4637
 
 ### Phase 3: Izolacja wymagań i limitów (luki 2, 3, 7)
 
 #### Automated
 
-- [ ] 3.1 Lint przechodzi: `npm run lint`
-- [ ] 3.2 Smoke przechodzi na podglądzie produkcyjnym z lokalnym Supabase: `BASE_URL=http://localhost:4321 npm run smoke`
-- [ ] 3.3 W `scripts/smoke.mjs` nie zostaje żaden krok zapisu do `member_requirements` z oczekiwaniem samego statusu
-- [ ] 3.4 Po przebiegu smoke limity zespołu mają wartości sprzed przebiegu, a konta 1 i 2 nie mają wymagań
+- [x] 3.1 Lint przechodzi: `npm run lint`
+- [x] 3.2 Smoke przechodzi na podglądzie produkcyjnym z lokalnym Supabase: `BASE_URL=http://localhost:4321 npm run smoke`
+- [x] 3.3 W `scripts/smoke.mjs` nie zostaje żaden krok zapisu do `member_requirements` z oczekiwaniem samego statusu
+- [x] 3.4 Po przebiegu smoke limity zespołu mają wartości sprzed przebiegu, a konta 1 i 2 nie mają wymagań
 
 #### Manual
 
-- [ ] 3.5 Celowe psucie na lokalnej bazie: polityka `update` na `member_requirements` poluzowana do `true` — czerwone kroki „odmowa PATCH” i „szeroki PATCH”
-- [ ] 3.6 Polityka `delete` na `member_requirements` poluzowana do `true` — czerwone kroki „odmowa DELETE” i „szeroki DELETE”
-- [ ] 3.7 Lokalna baza przywrócona przez `npx supabase db reset` za zgodą użytkownika; smoke znów zielony
+- [x] 3.5 Celowe psucie na lokalnej bazie: polityka `update` na `member_requirements` poluzowana do `true` — czerwone kroki „odmowa PATCH” i „szeroki PATCH”
+- [x] 3.6 Polityka `delete` na `member_requirements` poluzowana do `true` — czerwone kroki „odmowa DELETE” i „szeroki DELETE”
+- [x] 3.7 Lokalna baza przywrócona przez `npx supabase db reset` za zgodą użytkownika; smoke znów zielony
 
 ### Phase 4: Hermetyczny test trasy `/api/criteria` (luka 8)
 

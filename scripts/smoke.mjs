@@ -34,12 +34,19 @@
 // counter is read around each save: it grows by one on a real change and stays put on a refused save or on
 // re-saving the same limits. The fixture offer gets a PLN price above the saved ceiling, and its row on /dashboard
 // carries data-limit-breach="price_above" under data-limits-state="ok". `intent=clear` leaves four empty limits.
-// Against Supabase: nobody inserts or deletes the team_criteria row or writes the counter (0 rows / 42501), a limit
-// the form would refuse (a fractional price) is refused by the table's check too (23514), and the second member
-// reads the first member's requirements but cannot edit, delete or forge them. A member's PATCH of the limits'
+// Against Supabase: nobody inserts or deletes the team_criteria row or writes the counter (0 rows / 42501), and a
+// limit the form would refuse (a fractional price) is refused by the table's check too (23514). Requirements are
+// judged by whole rows, as notes are: the second member reads the first member's requirements but cannot edit them
+// (200 with no rows), nor insert or upsert requirements in the first member's name (403, 42501), and the first
+// member cannot delete the second member's - the observed row is the same after each attempt. A write that does
+// succeed stays on its own row: a PATCH and a DELETE whose filter names both authors each touch one row and leave
+// the other member's as it was; the second member then saves theirs again. A member's PATCH of the limits'
 // signature, date and id, or of their own requirements' author and dates, is accepted and undone by the triggers,
-// with no revision bump. Cleanup runs whatever failed before it: the limits read at the start are written back (signed by the first member, as any restore
-// would be), and both members' requirements are deleted.
+// with no revision bump. The second member's requirements are the same row after everything the first member does
+// next to them: the identity patch, the delete through the route, the limits clear and the limits restore.
+// Cleanup runs whatever failed before it: the limits read at the start are written back (signed by the first
+// member, as any restore would be), and both members' requirements are deleted with the rows counted - none left
+// of the first member's, which the route removed, and one of the second member's, which must have lasted until then.
 // It also checks that the dev-only kitchen sinks /dev/offer-card, /dev/forms, /dev/board and /dev/criteria answer 404: in CI this runs
 // against the production preview, where the pages must not exist (on `npm run dev` those steps fail by design).
 // Zero dependencies on purpose. Run against a live server: BASE_URL=http://localhost:4321 npm run smoke
@@ -100,9 +107,11 @@ const LIMITS_OK = 'data-limits-state="ok"';
 const SMOKE_CITY = `smoke-miasto-${FIXTURE_OFFER_ID.slice(0, 8)}`;
 const SMOKE_PRICE_MAX = 500000;
 const LIMIT_COLUMNS = "city,price_min,price_max,area_min";
-// The first member's requirements as written and as edited, and the second member's own.
+// The first member's requirements as written, as edited and as rewritten by the PATCH that names both authors, and
+// the second member's own.
 const REQUIREMENTS_FIRST = `smoke-wymagania-${FIXTURE_OFFER_ID}-first`;
 const REQUIREMENTS_EDITED = `smoke-wymagania-${FIXTURE_OFFER_ID}-edited`;
+const REQUIREMENTS_WIDE = `smoke-wymagania-${FIXTURE_OFFER_ID}-wide`;
 const REQUIREMENTS_OTHER = `smoke-wymagania-${FIXTURE_OFFER_ID}-other`;
 // The shared limits as they stood before this run, read by the first criteria step and written back by cleanup.
 let limitsBefore = null;
@@ -441,9 +450,13 @@ async function readSnapshot(observed, { requireRows }) {
 
 // Runs one step between two reads of the observed rows, and reports whether every row is the same afterwards,
 // column for column. An empty read before the step is an error, never "same": it would prove nothing. Composes
-// with withRevision in either order.
-async function withSnapshot(observed, run) {
-  const before = await readSnapshot(observed, { requireRows: true });
+// with withRevision in either order. `runUnobserved` is for a cleanup step: the step still fails when there is
+// nothing to observe, but only after `run` has done its work.
+async function withSnapshot(observed, run, { runUnobserved = false } = {}) {
+  const before = await readSnapshot(observed, { requireRows: true }).catch(async (error) => {
+    if (runUnobserved) await run();
+    throw error;
+  });
   const result = await run();
   const after = await readSnapshot(observed, { requireRows: false });
   return { ...result, snapshot: before.bodies === after.bodies ? "same" : "changed", snapshotRows: before.rows };
@@ -470,13 +483,32 @@ function restoreLimits() {
   });
 }
 
+// The Data API path of one member's requirements (`owner`). Throws when the member's uid cannot be read, which
+// fails the step that asked for it.
+async function requirementsPath(owner) {
+  const author = await memberId(owner);
+  if (author.error) throw new Error(author.error);
+  return `member_requirements?author_id=eq.${author.userId}`;
+}
+
+// The Data API path of both members' requirements at once: the filter a write uses to reach past its own row.
+async function bothRequirementsPath() {
+  const [member, other] = [await memberId(MEMBER), await memberId(OTHER_MEMBER)];
+  if (member.error || other.error) throw new Error(member.error ?? other.error);
+  return `member_requirements?author_id=in.(${member.userId},${other.userId})`;
+}
+
 // One member's requirements (`owner`) over the Data API, as `as` or with the publishable key alone. A read
 // selects the body, so a step can look for the text.
 async function requirementsRest(owner, { method = "GET", ...options } = {}) {
-  const author = await memberId(owner);
-  if (author.error) return { status: 0, location: "", error: author.error };
-  const select = method === "GET" ? "&select=body" : "";
-  return supabaseRest(`member_requirements?author_id=eq.${author.userId}${select}`, { method, ...options });
+  const path = await requirementsPath(owner);
+  return supabaseRest(method === "GET" ? `${path}&select=body` : path, { method, ...options });
+}
+
+// An observed read for withSnapshot: one member's requirements, read by their author. The table's key is the
+// author, so that is what the read is ordered by.
+function observedRequirements(owner) {
+  return { as: owner, order: "author_id", path: () => requirementsPath(owner) };
 }
 
 // The second member saves requirements of their own straight through the Data API, as an upsert: the insert
@@ -494,15 +526,22 @@ async function saveOtherRequirements() {
   });
 }
 
-// The second member tries to write requirements signed with the first member's uid.
-async function writeRequirementsAsAnotherAuthor() {
+// The second member tries to write requirements signed with the first member's uid, while the first member has
+// theirs: a plain insert, or the upsert /api/requirements saves with, which would replace them.
+async function forgeRequirements({ upsert }) {
   const member = await memberId(MEMBER);
   if (member.error) return { status: 0, location: "", error: member.error };
-  return supabaseRest("member_requirements", {
+  return supabaseRest(upsert ? "member_requirements?on_conflict=author_id" : "member_requirements", {
     as: OTHER_MEMBER,
     method: "POST",
+    prefer: upsert ? "resolution=merge-duplicates" : undefined,
     body: { author_id: member.userId, body: "smoke: podszywanie się" },
   });
+}
+
+// A member writes to both members' requirements with one request. The policies must let through only their own.
+async function writeBothRequirements(as, options) {
+  return supabaseRest(await bothRequirementsPath(), { as, prefer: "return=representation", ...options });
 }
 
 // The fixture offer's row on /dashboard: from its link to the link's end, so a mark on another offer (the local
@@ -967,36 +1006,67 @@ const steps = [
     () => requirementsRest(MEMBER, { as: OTHER_MEMBER }),
     { status: 200, rows: 1, bodyIncludes: REQUIREMENTS_EDITED },
   ],
+  // Each attempt on the first member's requirements runs between two reads of that whole row, as for notes.
   [
     "another member cannot edit the requirements",
     () =>
-      requirementsRest(MEMBER, {
-        as: OTHER_MEMBER,
-        method: "PATCH",
-        prefer: "return=representation",
-        body: { body: "smoke: nadpisane przez innego członka" },
-      }),
-    { status: 200, rows: 0 },
-  ],
-  [
-    "another member cannot delete the requirements",
-    () => requirementsRest(MEMBER, { as: OTHER_MEMBER, method: "DELETE", prefer: "return=representation" }),
-    { status: 200, rows: 0 },
+      withSnapshot([observedRequirements(MEMBER)], () =>
+        requirementsRest(MEMBER, {
+          as: OTHER_MEMBER,
+          method: "PATCH",
+          prefer: "return=representation",
+          body: { body: "smoke: nadpisane przez innego członka" },
+        }),
+      ),
+    { status: 200, rows: 0, snapshot: "same" },
   ],
   [
     "another member cannot write requirements as their author",
-    () => writeRequirementsAsAnotherAuthor(),
-    { status: 403, errorCode: "42501" },
+    () => withSnapshot([observedRequirements(MEMBER)], () => forgeRequirements({ upsert: false })),
+    { status: 403, errorCode: "42501", snapshot: "same" },
   ],
   [
-    "requirements are unchanged after the other member's attempts",
-    () => requirementsRest(MEMBER, { as: MEMBER }),
-    { status: 200, rows: 1, bodyIncludes: REQUIREMENTS_EDITED },
+    "another member cannot upsert over the requirements as their author",
+    () => withSnapshot([observedRequirements(MEMBER)], () => forgeRequirements({ upsert: true })),
+    { status: 403, errorCode: "42501", snapshot: "same" },
   ],
+  // A write that succeeds, next to the other member's row: the filter names both authors, and the policy must let
+  // through only the writer's own. The first member's text really changes, so the revision moves by one - by two
+  // if the second member's were rewritten as well.
+  [
+    "member's edit of both members' requirements changes only their own",
+    () =>
+      withRevision(() =>
+        withSnapshot([observedRequirements(OTHER_MEMBER)], () =>
+          writeBothRequirements(MEMBER, { method: "PATCH", body: { body: REQUIREMENTS_WIDE } }),
+        ),
+      ),
+    { status: 200, rows: 1, snapshot: "same", revisionDelta: 1 },
+  ],
+  [
+    "another member's delete of both members' requirements removes only their own",
+    () => withSnapshot([observedRequirements(MEMBER)], () => writeBothRequirements(OTHER_MEMBER, { method: "DELETE" })),
+    { status: 200, rows: 1, snapshot: "same" },
+  ],
+  // The second member's requirements are back, as a new row (201), for the steps below to observe.
+  ["another member saves their own requirements again", () => saveOtherRequirements(), { status: 201, rows: 1 }],
+  // The denied delete runs the other way round - the first member against the second member's requirements - and
+  // after the re-save. A member holds one row, so this step and the delete of both above each need a row of their
+  // own to lose: were the delete policy to let another member through, that delete takes the first member's row
+  // and this one the second member's, and each turns red by itself.
+  [
+    "member cannot delete another member's requirements",
+    () =>
+      withSnapshot([observedRequirements(OTHER_MEMBER)], () =>
+        requirementsRest(OTHER_MEMBER, { as: MEMBER, method: "DELETE", prefer: "return=representation" }),
+      ),
+    { status: 200, rows: 0, snapshot: "same" },
+  ],
+  // From here on the second member's requirements are watched around everything the first member writes.
   [
     "author's patch of the requirements' identity is accepted",
-    () => withRevision(() => patchRequirementsIdentity()),
-    { status: 200, rows: 1, revisionDelta: 0 },
+    () => withRevision(() => withSnapshot([observedRequirements(OTHER_MEMBER)], () => patchRequirementsIdentity())),
+    { status: 200, rows: 1, revisionDelta: 0, snapshot: "same" },
   ],
   [
     "requirements keep their author and database-set dates",
@@ -1025,14 +1095,24 @@ const steps = [
   ],
   [
     "requirements delete removes them and bumps the revision",
-    () => withRevision(() => request("/api/requirements", { method: "POST", form: { intent: "delete" } })),
-    { status: 302, location: "/criteria#wymagania", revisionDelta: 1 },
+    () =>
+      withRevision(() =>
+        withSnapshot([observedRequirements(OTHER_MEMBER)], () =>
+          request("/api/requirements", { method: "POST", form: { intent: "delete" } }),
+        ),
+      ),
+    { status: 302, location: "/criteria#wymagania", revisionDelta: 1, snapshot: "same" },
   ],
   ["member's requirements are gone", () => requirementsRest(MEMBER, { as: MEMBER }), { status: 200, rows: 0 }],
   [
     "limits clear removes every limit and bumps the revision",
-    () => withRevision(() => request("/api/criteria", { method: "POST", form: { intent: "clear" } })),
-    { status: 302, location: "/criteria#limity", revisionDelta: 1 },
+    () =>
+      withRevision(() =>
+        withSnapshot([observedRequirements(OTHER_MEMBER)], () =>
+          request("/api/criteria", { method: "POST", form: { intent: "clear" } }),
+        ),
+      ),
+    { status: 302, location: "/criteria#limity", revisionDelta: 1, snapshot: "same" },
   ],
   [
     "cleared limits are all empty",
@@ -1042,27 +1122,28 @@ const steps = [
       }),
     { status: 200, rows: 1 },
   ],
-  // Cleanup: runs even when a step above failed, because every step runs.
-  ["team limits are restored to their state before the run", () => restoreLimits(), { status: 200, rows: 1 }],
+  // Cleanup: runs even when a step above failed, because every step runs. The limits are written back even when
+  // the second member's requirements are no longer there to observe.
   [
-    "member's smoke requirements are deleted",
-    () => requirementsRest(MEMBER, { as: MEMBER, method: "DELETE" }),
-    { status: 204 },
+    "team limits are restored to their state before the run",
+    () => withSnapshot([observedRequirements(OTHER_MEMBER)], () => restoreLimits(), { runUnobserved: true }),
+    { status: 200, rows: 1, snapshot: "same" },
+  ],
+  // Both deletes count their rows: a bare 204 would pass whether or not a row was there. The route deleted the
+  // first member's requirements, so none are left; the second member's must have lasted until now.
+  [
+    "member's smoke requirements are already gone at cleanup",
+    () => requirementsRest(MEMBER, { as: MEMBER, method: "DELETE", prefer: "return=representation" }),
+    { status: 200, rows: 0 },
   ],
   [
     "other member's smoke requirements are deleted",
-    () => requirementsRest(OTHER_MEMBER, { as: OTHER_MEMBER, method: "DELETE" }),
-    { status: 204 },
+    () => requirementsRest(OTHER_MEMBER, { as: OTHER_MEMBER, method: "DELETE", prefer: "return=representation" }),
+    { status: 200, rows: 1 },
   ],
   [
     "no smoke requirements remain",
-    async () => {
-      const [member, other] = [await memberId(MEMBER), await memberId(OTHER_MEMBER)];
-      if (member.error || other.error) return { status: 0, location: "", error: member.error ?? other.error };
-      return supabaseRest(`member_requirements?author_id=in.(${member.userId},${other.userId})&select=author_id`, {
-        as: MEMBER,
-      });
-    },
+    async () => supabaseRest(`${await bothRequirementsPath()}&select=author_id`, { as: MEMBER }),
     { status: 200, rows: 0 },
   ],
   // The cascade (FR-015), both ways: deleting the offer takes every member's notes on it, the first member's
