@@ -816,30 +816,30 @@ wymaga zgody użytkownika.
 
 #### Automated
 
-- [x] 3.1 Lint przechodzi: `npm run lint`
-- [x] 3.2 Smoke przechodzi na podglądzie produkcyjnym z lokalnym Supabase: `BASE_URL=http://localhost:4321 npm run smoke`
-- [x] 3.3 W `scripts/smoke.mjs` nie zostaje żaden krok zapisu do `member_requirements` z oczekiwaniem samego statusu
-- [x] 3.4 Po przebiegu smoke limity zespołu mają wartości sprzed przebiegu, a konta 1 i 2 nie mają wymagań
+- [x] 3.1 Lint przechodzi: `npm run lint` — 42a98bb
+- [x] 3.2 Smoke przechodzi na podglądzie produkcyjnym z lokalnym Supabase: `BASE_URL=http://localhost:4321 npm run smoke` — 42a98bb
+- [x] 3.3 W `scripts/smoke.mjs` nie zostaje żaden krok zapisu do `member_requirements` z oczekiwaniem samego statusu — 42a98bb
+- [x] 3.4 Po przebiegu smoke limity zespołu mają wartości sprzed przebiegu, a konta 1 i 2 nie mają wymagań — 42a98bb
 
 #### Manual
 
-- [x] 3.5 Celowe psucie na lokalnej bazie: polityka `update` na `member_requirements` poluzowana do `true` — czerwone kroki „odmowa PATCH” i „szeroki PATCH”
-- [x] 3.6 Polityka `delete` na `member_requirements` poluzowana do `true` — czerwone kroki „odmowa DELETE” i „szeroki DELETE”
-- [x] 3.7 Lokalna baza przywrócona przez `npx supabase db reset` za zgodą użytkownika; smoke znów zielony
+- [x] 3.5 Celowe psucie na lokalnej bazie: polityka `update` na `member_requirements` poluzowana do `true` — czerwone kroki „odmowa PATCH” i „szeroki PATCH” — 42a98bb
+- [x] 3.6 Polityka `delete` na `member_requirements` poluzowana do `true` — czerwone kroki „odmowa DELETE” i „szeroki DELETE” — 42a98bb
+- [x] 3.7 Lokalna baza przywrócona przez `npx supabase db reset` za zgodą użytkownika; smoke znów zielony — 42a98bb
 
 ### Phase 4: Hermetyczny test trasy `/api/criteria` (luka 8)
 
 #### Automated
 
-- [ ] 4.1 Testy przechodzą: `npm test`
-- [ ] 4.2 Sam plik przechodzi: `npm test -- tests/pages/api/criteria.test.ts`
-- [ ] 4.3 Lint przechodzi: `npx astro sync && npm run lint`
-- [ ] 4.4 Typy przechodzą: `npx astro check`
-- [ ] 4.5 `tests/pages/api/offers.test.ts` nadal przechodzi po zmianie fixtury
+- [x] 4.1 Testy przechodzą: `npm test`
+- [x] 4.2 Sam plik przechodzi: `npm test -- tests/pages/api/criteria.test.ts`
+- [x] 4.3 Lint przechodzi: `npx astro sync && npm run lint`
+- [x] 4.4 Typy przechodzą: `npx astro check`
+- [x] 4.5 `tests/pages/api/offers.test.ts` nadal przechodzi po zmianie fixtury
 
 #### Manual
 
-- [ ] 4.6 Tymczasowe usunięcie gałęzi `updated.data.length === 0` z `src/pages/api/criteria.ts` wywraca przypadek `200 []`; zmiana cofnięta, `git diff src/` pusty
+- [x] 4.6 Tymczasowe usunięcie gałęzi `updated.data.length === 0` z `src/pages/api/criteria.ts` wywraca przypadek `200 []`; zmiana cofnięta, `git diff src/` pusty
 
 ### Phase 5: Usunięcie konta — skrypt SQL z rollbackiem
 

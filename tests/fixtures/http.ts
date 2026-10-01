@@ -128,6 +128,15 @@ export const PAGE_WITHOUT_NEXT_DATA = page('<script id="__APP_DATA__" type="appl
 //   no session). With no session cookie the auth client makes no request of its own.
 // - postgrest-js retries a GET that rejects (up to 3 times, with back-off), so an unplanned
 //   GET fails slowly — but it still fails, through `restoreFetch`.
+//
+// And as the criteria route talks to it, read from the same file:
+//
+// - Limits save or clear, `.from("team_criteria").update(values).eq("id", true).select("id")`:
+//   `PATCH <SUPABASE_URL>/rest/v1/team_criteria?id=eq.true&select=id` with
+//   `Content-Type: application/json` and `Prefer: return=representation`; the body is
+//   `JSON.stringify(values)`. PostgREST answers `200` with an array of the rows it changed —
+//   `[{ "id": true }]`, or `[]` when RLS filtered the update down to no row, which is not an
+//   error. A refused write answers `403` with `{ "code": "42501", … }`.
 
 /** Test values only — never a real project's. */
 export const SUPABASE_TEST_URL = "https://supabase.test";
@@ -136,16 +145,20 @@ export const SUPABASE_TEST_KEY = "sb_publishable_test";
 /** The id the stubbed database gives the inserted offer. */
 export const INSERTED_OFFER_ID = "0b9f0c2e-7d1a-4c55-9a53-000000000001";
 
-const OFFERS_PATH = "/rest/v1/offers";
-
-function json(value: unknown, status: number): Response {
+/** A JSON answer the way PostgREST sends one. */
+export function jsonResponse(value: unknown, status: number): Response {
   return new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json" } });
+}
+
+/** True for a request to the Data API endpoint of `public.<table>` in the stubbed Supabase. */
+export function isTableRequest(request: RecordedRequest, table: string, method: string): boolean {
+  const url = new URL(request.url);
+  return url.origin === SUPABASE_TEST_URL && url.pathname === `/rest/v1/${table}` && request.method === method;
 }
 
 /** True for a request to the `public.offers` endpoint of the stubbed Supabase. */
 export function isOffersRequest(request: RecordedRequest, method: string): boolean {
-  const url = new URL(request.url);
-  return url.origin === SUPABASE_TEST_URL && url.pathname === OFFERS_PATH && request.method === method;
+  return isTableRequest(request, "offers", method);
 }
 
 /**
@@ -153,8 +166,9 @@ export function isOffersRequest(request: RecordedRequest, method: string): boole
  * finds nothing, and the insert returns `INSERTED_OFFER_ID`. Anything else is left unplanned.
  */
 export function emptyOffersTable(request: RecordedRequest): Response | undefined {
-  if (isOffersRequest(request, "GET") && new URL(request.url).searchParams.has("source_url")) return json([], 200);
-  if (isOffersRequest(request, "POST")) return json({ id: INSERTED_OFFER_ID }, 201);
+  if (isOffersRequest(request, "GET") && new URL(request.url).searchParams.has("source_url"))
+    return jsonResponse([], 200);
+  if (isOffersRequest(request, "POST")) return jsonResponse({ id: INSERTED_OFFER_ID }, 201);
   return undefined;
 }
 
