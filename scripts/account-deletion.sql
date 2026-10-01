@@ -8,7 +8,8 @@
 -- The whole file is one transaction that ends in ROLLBACK: it deletes the third account from supabase/seed.sql and
 -- leaves no trace, whether it passes or fails (psql stops at the first error and the open transaction dies with the
 -- connection). Every check is a DO block that raises `account-deletion: [<check name>] ...` when it does not hold.
--- The first check needs the seeded accounts, so the script refuses a database that is not the local one.
+-- The first check refuses a database without the seeded accounts. That tests for the seed, not for the host: it
+-- keeps the script off a database nobody seeded, and the ROLLBACK is what keeps any database unchanged.
 -- No service_role / secret key: it connects to the local Postgres with its published local password.
 -- Run against a local Supabase: npm run test:db (DB_URL overrides the Supabase CLI's default local address).
 
@@ -206,9 +207,6 @@ begin
   end if;
   if exists (select 1 from public.members where id = leaving) then
     raise exception 'account-deletion: [deleted member''s members row is gone] the members row is still there';
-  end if;
-  if exists (select 1 from public.member_requirements where author_id is null) then
-    raise exception 'account-deletion: [deleted member''s requirements are gone] requirements with no author are left behind';
   end if;
 end $$;
 

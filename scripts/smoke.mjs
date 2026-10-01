@@ -29,7 +29,8 @@
 // Team criteria (FR-002, FR-003): /criteria, /api/criteria and /api/requirements turn anonymous users away, and the
 // publishable key alone reads nothing from public.team_criteria, public.criteria_revision or public.member_requirements
 // nor changes the limits. Signed in, it reads the limits as they stood before the run, saves limits of its own
-// (refusing a reversed price range), saves and edits the member's requirements (refusing blank ones), and finds
+// (refusing a reversed price range), saves and edits the member's requirements (refusing blank ones; the edit is
+// the control step for requirements - the member's own row is observed and must be reported as changed), and finds
 // both on /criteria with data-criteria-state="ok"; every error redirect names its form (`&form=`). The revision
 // counter is read around each save: it grows by one on a real change and stays put on a refused save or on
 // re-saving the same limits. The fixture offer gets a PLN price above the saved ceiling, and its row on /dashboard
@@ -586,6 +587,9 @@ const steps = [
     () => supabaseRest("criteria_revision?select=id", { as: MEMBER }),
     { status: 200, rows: 1 },
   ],
+  // The limits are one row the whole team shares, and the local database may hold limits a person set, so they are
+  // read before the first attempt to write them and written back by cleanup.
+  ["team limits before the run are read", () => readLimitsBefore(), { status: 200, rows: 1 }],
   [
     "anon cannot change the team limits",
     () =>
@@ -891,9 +895,7 @@ const steps = [
     () => offerStillByMember(),
     { status: 200, rows: 1 },
   ],
-  // Team criteria. The limits are one row the whole team shares, and the local database may hold limits a person
-  // set, so they are read first and written back by cleanup.
-  ["team limits before the run are read", () => readLimitsBefore(), { status: 200, rows: 1 }],
+  // Team criteria. The limits as they stood before the run were read above, before the first write attempt.
   [
     "member cannot insert a second limits row",
     () => supabaseRest("team_criteria", { as: MEMBER, method: "POST", body: { id: true } }),
@@ -983,10 +985,18 @@ const steps = [
       ),
     { status: 302, location: "/criteria#wymagania", revisionDelta: 1 },
   ],
+  // The control for requirements, as the two for notes: the member's own row is observed around their own edit, so
+  // a comparison that stopped seeing a change in public.member_requirements fails the run here. The text has to
+  // change - saving the same requirements again moves no date.
   [
-    "requirements save edits them and bumps the revision",
-    () => withRevision(() => request("/api/requirements", { method: "POST", form: { body: REQUIREMENTS_EDITED } })),
-    { status: 302, location: "/criteria#wymagania", revisionDelta: 1 },
+    "control: requirements save edits them, bumps the revision and is reported as changed",
+    () =>
+      withRevision(() =>
+        withSnapshot([observedRequirements(MEMBER)], () =>
+          request("/api/requirements", { method: "POST", form: { body: REQUIREMENTS_EDITED } }),
+        ),
+      ),
+    { status: 302, location: "/criteria#wymagania", snapshot: "changed", revisionDelta: 1 },
   ],
   ["another member saves their own requirements", () => saveOtherRequirements(), { status: [201, 200], rows: 1 }],
   [
@@ -1212,7 +1222,10 @@ function includesAll(body, expected) {
 let failed = 0;
 for (const [name, run, expected] of steps) {
   // A thrown request is a failed step, not the end of the run: the fixture offer's cleanup step must still run.
-  const actual = await run().catch((error) => ({ status: 0, location: "", error: error.message }));
+  // `run` is called inside the chain, so a step that throws before its first await, or returns a plain value, is caught too.
+  const actual = await Promise.resolve()
+    .then(run)
+    .catch((error) => ({ status: 0, location: "", error: error.message }));
   const ok =
     !actual.error &&
     [expected.status].flat().includes(actual.status) &&

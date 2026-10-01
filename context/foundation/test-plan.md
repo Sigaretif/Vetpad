@@ -96,7 +96,7 @@ named in the S-04 plan, so the code under test is built to be testable.
 | unit + integration (in-process) | Vitest via `getViteConfig` from `astro/config` with the Cloudflare adapter stripped (`vitest.config.ts`) — checked: 2026-09-30 | vitest 5.0.3 | `npm test`; wired in CI `ci` job since Phase 1. User go-ahead 2026-09-30 (CLAUDE.md). Runs in Node, not workerd |
 | component render | Astro Container API (`experimental_AstroContainer`) with the React container renderer — experimental, checked: 2026-09-30 | astro 7.3.2, @astrojs/react 6.0.5 | For `.astro` output assertions without a browser; runs under `npm test` |
 | integration (live, local Supabase) | `scripts/smoke.mjs` | n/a | Existing; CI `smoke` job; never reaches otodom.pl or production |
-| SQL against the local database | `scripts/account-deletion.sql` through `psql` (`npm run test:db`) — checked: 2026-10-01 | n/a | Since Phase 2: account deletion, which the publishable key cannot reach. One transaction ending in `ROLLBACK`; local database only; not part of `npm test`; a step of the CI `smoke` job, which assumes the runner image ships `psql` (§6.6) |
+| SQL against the local database | `scripts/account-deletion.sql` through `psql` (`npm run test:db`) — checked: 2026-10-01 | n/a | Since Phase 2: account deletion, which the publishable key cannot reach. One transaction ending in `ROLLBACK`; local database only; not part of `npm test`; a step of the CI `smoke` job, run with the `psql` the runner image ships (§6.6) |
 | API/provider mocking | `globalThis.fetch` stub at the HTTP edge (`tests/fixtures/http.ts`, `stubFetch`) — checked: 2026-09-30 | vitest 5.0.3 (`vi.stubGlobal`) | Since Phase 1 (otodom + Supabase REST); Phase 3 reuses it for the model provider. Never `vi.mock` of internal modules |
 | e2e | none | n/a | Not planned; smoke against the production preview covers critical routes |
 | visual gate | `scripts/ui-screenshots.mjs` | n/a | Manual, per plan; not a CI gate (§7) |
@@ -322,8 +322,9 @@ stored URL in `href`/`src`.
   | `INSERT` with the publishable key alone | none | `401`, `42501` |
   | `DELETE` with no filter at all | — | `400`, `21000` |
 
-  So every write step sends `prefer: "return=representation"` and asserts
-  `rows`. `42501` proves a refusal only for an insert or an upsert; for an
+  So every update and delete step sends `prefer: "return=representation"`
+  and asserts `rows`; a forged insert or upsert is judged by its `42501` and
+  by the observed row. `42501` proves a refusal only for an insert or an upsert; for an
   update or a delete the proof is `rows: 0` plus `snapshot: "same"`. The one
   step that deliberately omits `Prefer` („… without Prefer answers 204 and
   leaves the note”) shows the trap: there the unchanged row is the only
@@ -354,7 +355,10 @@ stored URL in `href`/`src`.
   `snapshot: "changed"`: the second moves only `updated_at`, so it proves the
   comparison covers dates. A wrapper that reads the wrong row, an empty list
   or one field turns them red. When a new table gets its own observed read,
-  give it a control step of its own.
+  give it a control step of its own: „control: requirements save edits them,
+  bumps the revision and is reported as changed” is the one for
+  `observedRequirements`, and it has to change the text, because saving the
+  same requirements again moves no date.
 - **Adding a step.** A step is `[name, run, expected]` in `steps`; `expected`
   takes `status`, `rows`, `errorCode`, `snapshot`, `revisionDelta` (and the
   redirect keys for a route). For a write through a route, wrap the
@@ -467,9 +471,12 @@ stored URL in `href`/`src`.
     watching it go red; restore with `npx supabase db reset` — the local one,
     never `--linked`. The reset wipes data typed by hand into the local
     database, so ask the user first, and restart `npm run dev` afterwards.
-  - `scripts/account-deletion.sql` runs only against the local database: its
-    first check refuses a database without the seeded accounts, and
-    `scripts/smoke.mjs` refuses a `SUPABASE_URL` that is not on this machine.
+  - `scripts/account-deletion.sql` is run only against the local database.
+    Its first check refuses a database without the seeded accounts — a check
+    for the seed, not for the host, so a `DB_URL` exported for something else
+    is followed; what keeps a database unchanged is the `ROLLBACK`.
+    `scripts/smoke.mjs` does check the host: it refuses a `SUPABASE_URL` that
+    is not on this machine.
   - `RecordedRequest` in `tests/fixtures/http.ts` records no headers. A route
     test proves the write asked for its rows back through the `select` URL
     parameter, not through the `Prefer` header.
@@ -538,7 +545,8 @@ stored URL in `href`/`src`.
 - Delivered, in three layers (§6.3):
   - `scripts/smoke.mjs` — `withSnapshot` with the expectations
     `snapshot: "same"` / `"changed"`, a second fixture offer, a note of each
-    seeded member on both offers, and the two control steps. Around them:
+    seeded member on both offers, and the control steps (two for notes, one
+    for requirements, added by the implementation review). Around them:
     denied edit, delete, forged insert and forged upsert on notes and on
     requirements; the denied delete without `Prefer` (204); writes whose
     filter reaches both members' rows; an offer rewrite standing in for a
@@ -546,7 +554,12 @@ stored URL in `href`/`src`.
     and a clearing; the cascade checked on both members' notes and against
     the other offer; the second member's requirements observed around
     everything the first member writes and around the limits clear and
-    restore; cleanup deletes that count their rows.
+    restore; cleanup deletes that count their rows. Two denials run the other
+    way round than the plan wrote them — the delete without `Prefer` and the
+    denied delete of requirements are the first member's attempts on the
+    second member's row — so that every denial has a row of its own to lose;
+    the second member's attempts on the first member's rows are covered by
+    the denied delete of the note and by the delete naming both authors.
   - `tests/pages/api/criteria.test.ts` — the route branch for a limits write
     that changed no row, which the real policies never produce for a
     signed-in member; `tests/fixtures/http.ts` gained `isTableRequest` and the
@@ -580,11 +593,15 @@ stored URL in `href`/`src`.
     with `account-deletion: [account deletion succeeds] … violates foreign
     key constraint "offer_notes_author_id_fkey" (23503)`; restored with a
     local `npx supabase db reset`.
+- CI: the `smoke` job ran green with the new step on 2026-10-01 (commit
+  `fb20ba9`). The runner image ships `psql`, so the plan's fallback —
+  `docker exec -i supabase_db_vetpad psql -U postgres` with the file on
+  standard input — was not needed and is not wired in.
 - Open:
-  - The CI step runs plain `psql` and assumes the runner image ships it. The
-    plan's fallback — `docker exec -i supabase_db_vetpad psql -U postgres`
-    with the file on standard input — is not wired in, and the `smoke` job
-    has not run in CI with the new step yet. The first run settles it.
+  - `scripts/account-deletion.sql` does not assert the `updated_at` of an
+    orphaned note. `offer_notes_before_update` keeps it on an account
+    deletion, but the PRD says nothing about that date, so the script leaves
+    it out of the comparison.
   - `RecordedRequest` in `tests/fixtures/http.ts` records no headers, so the
     route test proves `.select("id")` through the `select` URL parameter, not
     through the `Prefer` header.
