@@ -845,26 +845,26 @@ wymaga zgody użytkownika.
 
 #### Automated
 
-- [x] 5.1 Skrypt przechodzi na lokalnej bazie: `npm run test:db` kończy się kodem 0
-- [x] 5.2 Po przebiegu konto `sigaretif3@vetpad.local` istnieje, a w bazie nie ma żadnej fixtury skryptu
-- [x] 5.3 Drugi przebieg pod rząd też przechodzi (skrypt nie zostawia stanu)
-- [x] 5.4 Smoke nadal przechodzi: `BASE_URL=http://localhost:4321 npm run smoke`
-- [x] 5.5 Lint przechodzi: `npm run lint`
+- [x] 5.1 Skrypt przechodzi na lokalnej bazie: `npm run test:db` kończy się kodem 0 — ecc0c74
+- [x] 5.2 Po przebiegu konto `sigaretif3@vetpad.local` istnieje, a w bazie nie ma żadnej fixtury skryptu — ecc0c74
+- [x] 5.3 Drugi przebieg pod rząd też przechodzi (skrypt nie zostawia stanu) — ecc0c74
+- [x] 5.4 Smoke nadal przechodzi: `BASE_URL=http://localhost:4321 npm run smoke` — ecc0c74
+- [x] 5.5 Lint przechodzi: `npm run lint` — ecc0c74
 
 #### Manual
 
-- [x] 5.6 Celowe psucie na lokalnej bazie: funkcja triggera zamrażającego autora notatki podmieniona tak, by zawsze przywracała autora — `npm run test:db` kończy się kodem różnym od 0 z nazwą sprawdzenia; baza przywrócona przez `npx supabase db reset` za zgodą użytkownika
+- [x] 5.6 Celowe psucie na lokalnej bazie: funkcja triggera zamrażającego autora notatki podmieniona tak, by zawsze przywracała autora — `npm run test:db` kończy się kodem różnym od 0 z nazwą sprawdzenia; baza przywrócona przez `npx supabase db reset` za zgodą użytkownika — ecc0c74
 - [ ] 5.7 Job `smoke` w CI jest zielony z nowym krokiem (sprawdzane na PR po `/git-ship` albo na `master` po `/git-land` — wybór ścieżki należy do użytkownika)
 
 ### Phase 6: Dokumentacja i cookbook
 
 #### Automated
 
-- [ ] 6.1 Lint przechodzi: `npm run lint`
-- [ ] 6.2 Testy przechodzą: `npm test`
-- [ ] 6.3 `context/foundation/test-plan.md` §6.3 nie zawiera „TBD” i wymienia S-09, S-10 i S-11 z ich sprawdzeniami na poziomie trasy
-- [ ] 6.4 Każda ścieżka pliku nazwana w nowych fragmentach `CLAUDE.md`, `README.md` i `test-plan.md` istnieje w repozytorium
+- [x] 6.1 Lint przechodzi: `npm run lint`
+- [x] 6.2 Testy przechodzą: `npm test`
+- [x] 6.3 `context/foundation/test-plan.md` §6.3 nie zawiera „TBD” i wymienia S-09, S-10 i S-11 z ich sprawdzeniami na poziomie trasy
+- [x] 6.4 Każda ścieżka pliku nazwana w nowych fragmentach `CLAUDE.md`, `README.md` i `test-plan.md` istnieje w repozytorium
 
 #### Manual
 
-- [ ] 6.5 Użytkownik czyta §6.3 i potwierdza, że da się z niej dodać sprawdzenie dla S-09 bez sięgania do `research.md`
+- [x] 6.5 Użytkownik czyta §6.3 i potwierdza, że da się z niej dodać sprawdzenie dla S-09 bez sięgania do `research.md`

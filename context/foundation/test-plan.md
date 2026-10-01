@@ -79,7 +79,7 @@ orchestrator updates Status as artifacts appear on disk.
 | # | Phase name | Goal (one line) | Risks covered | Test types | Status | Change folder |
 |---|---|---|---|---|---|---|
 | 1 | Test runner and ingestion guardrails | Bootstrap Vitest and prove that ingestion never saves an invented fact, a non-flat-sale, seller data, or an unsafe URL; wire `npm test` into CI | #1, #6 (storage), #7 | unit (recorded fixtures) | complete | context/changes/testing-ingestion-guardrails/ |
-| 2 | Write isolation | Prove that a write on X leaves every other member's data untouched, before S-09/S-10/S-11 add more writes | #5 | integration (smoke) | implementing | context/changes/testing-write-isolation/ |
+| 2 | Write isolation | Prove that a write on X leaves every other member's data untouched, before S-09/S-10/S-11 add more writes | #5 | integration (smoke), SQL against the local database, one hermetic route test | implementing | context/changes/testing-write-isolation/ |
 | 3 | Audit cost and durability | Prove that a paid model call cannot be multiplied and a paid result cannot be silently lost — starts only after S-04 ships | #2, #3 | integration (provider stub) | not started | — |
 | 4 | Audit grounding and prompt privacy | Prove that no finding without a verbatim excerpt is shown and no note or seller data reaches the prompt — starts only after S-04 ships | #4, #6 (prompt) | unit, optional manual golden set | not started | — |
 
@@ -96,6 +96,7 @@ named in the S-04 plan, so the code under test is built to be testable.
 | unit + integration (in-process) | Vitest via `getViteConfig` from `astro/config` with the Cloudflare adapter stripped (`vitest.config.ts`) — checked: 2026-09-30 | vitest 5.0.3 | `npm test`; wired in CI `ci` job since Phase 1. User go-ahead 2026-09-30 (CLAUDE.md). Runs in Node, not workerd |
 | component render | Astro Container API (`experimental_AstroContainer`) with the React container renderer — experimental, checked: 2026-09-30 | astro 7.3.2, @astrojs/react 6.0.5 | For `.astro` output assertions without a browser; runs under `npm test` |
 | integration (live, local Supabase) | `scripts/smoke.mjs` | n/a | Existing; CI `smoke` job; never reaches otodom.pl or production |
+| SQL against the local database | `scripts/account-deletion.sql` through `psql` (`npm run test:db`) — checked: 2026-10-01 | n/a | Since Phase 2: account deletion, which the publishable key cannot reach. One transaction ending in `ROLLBACK`; local database only; not part of `npm test`; a step of the CI `smoke` job, which assumes the runner image ships `psql` (§6.6) |
 | API/provider mocking | `globalThis.fetch` stub at the HTTP edge (`tests/fixtures/http.ts`, `stubFetch`) — checked: 2026-09-30 | vitest 5.0.3 (`vi.stubGlobal`) | Since Phase 1 (otodom + Supabase REST); Phase 3 reuses it for the model provider. Never `vi.mock` of internal modules |
 | e2e | none | n/a | Not planned; smoke against the production preview covers critical routes |
 | visual gate | `scripts/ui-screenshots.mjs` | n/a | Manual, per plan; not a CI gate (§7) |
@@ -115,7 +116,7 @@ named in the S-04 plan, so the code under test is built to be testable.
 | build | CI `ci` job | required | build-time breakage |
 | smoke against production preview | CI `smoke` job | required | broken routes, closed registration, RLS on notes/criteria/members |
 | unit (`npm test`) | local + CI `ci` job | required — wired in the CI `ci` job by §3 Phase 1 | ingestion guardrail regressions, unsafe stored URLs in views |
-| write-isolation smoke steps | CI `smoke` job | required after §3 Phase 2 | cross-member writes, overwritten notes |
+| write-isolation smoke steps and `npm run test:db` | CI `smoke` job | required after §3 Phase 2 | cross-member writes, overwritten notes, a delete that takes more or less than FR-015 says, an account deletion that is blocked or takes another member's data |
 | audit integration (provider stub) | CI | required after §3 Phase 3 | multiplied billed calls, lost paid results |
 | post-edit hook running related unit tests | local (agent loop) | recommended after §3 Phase 1 | regressions at edit time |
 | visual screenshot gate | local, per plan | optional (user's call per change) | rendering regressions |
@@ -127,8 +128,9 @@ the relevant rollout phase ships; before that, it reads "TBD — see §3 Phase N
 
 Tag each `describe` with the §2 risk it protects, as the reference tests do:
 `(#1)` for an invented or incomplete fact (unknown-not-zero, the flat-sale
-gate, no blank row, and an unknown shown as a value in a view), `(#6)` for
-seller data, `(#7)` for a stored URL in `href`/`src`.
+gate, no blank row, and an unknown shown as a value in a view), `(#5)` for a
+write that must leave other rows alone, `(#6)` for seller data, `(#7)` for a
+stored URL in `href`/`src`.
 
 ### 6.1 Adding a unit test for an ingestion rule (unknown-not-zero on every mapped fact, flat-sale gate, seller-data whitelist)
 
@@ -270,7 +272,211 @@ seller data, `(#7)` for a stored URL in `href`/`src`.
 
 ### 6.3 Adding a write-isolation check for a new write path (cross-member, re-fetch, delete, archive)
 
-- TBD — see §3 Phase 2.
+- **Where — pick the layer by what can lie:**
+  - A policy, a freeze trigger or the `offer_notes.offer_id` cascade:
+    a step in `scripts/smoke.mjs`, against the local Supabase through the Data
+    API. A stub cannot answer for any of the three. The routes are not the
+    boundary — the publishable key reaches PostgREST directly — so the attack
+    is sent to the Data API, and through the route as well once a route exists.
+  - An `on delete` action hanging off `auth.users` (account deletion): a case
+    in `scripts/account-deletion.sql`. The publishable key cannot delete an
+    account, so smoke cannot reach it; the script talks to the local Postgres
+    with `psql`, inside one transaction that ends in `ROLLBACK`.
+  - A route branch the real policies cannot produce for a signed-in member (a
+    write that RLS filtered down to zero rows): a hermetic route test under
+    `tests/pages/api/`, stubbed at the HTTP edge.
+- **Reference:** in `scripts/smoke.mjs`, `withSnapshot(observed, run)` and its
+  two expectations, `snapshot: "same"` and `snapshot: "changed"`. It reads the
+  observed rows with `select=*` in a fixed order before and after `run`, and
+  reports whether they are the same, column for column, dates included. An
+  observed read is `{ path, as, order }`; `observedNote(author, offerId)`,
+  `observedNotes(path)` and `observedRequirements(owner)` build one. It
+  composes with `withRevision` in either order.
+  `tests/pages/api/criteria.test.ts` is the reference for the zero-rows
+  branch of a route; `scripts/account-deletion.sql` for account deletion.
+- **Oracle:** the PRD — FR-002 and FR-003 (shared limits, own requirements),
+  FR-009 (notes survive a re-fetch), FR-012–FR-015 (own note only, everyone
+  reads, archive, delete with its cascade), and the Non-Functional
+  Requirements: "No system action modifies or destroys human-authored text",
+  and the paragraph on a deleted member's account (offers and notes stay,
+  unsigned, and nobody edits them; requirements go with the account). The
+  table below says how PostgREST *signals* an outcome, never what the outcome
+  should be. When a new step is red with nothing broken on purpose, that is a
+  defect in a migration or a route: stop and report it, never fit the
+  expectation to the behaviour.
+- **Count rows, never a status alone.** A denied cross-member write raises no
+  error, and without `Prefer: return=representation` it answers exactly like
+  a successful one. Signatures, probed on the local Supabase on 2026-10-01:
+
+  | Attempt | `Prefer` | Answer |
+  |---|---|---|
+  | Denied read (RLS) | — | `200`, `[]` |
+  | Denied `UPDATE` or `DELETE` of another member's row | `return=representation` | `200`, `[]` |
+  | Denied `UPDATE` or `DELETE` of another member's row | none | `204`, empty body |
+  | Successful `UPDATE` or `DELETE` | `return=representation` | `200`, the rows it touched |
+  | Successful `UPDATE` or `DELETE` | none | `204`, empty body — the same as the denied one |
+  | `UPDATE` or `DELETE` whose filter reaches several members' rows | `return=representation` | `200`, the writer's own rows only |
+  | `UPDATE` with the publishable key alone | `return=representation` | `200`, `[]` |
+  | Forged `INSERT` by a member (a row signed with another member's id) | none | `403`, `42501` |
+  | Forged upsert onto another member's existing row | `resolution=merge-duplicates` | `403`, `42501` |
+  | `INSERT` with the publishable key alone | none | `401`, `42501` |
+  | `DELETE` with no filter at all | — | `400`, `21000` |
+
+  So every write step sends `prefer: "return=representation"` and asserts
+  `rows`. `42501` proves a refusal only for an insert or an upsert; for an
+  update or a delete the proof is `rows: 0` plus `snapshot: "same"`. The one
+  step that deliberately omits `Prefer` („… without Prefer answers 204 and
+  leaves the note”) shows the trap: there the unchanged row is the only
+  evidence. Both routes that write authored rows save with an upsert, so a
+  forgery is tried both ways — `forgeNote({ upsert })` and
+  `forgeRequirements({ upsert })`.
+- **The neighbour's row first, then the check.** A comparison means something
+  only once the row it could wrongly touch exists. Smoke therefore creates
+  two fixture offers (`FIXTURE_OFFER_ID`, `FIXTURE_OFFER_ID_2`) and puts a
+  note of each seeded member on both, and both members hold requirements,
+  before any isolation step runs. `withSnapshot` treats an empty read before
+  the step as a failed step („nothing to observe before the step”), never as
+  "same". A new write path asks three questions, each with its own observed
+  row:
+  1. *Denied:* the other member's attempt on my row — `rows: 0` (or `42501`),
+     my row `"same"`.
+  2. *Successful, next to a neighbour:* a write whose filter names no author
+     (`offer_id=eq.…`, or `author_id=in.(A,B)`) — `rows: 1`, the neighbour's
+     row `"same"`. This is the case "the UPDATE succeeded, so only the
+     targeted row changed" hides.
+  3. *Another table or another offer:* an offer write observes
+     `observedNotes(ALL_FIXTURE_NOTES)`; a delete of one offer observes the
+     other offer's notes, with a row-count read before (both members' notes
+     are there) and after (`rows: 0`).
+- **The control steps keep the comparison honest.** „control: an edited note
+  is reported as changed” and „control: a note saved again with the same text
+  is reported as changed” run on every smoke run with
+  `snapshot: "changed"`: the second moves only `updated_at`, so it proves the
+  comparison covers dates. A wrapper that reads the wrong row, an empty list
+  or one field turns them red. When a new table gets its own observed read,
+  give it a control step of its own.
+- **Adding a step.** A step is `[name, run, expected]` in `steps`; `expected`
+  takes `status`, `rows`, `errorCode`, `snapshot`, `revisionDelta` (and the
+  redirect keys for a route). For a write through a route, wrap the
+  `request(…)` call the same way:
+
+  ```js
+  [
+    "archiving the fixture offer leaves every note as it was",
+    () =>
+      withSnapshot([observedNotes(ALL_FIXTURE_NOTES)], () =>
+        request("/api/<route>", { method: "POST", form: { offer_id: FIXTURE_OFFER_ID } }),
+      ),
+    { status: 302, location: "<where the route redirects>", snapshot: "same" },
+  ],
+  ```
+
+  Steps are ordered and stateful: put a new one after the fixtures and both
+  members' rows exist, and before the cascade steps that delete the fixture
+  offers. Describe it in the file's header comment, and in `README.md`.
+- **Each slice that adds a write adds its own route-level check.** What this
+  phase tests for re-fetch, note delete, offer delete and archive is their
+  database half, with a Data API write standing in for a route that does not
+  exist yet. The slice that builds the route owns the rest:
+  - **S-09 (re-fetch, FR-009).** Prove two things. The re-fetch is an
+    `UPDATE` of the offer's row, never delete-and-reinsert: the
+    `offer_notes.offer_id` cascade would take every member's notes with the
+    deleted row. And after a re-fetch through the route every note is the
+    same whole row, `updated_at` included. Smoke must never reach otodom.pl
+    and the fixture offers' `source_url` is not an otodom address, so the
+    successful re-fetch is a route test on the pattern of
+    `tests/pages/api/offers.test.ts`: stub the otodom page and the Supabase
+    answers, then assert on the recorded requests — one `PATCH` to
+    `/rest/v1/offers` filtered by the offer's `id`, no `DELETE` and no `POST`
+    to `offers`, no write to `offer_notes`, and a body without `id` and
+    `created_by`. The database half stays in smoke: keep the step „another
+    member's rewrite of the listing data leaves every note as it was”
+    (`rewriteListingAsOther`) and make its body the columns the route really
+    writes. Add a smoke step for what the route does reach without otodom —
+    a refused or failed re-fetch — wrapped in `withSnapshot` over the offer
+    and `ALL_FIXTURE_NOTES`, both `"same"` (a failed fetch saves nothing).
+  - **S-10 (archive, FR-014).** A smoke step through the archive route and
+    one through restore, each observing `ALL_FIXTURE_NOTES` with
+    `snapshot: "same"`, plus the two Data API attacks above if the archive
+    writes a column a member must not forge. The column naming who archived
+    references `auth.users`, so its creating migration declares `on delete`
+    (`context/foundation/lessons.md`, "Declare `on delete` on every author
+    column"), chosen from the PRD — and `scripts/account-deletion.sql` gets a
+    case: the leaving member archives a fixture offer, and after the deletion
+    the offer and its archived state are there, with the column in the state
+    that `on delete` action leaves.
+  - **S-11 (delete a note, delete an offer, FR-015).** Each route decides in
+    its own code what zero deleted rows means, and its doc comment says so:
+    `src/pages/api/requirements.ts` deletes without `.select()` and treats
+    zero rows as success by a stated choice, which is not to be inherited by
+    accident. If zero rows is a failure, the branch gets a route test like
+    `tests/pages/api/criteria.test.ts` (the real policies will not produce it
+    for the author). In smoke: the note-delete route removes the member's own
+    note (`rows: 0` on a read afterwards) while the other member's note on
+    the same offer is `"same"`; and the cascade steps („another member
+    deletes the fixture offer and the second offer's notes stay as they
+    were” and its neighbours) send the delete through the offer-delete route
+    instead of the Data API, keeping the reads around it.
+- **Account deletion (`scripts/account-deletion.sql`).** One transaction:
+  fixtures, a snapshot table (`to_jsonb` of each row), `delete from
+  auth.users` for `sigaretif3@vetpad.local`, then one `DO` block per check
+  that raises `account-deletion: [<check name>] …`, and `rollback`. A new
+  author column adds a fixture row signed by the leaving member, a snapshot
+  entry, and a check after the deletion. The staying member's rows are
+  compared whole; the leaving member's without the author column and without
+  a note's `updated_at`, because `on delete set null` runs as an `UPDATE` and
+  the PRD says nothing about an orphaned note's date. A check that acts as a
+  member sets `request.jwt.claims` and `set local role authenticated`, and
+  counts rows with `get diagnostics`.
+- **Route test for a zero-rows write.** `tests/pages/api/criteria.test.ts`:
+  stub the one planned write with `isTableRequest(request, "<table>",
+  "PATCH")` from `tests/fixtures/http.ts`, answer `jsonResponse([], 200)`, and
+  assert the redirect carries `?error=`, the right `&form=` and fragment —
+  never the `302` alone, which success shares. The success case asserts the
+  body's keys from a hand-written list, and that no signature, date or id is
+  sent.
+- **Tag:** `(#5)` on the `describe` of a route test. Smoke steps and SQL
+  checks have no `describe`; name the requirement (FR-009, FR-015) in the
+  comment above the step or the check.
+- **Run:** smoke against the production preview with the local Supabase up —
+  `npm run build && npm run preview`, then
+  `BASE_URL=http://localhost:4321 npm run smoke`. The SQL script:
+  `npm run test:db` (needs `psql` and the local Supabase; `DB_URL` overrides
+  the Supabase CLI's default local address). The route test:
+  `npm test -- tests/pages/api/criteria.test.ts`.
+- **Pitfalls:**
+  - `supabaseRest` reports `rows` only for an array body. A step that expects
+    `rows` and sends no `Prefer` fails — it does not pass silently — but a
+    step that expects only `204` passes whether or not a row existed.
+  - Give every denial a row of its own to lose. The denied delete, the delete
+    without `Prefer` and the delete by offer each target a different note, so
+    a loosened policy turns each of them red by itself instead of the first
+    one consuming the row the others observe.
+  - Any update of a note moves its `updated_at`, text changed or not;
+    requirements move theirs only when `body` changes. Observe the
+    neighbour's row, never the row the step is meant to write.
+  - The stored value is read back with a filter, not from the write's own
+    answer: „fixture offer keeps its author after another member claims it”
+    (`offerStillByMember`) is the pattern.
+  - Cleanup counts rows too, and every step runs even after an earlier one
+    failed. The last steps delete both fixture offers by id and expect
+    `rows: 0`, so a failed cascade step leaves nothing behind and is reported
+    twice.
+  - Confirm a new family of steps once by breaking the thing it guards on the
+    local database (a policy loosened to `true`, a trigger disabled) and
+    watching it go red; restore with `npx supabase db reset` — the local one,
+    never `--linked`. The reset wipes data typed by hand into the local
+    database, so ask the user first, and restart `npm run dev` afterwards.
+  - `scripts/account-deletion.sql` runs only against the local database: its
+    first check refuses a database without the seeded accounts, and
+    `scripts/smoke.mjs` refuses a `SUPABASE_URL` that is not on this machine.
+  - `RecordedRequest` in `tests/fixtures/http.ts` records no headers. A route
+    test proves the write asked for its rows back through the `select` URL
+    parameter, not through the `Prefer` header.
+  - The route test's distinguishing message fragments („zapisać”,
+    „wyczyścić”, „sesji”) are written by hand from the current Polish copy,
+    which the PRD does not fix. A copy rewrite turns them red; update the
+    fragments, do not import the messages from the route.
 
 ### 6.4 Adding a test for a paid external call (billed-call count, lost result, timeout)
 
@@ -323,6 +529,81 @@ seller data, `(#7)` for a stored URL in `href`/`src`.
   - The next writers of offer data (re-fetch FR-009, extraction-service
     fallback) get their canary tests when they are built, per §6.1.
 
+**Phase 2 — Write isolation**
+(`testing-write-isolation`, 2026-10-01)
+
+- No defect was found: the research probe and every new check passed against
+  the migrations as they stood. The phase is regression protection for S-09,
+  S-10 and S-11; nothing under `src/` or `supabase/migrations/` changed.
+- Delivered, in three layers (§6.3):
+  - `scripts/smoke.mjs` — `withSnapshot` with the expectations
+    `snapshot: "same"` / `"changed"`, a second fixture offer, a note of each
+    seeded member on both offers, and the two control steps. Around them:
+    denied edit, delete, forged insert and forged upsert on notes and on
+    requirements; the denied delete without `Prefer` (204); writes whose
+    filter reaches both members' rows; an offer rewrite standing in for a
+    re-fetch, against every note; the offer's author surviving a reassignment
+    and a clearing; the cascade checked on both members' notes and against
+    the other offer; the second member's requirements observed around
+    everything the first member writes and around the limits clear and
+    restore; cleanup deletes that count their rows.
+  - `tests/pages/api/criteria.test.ts` — the route branch for a limits write
+    that changed no row, which the real policies never produce for a
+    signed-in member; `tests/fixtures/http.ts` gained `isTableRequest` and the
+    documented request shape of the limits write.
+  - `scripts/account-deletion.sql` with `npm run test:db`, and a step in the
+    CI `smoke` job that runs it before the build.
+- §3's "integration (smoke)" grew by two layers, both the user's decisions:
+  account deletion by SQL with a rollback (research's open question 1), and
+  the hermetic route test for the branch smoke cannot reach.
+- Each family of checks went red once on a deliberately broken system and
+  green again after the restore:
+  - Harness: `withSnapshot` narrowed to compare `pros` only — the control
+    step for a date-only change went red.
+  - Notes and offers, on the local database, each break on its own, restored
+    with `npx supabase db reset`: the `update` policy on `offer_notes`
+    loosened to `true` — the denied `PATCH` and the successful `PATCH` beside
+    another member's note; the `delete` policy loosened to `true` — the denied
+    `DELETE`, the `DELETE` without `Prefer` and the successful `DELETE`
+    beside; `offers_freeze_created_by` disabled — the offer-author step; a
+    temporary trigger on `offers` moving the notes' `updated_at` — the
+    offer-write step.
+  - Requirements: the `update` policy on `member_requirements` loosened to
+    `true` — the denied `PATCH` and the `PATCH` naming both authors; the
+    `delete` policy loosened — the denied `DELETE` and the `DELETE` naming
+    both authors.
+  - Route test (2026-10-01): the `updated.data.length === 0` branch in
+    `src/pages/api/criteria.ts` disabled — exactly the two `200 []` cases
+    (save and clear) went red, the other five stayed green.
+  - SQL script (2026-10-01): `public.offer_notes_before_update` replaced so
+    that it always restores the author — `npm run test:db` exited non-zero
+    with `account-deletion: [account deletion succeeds] … violates foreign
+    key constraint "offer_notes_author_id_fkey" (23503)`; restored with a
+    local `npx supabase db reset`.
+- Open:
+  - The CI step runs plain `psql` and assumes the runner image ships it. The
+    plan's fallback — `docker exec -i supabase_db_vetpad psql -U postgres`
+    with the file on standard input — is not wired in, and the `smoke` job
+    has not run in CI with the new step yet. The first run settles it.
+  - `RecordedRequest` in `tests/fixtures/http.ts` records no headers, so the
+    route test proves `.select("id")` through the `select` URL parameter, not
+    through the `Prefer` header.
+  - The route test's distinguishing message fragments are hand-written from
+    the current Polish copy; the PRD does not fix the wording, so a copy
+    rewrite turns them red.
+  - `scripts/account-deletion.sql` does not compare `team_criteria.updated_at`
+    and does not assert the `criteria_revision` bump that the deleted
+    member's requirements going away causes.
+- Deferred:
+  - Changing an offer's `id` through the Data API: a member can, unless a
+    note references the offer (409, `23503`). Observed during research, not
+    assessed, outside #5.
+  - `enable_anonymous_sign_ins` on the hosted project. The policies admit any
+    session with a uid, so they hold only while it is `false`; smoke sees the
+    local `supabase/config.toml`, never the hosted setting.
+  - Route-level checks for the re-fetch (S-09), the archive (S-10) and the
+    note and offer deletes (S-11): each slice adds its own, per §6.3.
+
 ## 7. What We Deliberately Don't Test
 
 - **`/dev/*` kitchen-sink pages** — developer tools that answer 404 outside
@@ -337,7 +618,7 @@ seller data, `(#7)` for a stored URL in `href`/`src`.
 
 ## 8. Freshness Ledger
 
-- Strategy (§1–§5) last reviewed: 2026-09-30
+- Strategy (§1–§5) last reviewed: 2026-09-30; §2 (#5), §3 row 2, §4 and §5 amended for the write-isolation phase: 2026-10-01
 - Stack versions last verified: 2026-09-30
 - AI-native tool references last verified: 2026-09-30
 
