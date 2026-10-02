@@ -847,28 +847,28 @@ do drugiej oferty fixture, którą smoke i tak usuwa na końcu przebiegu.
 
 #### Automated
 
-- [x] 5.1 Test fazy przechodzi: `npm test -- tests/lib/criteria.test.ts`
-- [x] 5.2 Cały zestaw przechodzi: `npm test`
-- [x] 5.3 Lint przechodzi: `npx astro sync && npm run lint`
-- [x] 5.4 Typy przechodzą: `npx astro check`
-- [x] 5.5 Stryker kończy przebieg: `npx stryker run --mutate "src/lib/criteria.ts:151-285"`
-- [x] 5.6 `mutation.md` ma wynik po fazie obok bazowego (zakres 0/138; cały plik 22,35%, 59/264) i decyzję dla każdego ocalałego mutanta w `criteria.ts:151-285`
+- [x] 5.1 Test fazy przechodzi: `npm test -- tests/lib/criteria.test.ts` — 4f499c2
+- [x] 5.2 Cały zestaw przechodzi: `npm test` — 4f499c2
+- [x] 5.3 Lint przechodzi: `npx astro sync && npm run lint` — 4f499c2
+- [x] 5.4 Typy przechodzą: `npx astro check` — 4f499c2
+- [x] 5.5 Stryker kończy przebieg: `npx stryker run --mutate "src/lib/criteria.ts:151-285"` — 4f499c2
+- [x] 5.6 `mutation.md` ma wynik po fazie obok bazowego (zakres 0/138; cały plik 22,35%, 59/264) i decyzję dla każdego ocalałego mutanta w `criteria.ts:151-285` — 4f499c2
 
 #### Manual
 
-- [x] 5.7 Dopisane zdanie w CLAUDE.md oddaje decyzję o nieczytelnej wartości limitu
-- [x] 5.8 Decyzje „równoważny” i „świadomie pominięty” w `mutation.md` dla `criteria.ts:151-285` są zaakceptowane
+- [x] 5.7 Dopisane zdanie w CLAUDE.md oddaje decyzję o nieczytelnej wartości limitu — 4f499c2
+- [x] 5.8 Decyzje „równoważny” i „świadomie pominięty” w `mutation.md` dla `criteria.ts:151-285` są zaakceptowane — 4f499c2
 
 ### Phase 6: Cookbook — `test-plan.md` §6 i wskazania w CLAUDE.md
 
 #### Automated
 
-- [ ] 6.1 Cały zestaw przechodzi: `npm test`
-- [ ] 6.2 Lint przechodzi: `npx astro sync && npm run lint`
-- [ ] 6.3 Typy przechodzą: `npx astro check`
-- [ ] 6.4 Każda ścieżka wskazana w nowych podsekcjach §6 i w CLAUDE.md `## Testing` istnieje w repozytorium
+- [x] 6.1 Cały zestaw przechodzi: `npm test`
+- [x] 6.2 Lint przechodzi: `npx astro sync && npm run lint`
+- [x] 6.3 Typy przechodzą: `npx astro check`
+- [x] 6.4 Każda ścieżka wskazana w nowych podsekcjach §6 i w CLAUDE.md `## Testing` istnieje w repozytorium
 
 #### Manual
 
-- [ ] 6.5 Podsekcje §6.7 i §6.8 wystarczają, żeby dodać kolejny test funkcji odczytu albo czystej reguły bez czytania tego planu
-- [ ] 6.6 Wpis w §6.6 zgadza się z `mutation.md`
+- [x] 6.5 Podsekcje §6.7 i §6.8 wystarczają, żeby dodać kolejny test funkcji odczytu albo czystej reguły bez czytania tego planu
+- [x] 6.6 Wpis w §6.6 zgadza się z `mutation.md`

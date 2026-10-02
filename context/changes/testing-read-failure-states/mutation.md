@@ -13,6 +13,28 @@ Decyzje:
 Raport (`reports/mutation/mutation.html`) jest nadpisywany przy każdym
 przebiegu, więc liczby i decyzje trafiają tutaj przed kolejnym przebiegiem.
 
+## Podsumowanie (2026-10-02)
+
+Zestawienie z sekcji faz poniżej; bez nowych przebiegów Strykera. Wynik bazowy
+jest z 2026-10-01, końcowy z ostatniego przebiegu danej fazy. Ostatnia kolumna
+liczy pojedyncze mutanty z decyzją „świadomie pominięty” — ocalałe i bez
+pokrycia razem.
+
+| Moduł (zakres) | Wynik bazowy | Wynik końcowy | Świadomie pominięte |
+|---|---|---|---|
+| `src/lib/team-limits.ts` | 6,0% (5 / 83) | 97,59% (81 / 83) | 0 |
+| `src/lib/offer-board.ts` | 0% (0 / 48) | 85,42% (41 / 48) | 6 |
+| `src/lib/members.ts` | 0% (0 / 129) | 89,92% (116 / 129) | 7 |
+| `src/lib/notes.ts:1-99` (odczyt) | 0% (0 / 40) | 82,50% (33 / 40) | 4 |
+| `src/lib/criteria.ts:151-285` (odczyt) | 0% (0 / 138) | 86,23% (119 / 138) | 8 |
+
+W nawiasach: zabite / razem. Pozostałe mutanty bez asercji mają decyzję
+„równoważny”: 2 w `team-limits.ts`, 1 w `offer-board.ts`, 6 w `members.ts`,
+3 w `notes.ts:1-99` i 11 w `criteria.ts:151-285`. Żaden mutant w zakresie nie
+został bez decyzji. Wiersze `notes.ts:100-113` (20 mutantów) i
+`criteria.ts:1-150` (126 mutantów) są poza zakresem zmiany; wynik całych
+plików nie był mierzony ponownie.
+
 ## Wynik bazowy (2026-10-01)
 
 | Moduł | Wynik | Zabite | Ocalałe | Bez pokrycia | Razem |

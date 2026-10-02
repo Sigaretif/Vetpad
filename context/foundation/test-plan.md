@@ -6,7 +6,7 @@
 >
 > Refresh: re-run `/10x-test-plan --refresh` when stale (see §8).
 >
-> Last updated: 2026-10-01
+> Last updated: 2026-10-02
 
 ## 1. Strategy
 
@@ -128,9 +128,10 @@ the relevant rollout phase ships; before that, it reads "TBD — see §3 Phase N
 
 Tag each `describe` with the §2 risk it protects, as the reference tests do:
 `(#1)` for an invented or incomplete fact (unknown-not-zero, the flat-sale
-gate, no blank row, and an unknown shown as a value in a view), `(#5)` for a
-write that must leave other rows alone, `(#6)` for seller data, `(#7)` for a
-stored URL in `href`/`src`.
+gate, no blank row, an unknown shown as a value in a view, a failed read
+shown as an empty state, and a team limit broken by a fact the listing does
+not state), `(#5)` for a write that must leave other rows alone, `(#6)` for
+seller data, `(#7)` for a stored URL in `href`/`src`.
 
 ### 6.1 Adding a unit test for an ingestion rule (unknown-not-zero on every mapped fact, flat-sale gate, seller-data whitelist)
 
@@ -621,6 +622,274 @@ stored URL in `href`/`src`.
   - Route-level checks for the re-fetch (S-09), the archive (S-10) and the
     note and offer deletes (S-11): each slice adds its own, per §6.3.
 
+**Outside the rollout — `testing-read-failure-states`**
+(2026-10-02)
+
+- Not a §3 phase: phases 3 and 4 wait for S-04. The change covers logic that
+  only `scripts/smoke.mjs` exercised, and smoke checks the `ok` markers alone.
+  Two failure scenarios, both tagged `(#1)`: a failed read shown as an empty
+  state („brak notatek”, „osoba z usuniętym kontem”, „brak limitów”), and a
+  team limit broken by a fact the listing does not state. No defect was
+  found and nothing under `src/` or `supabase/migrations/` changed — it is
+  regression protection.
+- Delivered:
+  - Pure rules (§6.8): `tests/lib/team-limits.test.ts` (`limitBreaches`,
+    `normalizePlace`) and `tests/lib/offer-board.test.ts` (`parseBoardSort`,
+    `boardSortHref`).
+  - Read functions (§6.7): `tests/lib/members.test.ts` (`resolveSaver`,
+    `resolveAuthors`, `saverName`, `authorName`), `tests/lib/notes.test.ts`
+    (`loadNotes`) and `tests/lib/criteria.test.ts` (`loadCriteria`,
+    `loadTeamLimits`). The header comment of `tests/fixtures/http.ts` gained
+    the request shape of every read these modules send, and how postgrest-js
+    turns an answer into a result.
+  - `scripts/smoke.mjs`: the write „second fixture offer gets an area” and
+    the steps „board puts the offer without a price last…” and „board puts
+    the offer without an area last…”, each in both directions, through
+    `fixtureBoardOrder`. Unknown values last is a property of the query in
+    `src/pages/dashboard.astro`, so only a real database proves it. Confirmed
+    once by a deliberate break: with `nullsFirst: false` removed and the
+    preview rebuilt, both descending steps went red.
+  - Rules the sources had not stated, decided by the user and written down
+    in the same change. In the PRD (FR-002): a location given as empty text,
+    or as spaces and commas only, states no place. In CLAUDE.md
+    (`## Structure`): the order of the breaches and how `limitBreaches`
+    answers for limits the form does not allow; a `null` author column is a
+    deleted account with or without a client; a value in the limits row that
+    does not read as a limit is a failed read, a number sent as text reads
+    as that number, and members' requirements are read most recently edited
+    first.
+- Stryker, narrowed to each module, before (2026-10-01) and after
+  (2026-10-02). Every survivor and every uncovered mutant in scope has a
+  decision in `context/changes/testing-read-failure-states/mutation.md`; the
+  score was never the target.
+
+  | Module (scope) | Before | After | Killed / survived / no coverage / total after |
+  |---|---|---|---|
+  | `src/lib/team-limits.ts` | 6.0% | 97.59% | 81 / 2 / 0 / 83 |
+  | `src/lib/offer-board.ts` | 0% | 85.42% | 41 / 7 / 0 / 48 |
+  | `src/lib/members.ts` | 0% | 89.92% | 116 / 6 / 7 / 129 |
+  | `src/lib/notes.ts:1-99` (the read) | 0% | 82.50% | 33 / 7 / 0 / 40 |
+  | `src/lib/criteria.ts:151-285` (the read) | 0% | 86.23% | 119 / 16 / 3 / 138 |
+
+  The whole-file baselines were 0% for `src/lib/notes.ts` (60 mutants) and
+  22.35% for `src/lib/criteria.ts` (264 mutants, every killed one in the form
+  validators). The whole files were not measured again: lines `100-113` of
+  `notes.ts` and `1-150` of `criteria.ts` are outside this change.
+- Mutants left without an assertion, by kind:
+  - *Equivalent:* an early-exit check (`if (!supabase)`, `if (result.error)`,
+    a `typeof` guard) whose removal makes the code throw into the `catch` of
+    the same function, which answers the same failed state; a `null` check
+    whose removal compares with `null` and gives the same answer, given the
+    table's checks (`price` and `area_m2` are never `≤ 0`).
+  - *Consciously left out — data, not a rule:* column lists and `select`
+    strings (`BOARD_COLUMNS`, `BOARD_SORT_COLUMN`, `LIMIT_COLUMNS`), which a
+    stub answers regardless of and smoke guards on the real database, and the
+    field labels in `NOTE_FIELD_LABELS`. An assertion on the literal would
+    mirror the code.
+  - *Consciously left out — unreachable from the HTTP edge:* the `catch` in
+    `resolveSaver` and in `loadTeamLimits`. No response shape makes them
+    throw, and `vi.mock` of an internal module is not used.
+  - *Consciously left out — type guards:* the `default` branch of
+    `saverName` and `authorName` (`never`, guarded by `astro check`), and the
+    `typeof` guards on `updated_at` / `updated_by`, which differ only for a
+    value a `timestamptz` or `uuid` column never returns.
+  - *Consciously left out — a swap point:* `auditStatus` in
+    `src/lib/offer-board.ts`, one constant today; S-04 gives it a rule and
+    its assertions.
+- Deferred:
+  - The form validators — `parseLimitsForm`, `parseNumber`,
+    `requirementsError` in `src/lib/criteria.ts` and `noteError` in
+    `src/lib/notes.ts`. They are outside both scenarios; `parseLimitsForm` is
+    reached only through `tests/pages/api/criteria.test.ts`.
+  - A hermetic test of the board query (the `order` parameter). It would
+    prove what the query asks for, not how Postgres sorts; smoke proves the
+    order.
+  - Repeated sort parameters (`?sort=price&sort=area`). The sources are
+    silent and the interface never builds such a link, so no test binds the
+    behaviour either way.
+  - Render assertions for the error states (`data-notes-state="error"`,
+    `data-criteria-state="error"`, `data-limits-state="error"`) — a property
+    of the views, not of `src/lib`. Smoke still has no step that looks for an
+    error marker.
+  - The retry branches of postgrest-js (`503`, `520`, a rejected `fetch`).
+
+### 6.7 Adding a unit test for a read function (a failed read is its own state)
+
+A read function takes the Supabase client as an argument and answers a union
+with a failed state; it never throws. What the test protects is the
+difference between "the read failed" and "there is nothing to show" — a
+failed read rendered as „brak notatek” or „brak limitów” invents a fact, and
+a form prefilled from it overwrites the real row on save.
+
+- **Where:** `tests/lib/<module>.test.ts`, mirroring `src/lib/<module>.ts`.
+- **Reference test:** `tests/lib/criteria.test.ts` (two reads sent in
+  parallel and a dependent third). `tests/lib/notes.test.ts` is the smaller
+  one (a read and a dependent read); `tests/lib/members.test.ts` covers a
+  `maybeSingle()` read and the `deleted` / `unknown` distinction.
+- **Client:** built in the test, the way a request builds it —
+  `createClient(new Headers(), { set: vi.fn() } as unknown as AstroCookies)`
+  from `@/lib/supabase`, wrapped in a `client()` helper that throws when it
+  gets `null`. The file overrides the zero-config mock of `tests/setup.ts`
+  with its own `vi.mock("astro:env/server", …)` returning `SUPABASE_TEST_URL`
+  / `SUPABASE_TEST_KEY`, imported inside the factory with
+  `await import("../fixtures/http")` because `vi.mock` is hoisted. Importing
+  `@/lib/supabase` is not mocking it: only the network is stubbed, and every
+  module under `src/lib` runs as in production.
+- **Network:** `stubFetch` from `tests/fixtures/http.ts` with
+  `afterEach(restoreFetch)`. The handler tells the tables apart with
+  `isTableRequest(request, "<table>", "GET")`, never by the order of the
+  requests — parallel reads arrive in either order. A table the case did not
+  plan returns `undefined`, so a read that should not have gone out fails
+  the test.
+- **The failures, each through the HTTP edge:**
+
+  | State | Answer |
+  |---|---|
+  | No client | pass `null` as the client; `stubFetch(() => undefined)` and `stub.requests` has length 0 |
+  | Query error | `jsonResponse({ code: "XX000", message: "internal error", details: null, hint: null }, 500)` — `error` is set at once, no retry |
+  | Missing row, for a `maybeSingle()` read | `jsonResponse([], 200)` — `data: null`, no error |
+  | More than one row, for a `maybeSingle()` read | two rows in the array — an error, `PGRST116` |
+  | Exception inside the function | a `200` whose body is not the shape the code walks: `{}`, `null`, or a list holding `null` |
+  | Unreadable value in a row | a `200` row with the value, one column at a time through `it.each`, the other columns readable |
+
+  With `maybeSingle()` an object body is handed over as the row itself, so
+  there "not the row" means a row without its columns, `null`, or text.
+- **Do not use:** `503`, `520` or a rejected `fetch` — postgrest-js retries a
+  GET up to three times with back-off (about 7 s) and they end as a result
+  with `error`, never as an exception; and a `404` whose body is an array,
+  which becomes `data: []` with no error and so stands in for nothing.
+- **The control case is mandatory — "empty but successful".** Every
+  `describe` of failures opens with the read that succeeds and finds nothing
+  (`200 []` for a list; for the limits, the singleton row with four `null`),
+  asserted as a whole value written out by hand: `null`, never `0` and never
+  `""`. Each failure then asserts its failed state **and** `not.toEqual` the
+  empty one. Without the control the suite passes on a function that always
+  answers the failed state.
+- **Count the requests.** A failure case asserts that the read did go out
+  (the outcome came from the database's answer, not from an early exit) and
+  that the dependent read did not (`members` is not asked after a failed
+  notes read). A success case asserts how many requests named the authors —
+  one, for the distinct ids, read back from `id=in.(…)`.
+- **A failed dependent read is not a failed read.** When the main read
+  succeeds and `members` answers `500`, the state stays `ok`, the rows are
+  shown, and each author is `unknown` — never `deleted`, which is a fact
+  from the row (a `null` author column) and needs no read.
+- **What the request asks for.** Assert a filter or an order the function
+  owns through `new URL(request.url).searchParams` (`offer_id=eq.<id>`,
+  `order=updated_at.desc`, `id=eq.true`), and only where a source names it.
+  That the database really sorts that way is not this layer's claim (§6.8).
+- **Oracle:** CLAUDE.md `## Structure` (a failed read is its own state; a
+  `null` author is a deleted account; `unknown` names nobody), the PRD
+  (Guardrails; Non-Functional Requirements for the deleted account's
+  wording), the function's contract in the archived plan of the change that
+  built it (`context/archive/`), and the creating migration's header for
+  what a column means. Name the sources in a comment at the top of the test.
+  Never the function's current output.
+- **Run:** `npm test -- tests/lib/criteria.test.ts`. Then Stryker narrowed
+  to the read — `npx stryker run --mutate "src/lib/criteria.ts:151-285"` (a
+  line range when the file also holds code outside the risk; read the range
+  from the file again if it has changed) — and a decision for every survivor
+  and every uncovered mutant (CLAUDE.md, `### Mutation testing (Stryker)`).
+- **Pitfalls:**
+  - A `catch` that no response shape can reach gets the decision
+    „świadomie pominięty — nieosiągalne z krawędzi HTTP” in the change's
+    mutant log, not a `vi.mock` of an internal module. Try the shapes first:
+    the `catch` in `loadNotes` and `loadCriteria` is reached by a body that
+    is not a list of rows; the one in `resolveSaver` and `loadTeamLimits` is
+    reached by nothing, because the code only reads fields of a value it has
+    already checked.
+  - An early-exit check whose removal lands in the same `catch`
+    (`if (!supabase)`, `if (result.error)`, `!result.data`) is an equivalent
+    mutant: the answer is the same failed state. Do not write a test that
+    pins which line produced it. That unreachable `catch` is the net those
+    equivalents rest on — a reason to keep it, not to delete it.
+  - A new read documents its request shape in the header comment of
+    `tests/fixtures/http.ts`, read from
+    `node_modules/@supabase/postgrest-js/dist/index.mjs`, not from memory:
+    `select` loses its whitespace, an `in` list is percent-encoded in the
+    URL, `maybeSingle()` is a client-side flag.
+  - `RecordedRequest` records no headers; assert on the URL.
+  - A value the table's checks do not admit (a zero limit, an empty city)
+    can only come from a stub. Whether it is a failed read or "nothing set"
+    is a rule, so it needs a source; when none states it, §6.8's rule for a
+    silent source applies.
+  - Interface copy that no source fixes („Ty”, „Ciebie”) is written by hand
+    with a comment saying so; a copy rewrite turns it red, and that is the
+    assertion's whole job. The deleted account's wording is the PRD's.
+  - Run `npx astro sync` before `npm run lint`, as in §6.2.
+
+### 6.8 Adding a unit test for a pure rule (team limits, board sort)
+
+A pure rule has no executable imports: no stub, no `vi.mock`, no client.
+
+- **Where:** `tests/lib/<module>.test.ts`.
+- **Reference test:** `tests/lib/team-limits.test.ts` (a rule over facts and
+  limits). `tests/lib/offer-board.test.ts` is the reference for parsing
+  input that must always give a valid value and never throw.
+- **Inputs:** literals built in the test, through small helpers that take
+  overrides (`offer({ price })`, `limits({ city })`) so that a case states
+  only the fact it is about. A fixture from `src/pages/dev/_offer-fixtures.ts`
+  may be an input, never an expectation.
+- **Every "does not break" stands beside a "breaks".** An unstated price
+  gives no mark — and the same limit, with the price stated, gives one. An
+  unset limit breaks nothing — and the same offer under the set limit is
+  marked. Alone, the first half passes on a function that always answers
+  `[]`. For parsing it is the same pair: an unknown direction falls back to
+  the key's own, and each key is also asked with the direction opposite to
+  its default, so a function that ignored `dir` cannot pass both.
+- **Expected values are written by hand,** as whole values: the exact array
+  with its order (`["city", "price_above", "area_below"]`), the exact link
+  (`/dashboard?sort=price&dir=desc`). Never computed in the test with the
+  rule's own logic, and never from a constant imported from the module
+  under test.
+- **Bounds:** the value on the bound and the one just past it, side by side
+  (`850000` fits, `850001` does not).
+- **One `it.each` per property,** not copies of one test: unstated facts,
+  unset limits, spellings of one town, hostile sort names (`toString`,
+  `__proto__`, `constructor`) are each a table.
+- **Oracle:** the PRD (FR-002, Guardrails), CLAUDE.md `## Structure`, and
+  the contract in the archived plan of the change that built the rule.
+- **When the sources are silent about an input, ask the user.** Do not
+  promote the code's current answer to oracle. The agreed rule is written
+  into the PRD (a product rule) or CLAUDE.md (how the function answers) in
+  the same change, before the test, and the test cites that text. An empty
+  location label went into FR-002 this way; the order of the breaches and
+  the limits the form does not allow went into CLAUDE.md. When the user
+  leaves an input unbound, write no assertion for it in either direction —
+  repeated sort parameters, and the known false alarm for a location that
+  names only a county.
+- **When smoke proves the rule instead.** A rule that is a property of the
+  SQL query cannot be proved by a unit test: a stub would answer whatever
+  order the test gave it. "Unknown values last" lives in the query in
+  `src/pages/dashboard.astro` (`nullsFirst: false`), so the unit test covers
+  only the parsing, and `scripts/smoke.mjs` proves the order on the local
+  Supabase — `fixtureBoardOrder(sort, dir)` reports which of the two fixture
+  offers stands higher, and the steps „board puts the offer without a price
+  last…” and „board puts the offer without an area last…” run it in both
+  directions. Their pattern: compare only the fixture rows, so other offers
+  in the local database do not matter; swap the roles between the two sorts
+  (one fixture states a price, the other an area), so a fixed order cannot
+  pass; a missing row fails the step; and name the direction that decides —
+  Postgres puts nulls first for `desc`, so that is where the query's option
+  shows. Confirm a new step of this kind once by breaking the query and
+  rebuilding the preview. Stryker sees `npm test` alone, so such a step
+  kills no mutant.
+- **Run:** `npm test -- tests/lib/team-limits.test.ts`, then
+  `npx stryker run --mutate "src/lib/team-limits.ts"`. The smoke steps: as
+  in §6.3.
+- **Pitfalls:**
+  - A `null` check on a limit can survive as an equivalent mutant: `x < null`
+    compares with `0`, and the table's checks keep a stored price and area
+    above zero. Record it as equivalent; do not invent a negative price to
+    kill it.
+  - A column map or a column list is data for the query, not a rule. An
+    assertion on its literal mirrors the code; smoke guards it on the real
+    database. Record its mutants as „świadomie pominięty”.
+  - A swap point with one constant (`auditStatus`) has no rule to prove
+    until the slice that fills it.
+  - "Never throws" includes the names every object inherits — a lookup in a
+    map must not accept `toString`.
+
 ## 7. What We Deliberately Don't Test
 
 - **`/dev/*` kitchen-sink pages** — developer tools that answer 404 outside
@@ -636,6 +905,7 @@ stored URL in `href`/`src`.
 ## 8. Freshness Ledger
 
 - Strategy (§1–§5) last reviewed: 2026-09-30; §2 (#5), §3 row 2, §4 and §5 amended for the write-isolation phase: 2026-10-01
+- Cookbook (§6) last changed: 2026-10-02 — the tags paragraph, §6.7, §6.8 and a §6.6 entry, outside the rollout (`testing-read-failure-states`)
 - Stack versions last verified: 2026-09-30
 - AI-native tool references last verified: 2026-09-30
 
