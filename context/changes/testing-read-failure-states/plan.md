@@ -863,12 +863,12 @@ do drugiej oferty fixture, którą smoke i tak usuwa na końcu przebiegu.
 
 #### Automated
 
-- [x] 6.1 Cały zestaw przechodzi: `npm test`
-- [x] 6.2 Lint przechodzi: `npx astro sync && npm run lint`
-- [x] 6.3 Typy przechodzą: `npx astro check`
-- [x] 6.4 Każda ścieżka wskazana w nowych podsekcjach §6 i w CLAUDE.md `## Testing` istnieje w repozytorium
+- [x] 6.1 Cały zestaw przechodzi: `npm test` — ab3a91c
+- [x] 6.2 Lint przechodzi: `npx astro sync && npm run lint` — ab3a91c
+- [x] 6.3 Typy przechodzą: `npx astro check` — ab3a91c
+- [x] 6.4 Każda ścieżka wskazana w nowych podsekcjach §6 i w CLAUDE.md `## Testing` istnieje w repozytorium — ab3a91c
 
 #### Manual
 
-- [x] 6.5 Podsekcje §6.7 i §6.8 wystarczają, żeby dodać kolejny test funkcji odczytu albo czystej reguły bez czytania tego planu
-- [x] 6.6 Wpis w §6.6 zgadza się z `mutation.md`
+- [x] 6.5 Podsekcje §6.7 i §6.8 wystarczają, żeby dodać kolejny test funkcji odczytu albo czystej reguły bez czytania tego planu — ab3a91c
+- [x] 6.6 Wpis w §6.6 zgadza się z `mutation.md` — ab3a91c

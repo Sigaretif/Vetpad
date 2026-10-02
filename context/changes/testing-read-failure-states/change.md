@@ -1,7 +1,7 @@
 ---
 change_id: testing-read-failure-states
 title: Unit tests for read-failure states and team limits covered only by smoke
-status: implementing
+status: implemented
 created: 2026-10-01
 updated: 2026-10-02
 archived_at: null
