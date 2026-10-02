@@ -35,6 +35,12 @@
 // counter is read around each save: it grows by one on a real change and stays put on a refused save or on
 // re-saving the same limits. The fixture offer gets a PLN price above the saved ceiling, and its row on /dashboard
 // carries data-limit-breach="price_above" under data-limits-state="ok". `intent=clear` leaves four empty limits.
+// Unknown values last (prd.md, Guardrails): by then the first fixture offer states a price and no area, and the
+// second gets an area and has no price. On /dashboard the two rows are compared by position, for `sort=price` and
+// `sort=area` in `asc` and `desc`: the offer that states the value stands above the one that does not, in both
+// directions. The roles swap between the two sorts, so a board that kept one fixed order cannot pass all four, and
+// `desc` is the direction that turns red when the query loses `nullsFirst: false`. A row missing from the board
+// fails the step.
 // Against Supabase: nobody inserts or deletes the team_criteria row or writes the counter (0 rows / 42501), and a
 // limit the form would refuse (a fractional price) is refused by the table's check too (23514). Requirements are
 // judged by whole rows, as notes are: the second member reads the first member's requirements but cannot edit them
@@ -552,6 +558,20 @@ async function fixtureBoardRow() {
   const start = response.body.indexOf(`href="${FIXTURE_CARD}"`);
   const end = start === -1 ? -1 : response.body.indexOf("</a>", start);
   return { ...response, body: end === -1 ? "" : response.body.slice(start, end) };
+}
+
+// Which of the two fixture offers stands higher on /dashboard under one sort: "first" or "second", by where each
+// row's link is in the page. Only these two rows are compared, so other offers in the local database do not
+// matter. Throws when either row is missing, which fails the step that asked for it: no row is never "in order".
+async function fixtureBoardOrder(sort, dir) {
+  const response = await request(`/dashboard?sort=${sort}&dir=${dir}`);
+  const first = response.body.indexOf(`href="${FIXTURE_CARD}"`);
+  const second = response.body.indexOf(`href="/offers/${FIXTURE_OFFER_ID_2}"`);
+  if (first === -1 || second === -1) {
+    const missing = [first === -1 ? "first" : "", second === -1 ? "second" : ""].filter(Boolean).join(" and ");
+    throw new Error(`no board row for the ${missing} fixture offer (${response.status})`);
+  }
+  return { ...response, higher: first < second ? "first" : "second" };
 }
 
 const steps = [
@@ -1103,6 +1123,43 @@ const steps = [
     () => fixtureBoardRow(),
     { status: 200, bodyIncludes: 'data-limit-breach="price_above"' },
   ],
+  // Unknown values last (prd.md, Guardrails): an offer that does not state its price or its area is never the
+  // cheapest or the largest. The first fixture offer states a price and no area; the write below gives the second
+  // an area, and it has no price. So the first stands higher by price and the second by area, each in both
+  // directions - Postgres puts nulls first for `desc`, which is where the query's `nullsFirst: false` decides.
+  [
+    "second fixture offer gets an area",
+    () =>
+      withSnapshot([observedNotes(ALL_FIXTURE_NOTES)], () =>
+        supabaseRest(FIXTURE_OFFER_2, {
+          as: MEMBER,
+          method: "PATCH",
+          prefer: "return=representation",
+          body: { area_m2: 50 },
+        }),
+      ),
+    { status: 200, rows: 1, snapshot: "same" },
+  ],
+  [
+    "board puts the offer without a price last when sorted by price ascending",
+    () => fixtureBoardOrder("price", "asc"),
+    { status: 200, bodyIncludes: BOARD_OK, higher: "first" },
+  ],
+  [
+    "board puts the offer without a price last when sorted by price descending",
+    () => fixtureBoardOrder("price", "desc"),
+    { status: 200, bodyIncludes: BOARD_OK, higher: "first" },
+  ],
+  [
+    "board puts the offer without an area last when sorted by area ascending",
+    () => fixtureBoardOrder("area", "asc"),
+    { status: 200, bodyIncludes: BOARD_OK, higher: "second" },
+  ],
+  [
+    "board puts the offer without an area last when sorted by area descending",
+    () => fixtureBoardOrder("area", "desc"),
+    { status: 200, bodyIncludes: BOARD_OK, higher: "second" },
+  ],
   [
     "requirements delete removes them and bumps the revision",
     () =>
@@ -1215,6 +1272,11 @@ function snapshotResult({ snapshot, snapshotRows }) {
   return `, ${snapshotRows === undefined ? "observed" : `${snapshotRows} observed`} row(s) ${snapshot}`;
 }
 
+// Which fixture offer stood higher on the board, for the report line; empty when the step does not compare rows.
+function boardOrder({ higher }) {
+  return higher === undefined ? "" : `, ${higher} fixture offer higher`;
+}
+
 function includesAll(body, expected) {
   return [expected].flat().every((text) => (body ?? "").includes(text));
 }
@@ -1237,16 +1299,17 @@ for (const [name, run, expected] of steps) {
     (expected.rows === undefined || actual.rows === expected.rows) &&
     (expected.minRows === undefined || (actual.rows !== undefined && actual.rows >= expected.minRows)) &&
     (expected.revisionDelta === undefined || actual.revisionDelta === expected.revisionDelta) &&
-    (expected.snapshot === undefined || actual.snapshot === expected.snapshot);
+    (expected.snapshot === undefined || actual.snapshot === expected.snapshot) &&
+    (expected.higher === undefined || actual.higher === expected.higher);
   const rows = actual.rows === undefined ? undefined : `${actual.rows} row(s)`;
   const detail =
     actual.error ??
-    `${actual.status} ${actual.errorCode ?? rows ?? actual.location}${revisionMoved(actual)}${snapshotResult(actual)}`;
+    `${actual.status} ${actual.errorCode ?? rows ?? actual.location}${revisionMoved(actual)}${snapshotResult(actual)}${boardOrder(actual)}`;
   console.log(`${ok ? "PASS" : "FAIL"}  ${name}  -> ${detail}`);
   if (!ok) {
     failed++;
     console.log(
-      `      expected ${[expected.status].flat().join(" or ")} ${expected.errorCode ?? expected.location ?? expected.locationPrefix ?? expected.bodyIncludes ?? expectedRows(expected)}${expected.locationIncludes === undefined ? "" : ` with ${expected.locationIncludes}`}${revisionMoved(expected)}${snapshotResult(expected)}`,
+      `      expected ${[expected.status].flat().join(" or ")} ${expected.errorCode ?? expected.location ?? expected.locationPrefix ?? expected.bodyIncludes ?? expectedRows(expected)}${expected.locationIncludes === undefined ? "" : ` with ${expected.locationIncludes}`}${revisionMoved(expected)}${snapshotResult(expected)}${boardOrder(expected)}`,
     );
   }
 }

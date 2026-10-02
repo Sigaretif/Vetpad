@@ -783,34 +783,34 @@ do drugiej oferty fixture, którą smoke i tak usuwa na końcu przebiegu.
 
 #### Automated
 
-- [x] 1.1 Test fazy przechodzi: `npm test -- tests/lib/team-limits.test.ts`
-- [x] 1.2 Cały zestaw przechodzi: `npm test`
-- [x] 1.3 Lint przechodzi: `npx astro sync && npm run lint`
-- [x] 1.4 Typy przechodzą: `npx astro check`
-- [x] 1.5 Stryker kończy przebieg: `npx stryker run --mutate "src/lib/team-limits.ts"`
-- [x] 1.6 `mutation.md` ma wynik po fazie obok bazowego (6,0%, 5/83) i decyzję dla każdego ocalałego mutanta w `team-limits.ts`
+- [x] 1.1 Test fazy przechodzi: `npm test -- tests/lib/team-limits.test.ts` — 6b8baf6
+- [x] 1.2 Cały zestaw przechodzi: `npm test` — 6b8baf6
+- [x] 1.3 Lint przechodzi: `npx astro sync && npm run lint` — 6b8baf6
+- [x] 1.4 Typy przechodzą: `npx astro check` — 6b8baf6
+- [x] 1.5 Stryker kończy przebieg: `npx stryker run --mutate "src/lib/team-limits.ts"` — 6b8baf6
+- [x] 1.6 `mutation.md` ma wynik po fazie obok bazowego (6,0%, 5/83) i decyzję dla każdego ocalałego mutanta w `team-limits.ts` — 6b8baf6
 
 #### Manual
 
-- [x] 1.7 Dopisane zdania w PRD (FR-002) i CLAUDE.md oddają decyzje z wywiadu i nie zmieniają innych reguł
-- [x] 1.8 Decyzje „równoważny” i „świadomie pominięty” w `mutation.md` dla `team-limits.ts` są zaakceptowane
+- [x] 1.7 Dopisane zdania w PRD (FR-002) i CLAUDE.md oddają decyzje z wywiadu i nie zmieniają innych reguł — 6b8baf6
+- [x] 1.8 Decyzje „równoważny” i „świadomie pominięty” w `mutation.md` dla `team-limits.ts` są zaakceptowane — 6b8baf6
 
 ### Phase 2: Sortowanie tablicy — parsowanie w teście, kolejność w smoke
 
 #### Automated
 
-- [ ] 2.1 Test fazy przechodzi: `npm test -- tests/lib/offer-board.test.ts`
-- [ ] 2.2 Cały zestaw przechodzi: `npm test`
-- [ ] 2.3 Lint przechodzi: `npx astro sync && npm run lint`
-- [ ] 2.4 Typy przechodzą: `npx astro check`
-- [ ] 2.5 Smoke przechodzi na podglądzie produkcyjnym z lokalnym Supabase: `npm run build && npm run preview`, potem `BASE_URL=http://localhost:4321 npm run smoke`
-- [ ] 2.6 Stryker kończy przebieg: `npx stryker run --mutate "src/lib/offer-board.ts"`
-- [ ] 2.7 `mutation.md` ma wynik po fazie obok bazowego (0%, 0/48) i decyzję dla każdego ocalałego mutanta w `offer-board.ts`
+- [x] 2.1 Test fazy przechodzi: `npm test -- tests/lib/offer-board.test.ts`
+- [x] 2.2 Cały zestaw przechodzi: `npm test`
+- [x] 2.3 Lint przechodzi: `npx astro sync && npm run lint`
+- [x] 2.4 Typy przechodzą: `npx astro check`
+- [x] 2.5 Smoke przechodzi na podglądzie produkcyjnym z lokalnym Supabase: `npm run build && npm run preview`, potem `BASE_URL=http://localhost:4321 npm run smoke`
+- [x] 2.6 Stryker kończy przebieg: `npx stryker run --mutate "src/lib/offer-board.ts"`
+- [x] 2.7 `mutation.md` ma wynik po fazie obok bazowego (0%, 0/48) i decyzję dla każdego ocalałego mutanta w `offer-board.ts`
 
 #### Manual
 
-- [ ] 2.8 Celowe zepsucie: po lokalnym usunięciu `nullsFirst: false` z `src/pages/dashboard.astro` i przebudowaniu oba kroki `desc` smoke są czerwone; po przywróceniu pliku smoke jest zielony
-- [ ] 2.9 Decyzje „równoważny” i „świadomie pominięty” w `mutation.md` dla `offer-board.ts` są zaakceptowane
+- [x] 2.8 Celowe zepsucie: po lokalnym usunięciu `nullsFirst: false` z `src/pages/dashboard.astro` i przebudowaniu oba kroki `desc` smoke są czerwone; po przywróceniu pliku smoke jest zielony
+- [x] 2.9 Decyzje „równoważny” i „świadomie pominięty” w `mutation.md` dla `offer-board.ts` są zaakceptowane
 
 ### Phase 3: Nazywanie członka — `resolveSaver`, `resolveAuthors`, nazwy
 
