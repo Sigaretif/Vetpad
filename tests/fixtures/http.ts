@@ -156,6 +156,19 @@ export const PAGE_WITHOUT_NEXT_DATA = page('<script id="__APP_DATA__" type="appl
 //   turned into `data: []` with no error — it does not stand in for a failed read.
 // - The client never throws for a response. What makes the calling code throw is a `200` whose
 //   body is not the shape the code walks — an object where it iterates rows.
+//
+// And as the notes module (src/lib/notes.ts) reads an offer's notes, read from the same file:
+//
+// - The notes of one offer, `.from("offer_notes").select("id, author_id, pros, cons,
+//   observations, updated_at").eq("offer_id", offerId).order("updated_at", { ascending: false })`:
+//   `GET <SUPABASE_URL>/rest/v1/offer_notes?select=id,author_id,pros,cons,observations,updated_at
+//   &offer_id=eq.<id>&order=updated_at.desc` — `select` with its whitespace stripped, and
+//   `order` as `<column>.desc` with no `nullsfirst`/`nullslast` suffix, since the call passes no
+//   `nullsFirst`. PostgREST answers `200` with an array of rows, `[]` for an offer without notes.
+// - After it, only when a row's author is somebody other than the viewer, the one "many members"
+//   request above — none at all when every author is `null` or the viewer, or there are no rows.
+// - A failed read and the answer that makes the code throw are the two general points above:
+//   `500` with `{ "code", "message", … }`, and a `200` whose body is not an array.
 
 /** Test values only — never a real project's. */
 export const SUPABASE_TEST_URL = "https://supabase.test";

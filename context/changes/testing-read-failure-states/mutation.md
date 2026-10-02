@@ -124,3 +124,41 @@ Details”). Blok `catch` w `readEmails` (`members.ts:81-83`) wywołuje odpowied
 | `members.ts:39:11`, `40:12`, `40:20` — blok `catch` w `resolveSaver` (bez pokrycia) | świadomie pominięty | Nieosiągalne z krawędzi HTTP: żadna odpowiedź nie doprowadza do wyjątku, a `vi.mock` modułów wewnętrznych jest poza planem; blok zostaje jako siatka, na której opierają się cztery mutanty równoważne wyżej. |
 | `members.ts:100:5`, `100:14` — gałąź `default` w `saverName` (bez pokrycia) | świadomie pominięty | Strażnik kompletności typu (`never`): nieosiągalny dla żadnej wartości `Saver`, pilnuje go `astro check`, nie test. |
 | `members.ts:121:5`, `121:14` — gałąź `default` w `authorName` (bez pokrycia) | świadomie pominięty | Jak wyżej. |
+
+## Faza 4: `src/lib/notes.ts:1-99`
+
+Polecenie:
+
+```
+npx stryker run --mutate "src/lib/notes.ts:1-99"
+```
+
+Test fazy: `tests/lib/notes.test.ts`.
+
+Zakres `1-99` to odczyt (`loadNotes` i etykiety pól). Wiersze `100-113`
+(`noteError`, `NOTE_BLANK`, `NOTE_TOO_LONG`) są poza zakresem tej zmiany
+(`plan.md`, „What We're NOT Doing”): ich 20 mutantów nie dostaje decyzji, a
+wynik całego pliku nie jest celem.
+
+Blok `catch` w `loadNotes` (`notes.ts:95-97`) wywołuje odpowiedź `200`, której
+ciało nie jest listą wierszy — `rows.map` wykłada się na obiekcie i na `null`.
+
+### Wynik po fazie
+
+| Przebieg | Wynik | Zabite | Ocalałe | Bez pokrycia | Razem |
+|---|---|---|---|---|---|
+| Bazowy, cały plik (2026-10-01) | 0% | 0 | 0 | 60 | 60 |
+| Bazowy, zakres `1-99` (2026-10-01) | 0% | 0 | — | — | 40 |
+| Po fazie, zakres `1-99` (2026-10-02) | 82,50% | 33 | 7 | 0 | 40 |
+
+### Ocalałe mutanty i mutanty bez pokrycia
+
+| Wiersz i mutacja | Decyzja | Powód |
+|---|---|---|
+| `notes.ts:60:7` — `if (!supabase)` → `if (false)` | równoważny | Bez klienta `supabase.from` rzuca już wewnątrz `try`, a `catch` odpowiada tym samym `{ state: "error" }`. |
+| `notes.ts:67:9` — `if (result.error)` → `if (false)` | równoważny | Przy błędzie `result.data` jest `null`, `rows.map` rzuca, a `catch` odpowiada tym samym `{ state: "error" }`. |
+| `notes.ts:88:11` — `row.author_id !== null` → `true` | równoważny | `viewerId` to tekst albo `undefined`, nigdy `null`, więc `null === viewerId` jest fałszem i notatka bez autora nadal trafia do `others`. |
+| `notes.ts:23:61` — `NOTE_FIELD_LABELS` → `{}` | świadomie pominięty | Etykiety pól to kopia interfejsu, nie reguła odczytu; `loadNotes` ich nie używa, a asercja na literał byłaby lustrem mapy. |
+| `notes.ts:24:9` — `pros: "Zalety"` → `""` | świadomie pominięty | Jak wyżej. |
+| `notes.ts:25:9` — `cons: "Wady"` → `""` | świadomie pominięty | Jak wyżej. |
+| `notes.ts:26:17` — `observations: "Obserwacje ogólne"` → `""` | świadomie pominięty | Jak wyżej. |

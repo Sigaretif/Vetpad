@@ -816,32 +816,32 @@ do drugiej oferty fixture, którą smoke i tak usuwa na końcu przebiegu.
 
 #### Automated
 
-- [x] 3.1 Test fazy przechodzi: `npm test -- tests/lib/members.test.ts`
-- [x] 3.2 Cały zestaw przechodzi: `npm test`
-- [x] 3.3 Lint przechodzi: `npx astro sync && npm run lint`
-- [x] 3.4 Typy przechodzą: `npx astro check`
-- [x] 3.5 Stryker kończy przebieg: `npx stryker run --mutate "src/lib/members.ts"`
-- [x] 3.6 `mutation.md` ma wynik po fazie obok bazowego (0%, 0/129) i decyzję dla każdego ocalałego mutanta w `members.ts`
+- [x] 3.1 Test fazy przechodzi: `npm test -- tests/lib/members.test.ts` — 0525369
+- [x] 3.2 Cały zestaw przechodzi: `npm test` — 0525369
+- [x] 3.3 Lint przechodzi: `npx astro sync && npm run lint` — 0525369
+- [x] 3.4 Typy przechodzą: `npx astro check` — 0525369
+- [x] 3.5 Stryker kończy przebieg: `npx stryker run --mutate "src/lib/members.ts"` — 0525369
+- [x] 3.6 `mutation.md` ma wynik po fazie obok bazowego (0%, 0/129) i decyzję dla każdego ocalałego mutanta w `members.ts` — 0525369
 
 #### Manual
 
-- [x] 3.7 Dopisane zdanie w CLAUDE.md oddaje decyzję o `null` autora
-- [x] 3.8 Decyzje „równoważny” i „świadomie pominięty” w `mutation.md` dla `members.ts` są zaakceptowane
+- [x] 3.7 Dopisane zdanie w CLAUDE.md oddaje decyzję o `null` autora — 0525369
+- [x] 3.8 Decyzje „równoważny” i „świadomie pominięty” w `mutation.md` dla `members.ts` są zaakceptowane — 0525369
 
 ### Phase 4: Odczyt notatek — `loadNotes`
 
 #### Automated
 
-- [ ] 4.1 Test fazy przechodzi: `npm test -- tests/lib/notes.test.ts`
-- [ ] 4.2 Cały zestaw przechodzi: `npm test`
-- [ ] 4.3 Lint przechodzi: `npx astro sync && npm run lint`
-- [ ] 4.4 Typy przechodzą: `npx astro check`
-- [ ] 4.5 Stryker kończy przebieg: `npx stryker run --mutate "src/lib/notes.ts:1-99"`
-- [ ] 4.6 `mutation.md` ma wynik po fazie obok bazowego (zakres 0/40; cały plik 0%, 0/60) i decyzję dla każdego ocalałego mutanta w `notes.ts:1-99`
+- [x] 4.1 Test fazy przechodzi: `npm test -- tests/lib/notes.test.ts`
+- [x] 4.2 Cały zestaw przechodzi: `npm test`
+- [x] 4.3 Lint przechodzi: `npx astro sync && npm run lint`
+- [x] 4.4 Typy przechodzą: `npx astro check`
+- [x] 4.5 Stryker kończy przebieg: `npx stryker run --mutate "src/lib/notes.ts:1-99"`
+- [x] 4.6 `mutation.md` ma wynik po fazie obok bazowego (zakres 0/40; cały plik 0%, 0/60) i decyzję dla każdego ocalałego mutanta w `notes.ts:1-99`
 
 #### Manual
 
-- [ ] 4.7 Decyzje „równoważny” i „świadomie pominięty” w `mutation.md` dla `notes.ts:1-99` są zaakceptowane
+- [x] 4.7 Decyzje „równoważny” i „świadomie pominięty” w `mutation.md` dla `notes.ts:1-99` są zaakceptowane
 
 ### Phase 5: Odczyt kryteriów — `loadCriteria` i `loadTeamLimits`
 
