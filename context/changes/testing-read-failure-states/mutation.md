@@ -86,3 +86,41 @@ widzi tylko `npm test`, więc te kroki nie zabijają żadnego mutanta.
 | `offer-board.ts:62:3` — `BOARD_COLUMNS` → `""` | świadomie pominięty | Lista kolumn to dane dla zapytania tablicy, nie reguła; jej brak psuje wiersze tablicy, które smoke znajduje po `href` i znaczniku limitu. |
 | `offer-board.ts:79:66` — ciało `auditStatus` → `{}` | świadomie pominięty | Punkt wymiany S-04: dziś jedna stała, bez reguły do udowodnienia; asercje dostanie razem z prawdziwym statusem audytu. |
 | `offer-board.ts:80:10` — `"not_audited"` → `""` | świadomie pominięty | Jak wyżej. |
+
+## Faza 3: `src/lib/members.ts`
+
+Polecenie:
+
+```
+npx stryker run --mutate "src/lib/members.ts"
+```
+
+Test fazy: `tests/lib/members.test.ts`.
+
+Blok `catch` w `resolveSaver` (`members.ts:39-41`) jest nieosiągalny z krawędzi
+HTTP: klient nie rzuca dla żadnej odpowiedzi, a `result.data?.email` nie wykłada
+się na żadnym kształcie ciała `200`. Jego mutanty dostają decyzję w tabeli
+poniżej, bez `vi.mock` modułów wewnętrznych (`plan.md`, „Critical Implementation
+Details”). Blok `catch` w `readEmails` (`members.ts:81-83`) wywołuje odpowiedź
+`200`, której ciało nie jest listą wierszy.
+
+### Wynik po fazie
+
+| Przebieg | Wynik | Zabite | Ocalałe | Bez pokrycia | Razem |
+|---|---|---|---|---|---|
+| Bazowy (2026-10-01) | 0% | 0 | 3 | 126 | 129 |
+| Po fazie (2026-10-02) | 89,92% | 116 | 6 | 7 | 129 |
+
+### Ocalałe mutanty i mutanty bez pokrycia
+
+| Wiersz i mutacja | Decyzja | Powód |
+|---|---|---|
+| `members.ts:33:7` — `if (!supabase)` → `if (false)` | równoważny | Bez klienta `supabase.from` rzuca, a `catch` tej samej funkcji odpowiada tym samym `unknown`. |
+| `members.ts:36:9` — `if (result.error)` → `if (false)` | równoważny | Przy błędzie `result.data` jest `null`, więc `data?.email` nie jest tekstem i wynik to nadal `unknown`. |
+| `members.ts:37:28` — `result.data?.email` → `result.data.email` | równoważny | Dla `data: null` odczyt rzuca, a `catch` odpowiada tym samym `unknown`. |
+| `members.ts:38:12` — `typeof email === "string"` → `true` | równoważny | E-mail niebędący tekstem rzuca na `.trim()`, a `catch` odpowiada tym samym `unknown`. |
+| `members.ts:72:9` — `if (result.error)` → `if (false)` | równoważny | Przy błędzie `result.data` jest `null`, iteracja rzuca, a `catch` zwraca tę samą pustą mapę. |
+| `members.ts:76:11` — `typeof id === "string"` → `true` | równoważny | Klucz niebędący tekstem trafiłby do mapy, ale wyszukiwanie idzie po tekstowych id autorów, więc nigdy go nie znajdzie. |
+| `members.ts:39:11`, `40:12`, `40:20` — blok `catch` w `resolveSaver` (bez pokrycia) | świadomie pominięty | Nieosiągalne z krawędzi HTTP: żadna odpowiedź nie doprowadza do wyjątku, a `vi.mock` modułów wewnętrznych jest poza planem; blok zostaje jako siatka, na której opierają się cztery mutanty równoważne wyżej. |
+| `members.ts:100:5`, `100:14` — gałąź `default` w `saverName` (bez pokrycia) | świadomie pominięty | Strażnik kompletności typu (`never`): nieosiągalny dla żadnej wartości `Saver`, pilnuje go `astro check`, nie test. |
+| `members.ts:121:5`, `121:14` — gałąź `default` w `authorName` (bez pokrycia) | świadomie pominięty | Jak wyżej. |

@@ -137,6 +137,25 @@ export const PAGE_WITHOUT_NEXT_DATA = page('<script id="__APP_DATA__" type="appl
 //   `JSON.stringify(values)`. PostgREST answers `200` with an array of the rows it changed —
 //   `[{ "id": true }]`, or `[]` when RLS filtered the update down to no row, which is not an
 //   error. A refused write answers `403` with `{ "code": "42501", … }`.
+//
+// And as the member-naming module (src/lib/members.ts) talks to it, read from the same file:
+//
+// - One member, `.from("members").select("email").eq("id", id).maybeSingle()`:
+//   `GET <SUPABASE_URL>/rest/v1/members?select=email&id=eq.<id>`. As with the duplicate check,
+//   `maybeSingle()` is a client-side flag: `200 []` becomes `data: null` with no error (no
+//   `members` row), `[row]` becomes `row`, and more than one row becomes an error, `PGRST116`.
+// - Many members, `.from("members").select("id, email").in("id", ids)`:
+//   `GET <SUPABASE_URL>/rest/v1/members?select=id,email&id=in.(<id>,<id>,…)` — the client strips
+//   the whitespace from `select`, drops repeated values from the list, and the URL carries the
+//   comma and the parentheses percent-encoded (`URLSearchParams` reads them back decoded).
+//   PostgREST answers `200` with an array of rows; an id without a row is simply absent from it.
+// - A failed read, for any of the reads above: `500` with `{ "code", "message", … }` gives a
+//   result with `error` set, at once — no retry. `503`, `520` and a rejected `fetch` are retried
+//   for a GET (up to 3 times, with back-off, about 7 s) and only then end as a result with
+//   `error`; none of them throws, so no test here uses them. A `404` whose body is an array is
+//   turned into `data: []` with no error — it does not stand in for a failed read.
+// - The client never throws for a response. What makes the calling code throw is a `200` whose
+//   body is not the shape the code walks — an object where it iterates rows.
 
 /** Test values only — never a real project's. */
 export const SUPABASE_TEST_URL = "https://supabase.test";

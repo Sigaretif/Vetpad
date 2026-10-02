@@ -799,34 +799,34 @@ do drugiej oferty fixture, którą smoke i tak usuwa na końcu przebiegu.
 
 #### Automated
 
-- [x] 2.1 Test fazy przechodzi: `npm test -- tests/lib/offer-board.test.ts`
-- [x] 2.2 Cały zestaw przechodzi: `npm test`
-- [x] 2.3 Lint przechodzi: `npx astro sync && npm run lint`
-- [x] 2.4 Typy przechodzą: `npx astro check`
-- [x] 2.5 Smoke przechodzi na podglądzie produkcyjnym z lokalnym Supabase: `npm run build && npm run preview`, potem `BASE_URL=http://localhost:4321 npm run smoke`
-- [x] 2.6 Stryker kończy przebieg: `npx stryker run --mutate "src/lib/offer-board.ts"`
-- [x] 2.7 `mutation.md` ma wynik po fazie obok bazowego (0%, 0/48) i decyzję dla każdego ocalałego mutanta w `offer-board.ts`
+- [x] 2.1 Test fazy przechodzi: `npm test -- tests/lib/offer-board.test.ts` — 5eed138
+- [x] 2.2 Cały zestaw przechodzi: `npm test` — 5eed138
+- [x] 2.3 Lint przechodzi: `npx astro sync && npm run lint` — 5eed138
+- [x] 2.4 Typy przechodzą: `npx astro check` — 5eed138
+- [x] 2.5 Smoke przechodzi na podglądzie produkcyjnym z lokalnym Supabase: `npm run build && npm run preview`, potem `BASE_URL=http://localhost:4321 npm run smoke` — 5eed138
+- [x] 2.6 Stryker kończy przebieg: `npx stryker run --mutate "src/lib/offer-board.ts"` — 5eed138
+- [x] 2.7 `mutation.md` ma wynik po fazie obok bazowego (0%, 0/48) i decyzję dla każdego ocalałego mutanta w `offer-board.ts` — 5eed138
 
 #### Manual
 
-- [x] 2.8 Celowe zepsucie: po lokalnym usunięciu `nullsFirst: false` z `src/pages/dashboard.astro` i przebudowaniu oba kroki `desc` smoke są czerwone; po przywróceniu pliku smoke jest zielony
-- [x] 2.9 Decyzje „równoważny” i „świadomie pominięty” w `mutation.md` dla `offer-board.ts` są zaakceptowane
+- [x] 2.8 Celowe zepsucie: po lokalnym usunięciu `nullsFirst: false` z `src/pages/dashboard.astro` i przebudowaniu oba kroki `desc` smoke są czerwone; po przywróceniu pliku smoke jest zielony — 5eed138
+- [x] 2.9 Decyzje „równoważny” i „świadomie pominięty” w `mutation.md` dla `offer-board.ts` są zaakceptowane — 5eed138
 
 ### Phase 3: Nazywanie członka — `resolveSaver`, `resolveAuthors`, nazwy
 
 #### Automated
 
-- [ ] 3.1 Test fazy przechodzi: `npm test -- tests/lib/members.test.ts`
-- [ ] 3.2 Cały zestaw przechodzi: `npm test`
-- [ ] 3.3 Lint przechodzi: `npx astro sync && npm run lint`
-- [ ] 3.4 Typy przechodzą: `npx astro check`
-- [ ] 3.5 Stryker kończy przebieg: `npx stryker run --mutate "src/lib/members.ts"`
-- [ ] 3.6 `mutation.md` ma wynik po fazie obok bazowego (0%, 0/129) i decyzję dla każdego ocalałego mutanta w `members.ts`
+- [x] 3.1 Test fazy przechodzi: `npm test -- tests/lib/members.test.ts`
+- [x] 3.2 Cały zestaw przechodzi: `npm test`
+- [x] 3.3 Lint przechodzi: `npx astro sync && npm run lint`
+- [x] 3.4 Typy przechodzą: `npx astro check`
+- [x] 3.5 Stryker kończy przebieg: `npx stryker run --mutate "src/lib/members.ts"`
+- [x] 3.6 `mutation.md` ma wynik po fazie obok bazowego (0%, 0/129) i decyzję dla każdego ocalałego mutanta w `members.ts`
 
 #### Manual
 
-- [ ] 3.7 Dopisane zdanie w CLAUDE.md oddaje decyzję o `null` autora
-- [ ] 3.8 Decyzje „równoważny” i „świadomie pominięty” w `mutation.md` dla `members.ts` są zaakceptowane
+- [x] 3.7 Dopisane zdanie w CLAUDE.md oddaje decyzję o `null` autora
+- [x] 3.8 Decyzje „równoważny” i „świadomie pominięty” w `mutation.md` dla `members.ts` są zaakceptowane
 
 ### Phase 4: Odczyt notatek — `loadNotes`
 
