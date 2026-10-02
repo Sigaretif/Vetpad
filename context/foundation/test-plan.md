@@ -660,7 +660,7 @@ seller data, `(#7)` for a stored URL in `href`/`src`.
     first.
 - Stryker, narrowed to each module, before (2026-10-01) and after
   (2026-10-02). Every survivor and every uncovered mutant in scope has a
-  decision in `context/changes/testing-read-failure-states/mutation.md`; the
+  decision in `context/archive/2026-10-01-testing-read-failure-states/mutation.md`; the
   score was never the target.
 
   | Module (scope) | Before | After | Killed / survived / no coverage / total after |
