@@ -832,32 +832,32 @@ do drugiej oferty fixture, którą smoke i tak usuwa na końcu przebiegu.
 
 #### Automated
 
-- [x] 4.1 Test fazy przechodzi: `npm test -- tests/lib/notes.test.ts`
-- [x] 4.2 Cały zestaw przechodzi: `npm test`
-- [x] 4.3 Lint przechodzi: `npx astro sync && npm run lint`
-- [x] 4.4 Typy przechodzą: `npx astro check`
-- [x] 4.5 Stryker kończy przebieg: `npx stryker run --mutate "src/lib/notes.ts:1-99"`
-- [x] 4.6 `mutation.md` ma wynik po fazie obok bazowego (zakres 0/40; cały plik 0%, 0/60) i decyzję dla każdego ocalałego mutanta w `notes.ts:1-99`
+- [x] 4.1 Test fazy przechodzi: `npm test -- tests/lib/notes.test.ts` — 2fc1ed9
+- [x] 4.2 Cały zestaw przechodzi: `npm test` — 2fc1ed9
+- [x] 4.3 Lint przechodzi: `npx astro sync && npm run lint` — 2fc1ed9
+- [x] 4.4 Typy przechodzą: `npx astro check` — 2fc1ed9
+- [x] 4.5 Stryker kończy przebieg: `npx stryker run --mutate "src/lib/notes.ts:1-99"` — 2fc1ed9
+- [x] 4.6 `mutation.md` ma wynik po fazie obok bazowego (zakres 0/40; cały plik 0%, 0/60) i decyzję dla każdego ocalałego mutanta w `notes.ts:1-99` — 2fc1ed9
 
 #### Manual
 
-- [x] 4.7 Decyzje „równoważny” i „świadomie pominięty” w `mutation.md` dla `notes.ts:1-99` są zaakceptowane
+- [x] 4.7 Decyzje „równoważny” i „świadomie pominięty” w `mutation.md` dla `notes.ts:1-99` są zaakceptowane — 2fc1ed9
 
 ### Phase 5: Odczyt kryteriów — `loadCriteria` i `loadTeamLimits`
 
 #### Automated
 
-- [ ] 5.1 Test fazy przechodzi: `npm test -- tests/lib/criteria.test.ts`
-- [ ] 5.2 Cały zestaw przechodzi: `npm test`
-- [ ] 5.3 Lint przechodzi: `npx astro sync && npm run lint`
-- [ ] 5.4 Typy przechodzą: `npx astro check`
-- [ ] 5.5 Stryker kończy przebieg: `npx stryker run --mutate "src/lib/criteria.ts:151-285"`
-- [ ] 5.6 `mutation.md` ma wynik po fazie obok bazowego (zakres 0/138; cały plik 22,35%, 59/264) i decyzję dla każdego ocalałego mutanta w `criteria.ts:151-285`
+- [x] 5.1 Test fazy przechodzi: `npm test -- tests/lib/criteria.test.ts`
+- [x] 5.2 Cały zestaw przechodzi: `npm test`
+- [x] 5.3 Lint przechodzi: `npx astro sync && npm run lint`
+- [x] 5.4 Typy przechodzą: `npx astro check`
+- [x] 5.5 Stryker kończy przebieg: `npx stryker run --mutate "src/lib/criteria.ts:151-285"`
+- [x] 5.6 `mutation.md` ma wynik po fazie obok bazowego (zakres 0/138; cały plik 22,35%, 59/264) i decyzję dla każdego ocalałego mutanta w `criteria.ts:151-285`
 
 #### Manual
 
-- [ ] 5.7 Dopisane zdanie w CLAUDE.md oddaje decyzję o nieczytelnej wartości limitu
-- [ ] 5.8 Decyzje „równoważny” i „świadomie pominięty” w `mutation.md` dla `criteria.ts:151-285` są zaakceptowane
+- [x] 5.7 Dopisane zdanie w CLAUDE.md oddaje decyzję o nieczytelnej wartości limitu
+- [x] 5.8 Decyzje „równoważny” i „świadomie pominięty” w `mutation.md` dla `criteria.ts:151-285` są zaakceptowane
 
 ### Phase 6: Cookbook — `test-plan.md` §6 i wskazania w CLAUDE.md
 

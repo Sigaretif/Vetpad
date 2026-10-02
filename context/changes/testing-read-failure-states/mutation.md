@@ -162,3 +162,67 @@ ciało nie jest listą wierszy — `rows.map` wykłada się na obiekcie i na `nu
 | `notes.ts:24:9` — `pros: "Zalety"` → `""` | świadomie pominięty | Jak wyżej. |
 | `notes.ts:25:9` — `cons: "Wady"` → `""` | świadomie pominięty | Jak wyżej. |
 | `notes.ts:26:17` — `observations: "Obserwacje ogólne"` → `""` | świadomie pominięty | Jak wyżej. |
+
+## Faza 5: `src/lib/criteria.ts:151-285`
+
+Polecenie:
+
+```
+npx stryker run --mutate "src/lib/criteria.ts:151-285"
+```
+
+Test fazy: `tests/lib/criteria.test.ts`.
+
+Zakres `151-285` to odczyt (`limitNumber`, `readLimits`, `loadCriteria`,
+`loadTeamLimits`). Wiersze `1-150` (`parseNumber`, `parseLimitsForm`,
+`requirementsError` i ich stałe) są poza zakresem tej zmiany (`plan.md`, „What
+We're NOT Doing”): ich 126 mutantów nie dostaje decyzji, a wynik całego pliku
+nie jest celem.
+
+Blok `catch` w `loadCriteria` (`criteria.ts:266-268`) wywołuje odpowiedź `200`
+na `member_requirements`, której ciało nie jest listą wierszy — `rows.map`
+wykłada się na obiekcie i na `null`, a odczyt `author_id` na elemencie `null`.
+Blok `catch` w `loadTeamLimits` (`criteria.ts:282-284`) jest nieosiągalny z
+krawędzi HTTP: klient nie rzuca dla żadnej odpowiedzi, a `readLimits` czyta
+tylko pola wartości, która przeszła `!result.data` — żaden kształt ciała `200`
+nie doprowadza do wyjątku. Jego mutanty dostają decyzję w tabeli poniżej, bez
+`vi.mock` modułów wewnętrznych (`plan.md`, „Critical Implementation Details”).
+
+### Wynik po fazie
+
+| Przebieg | Wynik | Zabite | Ocalałe | Bez pokrycia | Razem |
+|---|---|---|---|---|---|
+| Bazowy, cały plik (2026-10-01) | 22,35% | 59 | 42 | 163 | 264 |
+| Bazowy, zakres `151-285` (2026-10-01) | 0% | 0 | 1 | 137 | 138 |
+| Po fazie, zakres `151-285` (2026-10-02) | 86,23% | 119 | 16 | 3 | 138 |
+
+Trzy przebiegi po fazie, wynik wyżej to ostatni:
+
+1. 80,43% (111 / 24 / 3). Dwa mutanty z wiersza `181:54` czytały wartość
+   logiczną `true` w kolumnie liczbowej jako limit `1` — wymyślony limit —
+   więc doszła **asercja**: `true` w `price_min`, `price_max` i `area_min` to
+   nieudany odczyt (R13).
+2. 81,88% (113 / 22 / 3).
+3. 86,23% (119 / 16 / 3), po decyzji użytkownika z 2026-10-02 o dwóch regułach
+   zapisanych w CLAUDE.md (`## Structure`): liczba wysłana tekstem czyta się
+   jako ta liczba (**asercja** zabiła trzy mutanty z wiersza `181`), a
+   wymagania członków są czytane od ostatnio edytowanych (**asercja** na
+   `order=updated_at.desc` zabiła trzy mutanty z wiersza `225`).
+
+### Ocalałe mutanty i mutanty bez pokrycia
+
+| Wiersz i mutacja | Decyzja | Powód |
+|---|---|---|
+| `criteria.ts:190:43` — `typeof row.city === "string"` → `true` | równoważny | Miasto niebędące tekstem rzuca na `.trim()`, a `catch` obu funkcji odpowiada tym samym stanem błędu. |
+| `criteria.ts:194:7` — `city === undefined \|\|` → `false \|\|` | równoważny | `undefined.trim()` rzuca, a `catch` odpowiada tym samym stanem błędu. |
+| `criteria.ts:218:7` — `if (!supabase)` → `if (false)` (`loadCriteria`) | równoważny | Bez klienta `supabase.from` rzuca wewnątrz `try`, a `catch` odpowiada tym samym `{ state: "error" }`. |
+| `criteria.ts:227:9` — cztery mutacje warunku `criteria.error \|\| requirements.error \|\| !criteria.data` (`false`, `false \|\| !criteria.data`, `(a \|\| b) && !data`, `a && b \|\| !data`) | równoważny | Przy każdym z trzech powodów porażki odpowiednie `data` jest `null`, więc dalszy kod rzuca (`readLimits(null)` albo `rows.map`), a `catch` odpowiada tym samym `{ state: "error" }`. |
+| `criteria.ts:238:9` — `if (changedAt !== null)` → `if (true)` | równoważny | Wynik się nie zmienia: `limitsChangedBy` i tak jest `null`, gdy brak daty (wiersz 261); dodatkowy wpis na liście autorów nikogo nie nazywa. |
+| `criteria.ts:276:7` — `if (!supabase)` → `if (false)` (`loadTeamLimits`) | równoważny | Bez klienta `supabase.from` rzuca wewnątrz `try`, a `catch` odpowiada tym samym `{ ok: false }`. |
+| `criteria.ts:279:9` — dwie mutacje warunku `result.error \|\| !result.data` (`false`, `&&`) | równoważny | Przy błędzie i przy braku wiersza `data` jest `null`, `readLimits(null)` rzuca, a `catch` odpowiada tym samym `{ ok: false }`. |
+| `criteria.ts:232:23` — `typeof row.updated_at === "string"` → `true` | świadomie pominięty | Różni się tylko dla wartości, która nie jest ani tekstem, ani `null`; kolumna `timestamptz` takiej nie zwraca. |
+| `criteria.ts:233:23` — `typeof row.updated_by === "string"` → `true` | świadomie pominięty | Jak wyżej dla kolumny `uuid`. |
+| `criteria.ts:176:23` — `LIMIT_COLUMNS` → `""` | świadomie pominięty | Lista kolumn to dane dla zapytania; zaślepka odpowiada niezależnie od `select`, a na prawdziwej bazie pilnuje jej smoke (`data-criteria-state="ok"`, znacznik limitu na tablicy). Asercja na literał byłaby lustrem. |
+| `criteria.ts:221:45` — `select` dla `team_criteria` → pusty | świadomie pominięty | Jak wyżej. |
+| `criteria.ts:224:17` — `select` dla `member_requirements` → `""` | świadomie pominięty | Jak wyżej. |
+| `criteria.ts:282:11`, `283:12`, `283:18` — blok `catch` w `loadTeamLimits` (bez pokrycia) | świadomie pominięty | Nieosiągalne z krawędzi HTTP: żaden kształt odpowiedzi nie doprowadza do wyjątku, a `vi.mock` modułów wewnętrznych jest poza planem; blok zostaje jako siatka, na której opierają się mutanty równoważne z wierszy 190, 194, 276 i 279. |

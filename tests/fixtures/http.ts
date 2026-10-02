@@ -169,6 +169,30 @@ export const PAGE_WITHOUT_NEXT_DATA = page('<script id="__APP_DATA__" type="appl
 //   request above — none at all when every author is `null` or the viewer, or there are no rows.
 // - A failed read and the answer that makes the code throw are the two general points above:
 //   `500` with `{ "code", "message", … }`, and a `200` whose body is not an array.
+//
+// And as the criteria module (src/lib/criteria.ts) reads the criteria, read from the same file:
+//
+// - The team's limits with their signature, for `loadCriteria`: `.from("team_criteria")
+//   .select("city, price_min, price_max, area_min, updated_at, updated_by").eq("id", true)
+//   .maybeSingle()`:
+//   `GET <SUPABASE_URL>/rest/v1/team_criteria?select=city,price_min,price_max,area_min,
+//   updated_at,updated_by&id=eq.true` — `select` with its whitespace stripped, the boolean
+//   written as `true`. `maybeSingle()` is the client-side flag described above: `200 []` becomes
+//   `data: null` with no error, which here is the missing singleton row; `[row]` becomes `row`.
+// - The limits alone, for `loadTeamLimits`: the same request without the signature columns,
+//   `GET <SUPABASE_URL>/rest/v1/team_criteria?select=city,price_min,price_max,area_min&id=eq.true`.
+// - Every member's requirements, `.from("member_requirements").select("author_id, body,
+//   created_at, updated_at").order("updated_at", { ascending: false })`:
+//   `GET <SUPABASE_URL>/rest/v1/member_requirements?select=author_id,body,created_at,updated_at
+//   &order=updated_at.desc` — no filter, and `order` with no `nullsfirst`/`nullslast` suffix.
+//   PostgREST answers `200` with an array of rows, `[]` when nobody has written any.
+// - `loadCriteria` sends the limits read and the requirements read in parallel, so a handler
+//   tells them apart by table, never by order. After both, only when there is somebody other than
+//   the viewer to name — a requirements author, or whoever last changed the limits — the one
+//   "many members" request above. `loadTeamLimits` sends its one request and nothing else.
+// - With `maybeSingle()`, a `200` whose body is not an array is handed to the calling code as
+//   it came: an object is read as the row itself. A `200` whose requirements body is not an array
+//   is what makes `loadCriteria` throw inside; no answer makes `loadTeamLimits` throw.
 
 /** Test values only — never a real project's. */
 export const SUPABASE_TEST_URL = "https://supabase.test";
