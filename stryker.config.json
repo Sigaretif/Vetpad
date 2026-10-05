@@ -17,7 +17,12 @@
     "context",
     "supabase",
     "public",
-    "reports"
+    "reports",
+    "playwright",
+    "playwright-report",
+    "test-results",
+    ".playwright",
+    ".playwright-cli"
   ],
   "reporters": ["progress", "clear-text", "html"],
   "concurrency": 4,

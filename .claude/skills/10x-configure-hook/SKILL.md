@@ -57,10 +57,11 @@ Harness-specific config dirs and the manifest are strong signals. `AGENTS.md` an
 
 Read the manifest and config, not memory. For each gate record the exact command this repo uses:
 
-- **Lint / format** — the project's linter and whether it accepts a single file path (ESLint, Biome, Ruff, golangci-lint, RuboCop…). Prefer the local binary (`npx`, `pnpm exec`, `uv run`, …) the repo already uses. Derive the checked file extensions from the lint config, not from the examples (e.g. add `.astro` when `eslint-plugin-astro` is configured, `.vue` / `.svelte` likewise).
+- **Lint / format** — the project's linter and whether it accepts a single file path (ESLint, Biome, Ruff, golangci-lint, RuboCop…). Prefer the local binary (`npx`, `pnpm exec`, `uv run`, …) the repo already uses. Derive the checked file extensions from the lint config, not from the examples (e.g. add `.astro` when `eslint-plugin-astro` is configured, `.vue` / `.svelte` likewise). **No linter at all:** the per-edit check is the typechecker's diagnostics filtered to the edited file plus `node --check` for plain JavaScript (`check-edited-file.sh` in the Claude Code reference); recommend a linter in the report, do not install one.
 - **Typecheck** — whole-project command (`tsc --noEmit`, `astro check`, `mypy`, `cargo check`, …) and roughly how long it takes. Frameworks with generated types need their sync step first (`tsc` fails on `astro:*` modules until `astro sync` has generated `.astro/`; `astro check` syncs itself but is slower). Generated dirs are usually gitignored, so a sync that fixes the baseline belongs inside the end-of-turn script, not in a one-off command.
 - **Baseline** — run every end-of-turn check once on the untouched tree. If it is already red (missing generated types, a nested package with uninstalled deps pulled in by a root `**/*` include, …): fix the prerequisite (generate the types), or scope the command (project tsconfig, path filter, diagnostics limited to changed files), or report it as a blocker. Never hand off a Stop hook that blocks on a clean tree.
-- **Tests** — the runner and whether it has a related-tests mode (`vitest related <file> --run`, `jest --findRelatedTests <file> --passWithNoTests`, `pytest` with a path, …). Note what the runner does when no test matches (exit 0 or not). Time the whole unit suite once: if it finishes in about 30 s or less, the end-of-turn script runs all of it (it then also catches a red test in a module the agent only imported); otherwise it runs the tests related to the changed files.
+  **Red because of the host, not the code** (a test pinned to an exact tool version, a file-mode test that depends on `umask`, a shared local service): the script detects that condition, skips only the affected part, and says so in its output (the `SKIPPED` pattern in the reference). Fix the environment outside the hook if you can; a silent skip is never acceptable.
+- **Tests** — the runner and whether it has a related-tests mode (`vitest related <file> --run`, `jest --findRelatedTests <file> --passWithNoTests`, `pytest` with a path, …). Note what the runner does when no test matches (exit 0 or not). **No related mode** (`node --test`, `bun test`): select the test files that import the edited module with `git grep` over the test files (`related-tests-by-import.sh` in the Claude Code reference); one import level, the end-of-turn sweep and the commit gate cover the rest. Time the whole unit suite once: if it finishes in about 30 s or less, the end-of-turn script runs all of it (it then also catches a red test in a module the agent only imported); otherwise it runs the tests related to the changed files.
 - **Git-hook manager** — Husky, lint-staged, Lefthook, pre-commit, or none. Existing git hooks are never modified by this skill.
 - **Script prerequisites** — `jq` for bash scripts, or Node/Python if a non-bash script is safer (Windows without Git Bash).
 
@@ -91,7 +92,7 @@ The per-edit moment only sees the harness's edit tools. Agents also rewrite file
 - an end-of-turn hook with no retry guard (can loop until the harness cap);
 - the same check registered twice (Cursor and Copilot can import `.claude/settings*.json` — see their references).
 
-Present the moment map and the audit findings together as the proposal. Wait for the user's go-ahead before writing files.
+Present the moment map and the audit findings together as the proposal. Wait for the user's go-ahead before writing files — **unless the request already is that go-ahead**: the user asked to configure specific hooks in this repo and the proposal adds nothing they did not ask for (no deferral override, no replaced hook, no change outside the hooks dir and config). Then state the proposal and continue; ask only about what goes beyond the request.
 
 ## Step 5 — Load the harness reference
 
@@ -114,25 +115,35 @@ Follow the reference's minimal examples; adapt commands to the toolchain from St
 - **Plain output** — hook output is read by a model, not a terminal: `tsc --pretty false`, `grep --color=never`, `NO_COLOR=1 FORCE_COLOR=0` for everything else. Scripts inherit the user's shell env (e.g. `GREP_OPTIONS=--color=always` breaks a grep filter), so set these explicitly.
 - **Payloads are untrusted input shapes.** Accept every documented shape: tolerate missing fields, empty stdin and alternative field names; never fail the hook because a field is absent. A missing path means "nothing to check", not an error.
 - **Timeouts** in the unit the harness expects (usually seconds): roughly 30 for per-edit lint, 60 for related tests, 120 for typecheck — then tune.
-- **Paths** — reference scripts through the harness's project-dir variable or project-relative paths as the reference shows; make scripts executable (`chmod +x`).
+- **Paths** — resolve the checkout the way the reference shows, never by `cd` into a project-dir variable alone. In Claude Code `$CLAUDE_PROJECT_DIR` is the directory the session started in and goes stale after `EnterWorktree`, and an edit in a sibling worktree belongs to neither that variable nor `cwd`: the command finds the script via `git rev-parse --show-toplevel`, the per-edit script takes the checkout from the edited file (relative paths resolved against `cwd`; files of other repositories skipped), and the end-of-turn script sweeps the payload `cwd` plus every checkout registered for the `session_id`. Make scripts executable (`chmod +x`).
+- **No silent success** — exit 0 means "checked and clean" or "nothing to check". A missing tool (`jq`, an uninstalled linter), a typechecker that did not run, or a wrapper like `[ -x script ] && exec script; exit 0` must fail visibly (the feedback channel, or a user-visible message), never pass.
+- **Committed config** — check that the hook files are not ignored (`git check-ignore -v .claude/settings.json`). An ignored hooks dir exists only on one disk; propose the re-include from the reference and show the `.gitignore` diff.
 - **Windows** — note the shell the harness uses (Git Bash, PowerShell, a per-OS command field). If bash or `jq` is unavailable, generate a Node script instead.
 - **Existing config** — merge into it, keep unrelated hooks, replace only the defective entries named in Step 4, and show the diff before writing. A script left behind by a replaced or orphaned hook stays on disk: list it in the report and recommend deletion; never delete it silently.
 - **Double registration** — `.claude/settings*.json` hooks are also run by Cursor (import on by default), by Copilot CLI, and by VS Code when `chat.useClaudeHooks` is on. If one of those is in use and `.claude/settings*.json` already holds hooks, do not register the same check again in its native config without addressing the import (see `references/cursor.md`, `references/copilot.md`).
 
-## Step 7 — Prove before handing off
+## Step 7 — Prove before handing off, as a committed test
 
-For every generated script, pipe a sample payload (shape from the reference) into it and check the exit code and output:
+The proof is a **test file committed to the repo**, run by the repo's own test runner, not a one-off sequence of shell commands. Hooks change; a proof nobody can re-run stops proving anything after the first edit.
 
-1. **Broken file** — introduce a deliberate, obvious error in a real source file the check covers (unused variable, wrong type). Expect the blocking or feedback signal the reference documents and a readable message that names the file and the problem. For test-running scripts the error must be behavioural (a failing assertion): type-only errors do not fail Vitest, which strips types.
-2. **Clean file** — revert the error. Expect success and no blocking output. For end-of-turn scripts this requires the green baseline from Step 3.
+Name it `agent-hooks.test.*` and put it next to the repo's existing tooling tests (under `scripts/__tests__/`, `tools/ci/` or `tests/`, …) in the runner the repo already uses. Each case pipes a payload (shape from the reference) into the real script and asserts the exit code and the output channel. Work on a temporary copy or a throwaway git repo/worktree, never on files in the developer's tree. Stub only what is slow or absent in the test environment (a linter binary on `PATH` that flags a marker), keep git, `jq` and the scripts real.
+
+Cases:
+
+1. **Broken file** — a deliberate, obvious error in a file the check covers (unused variable, wrong type). Expect the blocking or feedback signal the reference documents and a message that names the file and the problem. For test-running scripts the error must be behavioural (a failing assertion): type-only errors do not fail Vitest, which strips types.
+2. **Clean file** — expect success and no blocking output. For end-of-turn scripts this requires the green baseline from Step 3.
 3. **Skipped type** — a file the check does not cover (e.g. `README.md`). Expect success.
 4. **Nonexistent file** — a payload naming a path that does not exist. Expect success.
 5. **Empty payload** — `{}`, and an unparseable or path-less payload (e.g. `not json`, a tool call without a path). Expect success.
 6. **End of turn with the retry flag set** — expect success even while the error is present.
-7. **Edit that bypassed the per-edit hook** — write a lint error into a covered file directly on disk (as a shell command would), send no per-edit payload, run the end-of-turn script. Expect it to block and name that file. With no changed files at all, expect success without running any check.
-8. **Harness-specific shapes** — the extra cases the reference lists (e.g. Codex: non-patch payload, multi-file patch, `cwd` in a subdirectory).
+7. **Edit that bypassed the per-edit hook** — a lint error written directly on disk, no per-edit payload, end-of-turn script. Expect it to block and name that file. With no changed files at all, expect success without running any check.
+8. **Checkout resolution** — the project-dir variable pointing at another checkout that holds an error: the hooks check the session's checkout and stay green. A relative path resolves against `cwd`. A broken file of another repository is skipped. An edit in a sibling worktree is swept by the end-of-turn script. Every `command` from the config, run from the worktree with the project-dir variable set to a nonexistent path, reaches an executable script.
+9. **No silent success** — the linter or typechecker missing: expect the failure signal, not success.
+10. **Harness-specific shapes** — the extra cases the reference lists (e.g. Codex: non-patch payload, multi-file patch, `cwd` in a subdirectory).
 
-Revert every deliberate error and confirm `git status` shows only the files you meant to create or change. If a case fails, fix the script and re-run all cases. Never report a hook as working on the strength of the config alone.
+Deliberate-break the test itself once: revert one fix in a script (e.g. drop the retry guard) and watch the matching case go red, then restore it. Hook the test into the gate the repo already runs (unit suite, `verify`, pre-push), scoped to changes under the hooks dir if the suite is slow. Do not add a CI job.
+
+Revert every deliberate error and confirm `git status` shows only the files you meant to create or change. If a case fails, fix the script and re-run the test. Never report a hook as working on the strength of the config alone.
 
 ## Step 8 — Report
 
@@ -142,7 +153,7 @@ Print a compact report:
 - **Deferrals** — each quoted deferral and the user's answer (`override` / `skip`).
 - **Audit** — defects found in existing hook config and what replaced them; scripts left behind (orphaned or replaced) with a deletion recommendation.
 - **Configured** — per harness: config file(s), scripts, events, timeouts; the merged diff.
-- **Proof** — one line per case from Step 7 with the observed exit code / output.
+- **Proof** — the committed test file, the command that runs it, its result, and the deliberate break you watched go red.
 - **Still required from the user** — trust or approval steps (e.g. Codex `/hooks` review, Cursor workspace trust, restarting the session), and how to confirm the hook is loaded (the harness's hooks menu or debug log).
 - **Reference drift** — any discrepancy between the reference and the live doc.
 - **Out of reach** — what these hooks cannot prove: behaviour of the running app (a client component that never hydrates, routing, database policies, side effects). Lint, types and unit tests can all pass while the feature is broken. Name the repo's surfaces at risk and point to E2E or browser verification; do not configure it here.
@@ -152,13 +163,13 @@ Print a compact report:
 ## What this skill does NOT do
 
 - Change the gates or the risk strategy — that is `/10x-test-plan`.
-- Write tests, E2E scenarios or CI pipelines.
+- Write tests for the application, E2E scenarios or CI pipelines (the only test it writes is the hook test from Step 7).
 - Install or reconfigure git-hook managers (Husky, Lefthook, pre-commit).
 - Generate config for harnesses it cannot prove (see `references/other-harnesses.md`).
 
 ## Interactive prompts — host-agnostic
 
-Whenever this skill says "ask the user", use whichever question tool the host exposes; if none exists, ask in plain text with labelled options. Ask at most: which harness (only if ambiguous), whether to override a deferral (once), and the go-ahead after the proposal.
+Whenever this skill says "ask the user", use whichever question tool the host exposes; if none exists, ask in plain text with labelled options. Ask at most: which harness (only if ambiguous), whether to override a deferral (once), and the go-ahead after the proposal (skipped when the request already is that go-ahead, Step 4).
 
 ## Tone
 

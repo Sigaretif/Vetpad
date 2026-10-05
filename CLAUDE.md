@@ -110,7 +110,8 @@ Scripts are in `@package.json`. Two commands CI runs that are **not** npm script
 - `scripts/smoke.mjs` also creates two fixture offers as the first seeded account, straight through the Data API, puts a note of each seeded account (the second is `sigaretif2@vetpad.local`) on both, and judges every write that could reach another member's row in `public.offer_notes`, `public.offers` and `public.member_requirements` by whole rows: `withSnapshot` in that file is the reference for comparing another member's rows before and after a step, and its control steps fail the run when the comparison stops seeing a change. It deletes both offers again as its last notes steps — which is why it never runs against production. It also changes the team's shared limits and saves requirements for both seeded accounts; its cleanup writes back the limits it read at the start and deletes both accounts' requirements, so requirements typed by hand for those accounts in the local database do not survive a run. With one fixture offer stating a price and no area and the other an area and no price, it also checks on `/dashboard` that the offer missing the sorted value stands below the one that states it, in both directions — `fixtureBoardOrder` in that file is the reference for proving a rule that lives in the SQL query, which a unit test cannot.
 - `scripts/account-deletion.sql` (`npm run test:db`) is the test surface for what an account deletion leaves behind — the `on delete` actions on `auth.users`, which the publishable key cannot reach. It needs `psql` and the local database, runs in the `smoke` job of `@.github/workflows/ci.yml` before the build, and is not part of `npm test`. The whole file is one transaction that ends in `ROLLBACK`; a check added to it stays inside that transaction, and the script is never pointed at the hosted database. A new column that references `auth.users` gets a case there in the change that creates it.
 - A write path gets its isolation check where `context/foundation/test-plan.md` §6.3 puts it, and a denied write is recognised by its row count, never by its status alone — a denied update or delete answers like a successful one.
-- Do not add `jest` or `playwright` to `@package.json` without the user's explicit go-ahead. `vitest` had that go-ahead on 2026-09-30 (`testing-ingestion-guardrails`).
+- Do not add `jest` to `@package.json` without the user's explicit go-ahead. `vitest` had that go-ahead on 2026-09-30 (`testing-ingestion-guardrails`), and `@playwright/test` on 2026-10-05, for the E2E layer `/10x-e2e-setup` creates.
+- `tests/e2e/` is the Playwright layer (`playwright.config.ts`; how it runs is recorded in `context/foundation/test-stack.md`, `## E2E`): `npx playwright test` builds the app, serves the production preview and drives it in a browser against the local Supabase — the config refuses a `SUPABASE_URL` that is not local, in `.env` or `.dev.vars`. It is not part of `npm test` and not a CI step yet. `tests/e2e/seed.spec.ts` is the reference every spec copies, and `waitForIslands` in `tests/e2e/helpers.ts` is the wait before the first input into a form island. `tests/e2e/fixture-offer.ts` is the reference for the offer a spec works on: saved through the local Data API as the E2E member, and deleted in `afterEach` with the deleted rows counted. A spec there is named `*.spec.ts`, never `*.test.ts`, which Vitest would collect; it never reaches otodom.pl, and it signs in as `E2E_USERNAME` from `.env` — `sigaretif3@vetpad.local` from `supabase/seed.sql`, the account `scripts/smoke.mjs` does not sign in with — and never signs that account out, since that revokes the saved session every other spec loads.
 - A test lives under `tests/` at the path of the `src/` file it covers, and `context/foundation/test-plan.md` §6 is the cookbook for adding one. `tests/fixtures/otodom.ts` is the reference for ingestion fixtures: synthetic, hand-written from `@context/foundation/ingestion/otodom_fetching.md` § 7 with seller canaries, never a recorded payload — the repository is public and a live listing carries a real advertiser's phone and name. `tests/pages/api/offers.test.ts` is the reference for a route test stubbed at the HTTP edge (`tests/fixtures/http.ts`), never by mocking `@/lib/*`. `tests/pages/api/criteria.test.ts` is the reference for a route whose write reached zero rows: the database answers `200` with `[]`, and the route reports a failed save. `tests/lib/criteria.test.ts` is the reference for a test of a read function: the client is built in the test, the network is stubbed at the HTTP edge, and every failed read stands beside the read that succeeds and finds nothing. `tests/lib/team-limits.test.ts` is the reference for a test of a pure rule: every case that breaks nothing stands beside one that breaks, and the expected values are written by hand. `tests/components/offers/render.test.ts` is the reference for rendering a view through the Container API. `tests/setup.ts` puts every test in the zero-config state by mocking `astro:env/server`; a test that needs a configured client overrides it with its own `vi.mock`, and `tests/setup.test.ts` fails if the default goes.
 - Mutation testing is Stryker (`stryker.config.json`; `@stryker-mutator/core` and `@stryker-mutator/vitest-runner` had the user's go-ahead on 2026-10-01). It is a selective, local gate — never a CI step, never part of `npm test`, and its score is never a target: run it narrowed to the module a change or a `context/foundation/test-plan.md` risk touches (`npx stryker run --mutate "src/lib/otodom/map.ts"`, or `"path:start-end"` for a line range), then judge each survived mutant by the workflow under `### Mutation testing (Stryker)` below. The report lands in `reports/mutation/mutation.html`; `reports/` and `.stryker-tmp/` are git-ignored. A module that only `scripts/smoke.mjs` exercises reports "no coverage", because Stryker sees `npm test` alone — that is a statement about the unit layer, not a missing-test finding by itself.
 - `scripts/stryker-vitest5-runner.mjs` is why `testRunner` in `stryker.config.json` reads `vitest5`, not `vitest`: the stock runner filters tests by a name joined with spaces, Vitest 5 matches names joined with `" > "`, so every test inside a `describe` is skipped and every mutant is reported as survived. The plugin wraps the stock runner and runs the whole test files that cover a mutant instead. Do not "simplify" the config back to `vitest` while that mismatch stands — the symptom is a score near zero with survivors that cannot be real, such as `if (true) return null` in `src/lib/safe-url.ts`. Once the upstream runner supports Vitest 5, delete the plugin, set `testRunner` back to `vitest`, and remove this bullet. Stryker copies the project into a sandbox, so a new top-level directory the tests do not need goes into `ignorePatterns` there — a symlink inside one aborts the run with `EISDIR`.
@@ -128,60 +129,38 @@ Changes are written in the `master` working tree, may be committed there phase b
 
 <!-- BEGIN @przeprogramowani/10x-cli -->
 
-## 10xDevs AI Toolkit - Module 3, Lesson 3 (10xDevs 4.0 Hooks)
+## 10xDevs AI Toolkit - Module 3, Lesson 4 (E2E Tests)
 
-Treat a hook as a **quality gate the harness runs for the agent**, not a script you hope the agent notices. Hooks run outside the model, so they survive context compaction and forgotten instructions — but only a hook whose signal actually reaches the agent closes the loop:
+**For E2E tests, use the two M3L4 skills in this order:**
 
-```
-test-plan.md "Quality Gates" -> pick the moment per gate -> /10x-configure-hook -> prove with sample JSON -> watch the agent fix a deliberate error
-```
+1. **`/10x-e2e-setup`** — one-time setup: Playwright config (`webServer`,
+   auth `setup` project, `storageState`), a green seed test, and `context/foundation/test-stack.md`.
+2. **`/10x-e2e`** — the per-risk loop: risk → explore the running app with
+   `playwright-cli` → generate → review against the five anti-patterns →
+   re-prompt by name → verify with a deliberate break.
 
-### Task Router - Where to start
+The skills' `references/` carry the full rules, anti-patterns, seed pattern, and
+prompt-template.
 
-| Skill                                                            | Use it when                                                                                                                                                                                                                                          |
-| ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/10x-configure-hook`                                            | Turning the gates from `context/foundation/test-plan.md` into agent hooks, fixing hooks that fire but the agent never reacts to, or auditing an existing hook config. It detects the harness from the repo and carries dated per-harness references. |
-| `/10x-test-plan --status`                                        | Read the current gates and rollout state. Changing which gates exist belongs to Lesson 1, not here.                                                                                                                                                  |
-| `/10x-new` -> `/10x-research` -> `/10x-plan` -> `/10x-implement` | A hook surfaced a failure the agent cannot fix with a trivial correction (wrong business logic, flaky integration). Open a change instead of looping the hook.                                                                                       |
+A few hard rules that hold even before you invoke the skill:
 
-### Hook lifecycle
+- **Locators:** `getByRole` / `getByLabel` / `getByText` first; `getByTestId`
+  only when accessibility attributes are ambiguous. Never CSS selectors, XPath,
+  or DOM structure.
+- **Never `page.waitForTimeout()`.** Wait for state: `toBeVisible()`,
+  `waitForURL()`, `waitForResponse()`.
+- **Test independence + cleanup.** Each test runs standalone — its own setup,
+  action, assertion, and cleanup; unique ids (timestamp suffix) so parallel runs
+  and re-runs don't collide.
 
-1. **Trigger** — an event in the harness: a tool finished editing a file, the agent is about to end its turn.
-2. **Matcher** — narrows which tool calls or files the hook reacts to. Not every harness honours matchers the same way.
-3. **Handler** — usually a shell command or script that reads the event payload as JSON on stdin.
-4. **Signal** — what the hook returns. The exit code, stderr, stdout and JSON fields mean different things in different harnesses, and only one channel per event actually reaches the agent. **The signal channel differs per harness — check the skill's references before writing or reviewing a hook.**
+Two boundaries to keep straight:
 
-A hook that runs but sends its message down the wrong channel is the most common failure: the user sees "hook error", the agent sees nothing and keeps going.
-
-### Moments and layers
-
-The slower the check, the rarer the moment:
-
-| Moment                               | Typical checks                                                          | Reaches the agent?               |
-| ------------------------------------ | ----------------------------------------------------------------------- | -------------------------------- |
-| Per edit                             | Lint/format of **the edited file only**; related tests if they are fast | Yes, mid-work                    |
-| End of turn (Stop or its equivalent) | Lint + tests for every file changed this turn, whole-project typecheck  | Yes, before the agent hands back |
-| Pre-commit (git)                     | Lint + tests on staged files; catches edits made without the agent      | No — blocks the commit           |
-| Pre-push (git)                       | Heavier suites, e2e that run locally                                    | No — blocks the push             |
-| CI                                   | Integration, shared state, infrastructure you do not have locally       | No — PR feedback                 |
-
-Local layers do not replace CI; each one saves a CI round-trip. Start with one per-edit lint hook and one end-of-turn typecheck, then add layers when you see what escapes.
-
-### Contract
-
-- Read the gates from the "Quality Gates" section of `context/foundation/test-plan.md` (by title, not section number). A gate the plan explicitly defers stays deferred unless the user overrides it — quote the deferral when you ask.
-- Per-edit hooks check only the file that was edited. Never run `--fix` or a linter over the whole project on every edit.
-- End-of-turn hooks that can send the agent back must stop after one retry (the harness's "already continued" flag or equivalent), so an unfixable error does not loop.
-- Per-edit hooks only see the harness's edit tools; a file rewritten through a shell command skips them. The end-of-turn hook re-checks every file changed this turn (`git diff`), so it is the net for those edits.
-- Timeouts are usually in **seconds**. Check the unit before copying a number.
-- Prove every hook before trusting it: run the script with a sample payload on a deliberately broken file and on a clean one, then revert the error.
-- Never overwrite existing hook config silently. Audit it, name the defects, merge, and show the diff.
-
-### Lesson boundaries
-
-- Do not change the risk strategy or the gate definitions — that is Lesson 1 (`/10x-test-plan`).
-- Do not write new tests here — hooks only run the tests Lesson 2 produced.
-- Do not write E2E scenarios or browser verification — that is Lesson 4.
-- Do not author CI pipelines or install git-hook managers unasked; recommend pre-commit/pre-push gates, let the user decide.
+- **DOM (snapshot) is the default.** Vision (`--caps=vision`) is a supplement for
+  visual-only risks (layout, z-index, animation); for pixel regression prefer
+  deterministic tools (`toHaveScreenshot`, Argos, Lost Pixel). VLM model
+  selection/cost is a debugging topic (Lesson 5), not testing.
+- **A red test is a signal, not a chore.** A changed selector → update the
+  locator in a reviewed diff. A changed business behavior → the test caught a
+  bug; never edit the assertion to match it. Fixing failing tests is Lesson 5.
 
 <!-- END @przeprogramowani/10x-cli -->

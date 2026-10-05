@@ -33,3 +33,11 @@ context/**/screenshots/*offer-real*
 # stryker (mutation testing)
 .stryker-tmp/
 reports/
+
+# playwright (E2E): saved session, reports, and playwright-cli snapshots that can hold credentials
+playwright/.auth/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+.playwright-cli/
