@@ -9,9 +9,15 @@ export { normalizeOfferUrl } from "./url";
 /** Every way ingestion can refuse. The API route maps each one to a message in one place. */
 export type IngestFailureReason = UrlFailureReason | FetchFailureReason | MapFailureReason;
 
+/**
+ * Where ingestion refused. `shape_changed` comes from both the fetch and the mapper; only the
+ * stage tells them apart.
+ */
+export type IngestStage = "url" | "fetch" | "map";
+
 export type IngestResult =
   | { ok: true; url: string; offer: OfferInsert }
-  | { ok: false; reason: IngestFailureReason; status?: number; detail?: string };
+  | { ok: false; stage: IngestStage; reason: IngestFailureReason; status?: number; detail?: string };
 
 /**
  * Pasted URL to a mapped offer row: normalise, fetch, gate and map. Knows nothing
@@ -20,13 +26,13 @@ export type IngestResult =
  */
 export async function ingestOffer(rawUrl: string, signal: AbortSignal): Promise<IngestResult> {
   const normalized = normalizeOfferUrl(rawUrl);
-  if (!normalized.ok) return normalized;
+  if (!normalized.ok) return { ...normalized, stage: "url" };
 
   const fetched = await fetchOfferAd(normalized.url, signal);
-  if (!fetched.ok) return fetched;
+  if (!fetched.ok) return { ...fetched, stage: "fetch" };
 
   const mapped = mapAdToOffer(fetched.ad);
-  if (!mapped.ok) return mapped;
+  if (!mapped.ok) return { ...mapped, stage: "map" };
 
   return { ok: true, url: normalized.url, offer: mapped.offer };
 }

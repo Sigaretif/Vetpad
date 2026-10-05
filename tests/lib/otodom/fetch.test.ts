@@ -11,7 +11,7 @@ import {
   restoreFetch,
   stubFetch,
 } from "../../fixtures/http";
-import { FLAT_SALE_URL, flatSaleAd, rentalFlat, saleHouse } from "../../fixtures/otodom";
+import { FLAT_SALE_URL, flatSaleAd, omitKeys, rentalFlat, saleHouse } from "../../fixtures/otodom";
 
 // Expected reasons are written by hand from the failure table in otodom_fetching.md section 7.1
 // and prd.md, Non-Functional Requirements ("the member is shown an explicit failure identifying
@@ -162,7 +162,7 @@ describe("ingestOffer: pasted URL to a mapped offer (#1, FR-005)", () => {
   ])("refuses %s without a single request", async (_label, url, reason) => {
     const stub = stubFetch(() => undefined);
     const result = await ingestOffer(url, new AbortController().signal);
-    expect(result).toEqual({ ok: false, reason });
+    expect(result).toEqual({ ok: false, stage: "url", reason });
     expect(stub.requests).toHaveLength(0);
   });
 
@@ -171,7 +171,7 @@ describe("ingestOffer: pasted URL to a mapped offer (#1, FR-005)", () => {
     const result = await ingestOffer(FLAT_SALE_URL, new AbortController().signal);
     expect(result.ok).toBe(false);
     expect(result).not.toHaveProperty("offer");
-    expect(result).toMatchObject({ reason: "not_for_sale" });
+    expect(result).toMatchObject({ stage: "map", reason: "not_for_sale" });
     expect(stub.requests).toHaveLength(1);
   });
 
@@ -179,15 +179,37 @@ describe("ingestOffer: pasted URL to a mapped offer (#1, FR-005)", () => {
     serve(() => responseAt(otodomPage(saleHouse())));
     const result = await ingestOffer(FLAT_SALE_URL, new AbortController().signal);
     expect(result).not.toHaveProperty("offer");
-    expect(result).toMatchObject({ ok: false, reason: "not_a_flat" });
+    expect(result).toMatchObject({ ok: false, stage: "map", reason: "not_a_flat" });
   });
 
   it("passes a fetch failure through with its status", async () => {
     serve(() => responseAt("<html></html>", { status: 403 }));
     expect(await ingestOffer(FLAT_SALE_URL, new AbortController().signal)).toEqual({
       ok: false,
+      stage: "fetch",
       reason: "http_denied",
       status: 403,
+    });
+  });
+
+  // The same reason from two places: only the stage tells a page that lost its data from a
+  // payload the mapper no longer recognises.
+  it("names the fetch as the stage when the page carries no listing data", async () => {
+    serve(() => responseAt(PAGE_WITHOUT_NEXT_DATA));
+    expect(await ingestOffer(FLAT_SALE_URL, new AbortController().signal)).toEqual({
+      ok: false,
+      stage: "fetch",
+      reason: "shape_changed",
+    });
+  });
+
+  it("names the mapper as the stage when the listing has no title", async () => {
+    serve(() => responseAt(otodomPage(omitKeys(flatSaleAd(), "title"))));
+    expect(await ingestOffer(FLAT_SALE_URL, new AbortController().signal)).toEqual({
+      ok: false,
+      stage: "map",
+      reason: "shape_changed",
+      detail: "id, title, url or description missing",
     });
   });
 });

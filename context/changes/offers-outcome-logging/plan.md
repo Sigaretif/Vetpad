@@ -582,26 +582,26 @@ Brak migracji bazy i brak zmian w konfiguracji. Zmiana nie wymaga `supabase db p
 
 #### Automated
 
-- [x] 2.1 Nowe przypadki w `tests/pages/api/offers.test.ts` są czerwone przed zmianą trasy i zielone po niej
-- [x] 2.2 `npm test` przechodzi, w tym dotychczasowe przypadki trasy bez zmiany ich asercji
-- [x] 2.3 `npm run lint` przechodzi
-- [x] 2.4 `npx astro sync && npx astro check` przechodzi
+- [x] 2.1 Nowe przypadki w `tests/pages/api/offers.test.ts` są czerwone przed zmianą trasy i zielone po niej — cc282c1
+- [x] 2.2 `npm test` przechodzi, w tym dotychczasowe przypadki trasy bez zmiany ich asercji — cc282c1
+- [x] 2.3 `npm run lint` przechodzi — cc282c1
+- [x] 2.4 `npx astro sync && npx astro check` przechodzi — cc282c1
 
 ### Phase 3: Pozostałe wyjścia i wynik pobierania
 
 #### Automated
 
-- [ ] 3.1 Nowe i rozszerzone przypadki w `tests/pages/api/offers.test.ts`, `tests/pages/api/offers.unconfigured.test.ts` i `tests/lib/otodom/fetch.test.ts` są czerwone przed zmianą i zielone po niej
-- [ ] 3.2 `npm test` przechodzi
-- [ ] 3.3 `npm run lint` przechodzi
-- [ ] 3.4 `npx astro sync && npx astro check` przechodzi, a usunięcie na próbę jednego powodu z tabeli powód → wynik go wywraca
-- [ ] 3.5 `npm run build` przechodzi
-- [ ] 3.6 `npm run smoke` przechodzi bez zmian w `scripts/smoke.mjs`
+- [x] 3.1 Nowe i rozszerzone przypadki w `tests/pages/api/offers.test.ts`, `tests/pages/api/offers.unconfigured.test.ts` i `tests/lib/otodom/fetch.test.ts` są czerwone przed zmianą i zielone po niej
+- [x] 3.2 `npm test` przechodzi
+- [x] 3.3 `npm run lint` przechodzi
+- [x] 3.4 `npx astro sync && npx astro check` przechodzi, a usunięcie na próbę jednego powodu z tabeli powód → wynik go wywraca
+- [x] 3.5 `npm run build` przechodzi
+- [x] 3.6 `npm run smoke` przechodzi bez zmian w `scripts/smoke.mjs`
 
 #### Manual
 
-- [ ] 3.7 W `npm run dev` z lokalnym Supabase adres z olx.pl daje w terminalu jeden wpis `refused` / `url` / `foreign_host`, a formularz pokazuje ten sam komunikat co przed zmianą
-- [ ] 3.8 Wklejenie jednego prawdziwego ogłoszenia sprzedaży mieszkania daje wpisy `started` i `saved`, a ponowne wklejenie tego samego adresu wpis `duplicate`; żaden wpis nie zawiera tytułu, opisu ani pełnego adresu ogłoszenia
+- [x] 3.7 W `npm run dev` z lokalnym Supabase adres z olx.pl daje w terminalu jeden wpis `refused` / `url` / `foreign_host`, a formularz pokazuje ten sam komunikat co przed zmianą
+- [x] 3.8 Wklejenie jednego prawdziwego ogłoszenia sprzedaży mieszkania daje wpisy `started` i `saved`, a ponowne wklejenie tego samego adresu wpis `duplicate`; żaden wpis nie zawiera tytułu, opisu ani pełnego adresu ogłoszenia
 
 ### Phase 4: Dowód prywatności, mutacje, dokumentacja
 

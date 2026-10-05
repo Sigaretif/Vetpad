@@ -15,7 +15,15 @@ import {
   restoreFetch,
   stubFetch,
 } from "../../fixtures/http";
-import { CANARY_NAME, CANARY_PHONE, SELLER_CANARIES, flatSaleAd, rentalFlat, saleHouse } from "../../fixtures/otodom";
+import {
+  CANARY_NAME,
+  CANARY_PHONE,
+  SELLER_CANARIES,
+  flatSaleAd,
+  omitKeys,
+  rentalFlat,
+  saleHouse,
+} from "../../fixtures/otodom";
 
 // The route with a configured Supabase client (test values, never a real project's): this mock
 // overrides the zero-config one in tests/setup.ts. Only the network is stubbed below —
@@ -46,16 +54,37 @@ function stubNetwork(page: () => Response) {
   return stubFetch((request) => (isOtodomRequest(request) ? page() : emptyOffersTable(request)));
 }
 
-async function submit(url: string, user = { id: USER_ID, email: USER_EMAIL }): Promise<Response> {
-  const form = new FormData();
-  form.set("url", url);
+interface Member {
+  id: string;
+  email: string;
+}
+const MEMBER: Member = { id: USER_ID, email: USER_EMAIL };
+
+// Every log entry below is written out by hand. `listing` is the `ID…` token of the pasted
+// slug, `otodom_id` the `id` of `flatSaleAd()`.
+const LISTING = "IDKANAR1";
+const OTODOM_ID = 65000001;
+
+/** The entry the route leaves before it reaches for otodom.pl, so a fetch the platform cut short still has a trace. */
+const STARTED: ConsoleEntry = {
+  method: "info",
+  args: [{ level: "info", event: "offer_add", outcome: "started", stage: "fetch", user_id: USER_ID, listing: LISTING }],
+};
+
+async function post(request: Request, user: Member | null): Promise<Response> {
   const context = {
-    request: new Request("http://localhost/api/offers", { method: "POST", body: form }),
+    request,
     locals: { user },
     cookies: { set: vi.fn() },
     redirect: (location: string, status = 302) => new Response(null, { status, headers: { Location: location } }),
   } as unknown as APIContext;
   return POST(context);
+}
+
+async function submit(url: string, user: Member | null = MEMBER): Promise<Response> {
+  const form = new FormData();
+  form.set("url", url);
+  return post(new Request("http://localhost/api/offers", { method: "POST", body: form }), user);
 }
 
 function location(response: Response): URL {
@@ -70,15 +99,56 @@ function offerInserts(requests: RecordedRequest[]): RecordedRequest[] {
 }
 
 describe("POST /api/offers: a refusal saves nothing (#1, FR-005)", () => {
-  // Each distinguishing fragment is the part of the message that names the reason.
-  const REFUSALS: [string, () => Response, string[]][] = [
-    ["a flat for rent", () => responseAt(otodomPage(rentalFlat())), ["wynajmu"]],
-    ["a house for sale", () => responseAt(otodomPage(saleHouse())), ["innego rodzaju nieruchomości"]],
-    ["a page without __NEXT_DATA__", () => responseAt(PAGE_WITHOUT_NEXT_DATA), ["zmienić format"]],
-    ["an HTTP 403 from otodom", () => responseAt("<html></html>", { status: 403 }), ["odmówił", "(HTTP 403)"]],
+  // Each distinguishing fragment is the part of the message that names the reason. The last two
+  // columns are the log entry: a refusal the product expects is info, a failure is an error,
+  // and the stage tells the two `shape_changed` apart.
+  const REFUSALS: [string, () => Response, string[], "info" | "error", Record<string, string | number>][] = [
+    [
+      "a flat for rent",
+      () => responseAt(otodomPage(rentalFlat())),
+      ["wynajmu"],
+      "info",
+      { outcome: "refused", stage: "map", reason: "not_for_sale" },
+    ],
+    [
+      "a house for sale",
+      () => responseAt(otodomPage(saleHouse())),
+      ["innego rodzaju nieruchomości"],
+      "info",
+      { outcome: "refused", stage: "map", reason: "not_a_flat", detail: "dom" },
+    ],
+    [
+      "a page without __NEXT_DATA__",
+      () => responseAt(PAGE_WITHOUT_NEXT_DATA),
+      ["zmienić format"],
+      "error",
+      { outcome: "failed", stage: "fetch", reason: "shape_changed" },
+    ],
+    [
+      "a listing without a title",
+      () => responseAt(otodomPage(omitKeys(flatSaleAd(), "title"))),
+      ["zmienić format"],
+      "error",
+      { outcome: "failed", stage: "map", reason: "shape_changed", detail: "id, title, url or description missing" },
+    ],
+    [
+      "an HTTP 403 from otodom",
+      () => responseAt("<html></html>", { status: 403 }),
+      ["odmówił", "(HTTP 403)"],
+      "error",
+      { outcome: "failed", stage: "fetch", reason: "http_denied", status: 403 },
+    ],
+    [
+      "an HTTP 404 from otodom",
+      () => responseAt("<html></html>", { status: 404 }),
+      ["nie istnieje lub wygasło"],
+      "info",
+      { outcome: "refused", stage: "fetch", reason: "not_found", status: 404 },
+    ],
   ];
 
-  it.each(REFUSALS)("refuses %s with its own message and no insert", async (_label, page, fragments) => {
+  it.each(REFUSALS)("refuses %s with its own message and no insert", async (_label, page, fragments, level, entry) => {
+    const captured = captureConsole();
     const stub = stubNetwork(page);
     const target = location(await submit(PASTED_URL));
 
@@ -91,14 +161,96 @@ describe("POST /api/offers: a refusal saves nothing (#1, FR-005)", () => {
     // The refusal came from the fetched page — the fetch did happen — and no row went out.
     expect(stub.requests.filter(isOtodomRequest)).toHaveLength(1);
     expect(offerInserts(stub.requests)).toHaveLength(0);
+    expect(captured.entries()).toStrictEqual([
+      STARTED,
+      { method: level, args: [{ level, event: "offer_add", ...entry, user_id: USER_ID, listing: LISTING }] },
+    ]);
+  });
+});
+
+describe("POST /api/offers: a request refused before the network leaves one entry and no request", () => {
+  /** No request is planned: any that goes out fails the test through `restoreFetch`. */
+  function noNetwork() {
+    return stubFetch(() => undefined);
+  }
+
+  it("refuses an address from another portal", async () => {
+    const captured = captureConsole();
+    const stub = noNetwork();
+    const target = location(await submit("https://www.olx.pl/d/oferta/mieszkanie-54-m-warszawa-IDKANAR1"));
+
+    expect(target.pathname).toBe("/dashboard");
+    expect(target.searchParams.get("error")).toBe("Vetpad obsługuje wyłącznie ogłoszenia z otodom.pl.");
+    expect(stub.requests).toHaveLength(0);
+    expect(captured.entries()).toStrictEqual([
+      {
+        method: "info",
+        args: [
+          {
+            level: "info",
+            event: "offer_add",
+            outcome: "refused",
+            stage: "url",
+            reason: "foreign_host",
+            user_id: USER_ID,
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("sends a signed-out visitor to the sign-in page", async () => {
+    const captured = captureConsole();
+    const stub = noNetwork();
+    const target = location(await submit(PASTED_URL, null));
+
+    expect(target.pathname).toBe("/auth/signin");
+    expect(stub.requests).toHaveLength(0);
+    expect(captured.entries()).toStrictEqual([
+      {
+        method: "info",
+        args: [{ level: "info", event: "offer_add", outcome: "refused", stage: "auth", reason: "signed_out" }],
+      },
+    ]);
+  });
+
+  it("reads a body that is not a form as an empty address", async () => {
+    const captured = captureConsole();
+    const stub = noNetwork();
+    const request = new Request("http://localhost/api/offers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: PASTED_URL }),
+    });
+    const target = location(await post(request, MEMBER));
+
+    expect(target.pathname).toBe("/dashboard");
+    expect(target.searchParams.get("error")).toBe("To nie wygląda na poprawny adres URL.");
+    expect(stub.requests).toHaveLength(0);
+    expect(captured.entries()).toStrictEqual([
+      {
+        method: "info",
+        args: [
+          {
+            level: "info",
+            event: "offer_add",
+            outcome: "refused",
+            stage: "body",
+            reason: "unreadable_body",
+            user_id: USER_ID,
+          },
+        ],
+      },
+    ]);
   });
 });
 
 describe("POST /api/offers: a flat for sale is saved once, without seller data (#1, #6)", () => {
-  async function saved(): Promise<{ response: Response; requests: RecordedRequest[] }> {
+  async function saved(): Promise<{ response: Response; requests: RecordedRequest[]; captured: ConsoleCapture }> {
+    const captured = captureConsole();
     const stub = stubNetwork(() => responseAt(otodomPage(flatSaleAd())));
     const response = await submit(PASTED_URL);
-    return { response, requests: stub.requests };
+    return { response, requests: stub.requests, captured };
   }
 
   function insertedRow(requests: RecordedRequest[]): Record<string, unknown> {
@@ -146,16 +298,34 @@ describe("POST /api/offers: a flat for sale is saved once, without seller data (
     expect(row.description).toContain(CANARY_PHONE);
     expect(row.description).toContain(CANARY_NAME);
   });
+
+  it("logs the start and the save, and nothing as an error", async () => {
+    const { captured } = await saved();
+    expect(captured.entries()).toStrictEqual([
+      STARTED,
+      {
+        method: "info",
+        args: [
+          {
+            level: "info",
+            event: "offer_add",
+            outcome: "saved",
+            stage: "insert",
+            user_id: USER_ID,
+            listing: LISTING,
+            otodom_id: OTODOM_ID,
+            offer_id: INSERTED_OFFER_ID,
+          },
+        ],
+      },
+    ]);
+  });
 });
 
 // What the route knows when the database lets it down, and what it tells the member: a failed
 // duplicate check has fetched nothing, an insert without an answer may have landed, and a
-// unique violation means the listing is saved even when its card cannot be found. Every log
-// entry is written out by hand; `listing` is the `ID…` token of the pasted slug, `otodom_id`
-// the `id` of `flatSaleAd()`.
+// unique violation means the listing is saved even when its card cannot be found.
 describe("POST /api/offers: a database failure is logged with its code and told as it is", () => {
-  const LISTING = "IDKANAR1";
-  const OTODOM_ID = 65000001;
   const EXISTING_OFFER_ID = "0b9f0c2e-7d1a-4c55-9a53-000000000002";
   const SAVE_FAILED = "Nie udało się zapisać oferty. Nic nie zostało zapisane.";
   const UNIQUE_VIOLATION = {

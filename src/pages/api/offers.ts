@@ -46,9 +46,30 @@ function failureMessage(reason: IngestFailureReason, status?: number): string {
   }
 }
 
-type Outcome = "duplicate" | "failed";
+type Outcome = "started" | "saved" | "duplicate" | "refused" | "failed";
 
-/** The client is untyped; the two lookups below select `id` alone. */
+/**
+ * A refusal the product expects, or a failure somebody has to look at. Stands beside
+ * `failureMessage` and is exhaustive the same way: a new reason without an entry here fails
+ * `npx astro check`.
+ */
+const INGEST_OUTCOME: Record<IngestFailureReason, "refused" | "failed"> = {
+  empty: "refused",
+  malformed: "refused",
+  foreign_host: "refused",
+  not_an_offer: "refused",
+  not_for_sale: "refused",
+  not_a_flat: "refused",
+  not_found: "refused",
+  expired: "refused",
+  http_denied: "failed",
+  upstream_error: "failed",
+  shape_changed: "failed",
+  timeout: "failed",
+  network: "failed",
+};
+
+/** The client is untyped; the reads below select `id` alone. */
 interface OfferId {
   id: string;
 }
@@ -76,11 +97,13 @@ export const POST: APIRoute = async (context) => {
 
   const user = context.locals.user;
   if (!user) {
+    report("refused", { stage: "auth", reason: "signed_out" });
     return context.redirect("/auth/signin");
   }
 
   const supabase = createClient(context.request.headers, context.cookies);
   if (!supabase) {
+    report("refused", { stage: "config", reason: "unconfigured", user_id: user.id });
     return fail(NOT_CONFIGURED);
   }
 
@@ -89,11 +112,13 @@ export const POST: APIRoute = async (context) => {
     form = await context.request.formData();
   } catch {
     // A body that is not a form (a hand-crafted request) reads as an empty field, never a 500.
+    report("refused", { stage: "body", reason: "unreadable_body", user_id: user.id });
     return fail(failureMessage("empty"));
   }
   const rawUrl = form.get("url");
   const normalized = normalizeOfferUrl(typeof rawUrl === "string" ? rawUrl : "");
   if (!normalized.ok) {
+    report("refused", { stage: "url", reason: normalized.reason, user_id: user.id });
     return fail(failureMessage(normalized.reason));
   }
 
@@ -115,19 +140,28 @@ export const POST: APIRoute = async (context) => {
     return context.redirect(`/offers/${existing.data.id}?duplicate=1`);
   }
 
+  // Written before the fetch, which may take 45 s: a call the platform cuts short still leaves a trace.
+  report("started", { ...ids, stage: "fetch" });
   const result = await ingestOffer(normalized.url, AbortSignal.timeout(45_000));
   if (!result.ok) {
+    report(INGEST_OUTCOME[result.reason], {
+      ...ids,
+      stage: result.stage,
+      reason: result.reason,
+      status: result.status,
+      detail: result.detail,
+    });
     return fail(failureMessage(result.reason, result.status));
   }
 
+  const saving = { ...ids, otodom_id: result.offer.otodom_id };
   const inserted = await supabase
     .from("offers")
     .insert({ ...result.offer, source_url: result.url, created_by: user.id })
     .select("id")
-    .single();
+    .single<OfferId>();
 
   if (inserted.error) {
-    const saving = { ...ids, otodom_id: result.offer.otodom_id };
     // No answer at all: the row may have landed, so the member is not told that nothing was saved.
     if (inserted.status === 0) {
       report("failed", {
@@ -172,5 +206,6 @@ export const POST: APIRoute = async (context) => {
     return context.redirect(`/offers/${twin.data.id}?duplicate=1`);
   }
 
+  report("saved", { ...saving, stage: "insert", offer_id: inserted.data.id });
   return context.redirect(`/offers/${inserted.data.id}`);
 };
