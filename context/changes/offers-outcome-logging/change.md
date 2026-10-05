@@ -1,7 +1,7 @@
 ---
 change_id: offers-outcome-logging
 title: Log one structured entry for every outcome of adding an offer
-status: implementing
+status: implemented
 created: 2026-10-05
 updated: 2026-10-05
 archived_at: null

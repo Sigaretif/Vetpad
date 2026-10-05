@@ -607,14 +607,14 @@ Brak migracji bazy i brak zmian w konfiguracji. Zmiana nie wymaga `supabase db p
 
 #### Automated
 
-- [x] 4.1 `npm test` przechodzi z testem przekrojowym prywatności
-- [x] 4.2 Próba: `error.details` przekazane z trasy do `logEvent` nie zmienia wyjścia konsoli (reporter je odrzuca), a po dopisaniu klucza `details` także do białej listy reportera testy prywatności są czerwone; obie zmiany zostają cofnięte
-- [x] 4.3 Przebieg Strykera zawężony do trzech plików kończy się, a `mutation.md` ma decyzję dla każdego ocalałego i niepokrytego mutanta
-- [x] 4.4 `npm run lint` przechodzi
-- [x] 4.5 `npx astro sync && npx astro check` przechodzi
-- [x] 4.6 `npm run build` przechodzi
+- [x] 4.1 `npm test` przechodzi z testem przekrojowym prywatności — 57c5ebf
+- [x] 4.2 Próba: `error.details` przekazane z trasy do `logEvent` nie zmienia wyjścia konsoli (reporter je odrzuca), a po dopisaniu klucza `details` także do białej listy reportera testy prywatności są czerwone; obie zmiany zostają cofnięte — 57c5ebf
+- [x] 4.3 Przebieg Strykera zawężony do trzech plików kończy się, a `mutation.md` ma decyzję dla każdego ocalałego i niepokrytego mutanta — 57c5ebf
+- [x] 4.4 `npm run lint` przechodzi — 57c5ebf
+- [x] 4.5 `npx astro sync && npx astro check` przechodzi — 57c5ebf
+- [x] 4.6 `npm run build` przechodzi — 57c5ebf
 
 #### Manual
 
-- [x] 4.7 Dziennik mutantów przeczytany: decyzje „świadomie pominięty" mają powód, z którym się zgadzasz
-- [x] 4.8 Punkt w `CLAUDE.md` i akapit w runbooku opisują to, co robi kod, i nie powtarzają go
+- [x] 4.7 Dziennik mutantów przeczytany: decyzje „świadomie pominięty" mają powód, z którym się zgadzasz — 57c5ebf
+- [x] 4.8 Punkt w `CLAUDE.md` i akapit w runbooku opisują to, co robi kod, i nie powtarzają go — 57c5ebf
