@@ -591,30 +591,30 @@ Brak migracji bazy i brak zmian w konfiguracji. Zmiana nie wymaga `supabase db p
 
 #### Automated
 
-- [x] 3.1 Nowe i rozszerzone przypadki w `tests/pages/api/offers.test.ts`, `tests/pages/api/offers.unconfigured.test.ts` i `tests/lib/otodom/fetch.test.ts` są czerwone przed zmianą i zielone po niej
-- [x] 3.2 `npm test` przechodzi
-- [x] 3.3 `npm run lint` przechodzi
-- [x] 3.4 `npx astro sync && npx astro check` przechodzi, a usunięcie na próbę jednego powodu z tabeli powód → wynik go wywraca
-- [x] 3.5 `npm run build` przechodzi
-- [x] 3.6 `npm run smoke` przechodzi bez zmian w `scripts/smoke.mjs`
+- [x] 3.1 Nowe i rozszerzone przypadki w `tests/pages/api/offers.test.ts`, `tests/pages/api/offers.unconfigured.test.ts` i `tests/lib/otodom/fetch.test.ts` są czerwone przed zmianą i zielone po niej — 4f559bf
+- [x] 3.2 `npm test` przechodzi — 4f559bf
+- [x] 3.3 `npm run lint` przechodzi — 4f559bf
+- [x] 3.4 `npx astro sync && npx astro check` przechodzi, a usunięcie na próbę jednego powodu z tabeli powód → wynik go wywraca — 4f559bf
+- [x] 3.5 `npm run build` przechodzi — 4f559bf
+- [x] 3.6 `npm run smoke` przechodzi bez zmian w `scripts/smoke.mjs` — 4f559bf
 
 #### Manual
 
-- [x] 3.7 W `npm run dev` z lokalnym Supabase adres z olx.pl daje w terminalu jeden wpis `refused` / `url` / `foreign_host`, a formularz pokazuje ten sam komunikat co przed zmianą
-- [x] 3.8 Wklejenie jednego prawdziwego ogłoszenia sprzedaży mieszkania daje wpisy `started` i `saved`, a ponowne wklejenie tego samego adresu wpis `duplicate`; żaden wpis nie zawiera tytułu, opisu ani pełnego adresu ogłoszenia
+- [x] 3.7 W `npm run dev` z lokalnym Supabase adres z olx.pl daje w terminalu jeden wpis `refused` / `url` / `foreign_host`, a formularz pokazuje ten sam komunikat co przed zmianą — 4f559bf
+- [x] 3.8 Wklejenie jednego prawdziwego ogłoszenia sprzedaży mieszkania daje wpisy `started` i `saved`, a ponowne wklejenie tego samego adresu wpis `duplicate`; żaden wpis nie zawiera tytułu, opisu ani pełnego adresu ogłoszenia — 4f559bf
 
 ### Phase 4: Dowód prywatności, mutacje, dokumentacja
 
 #### Automated
 
-- [ ] 4.1 `npm test` przechodzi z testem przekrojowym prywatności
-- [ ] 4.2 Próba: `error.details` przekazane z trasy do `logEvent` nie zmienia wyjścia konsoli (reporter je odrzuca), a po dopisaniu klucza `details` także do białej listy reportera testy prywatności są czerwone; obie zmiany zostają cofnięte
-- [ ] 4.3 Przebieg Strykera zawężony do trzech plików kończy się, a `mutation.md` ma decyzję dla każdego ocalałego i niepokrytego mutanta
-- [ ] 4.4 `npm run lint` przechodzi
-- [ ] 4.5 `npx astro sync && npx astro check` przechodzi
-- [ ] 4.6 `npm run build` przechodzi
+- [x] 4.1 `npm test` przechodzi z testem przekrojowym prywatności
+- [x] 4.2 Próba: `error.details` przekazane z trasy do `logEvent` nie zmienia wyjścia konsoli (reporter je odrzuca), a po dopisaniu klucza `details` także do białej listy reportera testy prywatności są czerwone; obie zmiany zostają cofnięte
+- [x] 4.3 Przebieg Strykera zawężony do trzech plików kończy się, a `mutation.md` ma decyzję dla każdego ocalałego i niepokrytego mutanta
+- [x] 4.4 `npm run lint` przechodzi
+- [x] 4.5 `npx astro sync && npx astro check` przechodzi
+- [x] 4.6 `npm run build` przechodzi
 
 #### Manual
 
-- [ ] 4.7 Dziennik mutantów przeczytany: decyzje „świadomie pominięty" mają powód, z którym się zgadzasz
-- [ ] 4.8 Punkt w `CLAUDE.md` i akapit w runbooku opisują to, co robi kod, i nie powtarzają go
+- [x] 4.7 Dziennik mutantów przeczytany: decyzje „świadomie pominięty" mają powód, z którym się zgadzasz
+- [x] 4.8 Punkt w `CLAUDE.md` i akapit w runbooku opisują to, co robi kod, i nie powtarzają go

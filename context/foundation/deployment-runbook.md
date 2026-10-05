@@ -13,25 +13,25 @@ first_deployed: 2026-09-20
 Operational knowledge for shipping and debugging Vetpad in production. Written for
 an agent starting a fresh session with no memory of how this was set up.
 
-`@context/foundation/infrastructure.md` is *why* this platform was chosen.
-This file is *how it actually behaves*, written after deploy zero — every entry
+`@context/foundation/infrastructure.md` is _why_ this platform was chosen.
+This file is _how it actually behaves_, written after deploy zero — every entry
 below was observed, not predicted. The step-by-step account of that first deploy
 lives in `context/changes/deployment/deployment-plan.md` until that change is
 archived; this file is the part that outlives it.
 
 ## Current state
 
-| | |
-| --- | --- |
-| Worker | `vetpad` |
-| Production URL | <https://vetpad.vetpad.workers.dev> |
-| Cloudflare account | `917c8d5693d671be4227202d2ceb42ed` |
-| Plan | **Workers Free** — deliberate, see "When to buy Workers Paid" |
-| Auto-deploy | Workers Builds, production branch **`master`** |
-| Secrets in production | `SUPABASE_URL`, `SUPABASE_KEY` (hosted Supabase, publishable key) |
-| KV binding | `SESSION` → namespace `vetpad-session` (auto-provisioned, adapter-injected) |
-| Preview URLs | **disabled** (`preview_urls: false`) |
-| Observability | enabled; `wrangler tail` and Workers Logs both work on Free |
+|                       |                                                                             |
+| --------------------- | --------------------------------------------------------------------------- |
+| Worker                | `vetpad`                                                                    |
+| Production URL        | <https://vetpad.vetpad.workers.dev>                                         |
+| Cloudflare account    | `917c8d5693d671be4227202d2ceb42ed`                                          |
+| Plan                  | **Workers Free** — deliberate, see "When to buy Workers Paid"               |
+| Auto-deploy           | Workers Builds, production branch **`master`**                              |
+| Secrets in production | `SUPABASE_URL`, `SUPABASE_KEY` (hosted Supabase, publishable key)           |
+| KV binding            | `SESSION` → namespace `vetpad-session` (auto-provisioned, adapter-injected) |
+| Preview URLs          | **disabled** (`preview_urls: false`)                                        |
+| Observability         | enabled; `wrangler tail` and Workers Logs both work on Free                 |
 
 ## How a change reaches production
 
@@ -106,22 +106,25 @@ Workers Logs is included on Free (200k events/day, 3-day retention) and
 `observability.enabled` is already true, so the dashboard's log view works with no
 extra setup.
 
+Every attempt to add an offer leaves entries with `event: "offer_add"`: filter on that
+field, then on `outcome`, `stage` and `reason`.
+
 ## Symptoms that lie
 
 Every row here was hit or verified during deploy zero. All of them look like
 something other than what they are, which is the only reason this table exists.
 
-| Symptom | Actual cause | Action |
-| --- | --- | --- |
-| `1102 Worker exceeded resource limits` | Free plan's 10 ms CPU ceiling | **Check the plan before debugging code.** The message names no limit and reads like an application bug |
-| Deploy rejected, API error **100328** | a `limits` block in `wrangler.jsonc` while on Free | Remove it. `limits.cpu_ms` is Paid-only and blocks the deploy outright |
-| `curl` exit 35 / `sslv3 alert handshake failure` on a fresh `*.workers.dev` name | certificate not issued yet — the wildcard covers one label, this host has two | Wait ~2 minutes and retry. The Worker is already live |
-| Push to `master` triggers no build, silently | Workers Builds production branch left at the default `main` | Set it to `master`. Failure mode is silence, not an error |
-| Build fails during install | `.nvmrc` pins a version the build image lacks | Image preinstalls **22.23.2** and **24.18.0** only; an exact version outside those forces a source build |
-| New version shows source `version_upload`, looks unpromoted | `wrangler deploy` is upload **then** promotion, and the API labels them separately | Check `wrangler deployments list` — 100% traffic on the new version means it deployed |
-| Login fails in production, **and no banner appears** | hosted Supabase project paused after ~7 days idle (Free tier) | Resume it in the Supabase dashboard. `src/lib/config-status.ts` detects *unset* variables, never an *unreachable* service |
-| A table returns `[]` with HTTP 200 | RLS is on with no `select` policy — looks like missing data | Add the policy. **Never** reach for the `secret` / `service_role` key |
-| Secrets appear to vanish after an auto-deploy | they do not — secrets are per-Worker, not per-version | Verified: they survived the first Workers Builds deploy |
+| Symptom                                                                          | Actual cause                                                                       | Action                                                                                                                    |
+| -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `1102 Worker exceeded resource limits`                                           | Free plan's 10 ms CPU ceiling                                                      | **Check the plan before debugging code.** The message names no limit and reads like an application bug                    |
+| Deploy rejected, API error **100328**                                            | a `limits` block in `wrangler.jsonc` while on Free                                 | Remove it. `limits.cpu_ms` is Paid-only and blocks the deploy outright                                                    |
+| `curl` exit 35 / `sslv3 alert handshake failure` on a fresh `*.workers.dev` name | certificate not issued yet — the wildcard covers one label, this host has two      | Wait ~2 minutes and retry. The Worker is already live                                                                     |
+| Push to `master` triggers no build, silently                                     | Workers Builds production branch left at the default `main`                        | Set it to `master`. Failure mode is silence, not an error                                                                 |
+| Build fails during install                                                       | `.nvmrc` pins a version the build image lacks                                      | Image preinstalls **22.23.2** and **24.18.0** only; an exact version outside those forces a source build                  |
+| New version shows source `version_upload`, looks unpromoted                      | `wrangler deploy` is upload **then** promotion, and the API labels them separately | Check `wrangler deployments list` — 100% traffic on the new version means it deployed                                     |
+| Login fails in production, **and no banner appears**                             | hosted Supabase project paused after ~7 days idle (Free tier)                      | Resume it in the Supabase dashboard. `src/lib/config-status.ts` detects _unset_ variables, never an _unreachable_ service |
+| A table returns `[]` with HTTP 200                                               | RLS is on with no `select` policy — looks like missing data                        | Add the policy. **Never** reach for the `secret` / `service_role` key                                                     |
+| Secrets appear to vanish after an auto-deploy                                    | they do not — secrets are per-Worker, not per-version                              | Verified: they survived the first Workers Builds deploy                                                                   |
 
 ## Contingencies
 
@@ -138,9 +141,16 @@ FR-004 fetches. So the direct path is the one in use: one `fetch`, one bounded
 `RegExp`, `JSON.parse`.
 
 One observation is not permanent access. Blocking of datacenter ranges arrives
-gradually, so **log every non-200 fetch status distinctly from a parse failure** —
-otherwise intermittent blocking is indistinguishable from a broken parser, which is
-exactly the failure the pre-mortem describes.
+gradually, and intermittent blocking is indistinguishable from a broken parser unless
+the log tells a non-200 fetch status from a parse failure — exactly the failure the
+pre-mortem describes. `POST /api/offers` logs both (`src/pages/api/offers.ts`), so
+read the entry before concluding anything:
+
+- `reason: "http_denied"` with a `status` — the portal refused the fetch;
+- `reason: "shape_changed"` with `stage: "fetch"` — the page arrived without its
+  data;
+- `reason: "shape_changed"` with `stage: "map"` — the data arrived and its shape has
+  changed.
 
 Re-run the probe before concluding anything: deploy a throwaway Worker **outside
 this repository** that fetches one otodom URL and returns the status code plus
@@ -169,9 +179,8 @@ a probe decoded 1.2 MB of HTML and scanned it without tripping the limit.
 
 **The FR-004 ingestion cost has since been measured, and the earlier warning in this
 file overstated it.** A probe ran the full section 7.1 path against a live offer page
-on the Free plan: `RegExp` plus `JSON.parse` completed in **under a millisecond**, no
-1102. The reason the fear was misplaced is worth keeping — the offer page is ~558 KB
-of *HTML*, but the embedded `__NEXT_DATA__` JSON is only ~102 KB, a fifth of it. The
+on the Free plan: `RegExp` plus `JSON.parse` completed in **under a millisecond**, no 1102. The reason the fear was misplaced is worth keeping — the offer page is ~558 KB
+of _HTML_, but the embedded `__NEXT_DATA__` JSON is only ~102 KB, a fifth of it. The
 parse was never operating on the number that made it look expensive.
 
 Still re-measure before this lands on `master`:
@@ -244,11 +253,11 @@ seed is for local fixtures only.
 
 ## Two databases, never one
 
-| Where | Which Supabase |
-| --- | --- |
+| Where                                                   | Which Supabase                   |
+| ------------------------------------------------------- | -------------------------------- |
 | `.env`, `.dev.vars` — `npm run dev`, `preview`, `smoke` | **local** (`npx supabase start`) |
-| CI `smoke` job | its own local container |
-| Workers Secrets | **hosted** |
+| CI `smoke` job                                          | its own local container          |
+| Workers Secrets                                         | **hosted**                       |
 
 Local development uses the local database. `npm run smoke` signs in with an account
 from `supabase/seed.sql` and attempts a sign-up, so it needs the local database: only

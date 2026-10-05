@@ -49,8 +49,10 @@ const USER_EMAIL = "czlonek.kanarek@vetpad.local";
 const NORMALISED_URL = "https://www.otodom.pl/pl/oferta/mieszkanie-54-m-warszawa-IDKANAR1";
 const PASTED_URL = "https://otodom.pl/oferta/mieszkanie-54-m-warszawa-IDKANAR1/?utm_source=kanarek";
 
+type Answer = () => Response | Promise<Response>;
+
 /** Serves `page` for otodom and answers the route's planned Supabase requests. */
-function stubNetwork(page: () => Response) {
+function stubNetwork(page: Answer) {
   return stubFetch((request) => (isOtodomRequest(request) ? page() : emptyOffersTable(request)));
 }
 
@@ -87,6 +89,30 @@ async function submit(url: string, user: Member | null = MEMBER): Promise<Respon
   return post(new Request("http://localhost/api/offers", { method: "POST", body: form }), user);
 }
 
+const EXISTING_OFFER_ID = "0b9f0c2e-7d1a-4c55-9a53-000000000002";
+const SAVE_FAILED = "Nie udało się zapisać oferty. Nic nie zostało zapisane.";
+const UNIQUE_VIOLATION = {
+  code: "23505",
+  message: 'duplicate key value violates unique constraint "offers_otodom_id_key"',
+};
+
+/**
+ * otodom serves the flat for sale, and each of the route's Supabase requests is answered by
+ * the test: the duplicate check by `source_url`, the insert, and the twin lookup by
+ * `otodom_id`. A request the test names no answer for falls back to the empty table; a twin
+ * lookup nobody planned stays unplanned.
+ */
+function stubDatabase({ precheck, insert, twin }: { precheck?: Answer; insert?: Answer; twin?: Answer }) {
+  return stubFetch((request) => {
+    if (isOtodomRequest(request)) return responseAt(otodomPage(flatSaleAd()));
+    const params = new URL(request.url).searchParams;
+    if (isOffersRequest(request, "GET") && params.has("source_url") && precheck) return precheck();
+    if (isOffersRequest(request, "GET") && params.get("otodom_id") === `eq.${OTODOM_ID}`) return twin?.();
+    if (isOffersRequest(request, "POST") && insert) return insert();
+    return emptyOffersTable(request);
+  });
+}
+
 function location(response: Response): URL {
   expect(response.status).toBe(302);
   const header = response.headers.get("Location");
@@ -102,7 +128,7 @@ describe("POST /api/offers: a refusal saves nothing (#1, FR-005)", () => {
   // Each distinguishing fragment is the part of the message that names the reason. The last two
   // columns are the log entry: a refusal the product expects is info, a failure is an error,
   // and the stage tells the two `shape_changed` apart.
-  const REFUSALS: [string, () => Response, string[], "info" | "error", Record<string, string | number>][] = [
+  const REFUSALS: [string, Answer, string[], "info" | "error", Record<string, string | number>][] = [
     [
       "a flat for rent",
       () => responseAt(otodomPage(rentalFlat())),
@@ -145,6 +171,42 @@ describe("POST /api/offers: a refusal saves nothing (#1, FR-005)", () => {
       "info",
       { outcome: "refused", stage: "fetch", reason: "not_found", status: 404 },
     ],
+    [
+      "an expired listing that still ships its payload",
+      () => responseAt(otodomPage(flatSaleAd({ shouldShowExpiredAdPage: true }))),
+      ["nie istnieje lub wygasło"],
+      "info",
+      { outcome: "refused", stage: "fetch", reason: "expired" },
+    ],
+    [
+      "an HTTP 503 from otodom",
+      () => responseAt("<html></html>", { status: 503 }),
+      ["chwilowo niedostępny", "(HTTP 503)"],
+      "error",
+      { outcome: "failed", stage: "fetch", reason: "upstream_error", status: 503 },
+    ],
+    [
+      // No status to show: the sentence ends right after the noun.
+      "a redirect off otodom",
+      () => responseAt(otodomPage(flatSaleAd()), { url: "https://consent.example/?next=oferta" }),
+      ["odmówił pobrania ogłoszenia. Nic nie zostało zapisane"],
+      "error",
+      { outcome: "failed", stage: "fetch", reason: "http_denied" },
+    ],
+    [
+      "a fetch that never connected",
+      () => Promise.reject(new TypeError("fetch failed")),
+      ["Nie udało się połączyć z otodom.pl"],
+      "error",
+      { outcome: "failed", stage: "fetch", reason: "network" },
+    ],
+    [
+      "a fetch that timed out",
+      () => Promise.reject(new DOMException("The operation timed out.", "TimeoutError")),
+      ["dłużej niż 45 sekund"],
+      "error",
+      { outcome: "failed", stage: "fetch", reason: "timeout" },
+    ],
   ];
 
   it.each(REFUSALS)("refuses %s with its own message and no insert", async (_label, page, fragments, level, entry) => {
@@ -174,26 +236,50 @@ describe("POST /api/offers: a request refused before the network leaves one entr
     return stubFetch(() => undefined);
   }
 
-  it("refuses an address from another portal", async () => {
+  it.each([
+    ["an empty address", "", "To nie wygląda na poprawny adres URL.", "empty"],
+    ["text that is not an address", "to nie jest adres", "To nie wygląda na poprawny adres URL.", "malformed"],
+    [
+      "an address from another portal",
+      "https://www.olx.pl/d/oferta/mieszkanie-54-m-warszawa-IDKANAR1",
+      "Vetpad obsługuje wyłącznie ogłoszenia z otodom.pl.",
+      "foreign_host",
+    ],
+    [
+      "an otodom address that is not an offer",
+      "https://www.otodom.pl/pl/wyniki/sprzedaz/mieszkanie/warszawa",
+      "Ten adres nie prowadzi do ogłoszenia otodom.pl.",
+      "not_an_offer",
+    ],
+  ])("refuses %s", async (_label, pasted, message, reason) => {
     const captured = captureConsole();
     const stub = noNetwork();
-    const target = location(await submit("https://www.olx.pl/d/oferta/mieszkanie-54-m-warszawa-IDKANAR1"));
+    const target = location(await submit(pasted));
 
     expect(target.pathname).toBe("/dashboard");
-    expect(target.searchParams.get("error")).toBe("Vetpad obsługuje wyłącznie ogłoszenia z otodom.pl.");
+    expect(target.searchParams.get("error")).toBe(message);
+    expect(stub.requests).toHaveLength(0);
+    expect(captured.entries()).toStrictEqual([
+      {
+        method: "info",
+        args: [{ level: "info", event: "offer_add", outcome: "refused", stage: "url", reason, user_id: USER_ID }],
+      },
+    ]);
+  });
+
+  it("reads a form without the address field as an empty address, never a 500", async () => {
+    const captured = captureConsole();
+    const stub = noNetwork();
+    const request = new Request("http://localhost/api/offers", { method: "POST", body: new FormData() });
+    const target = location(await post(request, MEMBER));
+
+    expect(target.searchParams.get("error")).toBe("To nie wygląda na poprawny adres URL.");
     expect(stub.requests).toHaveLength(0);
     expect(captured.entries()).toStrictEqual([
       {
         method: "info",
         args: [
-          {
-            level: "info",
-            event: "offer_add",
-            outcome: "refused",
-            stage: "url",
-            reason: "foreign_host",
-            user_id: USER_ID,
-          },
+          { level: "info", event: "offer_add", outcome: "refused", stage: "url", reason: "empty", user_id: USER_ID },
         ],
       },
     ]);
@@ -326,32 +412,6 @@ describe("POST /api/offers: a flat for sale is saved once, without seller data (
 // duplicate check has fetched nothing, an insert without an answer may have landed, and a
 // unique violation means the listing is saved even when its card cannot be found.
 describe("POST /api/offers: a database failure is logged with its code and told as it is", () => {
-  const EXISTING_OFFER_ID = "0b9f0c2e-7d1a-4c55-9a53-000000000002";
-  const SAVE_FAILED = "Nie udało się zapisać oferty. Nic nie zostało zapisane.";
-  const UNIQUE_VIOLATION = {
-    code: "23505",
-    message: 'duplicate key value violates unique constraint "offers_otodom_id_key"',
-  };
-
-  type Answer = () => Response | Promise<Response>;
-
-  /**
-   * otodom serves the flat for sale, and each of the route's Supabase requests is answered by
-   * the test: the duplicate check by `source_url`, the insert, and the twin lookup by
-   * `otodom_id`. A request the test names no answer for falls back to the empty table; a twin
-   * lookup nobody planned stays unplanned.
-   */
-  function stubDatabase({ precheck, insert, twin }: { precheck?: Answer; insert?: Answer; twin?: Answer }) {
-    return stubFetch((request) => {
-      if (isOtodomRequest(request)) return responseAt(otodomPage(flatSaleAd()));
-      const params = new URL(request.url).searchParams;
-      if (isOffersRequest(request, "GET") && params.has("source_url") && precheck) return precheck();
-      if (isOffersRequest(request, "GET") && params.get("otodom_id") === `eq.${OTODOM_ID}`) return twin?.();
-      if (isOffersRequest(request, "POST") && insert) return insert();
-      return emptyOffersTable(request);
-    });
-  }
-
   /** The entry written right before the route answered. */
   function finalEntry(captured: ConsoleCapture): ConsoleEntry | undefined {
     return captured.entries().at(-1);
@@ -410,6 +470,34 @@ describe("POST /api/offers: a database failure is logged with its code and told 
             stage: "precheck",
             user_id: USER_ID,
             listing: LISTING,
+            offer_id: EXISTING_OFFER_ID,
+          },
+        ],
+      },
+    ]);
+  });
+
+  // The token names the listing; the rest of the slug repeats the words of its title.
+  it.each([
+    ["only the token that ends the slug", "mieszkanie-IDEALNE-warszawa-IDKANAR1", { listing: "IDKANAR1" }],
+    ["no listing for a slug without a token", "mieszkanie-bez-tokenu", {}],
+  ])("logs %s", async (_label, slug, listing) => {
+    const captured = captureConsole();
+    stubDatabase({ precheck: () => jsonResponse([{ id: EXISTING_OFFER_ID }], 200) });
+
+    const target = location(await submit(`https://www.otodom.pl/pl/oferta/${slug}`));
+    expect(target.pathname).toBe(`/offers/${EXISTING_OFFER_ID}`);
+    expect(captured.entries()).toStrictEqual([
+      {
+        method: "info",
+        args: [
+          {
+            level: "info",
+            event: "offer_add",
+            outcome: "duplicate",
+            stage: "precheck",
+            user_id: USER_ID,
+            ...listing,
             offer_id: EXISTING_OFFER_ID,
           },
         ],
@@ -577,5 +665,140 @@ describe("POST /api/offers: a database failure is logged with its code and told 
         },
       ],
     });
+  });
+});
+
+// One assertion over every way out of the route: whatever a later change adds to an entry, the
+// console must not carry the listing's words, the seller, the member's address or the pasted
+// query (prd.md, Non-Functional Requirements; CLAUDE.md, "Secrets and data access"). Each
+// scenario also names the stage its last entry reports, so a scenario that stopped reaching
+// its exit — and therefore logs nothing worth searching — fails instead of passing empty.
+describe("POST /api/offers: no log entry carries listing, seller or member data (#6)", () => {
+  const TITLE = "Mieszkanie 3 pokoje, 54,5 m², Praga-Południe";
+  const FAILING_ROW = `Failing row contains (65000001, ${TITLE}, Kontakt: ${CANARY_NAME}, tel. ${CANARY_PHONE}).`;
+  const FORBIDDEN = [
+    ...SELLER_CANARIES,
+    CANARY_PHONE,
+    CANARY_NAME,
+    USER_EMAIL,
+    TITLE,
+    "Failing row",
+    "utm_source",
+    "otodom.pl",
+    "olx.pl",
+    // The words of the pasted slug; only its `ID…` token may be logged.
+    "mieszkanie-54-m-warszawa",
+    "mieszkanie",
+    "warszawa",
+  ];
+
+  const jsonBody = () =>
+    new Request("http://localhost/api/offers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: PASTED_URL }),
+    });
+
+  const SCENARIOS: [string, string, () => Promise<Response>][] = [
+    [
+      "auth",
+      "a signed-out visitor",
+      () => {
+        stubFetch(() => undefined);
+        return submit(PASTED_URL, null);
+      },
+    ],
+    [
+      "body",
+      "a body that is not a form",
+      () => {
+        stubFetch(() => undefined);
+        return post(jsonBody(), MEMBER);
+      },
+    ],
+    [
+      "url",
+      "an address from another portal",
+      () => {
+        stubFetch(() => undefined);
+        return submit("https://www.olx.pl/d/oferta/mieszkanie-54-m-warszawa-IDKANAR1?utm_source=kanarek");
+      },
+    ],
+    [
+      "precheck",
+      "a failed duplicate check",
+      () => {
+        stubDatabase({ precheck: () => jsonResponse({ code: "PGRST301", message: "JWT expired" }, 401) });
+        return submit(PASTED_URL);
+      },
+    ],
+    [
+      "precheck",
+      "a duplicate by address",
+      () => {
+        stubDatabase({ precheck: () => jsonResponse([{ id: EXISTING_OFFER_ID }], 200) });
+        return submit(PASTED_URL);
+      },
+    ],
+    [
+      "fetch",
+      "an HTTP 403 from otodom",
+      () => {
+        stubNetwork(() => responseAt("<html></html>", { status: 403 }));
+        return submit(PASTED_URL);
+      },
+    ],
+    [
+      "map",
+      "a house for sale",
+      () => {
+        stubNetwork(() => responseAt(otodomPage(saleHouse())));
+        return submit(PASTED_URL);
+      },
+    ],
+    [
+      "insert",
+      "a saved flat",
+      () => {
+        stubNetwork(() => responseAt(otodomPage(flatSaleAd())));
+        return submit(PASTED_URL);
+      },
+    ],
+    [
+      "insert",
+      "an insert Postgres rejected, quoting the row in its details",
+      () => {
+        const message = 'new row for relation "offers" violates check constraint "offers_price_check"';
+        stubDatabase({
+          insert: () => jsonResponse({ code: "23514", message, details: FAILING_ROW, hint: null }, 400),
+        });
+        return submit(PASTED_URL);
+      },
+    ],
+    [
+      "twin",
+      "a twin lookup that failed, quoting the row in its details",
+      () => {
+        stubDatabase({
+          insert: () => jsonResponse({ ...UNIQUE_VIOLATION, details: FAILING_ROW }, 409),
+          twin: () => jsonResponse({ code: "XX000", message: "internal error", details: FAILING_ROW }, 500),
+        });
+        return submit(PASTED_URL);
+      },
+    ],
+  ];
+
+  it.each(SCENARIOS)("at the %s stage: %s", async (stage, _label, run) => {
+    const captured = captureConsole();
+    await run();
+
+    const last = captured.entries().at(-1);
+    expect(last?.args).toHaveLength(1);
+    expect(last?.args[0]).toMatchObject({ event: "offer_add", stage });
+
+    const text = captured.text();
+    for (const forbidden of FORBIDDEN) {
+      expect(text).not.toContain(forbidden);
+    }
   });
 });

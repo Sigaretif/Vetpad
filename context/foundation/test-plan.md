@@ -895,6 +895,54 @@ A pure rule has no executable imports: no stub, no `vi.mock`, no client.
   - "Never throws" includes the names every object inherits — a lookup in a
     map must not accept `toString`.
 
+### 6.9 Adding a test for a log entry (what a route logs, and what it never does)
+
+A route's log entry is part of its contract: the entry is how a failure is
+told from a refusal in production, and the one place where listing text, a
+seller's contact or a member's address could leave the system unnoticed.
+
+- **Where:** in the route's own test file, beside the assertions on its
+  redirect — the same stubbed request proves both.
+- **Reference test:** `tests/pages/api/offers.test.ts`.
+  `tests/lib/log.test.ts` is the reference for the reporter itself.
+- **Console:** `captureConsole()` from `tests/fixtures/console.ts`, called
+  before the request, with `afterEach(restoreConsole)`. `entries()` is every
+  call with its method and arguments, in order; `text()` is all of them as
+  one string. A helper that submits for a whole `describe` captures inside
+  itself, so no test prints to the real console.
+- **The expected entry is written by hand, whole,** and compared with
+  `toStrictEqual`: `{ method, args: [{ … }] }`. `toEqual` reads a key holding
+  `undefined` as an absent one, and an absent key is the thing under test.
+  Ids and tokens are literals in the test file (`LISTING`, `OTODOM_ID`),
+  never read back from the code or the fixture at assertion time.
+- **Count the entries when the count is the claim** — a refusal before the
+  network leaves exactly one, a save leaves the start and the save. Where an
+  earlier entry is not the subject, read the last one.
+- **Absence stands beside presence.** The scenario first names the stage its
+  last entry reports, then searches `text()` for what must not be there:
+  `SELLER_CANARIES`, the member's address, the listing's title, the pasted
+  query, the words of the slug. Alone, the search passes on a route that
+  stopped logging. Put the forbidden text where it could really leak — a
+  Postgres `details` quoting the rejected row, a member with an `email` on
+  `locals.user`.
+- **One table of scenarios for the absence check,** one per stage of the
+  route, so a new field added to an entry is searched on every way out.
+- **An exit another file's mock cannot reach gets its own file:**
+  `tests/pages/api/offers.unconfigured.test.ts` runs in the zero-config state
+  of `tests/setup.ts`, which `offers.test.ts` overrides for its whole file.
+- **Run:** `npm test -- tests/pages/api/offers.test.ts`, then
+  `npx stryker run --mutate "src/lib/log.ts,src/pages/api/offers.ts"`.
+- **Pitfalls:**
+  - A database that never answers is a handler returning a rejected promise.
+    Returning `undefined` marks the request unplanned and `restoreFetch`
+    fails the test.
+  - For a failed read use `401` or `500` with `{ code, message }`. A rejected
+    `fetch`, `503` and `520` are retried for a GET for about seven seconds.
+  - Prove the absence check once by leaking on purpose: pass the forbidden
+    field from the route, add its key to the reporter's list, and watch the
+    scenarios go red. Passing it from the route alone changes nothing — the
+    reporter drops a key that is not on its list.
+
 ## 7. What We Deliberately Don't Test
 
 - **`/dev/*` kitchen-sink pages** — developer tools that answer 404 outside
@@ -910,7 +958,7 @@ A pure rule has no executable imports: no stub, no `vi.mock`, no client.
 ## 8. Freshness Ledger
 
 - Strategy (§1–§5) last reviewed: 2026-09-30; §2 (#5), §3 row 2, §4 and §5 amended for the write-isolation phase: 2026-10-01
-- Cookbook (§6) last changed: 2026-10-02 — the tags paragraph, §6.7, §6.8 and a §6.6 entry, outside the rollout (`testing-read-failure-states`)
+- Cookbook (§6) last changed: 2026-10-05 — §6.9, outside the rollout (`offers-outcome-logging`); before that 2026-10-02 — the tags paragraph, §6.7, §6.8 and a §6.6 entry (`testing-read-failure-states`)
 - Stack versions last verified: 2026-09-30
 - AI-native tool references last verified: 2026-09-30
 

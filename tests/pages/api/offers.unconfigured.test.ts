@@ -13,6 +13,7 @@ afterEach(restoreFetch);
 afterEach(restoreConsole);
 
 const USER_ID = "4c1d7e2a-9b3f-4e8a-8d2c-00000000beef";
+const USER_EMAIL = "czlonek.kanarek@vetpad.local";
 
 describe("POST /api/offers without Supabase configured", () => {
   it("says so, logs the refusal as info and makes no request", async () => {
@@ -22,7 +23,7 @@ describe("POST /api/offers without Supabase configured", () => {
     form.set("url", "https://www.otodom.pl/pl/oferta/mieszkanie-54-m-warszawa-IDKANAR1");
     const context = {
       request: new Request("http://localhost/api/offers", { method: "POST", body: form }),
-      locals: { user: { id: USER_ID, email: "czlonek.kanarek@vetpad.local" } },
+      locals: { user: { id: USER_ID, email: USER_EMAIL } },
       cookies: { set: vi.fn() },
       redirect: (location: string, status = 302) => new Response(null, { status, headers: { Location: location } }),
     } as unknown as APIContext;
@@ -49,5 +50,10 @@ describe("POST /api/offers without Supabase configured", () => {
         ],
       },
     ]);
+    // The `config` stage of the privacy check in tests/pages/api/offers.test.ts, which cannot
+    // reach this exit: neither the member's address nor the pasted listing is in the entry.
+    for (const forbidden of [USER_EMAIL, "otodom.pl", "mieszkanie", "warszawa"]) {
+      expect(captured.text()).not.toContain(forbidden);
+    }
   });
 });
