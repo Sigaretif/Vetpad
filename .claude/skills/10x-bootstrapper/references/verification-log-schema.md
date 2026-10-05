@@ -18,11 +18,11 @@ YAML frontmatter at the top of the file:
 ---
 bootstrapped_at: <ISO 8601 timestamp, e.g. 2026-05-04T14:23:11Z>
 starter_id: <starter_id from hand-off>
-starter_name: <human-readable name from the registry card>
+starter_name: <human-readable name from the registry card, or custom_starter.name>
 project_name: <project_name from hand-off>
 language_family: <hints.language_family from hand-off>
 package_manager: <resolved package manager — hand-off value or card fallback>
-cwd_strategy: <subdir-then-move | native-cwd | git-clone>
+cwd_strategy: <subdir-then-move | native-cwd | git-clone | manual>
 bootstrapper_confidence: <verified | first-class | best-effort>
 phase_3_status: <ok | failed>
 audit_command: <the resolved command from audit_commands, or "null" for skip>
@@ -58,7 +58,7 @@ Records of what Step 2 actually did:
 
 ```
 **Resolved invocation**: `<the cmd_template after substitution>`
-**Strategy**: <subdir-then-move | native-cwd | git-clone>
+**Strategy**: <subdir-then-move | native-cwd | git-clone | manual>
 **Exit code**: <0 | non-zero>
 **Files moved**: <count>
 **Conflicts (.scaffold siblings)**: <comma list, or "none">

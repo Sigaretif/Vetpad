@@ -23,7 +23,9 @@ This skill is the third link in the bootstrap chain (`/10x-shape → /10x-prd �
 
 The skill is a **decision facilitator over a curated registry**, not a recommendation engine from first principles. It reads PRD priors, asks at most ~6 residual questions on the custom path (or short-circuits to a vetted recommendation on the standard path), reasons over language-aware starter cards in `references/starter-registry.yaml`, and applies four hard-filter quality gates. Rich rationale stays in conversation; the file hand-off is minimal.
 
-The starter registry in `references/starter-registry.yaml` is the **single source of truth** for available starters. `/10x-bootstrapper` reads it; a CI validator (`scripts/validate-starter-registry-sync.mjs`) prevents bootstrapper from referencing a `starter_id` that does not exist here.
+The starter registry in `references/starter-registry.yaml` is the **single source of truth** for vetted starters. `/10x-bootstrapper` reads it; a CI validator (`scripts/validate-starter-registry-sync.mjs`) prevents bootstrapper from referencing a `starter_id` that does not exist here.
+
+The registry is a list of recommendations, not a list of permitted stacks. When the user names a framework that has no card, the skill accepts it, assesses it against the same four quality gates, and records it as `starter_id: custom` with a `custom_starter` block (see `references/decision-flow.md` § Off-registry framework). The user's explicit framework choice outranks the registry.
 
 ## When to use, when to skip
 
@@ -141,14 +143,17 @@ Q0 derives `language_family` from explicit PRD content if present, otherwise ask
 
 The Q0 default is **editorial, not silent**: name the recommended starter up front and ask for explicit confirmation. The user must consciously accept or branch — never accept-by-default-without-prompt.
 
+If the user answers Q0 (or any later question) by naming a specific framework instead of picking an option, treat it as the custom path with that framework as the user's pick. If the framework has a registry card, use the card. If it does not, follow the off-registry branch in `references/decision-flow.md` — never re-route the user to a registry card they did not ask for, and never suggest switching language family to reach one.
+
 ### Step 3 — Decide
 
-Load `references/decision-flow.md` and `references/agent-friendly-criteria.md`. Load `references/starter-registry.yaml` and read only the cards relevant to the constrained candidate set (filtered by `language_family` and `product_type` per the decision flow Step A) — not all 25 entries, to keep the prompt cost down.
+Load `references/decision-flow.md` and `references/agent-friendly-criteria.md`. Load `references/starter-registry.yaml` and read only the cards relevant to the constrained candidate set (filtered by `language_family` and `product_type` per the decision flow Step A) — not the whole registry, to keep the prompt cost down.
 
 Execute the decision flow:
 
 - **Standard path** — the recommended_defaults pick is already the lead; jump to Step E (surface `bootstrapper_confidence`) and skip filter/scoring.
 - **Custom path** — execute Step A (filter by language_family + product_type + must-have features + deployment compatibility), Step B (drop entries failing any `agent_friendly.*` criterion, with the per-language-family caveat), Step C (reason over surviving cards weighting team_profile + tech_preferences + timeline_budget), Step D (lead + 1–2 alternatives from `alternatives_to_consider`), Step E (surface bootstrapper_confidence).
+- **Off-registry framework** — the user named a framework with no registry card. Skip the candidate filtering and the framework-variant question; assess the named framework per decision-flow § Off-registry framework, then continue to Step E.
 
 Surface Socratic challenges where the decision flow says to: Q6 framework variant on custom path, `tech_preferences` names a starter that fails ≥1 quality gate, recommended-default starter doesn't include a feature the user named in PRD FRs, or the chosen starter has `bootstrapper_confidence: best-effort` AND the user is solo (extra heads-up).
 
@@ -175,6 +180,8 @@ Alternatives worth a glance:
 Load `references/handoff-schema.md`. Build the hand-off content in memory first.
 
 Resolve `package_manager` from the chosen card's `toolchain.package_manager`. The field is open string (whatever the card prescribes — `npm`, `uv`, `poetry`, `bundle`, `gradle`, `cargo`, `go-modules`, `composer`, `dotnet`, etc.); for ecosystems with no external choice (e.g., Go), the card may omit the field, in which case omit it from the hand-off frontmatter too.
+
+For an off-registry framework, write `starter_id: custom`, fill the `custom_starter` block (`name`, `docs_url`), take `package_manager` from the framework's standard build tool, and set `hints.bootstrapper_confidence: best-effort`. See `references/handoff-schema.md` § `custom_starter`.
 
 Resolve `hints.deployment_target` from Q4. If the user picked "I don't know yet — pick the recommended default for me", land the card's first `deployment_default` value (NOT the literal string `unspecified`).
 
@@ -241,7 +248,10 @@ Frontmatter keyed on the schema in `references/handoff-schema.md`:
 
 ```yaml
 ---
-starter_id: <key from registry>
+starter_id: <key from registry | custom>
+custom_starter:            # only when starter_id is custom
+  name: <framework name>
+  docs_url: <official docs URL>
 package_manager: <card-prescribed string; may be omitted for some ecosystems>
 project_name: <kebab-case>
 hints:
@@ -288,4 +298,6 @@ hints:
 
 6. **Universal language only.** No private vault paths or organization-specific branding in shipped content. `pnpm validate:no-vault-paths` enforces this in CI. The recommended-defaults registry is multi-language by design; no single starter is "the" recommended path.
 
-7. **Skill-internal labels stay internal.** When speaking to the user, never reference Q-numbers (`Q0`, `Q3`, `Q6`), Step letters (`Step A`, `Step B`, …, `Step E`), or author phrases like "path-fork", "residual interview", "Socratic moment", "decision flow". These labels organize the reference docs for runtime navigation; the user has no way to map them to anything visible. Translate to plain language before printing — "this choice" instead of "the path-fork", "the framework question" instead of "Q6", "an alternative worth flagging" instead of "a Socratic moment", "I'll skip the feature audit, team profile, and tech preferences questions" instead of "I'll skip Q1–Q3". Same applies to internal field paths in conversation: `hints.deployment_target` / `agent_friendly.typed` / `bootstrapper_confidence` are field names in the hand-off / registry, not phrases to say to the user — "your deployment target", "whether the stack uses explicit types", "how smooth scaffolding will be" are the user-facing translations.
+7. **The registry recommends; the user decides.** Never present the registry as a rule the user must follow, never claim the next skill "cannot work" with an unlisted framework, and never invent constraints that are not in this skill. An unlisted framework is a valid pick with `bootstrapper_confidence: best-effort` — say plainly what that means (scaffolding will rely on the framework's own generator and may need manual steps) and let the user choose.
+
+8. **Skill-internal labels stay internal.** When speaking to the user, never reference Q-numbers (`Q0`, `Q3`, `Q6`), Step letters (`Step A`, `Step B`, …, `Step E`), or author phrases like "path-fork", "residual interview", "Socratic moment", "decision flow". These labels organize the reference docs for runtime navigation; the user has no way to map them to anything visible. Translate to plain language before printing — "this choice" instead of "the path-fork", "the framework question" instead of "Q6", "an alternative worth flagging" instead of "a Socratic moment", "I'll skip the feature audit, team profile, and tech preferences questions" instead of "I'll skip Q1–Q3". Same applies to internal field paths in conversation: `hints.deployment_target` / `agent_friendly.typed` / `bootstrapper_confidence` are field names in the hand-off / registry, not phrases to say to the user — "your deployment target", "whether the stack uses explicit types", "how smooth scaffolding will be" are the user-facing translations.

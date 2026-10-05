@@ -1,0 +1,12 @@
+# Typecheck and unit tests before a push — the CI `ci` job's checks that need no build.
+# `astro check` regenerates .astro/ first, and a sync under a running `astro dev` can leave every
+# React island unhydrated; with a live dev server, skip the sync (.claude/hooks/end-of-turn.sh
+# does the same).
+SYNC=""
+DEV_PID=$(node -e 'try{process.stdout.write(String(JSON.parse(require("fs").readFileSync(".astro/dev.json","utf8")).pid??""))}catch{}')
+case "$DEV_PID" in
+  '' | *[!0-9]*) ;;
+  *) [ -f .astro/types.d.ts ] && ps -p "$DEV_PID" -o args= 2>/dev/null | grep -q astro && SYNC="--noSync" ;;
+esac
+
+npx astro check $SYNC && npm test

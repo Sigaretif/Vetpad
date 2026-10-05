@@ -44,6 +44,7 @@ The **default-recommended** label is editorial: name the starter up front so the
 
 - "Take recommended" → set `hints.path_taken: standard`. Skip to Q4.
 - "Design my own" → set `hints.path_taken: custom`. Proceed to Q1.
+- **Free-text framework name** (the user types e.g. a framework instead of picking an option) → set `hints.path_taken: custom` and record the named framework as the user's pick. Proceed to Q1; resolve the pick per `decision-flow.md` Step 0 (registry card if one matches, otherwise § Off-registry framework). Do not re-ask the framework later.
 
 ---
 
@@ -100,6 +101,8 @@ This question is multi-select.
 
 Capture as a free-text bag (the schema doesn't carry soft preferences as typed fields; they shape the LLM-over-cards reasoning in Step C of the decision flow).
 
+If the answer names a specific framework, it is a pick, not a soft preference — resolve it per `decision-flow.md` Step 0 the same way as a free-text Q0 answer.
+
 **Q3b prompt** (avoid list):
 
 Ask the user: "Anything you explicitly want to AVOID on this project? Technology avoids only — scope avoids belong in PRD's ## Non-Goals." with these options:
@@ -132,6 +135,8 @@ Ask the user: "Where will this deploy? `<starter_name>` defaults to `<deployment
 - "`<deployment_defaults[1]>`" — Stack-compatible alternative.
 - "`<deployment_defaults[2]>` or other from the list" — Pick from the remaining alternatives in the starter's deployment_defaults array.
 - "I don't know yet — pick the recommended default for me" — We'll lock the starter's first deployment default. Deployment specifics can be revisited once the project is scaffolded.
+
+For an off-registry framework there is no card: offer 2–3 deployment targets common for that framework plus `self-host`, per `decision-flow.md` § Off-registry framework.
 
 The "I don't know yet" option is intentional: deployment is a separate concern users may legitimately not have an opinion about at this stage. The default lands as the card's first `deployment_default`, NOT the literal string `unspecified`.
 
@@ -167,7 +172,7 @@ Maps to `hints.ci_default_flow`: `auto-deploy-on-merge | manual-promotion`.
 
 ## Q6 — Framework variant within product_type (custom path only; always asked on custom)
 
-**Trigger**: custom path only. Standard path's recommended starter already settles the framework variant; no need to re-ask.
+**Trigger**: custom path only, and only when the user has not already named a framework. Standard path's recommended starter already settles the framework variant; a named framework (registry or off-registry) settles it too.
 
 **Q6 prompt** — **Socratic moment**: present 3–5 candidate starters from the constrained set (post-Step-A filter; before Step B quality gates). Each option carries a one-line fit + the starter's `bootstrapper_confidence`. The skill refuses to compare in vacuum — the user must have answered Q1–Q3 first so the candidate set is constrained.
 
@@ -265,3 +270,4 @@ Maps to `project_name` in the hand-off frontmatter.
 |----------|-------------------------------------------------------------------|----------|
 | Standard | Q0 → Q4 → Q5 → project-name confirm                               | Q1–Q3, Q6, Q7 (unless card forces it), Q8 |
 | Custom   | Q0 → Q1 → Q2 → Q3 → Q4 → Q5 → Q6 → Q7 (if card forces) → Q8 → project-name confirm | (none) |
+| Custom, framework named by user | Q0 → Q1 → Q2 → Q3 → Q4 → Q5 → Q7 (if card forces) → Q8 → project-name confirm | Q6 |

@@ -213,3 +213,45 @@ expected_bootstrapper_confidence_surfaced: first-class  # registry says first-cl
 ```
 
 Verifies Step E surfaces the `bootstrapper_confidence: first-class` value verbatim in conversation: "Bootstrapper has this stack registered with a valid CLI but hasn't been battle-tested. Expect mostly-smooth scaffolding with occasional manual steps." The user proceeds knowingly. Note the `10x-astro-starter` card stays at `first-class` until verified end-to-end through bootstrapper, at which point promote to `verified`.
+
+---
+
+## Case 11 — Off-registry framework named by the user
+
+```yaml
+prd_priors:
+  product_type: api
+  target_scale:
+    users: small
+  timeline_budget:
+    mvp_weeks: 1
+residual_answers:
+  language_family: java
+  q0_answer: "Micronaut"  # free text instead of "Take recommended spring" / "Design my own"
+  has_ai: true
+  has_background_jobs: true
+q0_expected_path: custom
+expected_recommendation_family: [custom]  # custom_starter.name: Micronaut
+expected_socratic_moments: []  # Micronaut passes all four gates; solo + best-effort moment is skipped for a user-named framework
+expected_bootstrapper_confidence_surfaced: best-effort
+```
+
+The registry has no Micronaut card. The skill accepts the pick, assesses the four gates directly, skips the framework-variant question, offers 2–3 common Micronaut deployment targets at Q4, and writes `starter_id: custom` with `custom_starter: {name: Micronaut, docs_url: ...}`. Failing behaviors: steering the user back to `spring` or `quarkus` after they named Micronaut, suggesting a different language family, describing the registry as a rule the user would break, or claiming bootstrapper cannot work with the pick.
+
+---
+
+## Case 12 — Named framework with a registry card (non-default)
+
+```yaml
+prd_priors:
+  product_type: api
+residual_answers:
+  language_family: java
+  q0_answer: "Quarkus"  # free text; recommended default for (api, java) is spring
+q0_expected_path: custom
+expected_recommendation_family: [quarkus]
+expected_socratic_moments: []
+expected_bootstrapper_confidence_surfaced: first-class
+```
+
+The user named a framework that has a card but is not the cell's recommended default. The card becomes the lead directly — no framework-variant question, no push back to `spring`. `spring` may appear once as "worth a glance".

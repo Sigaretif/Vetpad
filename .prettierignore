@@ -1,0 +1,5 @@
+# Managed by @przeprogramowani/10x-cli, which records a content hash of each file in its manifest:
+# a reformat at commit time would turn every one into a local modification on the next `get`.
+.claude/skills/
+.claude/prompts/
+.claude/.10x-cli-manifest.json

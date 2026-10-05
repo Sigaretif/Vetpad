@@ -19,9 +19,9 @@ Tests follow three non-negotiable principles for this project:
 2. **User concerns are first-class evidence.** Risks anchored in "the
    team is worried about X, and the failure would surface somewhere in
    <area>" carry the same weight as PRD lines or hot-spot data.
-3. **Risks are scenarios, not code locations.** This plan documents *what
-   could fail* and *why we believe it's likely* — drawn from documents,
-   interview, and codebase *signal* (churn, structure, test base). It does
+3. **Risks are scenarios, not code locations.** This plan documents _what
+   could fail_ and _why we believe it's likely_ — drawn from documents,
+   interview, and codebase _signal_ (churn, structure, test base). It does
    NOT claim to know which line owns the failure. That knowledge is
    produced by `/10x-research` during each rollout phase. If the plan and
    research disagree about where the failure lives, research is the
@@ -39,19 +39,19 @@ Hot-spot scope used for likelihood weighting: `src/`, `supabase/migrations/`,
 
 The top failure scenarios this project must protect against, ordered by
 risk = impact × likelihood. Risks are failure scenarios in user / business
-terms, not test names. The Source column cites the *evidence that surfaced
-this risk* — never a specific file as "where the failure lives" (that is
+terms, not test names. The Source column cites the _evidence that surfaced
+this risk_ — never a specific file as "where the failure lives" (that is
 research's job, see §1 principle #3).
 
-| # | Risk (failure scenario) | Impact | Likelihood | Source (evidence — not anchor) |
-|---|---|---|---|---|
-| 1 | Ingestion saves a false or incomplete offer: an unstated attribute reads as "0 zł" or "no", a rental or a house is saved as a flat sale, or a failed/changed-shape fetch leaves a blank or partial record behind | High | Medium | PRD Guardrails, NFR, FR-005; interview Q4; roadmap: upcoming second writers of offer data (re-fetch FR-009, extraction-service fallback, S-04 reading the stored raw payload). Hot-spot dir `src/lib/otodom/` (5 commits/30d) reflects the module's creation, not instability (research, Phase 1) |
-| 2 | **Denial of Wallet:** the paid AI audit can be triggered repeatedly — a loop, a double click, concurrent requests, or a request without a session — and every call is billed by the model provider | High | High | interview Q1; roadmap S-04 (next slice on Stream A); PRD NFR (correctness over cost — a slower, pricier model per call) |
-| 3 | A paid audit result is lost: the model answered but the database write failed or the request timed out, the offer falls back to "Not Audited", and the same audit has to be paid for again | High | Medium | interview Q1; PRD NFR (~3-minute audit limit, reported as failed with a retry offered); roadmap S-04 Unknowns |
-| 4 | The audit reports an ungrounded finding: a red flag, cost or mandatory condition with no excerpt, with an excerpt that is not verbatim listing text, or a missing-information finding outside the decision-critical attributes | High | High | PRD Guardrails, FR-011, NFR (every finding traceable to a verbatim quotation); roadmap S-04 |
-| 5 | A write on X changes Y: a re-fetch overwrites notes, one member's action edits or deletes another member's note or requirements, a delete takes more (or less) than the PRD says it should | High | Medium | interview Q1; PRD FR-009, FR-012–FR-015, NFR (no system action modifies human-authored text); roadmap S-09, S-10, S-11; `lessons.md` (author FK blocked account deletion); hot-spot dir `supabase/migrations/` (9 commits/30d) — the valid signal: triggers and checks there have needed correcting after review. Churn in `src/` and `scripts/` does not raise this risk: the write routes bind every row to the session's member, and the smoke churn is coverage growing with each slice (research, Phase 2) |
-| 6 | Personal data escapes: the seller's phone or name reaches the database or the audit prompt, or members' notes reach the model provider | High | Medium | PRD NFR (notes never leave the system; advertiser's personal data never stored); roadmap S-04 Risk |
-| 7 | Stored content renders unsafely: a `javascript:` (or other non-https) URL read from the database lands in `href`/`src` and runs in another member's session | High | Low | `lessons.md` (impl review of `paste-listing-to-card`, F1); roadmap S-08 (map link built from stored data) |
+| #   | Risk (failure scenario)                                                                                                                                                                                                        | Impact | Likelihood | Source (evidence — not anchor)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------ | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Ingestion saves a false or incomplete offer: an unstated attribute reads as "0 zł" or "no", a rental or a house is saved as a flat sale, or a failed/changed-shape fetch leaves a blank or partial record behind               | High   | Medium     | PRD Guardrails, NFR, FR-005; interview Q4; roadmap: upcoming second writers of offer data (re-fetch FR-009, extraction-service fallback, S-04 reading the stored raw payload). Hot-spot dir `src/lib/otodom/` (5 commits/30d) reflects the module's creation, not instability (research, Phase 1)                                                                                                                                                                                                               |
+| 2   | **Denial of Wallet:** the paid AI audit can be triggered repeatedly — a loop, a double click, concurrent requests, or a request without a session — and every call is billed by the model provider                             | High   | High       | interview Q1; roadmap S-04 (next slice on Stream A); PRD NFR (correctness over cost — a slower, pricier model per call)                                                                                                                                                                                                                                                                                                                                                                                         |
+| 3   | A paid audit result is lost: the model answered but the database write failed or the request timed out, the offer falls back to "Not Audited", and the same audit has to be paid for again                                     | High   | Medium     | interview Q1; PRD NFR (~3-minute audit limit, reported as failed with a retry offered); roadmap S-04 Unknowns                                                                                                                                                                                                                                                                                                                                                                                                   |
+| 4   | The audit reports an ungrounded finding: a red flag, cost or mandatory condition with no excerpt, with an excerpt that is not verbatim listing text, or a missing-information finding outside the decision-critical attributes | High   | High       | PRD Guardrails, FR-011, NFR (every finding traceable to a verbatim quotation); roadmap S-04                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| 5   | A write on X changes Y: a re-fetch overwrites notes, one member's action edits or deletes another member's note or requirements, a delete takes more (or less) than the PRD says it should                                     | High   | Medium     | interview Q1; PRD FR-009, FR-012–FR-015, NFR (no system action modifies human-authored text); roadmap S-09, S-10, S-11; `lessons.md` (author FK blocked account deletion); hot-spot dir `supabase/migrations/` (9 commits/30d) — the valid signal: triggers and checks there have needed correcting after review. Churn in `src/` and `scripts/` does not raise this risk: the write routes bind every row to the session's member, and the smoke churn is coverage growing with each slice (research, Phase 2) |
+| 6   | Personal data escapes: the seller's phone or name reaches the database or the audit prompt, or members' notes reach the model provider                                                                                         | High   | Medium     | PRD NFR (notes never leave the system; advertiser's personal data never stored); roadmap S-04 Risk                                                                                                                                                                                                                                                                                                                                                                                                              |
+| 7   | Stored content renders unsafely: a `javascript:` (or other non-https) URL read from the database lands in `href`/`src` and runs in another member's session                                                                    | High   | Low        | `lessons.md` (impl review of `paste-listing-to-card`, F1); roadmap S-08 (map link built from stored data)                                                                                                                                                                                                                                                                                                                                                                                                       |
 
 Abuse lens: #2 is resource abuse, #6 is PII leakage, #5 and #7 are
 authorization/access. RLS as such has no dedicated row — the user verifies
@@ -60,15 +60,15 @@ covered through #5.
 
 ### Risk Response Guidance
 
-| Risk | What would prove protection | Must challenge | Context `/10x-research` must ground | Likely cheapest layer | Anti-pattern to avoid |
-|------|-----------------------------|----------------|--------------------------------------|-----------------------|-----------------------|
-| #1 | On a listing payload built from the documented shapes, an absent, empty, unparseable or `"0"` numeric attribute becomes unknown on every numeric fact (not only rent), and a currency never survives its unknown amount; a rental and a non-flat are refused naming which check failed — including a rental house, a sale/offer-type disagreement reported as a changed format, and a payload whose generic category says flat while the ad category says otherwise; a page without usable listing data is a fetch error and nothing is persisted | "The mapper passes for a typical listing, so the edge cases pass too" | Fixture source: no recorded payload exists — fixtures are hand-authored from the shapes documented in `ingestion/otodom_fetching.md` §7 (rental with `rent: "1"`, house without a rent key, `rent: "0"`, enums with empty localized values), carrying synthetic seller canaries, never third-party data; the persistence boundary that decides save vs refuse | unit on fixtures, network stubbed at the HTTP edge | Expected values copied from the mapper's current output; the oracle is the PRD and `ingestion/otodom_fetching.md` §7. Committing a recorded live payload (third-party data, possible PII in a public repo) |
-| #2 | A second audit request for the same offer while one is in flight does not call the provider; an unauthenticated request never calls it; the stub's call count is asserted | "There are three of us behind a login, so there is no attacker" and "middleware protects `/api`" | Audit entry point, its auth check, where in-flight state lives (Postgres, never module scope), the provider boundary | integration on the audit endpoint with the provider stubbed at the HTTP edge | Asserting only a 200 status instead of the number of billed calls |
-| #3 | When the provider answered and the write failed, the result is recoverable or the failure is explicit; "in progress" does not hang forever; a retry does not pay for a result that already exists | "A 200 from the provider means the audit is done" | Order of provider call vs persist, audit status states, the ~3-minute timeout path, the retry path | integration with a provider stub and a forced write failure | Mocking internal modules instead of the network and database edges |
-| #4 | A positive finding without an excerpt, or whose excerpt is not a verbatim substring of the stored listing text, is rejected; a missing-data finding carries no excerpt | "The prompt tells the model to quote, so it quotes" | Structured-output shape, where validation happens, which stored text is the reference for matching (whitespace, quotes, diacritics) | unit on the output validator (deterministic substring match); optional manual golden set | Using an LLM to judge whether a quote is grounded when a deterministic comparison exists |
-| #5 | After every write operation — a denied one and a successful one made next to another member's row — the other members' rows (notes, requirements, author columns) are identical to before, compared as whole rows with their dates, not one field; a delete of an offer takes every member's notes on that offer and nothing from another offer (FR-015); an RLS denial is recognised by its row count: a denied read, update or delete affects zero rows and raises no error, a forged insert or upsert is refused with `42501` (research, Phase 2) | "The UPDATE succeeded, so only the targeted row changed" — and "a denied cross-member update or delete surfaces as an error": it does not, and without `Prefer: return=representation` it answers 204 with an empty body, exactly like a successful write | Which operations write which tables, RLS policies per operation, cascades and freeze triggers, the denial signatures per operation and per `Prefer` header. Re-fetch, note delete and offer delete have no route yet (S-09, S-11) and archive has no schema (S-10): today only their database half is testable, through the Data API standing in for them, and each of those slices adds its own route-level check | integration in `scripts/smoke.mjs` against local Supabase — a stub cannot answer for a policy, a trigger or a cascade. One exception: a route's handling of a save that RLS filtered down to zero rows cannot be produced by the real policies for a signed-in member, so it is a hermetic route test stubbed at the HTTP edge | Asserting only "no error" or only a status — a denied write and a successful one can share it; assert the number of rows affected. Calling a row "unchanged" after comparing a single field |
-| #6 | The persisted row and the built prompt contain no seller phone or name from the portal's contact fields, and the prompt contains no notes — also when the fixture carries all of them; a phone or name the advertiser typed into the title or description is kept verbatim (PRD NFR: the rule covers contact fields, not the listing's own words) | "The mapper whitelist is enough, so the prompt is clean" — and, for every future writer (re-fetch, extraction-service fallback), "it goes through the same whitelist" | The `raw` whitelist, prompt assembly inputs, every path that reads notes near the audit, every writer of offer data | unit on the mapper and the prompt builder: a serialised-row search for canary strings plus key-absence checks | Asserting only that expected fields are present, never that forbidden ones are absent. "Fixing" a canary hit by redacting the description, which breaks FR-011's verbatim excerpts |
-| #7 | A non-https URL from a database row never reaches `href` or `src`; a `null` result renders no link or image; a malformed stored image entry (`null`, a non-object, an object without URLs) renders nothing and never breaks the card | "The mapper filters URLs, so the view is safe" — confirmed wrong: any member can update stored rows, and the stored raw payload keeps unfiltered image URLs (latent until a view or the audit reads it) | Every view that renders stored URLs (card, gallery, board, S-08 map link), and the first phase that reads the raw payload | unit on the URL guard plus component render through the Astro Container API | Testing only a valid URL; testing only the scheme and never the shape of the stored entry |
+| Risk | What would prove protection                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Must challenge                                                                                                                                                                                                                                            | Context `/10x-research` must ground                                                                                                                                                                                                                                                                                                                                                                                | Likely cheapest layer                                                                                                                                                                                                                                                                                                          | Anti-pattern to avoid                                                                                                                                                                                      |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #1   | On a listing payload built from the documented shapes, an absent, empty, unparseable or `"0"` numeric attribute becomes unknown on every numeric fact (not only rent), and a currency never survives its unknown amount; a rental and a non-flat are refused naming which check failed — including a rental house, a sale/offer-type disagreement reported as a changed format, and a payload whose generic category says flat while the ad category says otherwise; a page without usable listing data is a fetch error and nothing is persisted    | "The mapper passes for a typical listing, so the edge cases pass too"                                                                                                                                                                                     | Fixture source: no recorded payload exists — fixtures are hand-authored from the shapes documented in `ingestion/otodom_fetching.md` §7 (rental with `rent: "1"`, house without a rent key, `rent: "0"`, enums with empty localized values), carrying synthetic seller canaries, never third-party data; the persistence boundary that decides save vs refuse                                                      | unit on fixtures, network stubbed at the HTTP edge                                                                                                                                                                                                                                                                             | Expected values copied from the mapper's current output; the oracle is the PRD and `ingestion/otodom_fetching.md` §7. Committing a recorded live payload (third-party data, possible PII in a public repo) |
+| #2   | A second audit request for the same offer while one is in flight does not call the provider; an unauthenticated request never calls it; the stub's call count is asserted                                                                                                                                                                                                                                                                                                                                                                            | "There are three of us behind a login, so there is no attacker" and "middleware protects `/api`"                                                                                                                                                          | Audit entry point, its auth check, where in-flight state lives (Postgres, never module scope), the provider boundary                                                                                                                                                                                                                                                                                               | integration on the audit endpoint with the provider stubbed at the HTTP edge                                                                                                                                                                                                                                                   | Asserting only a 200 status instead of the number of billed calls                                                                                                                                          |
+| #3   | When the provider answered and the write failed, the result is recoverable or the failure is explicit; "in progress" does not hang forever; a retry does not pay for a result that already exists                                                                                                                                                                                                                                                                                                                                                    | "A 200 from the provider means the audit is done"                                                                                                                                                                                                         | Order of provider call vs persist, audit status states, the ~3-minute timeout path, the retry path                                                                                                                                                                                                                                                                                                                 | integration with a provider stub and a forced write failure                                                                                                                                                                                                                                                                    | Mocking internal modules instead of the network and database edges                                                                                                                                         |
+| #4   | A positive finding without an excerpt, or whose excerpt is not a verbatim substring of the stored listing text, is rejected; a missing-data finding carries no excerpt                                                                                                                                                                                                                                                                                                                                                                               | "The prompt tells the model to quote, so it quotes"                                                                                                                                                                                                       | Structured-output shape, where validation happens, which stored text is the reference for matching (whitespace, quotes, diacritics)                                                                                                                                                                                                                                                                                | unit on the output validator (deterministic substring match); optional manual golden set                                                                                                                                                                                                                                       | Using an LLM to judge whether a quote is grounded when a deterministic comparison exists                                                                                                                   |
+| #5   | After every write operation — a denied one and a successful one made next to another member's row — the other members' rows (notes, requirements, author columns) are identical to before, compared as whole rows with their dates, not one field; a delete of an offer takes every member's notes on that offer and nothing from another offer (FR-015); an RLS denial is recognised by its row count: a denied read, update or delete affects zero rows and raises no error, a forged insert or upsert is refused with `42501` (research, Phase 2) | "The UPDATE succeeded, so only the targeted row changed" — and "a denied cross-member update or delete surfaces as an error": it does not, and without `Prefer: return=representation` it answers 204 with an empty body, exactly like a successful write | Which operations write which tables, RLS policies per operation, cascades and freeze triggers, the denial signatures per operation and per `Prefer` header. Re-fetch, note delete and offer delete have no route yet (S-09, S-11) and archive has no schema (S-10): today only their database half is testable, through the Data API standing in for them, and each of those slices adds its own route-level check | integration in `scripts/smoke.mjs` against local Supabase — a stub cannot answer for a policy, a trigger or a cascade. One exception: a route's handling of a save that RLS filtered down to zero rows cannot be produced by the real policies for a signed-in member, so it is a hermetic route test stubbed at the HTTP edge | Asserting only "no error" or only a status — a denied write and a successful one can share it; assert the number of rows affected. Calling a row "unchanged" after comparing a single field                |
+| #6   | The persisted row and the built prompt contain no seller phone or name from the portal's contact fields, and the prompt contains no notes — also when the fixture carries all of them; a phone or name the advertiser typed into the title or description is kept verbatim (PRD NFR: the rule covers contact fields, not the listing's own words)                                                                                                                                                                                                    | "The mapper whitelist is enough, so the prompt is clean" — and, for every future writer (re-fetch, extraction-service fallback), "it goes through the same whitelist"                                                                                     | The `raw` whitelist, prompt assembly inputs, every path that reads notes near the audit, every writer of offer data                                                                                                                                                                                                                                                                                                | unit on the mapper and the prompt builder: a serialised-row search for canary strings plus key-absence checks                                                                                                                                                                                                                  | Asserting only that expected fields are present, never that forbidden ones are absent. "Fixing" a canary hit by redacting the description, which breaks FR-011's verbatim excerpts                         |
+| #7   | A non-https URL from a database row never reaches `href` or `src`; a `null` result renders no link or image; a malformed stored image entry (`null`, a non-object, an object without URLs) renders nothing and never breaks the card                                                                                                                                                                                                                                                                                                                 | "The mapper filters URLs, so the view is safe" — confirmed wrong: any member can update stored rows, and the stored raw payload keeps unfiltered image URLs (latent until a view or the audit reads it)                                                   | Every view that renders stored URLs (card, gallery, board, S-08 map link), and the first phase that reads the raw payload                                                                                                                                                                                                                                                                                          | unit on the URL guard plus component render through the Astro Container API                                                                                                                                                                                                                                                    | Testing only a valid URL; testing only the scheme and never the shape of the stored entry                                                                                                                  |
 
 ## 3. Phased Rollout
 
@@ -76,12 +76,12 @@ Each row is a discrete rollout phase that will open its own change folder
 via `/10x-new`. Status moves left-to-right through the values below; the
 orchestrator updates Status as artifacts appear on disk.
 
-| # | Phase name | Goal (one line) | Risks covered | Test types | Status | Change folder |
-|---|---|---|---|---|---|---|
-| 1 | Test runner and ingestion guardrails | Bootstrap Vitest and prove that ingestion never saves an invented fact, a non-flat-sale, seller data, or an unsafe URL; wire `npm test` into CI | #1, #6 (storage), #7 | unit (recorded fixtures) | complete | context/changes/testing-ingestion-guardrails/ |
-| 2 | Write isolation | Prove that a write on X leaves every other member's data untouched, before S-09/S-10/S-11 add more writes | #5 | integration (smoke), SQL against the local database, one hermetic route test | complete | context/changes/testing-write-isolation/ |
-| 3 | Audit cost and durability | Prove that a paid model call cannot be multiplied and a paid result cannot be silently lost — starts only after S-04 ships | #2, #3 | integration (provider stub) | not started | — |
-| 4 | Audit grounding and prompt privacy | Prove that no finding without a verbatim excerpt is shown and no note or seller data reaches the prompt — starts only after S-04 ships | #4, #6 (prompt) | unit, optional manual golden set | not started | — |
+| #   | Phase name                           | Goal (one line)                                                                                                                                 | Risks covered        | Test types                                                                   | Status      | Change folder                                 |
+| --- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | ---------------------------------------------------------------------------- | ----------- | --------------------------------------------- |
+| 1   | Test runner and ingestion guardrails | Bootstrap Vitest and prove that ingestion never saves an invented fact, a non-flat-sale, seller data, or an unsafe URL; wire `npm test` into CI | #1, #6 (storage), #7 | unit (recorded fixtures)                                                     | complete    | context/changes/testing-ingestion-guardrails/ |
+| 2   | Write isolation                      | Prove that a write on X leaves every other member's data untouched, before S-09/S-10/S-11 add more writes                                       | #5                   | integration (smoke), SQL against the local database, one hermetic route test | complete    | context/changes/testing-write-isolation/      |
+| 3   | Audit cost and durability            | Prove that a paid model call cannot be multiplied and a paid result cannot be silently lost — starts only after S-04 ships                      | #2, #3               | integration (provider stub)                                                  | not started | —                                             |
+| 4   | Audit grounding and prompt privacy   | Prove that no finding without a verbatim excerpt is shown and no note or seller data reaches the prompt — starts only after S-04 ships          | #4, #6 (prompt)      | unit, optional manual golden set                                             | not started | —                                             |
 
 Phase 1 adds `vitest` to `package.json`; CLAUDE.md requires the user's
 explicit go-ahead for that, which `/10x-plan` asks for. Phases 3 and 4 are
@@ -90,19 +90,20 @@ named in the S-04 plan, so the code under test is built to be testable.
 
 ## 4. Stack
 
-| Layer | Tool | Version | Notes |
-|---|---|---|---|
-| lint + typecheck | ESLint, `astro check` | eslint ^10.10, astro 7.3.2 | Wired in CI `ci` job |
-| unit + integration (in-process) | Vitest via `getViteConfig` from `astro/config` with the Cloudflare adapter stripped (`vitest.config.ts`) — checked: 2026-09-30 | vitest 5.0.3 | `npm test`; wired in CI `ci` job since Phase 1. User go-ahead 2026-09-30 (CLAUDE.md). Runs in Node, not workerd |
-| component render | Astro Container API (`experimental_AstroContainer`) with the React container renderer — experimental, checked: 2026-09-30 | astro 7.3.2, @astrojs/react 6.0.5 | For `.astro` output assertions without a browser; runs under `npm test` |
-| integration (live, local Supabase) | `scripts/smoke.mjs` | n/a | Existing; CI `smoke` job; never reaches otodom.pl or production |
-| SQL against the local database | `scripts/account-deletion.sql` through `psql` (`npm run test:db`) — checked: 2026-10-01 | n/a | Since Phase 2: account deletion, which the publishable key cannot reach. One transaction ending in `ROLLBACK`; local database only; not part of `npm test`; a step of the CI `smoke` job, run with the `psql` the runner image ships (§6.6) |
-| API/provider mocking | `globalThis.fetch` stub at the HTTP edge (`tests/fixtures/http.ts`, `stubFetch`) — checked: 2026-09-30 | vitest 5.0.3 (`vi.stubGlobal`) | Since Phase 1 (otodom + Supabase REST); Phase 3 reuses it for the model provider. Never `vi.mock` of internal modules |
-| e2e | none | n/a | Not planned; smoke against the production preview covers critical routes |
-| visual gate | `scripts/ui-screenshots.mjs` | n/a | Manual, per plan; not a CI gate (§7) |
-| (optional) AI-native | manual golden-set audit eval — checked: 2026-09-30 | n/a | When NOT to use: in CI, on every change, or to judge excerpt grounding (deterministic check does that) |
+| Layer                              | Tool                                                                                                                           | Version                           | Notes                                                                                                                                                                                                                                       |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| lint + typecheck                   | ESLint, `astro check`                                                                                                          | eslint ^10.10, astro 7.3.2        | Wired in CI `ci` job                                                                                                                                                                                                                        |
+| unit + integration (in-process)    | Vitest via `getViteConfig` from `astro/config` with the Cloudflare adapter stripped (`vitest.config.ts`) — checked: 2026-09-30 | vitest 5.0.3                      | `npm test`; wired in CI `ci` job since Phase 1. User go-ahead 2026-09-30 (CLAUDE.md). Runs in Node, not workerd                                                                                                                             |
+| component render                   | Astro Container API (`experimental_AstroContainer`) with the React container renderer — experimental, checked: 2026-09-30      | astro 7.3.2, @astrojs/react 6.0.5 | For `.astro` output assertions without a browser; runs under `npm test`                                                                                                                                                                     |
+| integration (live, local Supabase) | `scripts/smoke.mjs`                                                                                                            | n/a                               | Existing; CI `smoke` job; never reaches otodom.pl or production                                                                                                                                                                             |
+| SQL against the local database     | `scripts/account-deletion.sql` through `psql` (`npm run test:db`) — checked: 2026-10-01                                        | n/a                               | Since Phase 2: account deletion, which the publishable key cannot reach. One transaction ending in `ROLLBACK`; local database only; not part of `npm test`; a step of the CI `smoke` job, run with the `psql` the runner image ships (§6.6) |
+| API/provider mocking               | `globalThis.fetch` stub at the HTTP edge (`tests/fixtures/http.ts`, `stubFetch`) — checked: 2026-09-30                         | vitest 5.0.3 (`vi.stubGlobal`)    | Since Phase 1 (otodom + Supabase REST); Phase 3 reuses it for the model provider. Never `vi.mock` of internal modules                                                                                                                       |
+| e2e                                | none                                                                                                                           | n/a                               | Not planned; smoke against the production preview covers critical routes                                                                                                                                                                    |
+| visual gate                        | `scripts/ui-screenshots.mjs`                                                                                                   | n/a                               | Manual, per plan; not a CI gate (§7)                                                                                                                                                                                                        |
+| (optional) AI-native               | manual golden-set audit eval — checked: 2026-09-30                                                                             | n/a                               | When NOT to use: in CI, on every change, or to judge excerpt grounding (deterministic check does that)                                                                                                                                      |
 
 **Stack grounding tools (current session):**
+
 - Docs: Context7 — checked Astro testing guide (`getViteConfig`, Container API `renderToString`, React container renderer); checked: 2026-09-30
 - Search: Exa.ai — not available in current session; web search available but not needed; checked: 2026-09-30
 - Runtime/browser: no Playwright MCP; claude-in-chrome skill available — not used; checked: 2026-09-30
@@ -110,16 +111,16 @@ named in the S-04 plan, so the code under test is built to be testable.
 
 ## 5. Quality Gates
 
-| Gate | Where | Required? | Catches |
-|---|---|---|---|
-| lint (incl. `tokensOnlyConfig`) + `astro check` | local + CI `ci` job | required | syntactic, type and token drift |
-| build | CI `ci` job | required | build-time breakage |
-| smoke against production preview | CI `smoke` job | required | broken routes, closed registration, RLS on notes/criteria/members |
-| unit (`npm test`) | local + CI `ci` job | required — wired in the CI `ci` job by §3 Phase 1 | ingestion guardrail regressions, unsafe stored URLs in views |
-| write-isolation smoke steps and `npm run test:db` | CI `smoke` job | required after §3 Phase 2 | cross-member writes, overwritten notes, a delete that takes more or less than FR-015 says, an account deletion that is blocked or takes another member's data |
-| audit integration (provider stub) | CI | required after §3 Phase 3 | multiplied billed calls, lost paid results |
-| post-edit hook running related unit tests | local (agent loop) | recommended after §3 Phase 1 | regressions at edit time |
-| visual screenshot gate | local, per plan | optional (user's call per change) | rendering regressions |
+| Gate                                              | Where               | Required?                                                                                                                                                                                                | Catches                                                                                                                                                       |
+| ------------------------------------------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| lint (incl. `tokensOnlyConfig`) + `astro check`   | local + CI `ci` job | required                                                                                                                                                                                                 | syntactic, type and token drift                                                                                                                               |
+| build                                             | CI `ci` job         | required                                                                                                                                                                                                 | build-time breakage                                                                                                                                           |
+| smoke against production preview                  | CI `smoke` job      | required                                                                                                                                                                                                 | broken routes, closed registration, RLS on notes/criteria/members                                                                                             |
+| unit (`npm test`)                                 | local + CI `ci` job | required — wired in the CI `ci` job by §3 Phase 1                                                                                                                                                        | ingestion guardrail regressions, unsafe stored URLs in views                                                                                                  |
+| write-isolation smoke steps and `npm run test:db` | CI `smoke` job      | required after §3 Phase 2                                                                                                                                                                                | cross-member writes, overwritten notes, a delete that takes more or less than FR-015 says, an account deletion that is blocked or takes another member's data |
+| audit integration (provider stub)                 | CI                  | required after §3 Phase 3                                                                                                                                                                                | multiplied billed calls, lost paid results                                                                                                                    |
+| post-edit hook running related unit tests         | local (agent loop)  | wired: `.claude/hooks/related-tests.sh`, with lint per edit and an end-of-turn sweep beside it (`.claude/settings.json`); skipped while the user's red-phase marker `.git/claude-hooks/red-phase` exists | regressions at edit time                                                                                                                                      |
+| visual screenshot gate                            | local, per plan     | optional (user's call per change)                                                                                                                                                                        | rendering regressions                                                                                                                                         |
 
 ## 6. Cookbook Patterns
 
@@ -301,7 +302,7 @@ seller data, `(#7)` for a stored URL in `href`/`src`.
   Requirements: "No system action modifies or destroys human-authored text",
   and the paragraph on a deleted member's account (offers and notes stay,
   unsigned, and nobody edits them; requirements go with the account). The
-  table below says how PostgREST *signals* an outcome, never what the outcome
+  table below says how PostgREST _signals_ an outcome, never what the outcome
   should be. When a new step is red with nothing broken on purpose, that is a
   defect in a migration or a route: stop and report it, never fit the
   expectation to the behaviour.
@@ -309,19 +310,19 @@ seller data, `(#7)` for a stored URL in `href`/`src`.
   error, and without `Prefer: return=representation` it answers exactly like
   a successful one. Signatures, probed on the local Supabase on 2026-10-01:
 
-  | Attempt | `Prefer` | Answer |
-  |---|---|---|
-  | Denied read (RLS) | — | `200`, `[]` |
-  | Denied `UPDATE` or `DELETE` of another member's row | `return=representation` | `200`, `[]` |
-  | Denied `UPDATE` or `DELETE` of another member's row | none | `204`, empty body |
-  | Successful `UPDATE` or `DELETE` | `return=representation` | `200`, the rows it touched |
-  | Successful `UPDATE` or `DELETE` | none | `204`, empty body — the same as the denied one |
-  | `UPDATE` or `DELETE` whose filter reaches several members' rows | `return=representation` | `200`, the writer's own rows only |
-  | `UPDATE` with the publishable key alone | `return=representation` | `200`, `[]` |
-  | Forged `INSERT` by a member (a row signed with another member's id) | none | `403`, `42501` |
-  | Forged upsert onto another member's existing row | `resolution=merge-duplicates` | `403`, `42501` |
-  | `INSERT` with the publishable key alone | none | `401`, `42501` |
-  | `DELETE` with no filter at all | — | `400`, `21000` |
+  | Attempt                                                             | `Prefer`                      | Answer                                         |
+  | ------------------------------------------------------------------- | ----------------------------- | ---------------------------------------------- |
+  | Denied read (RLS)                                                   | —                             | `200`, `[]`                                    |
+  | Denied `UPDATE` or `DELETE` of another member's row                 | `return=representation`       | `200`, `[]`                                    |
+  | Denied `UPDATE` or `DELETE` of another member's row                 | none                          | `204`, empty body                              |
+  | Successful `UPDATE` or `DELETE`                                     | `return=representation`       | `200`, the rows it touched                     |
+  | Successful `UPDATE` or `DELETE`                                     | none                          | `204`, empty body — the same as the denied one |
+  | `UPDATE` or `DELETE` whose filter reaches several members' rows     | `return=representation`       | `200`, the writer's own rows only              |
+  | `UPDATE` with the publishable key alone                             | `return=representation`       | `200`, `[]`                                    |
+  | Forged `INSERT` by a member (a row signed with another member's id) | none                          | `403`, `42501`                                 |
+  | Forged upsert onto another member's existing row                    | `resolution=merge-duplicates` | `403`, `42501`                                 |
+  | `INSERT` with the publishable key alone                             | none                          | `401`, `42501`                                 |
+  | `DELETE` with no filter at all                                      | —                             | `400`, `21000`                                 |
 
   So every update and delete step sends `prefer: "return=representation"`
   and asserts `rows`; a forged insert or upsert is judged by its `42501` and
@@ -332,6 +333,7 @@ seller data, `(#7)` for a stored URL in `href`/`src`.
   evidence. Both routes that write authored rows save with an upsert, so a
   forgery is tried both ways — `forgeNote({ upsert })` and
   `forgeRequirements({ upsert })`.
+
 - **The neighbour's row first, then the check.** A comparison means something
   only once the row it could wrongly touch exists. Smoke therefore creates
   two fixture offers (`FIXTURE_OFFER_ID`, `FIXTURE_OFFER_ID_2`) and puts a
@@ -340,13 +342,13 @@ seller data, `(#7)` for a stored URL in `href`/`src`.
   the step as a failed step („nothing to observe before the step”), never as
   "same". A new write path asks three questions, each with its own observed
   row:
-  1. *Denied:* the other member's attempt on my row — `rows: 0` (or `42501`),
+  1. _Denied:_ the other member's attempt on my row — `rows: 0` (or `42501`),
      my row `"same"`.
-  2. *Successful, next to a neighbour:* a write whose filter names no author
+  2. _Successful, next to a neighbour:_ a write whose filter names no author
      (`offer_id=eq.…`, or `author_id=in.(A,B)`) — `rows: 1`, the neighbour's
      row `"same"`. This is the case "the UPDATE succeeded, so only the
      targeted row changed" hides.
-  3. *Another table or another offer:* an offer write observes
+  3. _Another table or another offer:_ an offer write observes
      `observedNotes(ALL_FIXTURE_NOTES)`; a delete of one offer observes the
      other offer's notes, with a row-count read before (both members' notes
      are there) and after (`rows: 0`).
@@ -379,6 +381,7 @@ seller data, `(#7)` for a stored URL in `href`/`src`.
   Steps are ordered and stateful: put a new one after the fixtures and both
   members' rows exist, and before the cascade steps that delete the fixture
   offers. Describe it in the file's header comment, and in `README.md`.
+
 - **Each slice that adds a write adds its own route-level check.** What this
   phase tests for re-fetch, note delete, offer delete and archive is their
   database half, with a Data API write standing in for a route that does not
@@ -424,7 +427,7 @@ seller data, `(#7)` for a stored URL in `href`/`src`.
     instead of the Data API, keeping the reads around it.
 - **Account deletion (`scripts/account-deletion.sql`).** One transaction:
   fixtures, a snapshot table (`to_jsonb` of each row), `delete from
-  auth.users` for `sigaretif3@vetpad.local`, then one `DO` block per check
+auth.users` for `sigaretif3@vetpad.local`, then one `DO` block per check
   that raises `account-deletion: [<check name>] …`, and `rollback`. A new
   author column adds a fixture row signed by the leaving member, a snapshot
   entry, and a check after the deletion. The staying member's rows are
@@ -435,7 +438,7 @@ seller data, `(#7)` for a stored URL in `href`/`src`.
   counts rows with `get diagnostics`.
 - **Route test for a zero-rows write.** `tests/pages/api/criteria.test.ts`:
   stub the one planned write with `isTableRequest(request, "<table>",
-  "PATCH")` from `tests/fixtures/http.ts`, answer `jsonResponse([], 200)`, and
+"PATCH")` from `tests/fixtures/http.ts`, answer `jsonResponse([], 200)`, and
   assert the redirect carries `?error=`, the right `&form=` and fragment —
   never the `302` alone, which success shares. The success case asserts the
   body's keys from a hand-written list, and that no signature, date or id is
@@ -592,7 +595,7 @@ seller data, `(#7)` for a stored URL in `href`/`src`.
   - SQL script (2026-10-01): `public.offer_notes_before_update` replaced so
     that it always restores the author — `npm run test:db` exited non-zero
     with `account-deletion: [account deletion succeeds] … violates foreign
-    key constraint "offer_notes_author_id_fkey" (23503)`; restored with a
+key constraint "offer_notes_author_id_fkey" (23503)`; restored with a
     local `npx supabase db reset`.
 - CI: the `smoke` job ran green with the new step on 2026-10-01 (commit
   `fb20ba9`). The runner image ships `psql`, so the plan's fallback —
@@ -663,37 +666,38 @@ seller data, `(#7)` for a stored URL in `href`/`src`.
   decision in `context/archive/2026-10-01-testing-read-failure-states/mutation.md`; the
   score was never the target.
 
-  | Module (scope) | Before | After | Killed / survived / no coverage / total after |
-  |---|---|---|---|
-  | `src/lib/team-limits.ts` | 6.0% | 97.59% | 81 / 2 / 0 / 83 |
-  | `src/lib/offer-board.ts` | 0% | 85.42% | 41 / 7 / 0 / 48 |
-  | `src/lib/members.ts` | 0% | 89.92% | 116 / 6 / 7 / 129 |
-  | `src/lib/notes.ts:1-99` (the read) | 0% | 82.50% | 33 / 7 / 0 / 40 |
-  | `src/lib/criteria.ts:151-285` (the read) | 0% | 86.23% | 119 / 16 / 3 / 138 |
+  | Module (scope)                           | Before | After  | Killed / survived / no coverage / total after |
+  | ---------------------------------------- | ------ | ------ | --------------------------------------------- |
+  | `src/lib/team-limits.ts`                 | 6.0%   | 97.59% | 81 / 2 / 0 / 83                               |
+  | `src/lib/offer-board.ts`                 | 0%     | 85.42% | 41 / 7 / 0 / 48                               |
+  | `src/lib/members.ts`                     | 0%     | 89.92% | 116 / 6 / 7 / 129                             |
+  | `src/lib/notes.ts:1-99` (the read)       | 0%     | 82.50% | 33 / 7 / 0 / 40                               |
+  | `src/lib/criteria.ts:151-285` (the read) | 0%     | 86.23% | 119 / 16 / 3 / 138                            |
 
   The whole-file baselines were 0% for `src/lib/notes.ts` (60 mutants) and
   22.35% for `src/lib/criteria.ts` (264 mutants, every killed one in the form
   validators). The whole files were not measured again: lines `100-113` of
   `notes.ts` and `1-150` of `criteria.ts` are outside this change.
+
 - Mutants left without an assertion, by kind:
-  - *Equivalent:* an early-exit check (`if (!supabase)`, `if (result.error)`,
+  - _Equivalent:_ an early-exit check (`if (!supabase)`, `if (result.error)`,
     a `typeof` guard) whose removal makes the code throw into the `catch` of
     the same function, which answers the same failed state; a `null` check
     whose removal compares with `null` and gives the same answer, given the
     table's checks (`price` and `area_m2` are never `≤ 0`).
-  - *Consciously left out — data, not a rule:* column lists and `select`
+  - _Consciously left out — data, not a rule:_ column lists and `select`
     strings (`BOARD_COLUMNS`, `BOARD_SORT_COLUMN`, `LIMIT_COLUMNS`), which a
     stub answers regardless of and smoke guards on the real database, and the
     field labels in `NOTE_FIELD_LABELS`. An assertion on the literal would
     mirror the code.
-  - *Consciously left out — unreachable from the HTTP edge:* the `catch` in
+  - _Consciously left out — unreachable from the HTTP edge:_ the `catch` in
     `resolveSaver` and in `loadTeamLimits`. No response shape makes them
     throw, and `vi.mock` of an internal module is not used.
-  - *Consciously left out — type guards:* the `default` branch of
+  - _Consciously left out — type guards:_ the `default` branch of
     `saverName` and `authorName` (`never`, guarded by `astro check`), and the
     `typeof` guards on `updated_at` / `updated_by`, which differ only for a
     value a `timestamptz` or `uuid` column never returns.
-  - *Consciously left out — a swap point:* `auditStatus` in
+  - _Consciously left out — a swap point:_ `auditStatus` in
     `src/lib/offer-board.ts`, one constant today; S-04 gives it a rule and
     its assertions.
 - Deferred:
@@ -743,17 +747,18 @@ a form prefilled from it overwrites the real row on save.
   the test.
 - **The failures, each through the HTTP edge:**
 
-  | State | Answer |
-  |---|---|
-  | No client | pass `null` as the client; `stubFetch(() => undefined)` and `stub.requests` has length 0 |
-  | Query error | `jsonResponse({ code: "XX000", message: "internal error", details: null, hint: null }, 500)` — `error` is set at once, no retry |
-  | Missing row, for a `maybeSingle()` read | `jsonResponse([], 200)` — `data: null`, no error |
-  | More than one row, for a `maybeSingle()` read | two rows in the array — an error, `PGRST116` |
-  | Exception inside the function | a `200` whose body is not the shape the code walks: `{}`, `null`, or a list holding `null` |
-  | Unreadable value in a row | a `200` row with the value, one column at a time through `it.each`, the other columns readable |
+  | State                                         | Answer                                                                                                                          |
+  | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+  | No client                                     | pass `null` as the client; `stubFetch(() => undefined)` and `stub.requests` has length 0                                        |
+  | Query error                                   | `jsonResponse({ code: "XX000", message: "internal error", details: null, hint: null }, 500)` — `error` is set at once, no retry |
+  | Missing row, for a `maybeSingle()` read       | `jsonResponse([], 200)` — `data: null`, no error                                                                                |
+  | More than one row, for a `maybeSingle()` read | two rows in the array — an error, `PGRST116`                                                                                    |
+  | Exception inside the function                 | a `200` whose body is not the shape the code walks: `{}`, `null`, or a list holding `null`                                      |
+  | Unreadable value in a row                     | a `200` row with the value, one column at a time through `it.each`, the other columns readable                                  |
 
   With `maybeSingle()` an object body is handed over as the row itself, so
   there "not the row" means a row without its columns, `null`, or text.
+
 - **Do not use:** `503`, `520` or a rejected `fetch` — postgrest-js retries a
   GET up to three times with back-off (about 7 s) and they end as a result
   with `error`, never as an exception; and a `404` whose body is an array,

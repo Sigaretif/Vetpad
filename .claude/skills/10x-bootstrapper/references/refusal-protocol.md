@@ -27,7 +27,7 @@ Bootstrapper requires a tech-stack hand-off at `context/foundation/tech-stack.md
 
 ## (b) `starter_id` not in registry — HARD REFUSAL
 
-**Trigger**: hand-off frontmatter `starter_id` does not match any key under `starters:` in `/skills/10x-tech-stack-selector/references/starter-registry.yaml`. In chain-mode this should be unreachable (tech-stack-selector refuses to write a hand-off whose `starter_id` it can't resolve); this is a defensive check against hand-edited hand-offs.
+**Trigger**: hand-off frontmatter `starter_id` does not match any key under `starters:` in `/skills/10x-tech-stack-selector/references/starter-registry.yaml` and is not `custom`; or `starter_id` is `custom` but `custom_starter.name` is missing. In chain-mode this should be unreachable (tech-stack-selector refuses to write a hand-off whose `starter_id` it can't resolve); this is a defensive check against hand-edited hand-offs.
 
 **Clipboard**:
 
@@ -44,6 +44,12 @@ Registry drift detected: `<id>` is not in the tech-stack-selector registry. Eith
 ```
 
 **Exit**: stop immediately. Do not attempt to resolve the `starter_id` to anything else.
+
+For a `custom` hand-off missing `custom_starter.name`, print instead:
+
+```
+The hand-off picks a custom framework but doesn't say which one (`custom_starter.name` is missing). Re-run `/10x-tech-stack-selector` to regenerate `context/foundation/tech-stack.md`.
+```
 
 ## (c) Empty cwd — HARD REFUSAL
 
