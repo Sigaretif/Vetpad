@@ -35,6 +35,38 @@ describe("logEvent", () => {
     ]);
   });
 
+  it("writes the fields of an entry from outside a route and keeps a zero auth status", () => {
+    const captured = captureConsole();
+    logEvent("error", {
+      event: "auth_check",
+      outcome: "unavailable",
+      route: "/offers/[id]",
+      method: "GET",
+      error_name: "AuthRetryableFetchError",
+      auth_status: 0,
+      auth_code: "over_request_rate_limit",
+    });
+
+    // Zero is what auth-js reports for a request that got no answer: a value, not an absence.
+    expect(captured.entries()).toStrictEqual([
+      {
+        method: "error",
+        args: [
+          {
+            level: "error",
+            event: "auth_check",
+            outcome: "unavailable",
+            route: "/offers/[id]",
+            method: "GET",
+            error_name: "AuthRetryableFetchError",
+            auth_status: 0,
+            auth_code: "over_request_rate_limit",
+          },
+        ],
+      },
+    ]);
+  });
+
   it("leaves out a field that is undefined, null or an empty text", () => {
     const captured = captureConsole();
     logEvent("info", untyped({ event: "offer_add", reason: undefined, detail: null, db_hint: "" }));

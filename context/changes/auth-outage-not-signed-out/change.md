@@ -1,0 +1,12 @@
+---
+change_id: auth-outage-not-signed-out
+title: Awaria Supabase Auth odróżniona od braku sesji w middleware i logach
+status: implementing
+created: 2026-10-05
+updated: 2026-10-05
+archived_at: null
+---
+
+## Notes
+
+Krok 1 z context/audits/observability/2026-10-05_verify-add-offer-from-otodom.md (sekcja 6), zamyka P1 i P4 — opisy ustaleń w context/audits/observability/2026-10-05_add-offer-from-otodom.md (sekcja 5, Platform / plumbing). Dziś src/middleware.ts czyta data.user z supabase.auth.getUser() i ignoruje error, więc awaria Supabase Auth, uśpiony projekt i każde 5xx dają user: null — członek ląduje na /auth/signin bez komunikatu, a w logach wygląda to jak wygasła sesja; POST /api/offers loguje to jako refused / auth / signed_out na poziomie info. Zakres: (1) middleware odróżnia brak sesji od błędu Auth — brak sesji zostaje „wylogowany" i zachowuje się jak dziś, wszystko inne jest logowane przez logEvent z src/lib/log.ts na poziomie error i NIE jest przekierowaniem na logowanie; (2) next() opakowane w log-i-rzuć-dalej, żeby nieprzechwycony wyjątek miał w logu trasę, metodę i user_id, a 500 zostało 500; (3) src/pages/500.astro, żeby członek nie widział pustej białej strony — bez tego P4 nie zamyka się w całości; (4) trasy, które same sprawdzają locals.user (src/pages/api/offers.ts jako referencja), przestają logować awarię Auth jako signed_out. Warunki: nowe pola logu (np. nazwa i status błędu Auth, trasa, metoda) trafiają na białą listę reportera z przypadkiem w tests/lib/log.test.ts, nigdy obok niej; żadnego emaila, tokenu ani query stringa w logu; klasyfikacja błędów Auth już istnieje w src/pages/api/auth/signin.ts (signInErrorMessage) — użyć jej wzorca zamiast wymyślać drugi; stan zero-config (brak SUPABASE_URL/KEY) zostaje stanem, nie awarią, i nie jest logowany jako błąd; najpierw czerwone testy; wzorzec testu wpisu w context/foundation/test-plan.md §6.9; zmiana zachowania tras chronionych wymaga odzwierciedlenia w scripts/smoke.mjs. Decyzja produktowa do rozstrzygnięcia w /10x-plan, nie tutaj: co członek widzi przy awarii Auth (strona „usługa niedostępna" z jakim statusem — 503?) i czy dotyczy to też strony głównej oraz /auth/signin. Poza zakresem: pod-powody na granicy pobrania (A4, A6, A15 — to następna zmiana), odczyty karty i tablicy (A8, A9, P2), pozostałe trasy (P3, P6–P8), czasy trwania (P9), klient (P10), Sentry i każda nowa zależność. Dialog prowadź w języku polskim.

@@ -21,6 +21,11 @@ const FIELDS = [
   "listing",
   "otodom_id",
   "offer_id",
+  "route",
+  "method",
+  "error_name",
+  "auth_status",
+  "auth_code",
 ] as const;
 
 const MAX_TEXT_LENGTH = 300;
