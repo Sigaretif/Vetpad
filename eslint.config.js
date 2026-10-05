@@ -102,6 +102,13 @@ const tokensOnlyConfig = defineConfig({
   },
 });
 
+// src/lib/log.ts is the one way out to the console under src/: its whitelist decides what a log
+// entry can hold, so a console call anywhere else is a way around it.
+const consoleConfig = defineConfig(
+  { files: ["src/**/*.{astro,ts,tsx}"], rules: { "no-console": "error" } },
+  { files: ["src/lib/log.ts"], rules: { "no-console": "off" } },
+);
+
 const scriptsConfig = defineConfig({
   files: ["scripts/**/*.mjs"],
   extends: [tseslint.configs.disableTypeChecked],
@@ -119,6 +126,7 @@ export default defineConfig(
   eslintPluginAstro.configs["flat/jsx-a11y-recommended"],
   astroConfig,
   tokensOnlyConfig,
+  consoleConfig,
   scriptsConfig,
   eslintPluginPrettier,
 );
