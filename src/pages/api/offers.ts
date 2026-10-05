@@ -1,9 +1,15 @@
 import type { APIRoute } from "astro";
+import { type LogFields, logEvent } from "@/lib/log";
 import { createClient } from "@/lib/supabase";
 import { ingestOffer, normalizeOfferUrl, type IngestFailureReason } from "@/lib/otodom";
 
 const NOT_CONFIGURED = "Supabase nie jest skonfigurowany — nie można zapisać oferty.";
 const SAVE_FAILED = "Nie udało się zapisać oferty. Nic nie zostało zapisane.";
+const PRECHECK_FAILED =
+  "Nie udało się sprawdzić, czy ta oferta jest już zapisana. Niczego nie pobrano — spróbuj ponownie za chwilę.";
+const SAVE_UNCONFIRMED = "Nie udało się potwierdzić zapisu oferty. Sprawdź listę ofert, zanim dodasz ją ponownie.";
+const TWIN_NOT_OPENED =
+  "To ogłoszenie jest już zapisane, ale nie udało się otworzyć jego karty. Poszukaj go na liście ofert.";
 const UNIQUE_VIOLATION = "23505";
 
 /** One reason, one distinguishable message. A new reason fails the exhaustiveness check below. */
@@ -40,6 +46,31 @@ function failureMessage(reason: IngestFailureReason, status?: number): string {
   }
 }
 
+type Outcome = "duplicate" | "failed";
+
+/** The client is untyped; the two lookups below select `id` alone. */
+interface OfferId {
+  id: string;
+}
+
+/** One entry per way out of the route. A failure is an error; everything else is info. */
+function report(outcome: Outcome, fields: Omit<LogFields, "event" | "outcome">): void {
+  logEvent(outcome === "failed" ? "error" : "info", { event: "offer_add", outcome, ...fields });
+}
+
+/**
+ * The `ID…` token that ends an offer's slug: it names the listing in a log entry without
+ * carrying the words of its title, which the rest of the slug repeats.
+ */
+function listingToken(url: string): string | undefined {
+  return /[-/](ID[A-Za-z0-9]+)$/.exec(url)?.[1];
+}
+
+/** What a failed Supabase call says about itself. `details` is never read: Postgres quotes the rejected row there. */
+function dbFields(error: { code: string; message: string; hint: string }, status: number) {
+  return { db_code: error.code, db_message: error.message, db_hint: error.hint, db_status: status };
+}
+
 export const POST: APIRoute = async (context) => {
   const fail = (message: string) => context.redirect(`/dashboard?error=${encodeURIComponent(message)}`);
 
@@ -66,12 +97,21 @@ export const POST: APIRoute = async (context) => {
     return fail(failureMessage(normalized.reason));
   }
 
+  const ids = { user_id: user.id, listing: listingToken(normalized.url) };
+
   // A known offer opens its card without touching otodom.pl, even if the listing has expired since (FR-005).
-  const existing = await supabase.from("offers").select("id").eq("source_url", normalized.url).maybeSingle();
+  const existing = await supabase.from("offers").select("id").eq("source_url", normalized.url).maybeSingle<OfferId>();
   if (existing.error) {
-    return fail(SAVE_FAILED);
+    report("failed", {
+      ...ids,
+      stage: "precheck",
+      reason: "precheck_failed",
+      ...dbFields(existing.error, existing.status),
+    });
+    return fail(PRECHECK_FAILED);
   }
   if (existing.data) {
+    report("duplicate", { ...ids, stage: "precheck", offer_id: existing.data.id });
     return context.redirect(`/offers/${existing.data.id}?duplicate=1`);
   }
 
@@ -87,14 +127,49 @@ export const POST: APIRoute = async (context) => {
     .single();
 
   if (inserted.error) {
-    // The same offer under a different slug trips the unique index on otodom_id: open the existing card.
-    if (inserted.error.code === UNIQUE_VIOLATION) {
-      const twin = await supabase.from("offers").select("id").eq("otodom_id", result.offer.otodom_id).maybeSingle();
-      if (!twin.error && twin.data) {
-        return context.redirect(`/offers/${twin.data.id}?duplicate=1`);
-      }
+    const saving = { ...ids, otodom_id: result.offer.otodom_id };
+    // No answer at all: the row may have landed, so the member is not told that nothing was saved.
+    if (inserted.status === 0) {
+      report("failed", {
+        ...saving,
+        stage: "insert",
+        reason: "insert_unconfirmed",
+        db_message: inserted.error.message,
+        db_status: inserted.status,
+      });
+      return fail(SAVE_UNCONFIRMED);
     }
-    return fail(SAVE_FAILED);
+    if (inserted.error.code !== UNIQUE_VIOLATION) {
+      report("failed", {
+        ...saving,
+        stage: "insert",
+        reason: "insert_failed",
+        ...dbFields(inserted.error, inserted.status),
+      });
+      return fail(SAVE_FAILED);
+    }
+
+    // The same offer under a different slug trips the unique index on otodom_id: open the existing card.
+    const twin = await supabase
+      .from("offers")
+      .select("id")
+      .eq("otodom_id", result.offer.otodom_id)
+      .maybeSingle<OfferId>();
+    if (twin.error) {
+      report("failed", {
+        ...saving,
+        stage: "twin",
+        reason: "twin_lookup_failed",
+        ...dbFields(twin.error, twin.status),
+      });
+      return fail(TWIN_NOT_OPENED);
+    }
+    if (!twin.data) {
+      report("failed", { ...saving, stage: "twin", reason: "twin_missing" });
+      return fail(TWIN_NOT_OPENED);
+    }
+    report("duplicate", { ...saving, stage: "twin", offer_id: twin.data.id });
+    return context.redirect(`/offers/${twin.data.id}?duplicate=1`);
   }
 
   return context.redirect(`/offers/${inserted.data.id}`);

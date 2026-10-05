@@ -572,20 +572,20 @@ Brak migracji bazy i brak zmian w konfiguracji. Zmiana nie wymaga `supabase db p
 
 #### Automated
 
-- [x] 1.1 `npx vitest run tests/lib/log.test.ts` przechodzi, a przed dodaniem `src/lib/log.ts` był czerwony
-- [x] 1.2 `npm test` przechodzi
-- [x] 1.3 `npm run lint` przechodzi z `no-console` jako błędem w `src/`
-- [x] 1.4 Wywołanie `console.log` dopisane na próbę w `src/pages/api/offers.ts` wywraca `npm run lint`, po czym zostaje usunięte
-- [x] 1.5 `npx astro sync && npx astro check` przechodzi
+- [x] 1.1 `npx vitest run tests/lib/log.test.ts` przechodzi, a przed dodaniem `src/lib/log.ts` był czerwony — 53273ea
+- [x] 1.2 `npm test` przechodzi — 53273ea
+- [x] 1.3 `npm run lint` przechodzi z `no-console` jako błędem w `src/` — 53273ea
+- [x] 1.4 Wywołanie `console.log` dopisane na próbę w `src/pages/api/offers.ts` wywraca `npm run lint`, po czym zostaje usunięte — 53273ea
+- [x] 1.5 `npx astro sync && npx astro check` przechodzi — 53273ea
 
 ### Phase 2: Błędy bazy w trasie
 
 #### Automated
 
-- [ ] 2.1 Nowe przypadki w `tests/pages/api/offers.test.ts` są czerwone przed zmianą trasy i zielone po niej
-- [ ] 2.2 `npm test` przechodzi, w tym dotychczasowe przypadki trasy bez zmiany ich asercji
-- [ ] 2.3 `npm run lint` przechodzi
-- [ ] 2.4 `npx astro sync && npx astro check` przechodzi
+- [x] 2.1 Nowe przypadki w `tests/pages/api/offers.test.ts` są czerwone przed zmianą trasy i zielone po niej
+- [x] 2.2 `npm test` przechodzi, w tym dotychczasowe przypadki trasy bez zmiany ich asercji
+- [x] 2.3 `npm run lint` przechodzi
+- [x] 2.4 `npx astro sync && npx astro check` przechodzi
 
 ### Phase 3: Pozostałe wyjścia i wynik pobierania
 

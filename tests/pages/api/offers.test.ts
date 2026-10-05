@@ -1,6 +1,7 @@
 import type { APIContext } from "astro";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { POST } from "@/pages/api/offers";
+import { type ConsoleCapture, type ConsoleEntry, captureConsole, restoreConsole } from "../../fixtures/console";
 import {
   INSERTED_OFFER_ID,
   PAGE_WITHOUT_NEXT_DATA,
@@ -8,6 +9,7 @@ import {
   emptyOffersTable,
   isOffersRequest,
   isOtodomRequest,
+  jsonResponse,
   otodomPage,
   responseAt,
   restoreFetch,
@@ -29,8 +31,11 @@ vi.mock("astro:env/server", async () => {
 // never stored, while the description keeps the advertiser's words verbatim).
 
 afterEach(restoreFetch);
+afterEach(restoreConsole);
 
 const USER_ID = "4c1d7e2a-9b3f-4e8a-8d2c-00000000beef";
+/** The member's address is on `locals.user` in production too; no log entry may carry it. */
+const USER_EMAIL = "czlonek.kanarek@vetpad.local";
 
 /** The canonical form of the pasted URL, written out by hand (FR-005: no query, `/pl`, no trailing slash). */
 const NORMALISED_URL = "https://www.otodom.pl/pl/oferta/mieszkanie-54-m-warszawa-IDKANAR1";
@@ -41,12 +46,12 @@ function stubNetwork(page: () => Response) {
   return stubFetch((request) => (isOtodomRequest(request) ? page() : emptyOffersTable(request)));
 }
 
-async function submit(url: string): Promise<Response> {
+async function submit(url: string, user = { id: USER_ID, email: USER_EMAIL }): Promise<Response> {
   const form = new FormData();
   form.set("url", url);
   const context = {
     request: new Request("http://localhost/api/offers", { method: "POST", body: form }),
-    locals: { user: { id: USER_ID } },
+    locals: { user },
     cookies: { set: vi.fn() },
     redirect: (location: string, status = 302) => new Response(null, { status, headers: { Location: location } }),
   } as unknown as APIContext;
@@ -140,5 +145,267 @@ describe("POST /api/offers: a flat for sale is saved once, without seller data (
     const row = insertedRow((await saved()).requests);
     expect(row.description).toContain(CANARY_PHONE);
     expect(row.description).toContain(CANARY_NAME);
+  });
+});
+
+// What the route knows when the database lets it down, and what it tells the member: a failed
+// duplicate check has fetched nothing, an insert without an answer may have landed, and a
+// unique violation means the listing is saved even when its card cannot be found. Every log
+// entry is written out by hand; `listing` is the `ID…` token of the pasted slug, `otodom_id`
+// the `id` of `flatSaleAd()`.
+describe("POST /api/offers: a database failure is logged with its code and told as it is", () => {
+  const LISTING = "IDKANAR1";
+  const OTODOM_ID = 65000001;
+  const EXISTING_OFFER_ID = "0b9f0c2e-7d1a-4c55-9a53-000000000002";
+  const SAVE_FAILED = "Nie udało się zapisać oferty. Nic nie zostało zapisane.";
+  const UNIQUE_VIOLATION = {
+    code: "23505",
+    message: 'duplicate key value violates unique constraint "offers_otodom_id_key"',
+  };
+
+  type Answer = () => Response | Promise<Response>;
+
+  /**
+   * otodom serves the flat for sale, and each of the route's Supabase requests is answered by
+   * the test: the duplicate check by `source_url`, the insert, and the twin lookup by
+   * `otodom_id`. A request the test names no answer for falls back to the empty table; a twin
+   * lookup nobody planned stays unplanned.
+   */
+  function stubDatabase({ precheck, insert, twin }: { precheck?: Answer; insert?: Answer; twin?: Answer }) {
+    return stubFetch((request) => {
+      if (isOtodomRequest(request)) return responseAt(otodomPage(flatSaleAd()));
+      const params = new URL(request.url).searchParams;
+      if (isOffersRequest(request, "GET") && params.has("source_url") && precheck) return precheck();
+      if (isOffersRequest(request, "GET") && params.get("otodom_id") === `eq.${OTODOM_ID}`) return twin?.();
+      if (isOffersRequest(request, "POST") && insert) return insert();
+      return emptyOffersTable(request);
+    });
+  }
+
+  /** The entry written right before the route answered. */
+  function finalEntry(captured: ConsoleCapture): ConsoleEntry | undefined {
+    return captured.entries().at(-1);
+  }
+
+  function errorMessage(response: Response): string | null {
+    const target = location(response);
+    expect(target.pathname).toBe("/dashboard");
+    return target.searchParams.get("error");
+  }
+
+  it("reports a failed duplicate check as one, before anything is fetched", async () => {
+    const captured = captureConsole();
+    const stub = stubDatabase({ precheck: () => jsonResponse({ code: "PGRST301", message: "JWT expired" }, 401) });
+
+    expect(errorMessage(await submit(PASTED_URL))).toContain("sprawdzić, czy ta oferta jest już zapisana");
+    expect(stub.requests.filter(isOtodomRequest)).toHaveLength(0);
+    expect(offerInserts(stub.requests)).toHaveLength(0);
+    expect(captured.entries()).toStrictEqual([
+      {
+        method: "error",
+        args: [
+          {
+            level: "error",
+            event: "offer_add",
+            outcome: "failed",
+            stage: "precheck",
+            reason: "precheck_failed",
+            db_code: "PGRST301",
+            db_message: "JWT expired",
+            db_status: 401,
+            user_id: USER_ID,
+            listing: LISTING,
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("opens the card of an offer already saved under this address, without fetching it", async () => {
+    const captured = captureConsole();
+    const stub = stubDatabase({ precheck: () => jsonResponse([{ id: EXISTING_OFFER_ID }], 200) });
+
+    const target = location(await submit(PASTED_URL));
+    expect(target.pathname).toBe(`/offers/${EXISTING_OFFER_ID}`);
+    expect(target.searchParams.get("duplicate")).toBe("1");
+    expect(stub.requests.filter(isOtodomRequest)).toHaveLength(0);
+    expect(captured.entries()).toStrictEqual([
+      {
+        method: "info",
+        args: [
+          {
+            level: "info",
+            event: "offer_add",
+            outcome: "duplicate",
+            stage: "precheck",
+            user_id: USER_ID,
+            listing: LISTING,
+            offer_id: EXISTING_OFFER_ID,
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("logs the code of an insert that row-level security refused", async () => {
+    const captured = captureConsole();
+    const message = 'new row violates row-level security policy for table "offers"';
+    stubDatabase({ insert: () => jsonResponse({ code: "42501", message }, 403) });
+
+    expect(errorMessage(await submit(PASTED_URL))).toBe(SAVE_FAILED);
+    expect(finalEntry(captured)).toStrictEqual({
+      method: "error",
+      args: [
+        {
+          level: "error",
+          event: "offer_add",
+          outcome: "failed",
+          stage: "insert",
+          reason: "insert_failed",
+          db_code: "42501",
+          db_message: message,
+          db_status: 403,
+          user_id: USER_ID,
+          listing: LISTING,
+          otodom_id: OTODOM_ID,
+        },
+      ],
+    });
+  });
+
+  it("logs a check violation without the rejected row Postgres quotes in its details", async () => {
+    const captured = captureConsole();
+    const message = 'new row for relation "offers" violates check constraint "offers_price_check"';
+    const details = `Failing row contains (65000001, Mieszkanie, Kontakt: ${CANARY_NAME}, tel. ${CANARY_PHONE}).`;
+    stubDatabase({ insert: () => jsonResponse({ code: "23514", message, details, hint: null }, 400) });
+
+    expect(errorMessage(await submit(PASTED_URL))).toBe(SAVE_FAILED);
+    expect(finalEntry(captured)).toStrictEqual({
+      method: "error",
+      args: [
+        {
+          level: "error",
+          event: "offer_add",
+          outcome: "failed",
+          stage: "insert",
+          reason: "insert_failed",
+          db_code: "23514",
+          db_message: message,
+          db_status: 400,
+          user_id: USER_ID,
+          listing: LISTING,
+          otodom_id: OTODOM_ID,
+        },
+      ],
+    });
+    expect(captured.text()).not.toContain("Failing row");
+    expect(captured.text()).not.toContain(CANARY_PHONE);
+    expect(captured.text()).not.toContain(CANARY_NAME);
+  });
+
+  it("does not claim that nothing was saved when the insert got no answer", async () => {
+    const captured = captureConsole();
+    // A rejected promise, not `undefined`: the request was planned, the database just never answered.
+    stubDatabase({ insert: () => Promise.reject(new TypeError("fetch failed")) });
+
+    const message = errorMessage(await submit(PASTED_URL));
+    expect(message).toContain("potwierdzić zapisu");
+    expect(message).not.toContain("Nic nie zostało zapisane");
+    expect(finalEntry(captured)).toStrictEqual({
+      method: "error",
+      args: [
+        {
+          level: "error",
+          event: "offer_add",
+          outcome: "failed",
+          stage: "insert",
+          reason: "insert_unconfirmed",
+          db_message: "TypeError: fetch failed",
+          db_status: 0,
+          user_id: USER_ID,
+          listing: LISTING,
+          otodom_id: OTODOM_ID,
+        },
+      ],
+    });
+  });
+
+  it("opens the card of the same listing saved under another address", async () => {
+    const captured = captureConsole();
+    stubDatabase({
+      insert: () => jsonResponse(UNIQUE_VIOLATION, 409),
+      twin: () => jsonResponse([{ id: EXISTING_OFFER_ID }], 200),
+    });
+
+    const target = location(await submit(PASTED_URL));
+    expect(target.pathname).toBe(`/offers/${EXISTING_OFFER_ID}`);
+    expect(target.searchParams.get("duplicate")).toBe("1");
+    expect(finalEntry(captured)).toStrictEqual({
+      method: "info",
+      args: [
+        {
+          level: "info",
+          event: "offer_add",
+          outcome: "duplicate",
+          stage: "twin",
+          user_id: USER_ID,
+          listing: LISTING,
+          otodom_id: OTODOM_ID,
+          offer_id: EXISTING_OFFER_ID,
+        },
+      ],
+    });
+  });
+
+  it("says the listing is already saved when its twin cannot be seen", async () => {
+    const captured = captureConsole();
+    stubDatabase({ insert: () => jsonResponse(UNIQUE_VIOLATION, 409), twin: () => jsonResponse([], 200) });
+
+    const message = errorMessage(await submit(PASTED_URL));
+    expect(message).toContain("jest już zapisane");
+    expect(message).not.toContain("Nic nie zostało zapisane");
+    expect(finalEntry(captured)).toStrictEqual({
+      method: "error",
+      args: [
+        {
+          level: "error",
+          event: "offer_add",
+          outcome: "failed",
+          stage: "twin",
+          reason: "twin_missing",
+          user_id: USER_ID,
+          listing: LISTING,
+          otodom_id: OTODOM_ID,
+        },
+      ],
+    });
+  });
+
+  it("says the listing is already saved when the twin lookup fails, and logs the lookup's error", async () => {
+    const captured = captureConsole();
+    stubDatabase({
+      insert: () => jsonResponse(UNIQUE_VIOLATION, 409),
+      twin: () => jsonResponse({ code: "XX000", message: "internal error" }, 500),
+    });
+
+    expect(errorMessage(await submit(PASTED_URL))).toContain("jest już zapisane");
+    expect(finalEntry(captured)).toStrictEqual({
+      method: "error",
+      args: [
+        {
+          level: "error",
+          event: "offer_add",
+          outcome: "failed",
+          stage: "twin",
+          reason: "twin_lookup_failed",
+          db_code: "XX000",
+          db_message: "internal error",
+          db_status: 500,
+          user_id: USER_ID,
+          listing: LISTING,
+          otodom_id: OTODOM_ID,
+        },
+      ],
+    });
   });
 });
