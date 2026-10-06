@@ -7,9 +7,45 @@ export type UrlFailureReason = "empty" | "malformed" | "foreign_host" | "not_an_
 export type NormalizeUrlResult = { ok: true; url: string } | { ok: false; reason: UrlFailureReason };
 
 export type FetchFailureReason =
-  "http_denied" | "upstream_error" | "not_found" | "expired" | "shape_changed" | "timeout" | "network";
+  | "challenged"
+  | "http_denied"
+  | "upstream_error"
+  | "not_found"
+  | "unexpected_landing"
+  | "expired"
+  | "data_missing"
+  | "shape_changed"
+  | "timeout"
+  | "network";
 
-export type FetchOfferResult = { ok: true; ad: unknown } | { ok: false; reason: FetchFailureReason; status?: number };
+/**
+ * What a failed fetch knows about the answer it got, for the log entry. A field is present only
+ * when the fetch learned it: nothing about a response before its headers, nothing about a body
+ * that was not read. It never holds the page's text, a query string or the path of an offer page —
+ * the slug repeats the listing's title, so an offer is named by its `ID…` token alone.
+ */
+export interface FetchEvidence {
+  landedHost?: string;
+  /** Path only, and only for a landing that is not an offer page on otodom. */
+  landedPath?: string;
+  /** The `ID…` token ending the slug, only for a landing that is an offer page on otodom. */
+  landedListing?: string;
+  contentType?: string;
+  bodyLength?: number;
+  /** Whether the body carried the `__NEXT_DATA__` script. */
+  markerPresent?: boolean;
+  cfMitigated?: string;
+  retryAfter?: string;
+  errorName?: string;
+  errorMessage?: string;
+  errorCause?: string;
+  /** Which call threw: `fetch()` before the headers, or the read of the body after them. */
+  phase?: "headers" | "body";
+}
+
+export type FetchOfferResult =
+  | { ok: true; ad: unknown }
+  | { ok: false; reason: FetchFailureReason; status?: number; detail?: string; evidence: FetchEvidence };
 
 export type MapFailureReason = "not_for_sale" | "not_a_flat" | "shape_changed";
 

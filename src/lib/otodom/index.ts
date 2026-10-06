@@ -1,6 +1,6 @@
 import { fetchOfferAd } from "./fetch";
 import { mapAdToOffer } from "./map";
-import type { FetchFailureReason, MapFailureReason, OfferInsert, UrlFailureReason } from "./types";
+import type { FetchEvidence, FetchFailureReason, MapFailureReason, OfferInsert, UrlFailureReason } from "./types";
 import { normalizeOfferUrl } from "./url";
 
 export type { OfferImage, OfferInsert } from "./types";
@@ -15,9 +15,17 @@ export type IngestFailureReason = UrlFailureReason | FetchFailureReason | MapFai
  */
 export type IngestStage = "url" | "fetch" | "map";
 
+/** `evidence` is what the fetch learned about the answer: present for the `fetch` stage alone. */
 export type IngestResult =
   | { ok: true; url: string; offer: OfferInsert }
-  | { ok: false; stage: IngestStage; reason: IngestFailureReason; status?: number; detail?: string };
+  | {
+      ok: false;
+      stage: IngestStage;
+      reason: IngestFailureReason;
+      status?: number;
+      detail?: string;
+      evidence?: FetchEvidence;
+    };
 
 /**
  * Pasted URL to a mapped offer row: normalise, fetch, gate and map. Knows nothing

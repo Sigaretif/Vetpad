@@ -146,9 +146,9 @@ describe("POST /api/offers: a refusal saves nothing (#1, FR-005)", () => {
     [
       "a page without __NEXT_DATA__",
       () => responseAt(PAGE_WITHOUT_NEXT_DATA),
-      ["zmienić format"],
+      ["przysłał stronę bez danych ogłoszenia", "mógł zablokować pobranie albo zmienić format strony"],
       "error",
-      { outcome: "failed", stage: "fetch", reason: "shape_changed" },
+      { outcome: "failed", stage: "fetch", reason: "data_missing", status: 200 },
     ],
     [
       "a listing without a title",
@@ -176,7 +176,7 @@ describe("POST /api/offers: a refusal saves nothing (#1, FR-005)", () => {
       () => responseAt(otodomPage(flatSaleAd({ shouldShowExpiredAdPage: true }))),
       ["nie istnieje lub wygasło"],
       "info",
-      { outcome: "refused", stage: "fetch", reason: "expired" },
+      { outcome: "refused", stage: "fetch", reason: "expired", status: 200 },
     ],
     [
       "an HTTP 503 from otodom",
@@ -186,12 +186,12 @@ describe("POST /api/offers: a refusal saves nothing (#1, FR-005)", () => {
       { outcome: "failed", stage: "fetch", reason: "upstream_error", status: 503 },
     ],
     [
-      // No status to show: the sentence ends right after the noun.
+      // The answer came with 200, which explains nothing: the sentence ends right after the noun.
       "a redirect off otodom",
       () => responseAt(otodomPage(flatSaleAd()), { url: "https://consent.example/?next=oferta" }),
       ["odmówił pobrania ogłoszenia. Nic nie zostało zapisane"],
       "error",
-      { outcome: "failed", stage: "fetch", reason: "http_denied" },
+      { outcome: "failed", stage: "fetch", reason: "http_denied", status: 200 },
     ],
     [
       "a fetch that never connected",

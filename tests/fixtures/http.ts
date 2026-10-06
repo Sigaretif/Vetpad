@@ -71,18 +71,42 @@ export function restoreFetch(): void {
   }
 }
 
+/** What a test may say about a response besides its body. `headers` replace the default `Content-Type`. */
+export interface ResponseOptions {
+  status?: number;
+  url?: string;
+  headers?: Record<string, string>;
+}
+
+function respond(body: BodyInit | null, { status = 200, url, headers: extra = {} }: ResponseOptions): Response {
+  // Set one by one: a second spelling of a name in a plain object would be joined, not replaced.
+  const headers = new Headers({ "Content-Type": "text/html; charset=utf-8" });
+  for (const [name, value] of Object.entries(extra)) headers.set(name, value);
+  const response = new Response(body, { status, headers });
+  if (url !== undefined) Object.defineProperty(response, "url", { value: url });
+  return response;
+}
+
 /**
  * A `Response` as `fetch` hands it back. `new Response()` leaves `url` as "", which the otodom
  * fetch reads as "no redirect happened"; a test of a followed redirect passes the address the
  * redirect landed on, the way a real fetch reports it.
  */
-export function responseAt(
-  body: string | null,
-  { status = 200, url }: { status?: number; url?: string } = {},
-): Response {
-  const response = new Response(body, { status, headers: { "Content-Type": "text/html; charset=utf-8" } });
-  if (url !== undefined) Object.defineProperty(response, "url", { value: url });
-  return response;
+export function responseAt(body: string | null, options: ResponseOptions = {}): Response {
+  return respond(body, options);
+}
+
+/**
+ * A `Response` whose headers arrived and whose body cannot be read: its stream ends with
+ * `error`, so `text()` rejects with it — a connection cut after the status line.
+ */
+export function unreadableResponse(error: unknown, options: ResponseOptions = {}): Response {
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.error(error);
+    },
+  });
+  return respond(body, options);
 }
 
 // otodom pages (otodom_fetching.md, section 7.1): the offer page embeds its data as JSON in
@@ -112,6 +136,19 @@ export function otodomPage(ad: unknown): string {
 
 /** A page without any `__NEXT_DATA__` script: the shape the fetch cannot read. */
 export const PAGE_WITHOUT_NEXT_DATA = page('<script id="__APP_DATA__" type="application/json">{}</script>');
+
+/** Sits in the challenge page's text. No log entry may carry it: a page's body is never logged. */
+export const CHALLENGE_CANARY = "kanarek-wyzwanie-7d3a";
+
+/**
+ * An anti-bot interstitial, written by hand — nobody has recorded one from otodom
+ * (otodom_fetching.md, sections 2 and 9.1). It carries no `__NEXT_DATA__` script.
+ */
+export const CHALLENGE_PAGE =
+  '<!DOCTYPE html><html lang="pl"><head><meta charset="utf-8"><title>Chwileczkę…</title></head>' +
+  "<body><main><h1>Sprawdzamy, czy nie jesteś automatem</h1>" +
+  `<p>To potrwa kilka sekund. Identyfikator sprawdzenia: ${CHALLENGE_CANARY}</p>` +
+  '<noscript>Włącz JavaScript, aby przejść dalej.</noscript></main><script src="/challenge.js"></script></body></html>';
 
 // Supabase, as the offers route talks to it (supabase-js / postgrest-js 2.116, read from
 // node_modules/@supabase/postgrest-js/dist/index.mjs):

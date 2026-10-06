@@ -557,26 +557,26 @@ według runbooka.
 
 #### Automated
 
-- [x] 1.1 Test reportera przechodzi: `npm test -- tests/lib/log.test.ts`
-- [x] 1.2 Cały zestaw przechodzi: `npm test`
-- [x] 1.3 Lint przechodzi: `npm run lint`
-- [x] 1.4 Typy przechodzą: `npx astro sync && npx astro check`
+- [x] 1.1 Test reportera przechodzi: `npm test -- tests/lib/log.test.ts` — 830721a
+- [x] 1.2 Cały zestaw przechodzi: `npm test` — 830721a
+- [x] 1.3 Lint przechodzi: `npm run lint` — 830721a
+- [x] 1.4 Typy przechodzą: `npx astro sync && npx astro check` — 830721a
 
 ### Phase 2: Granica pobrania
 
 #### Automated
 
-- [ ] 2.1 Testy granicy pobrania przechodzą: `npm test -- tests/lib/otodom/fetch.test.ts`
-- [ ] 2.2 Testy trasy przechodzą: `npm test -- tests/pages/api/offers.test.ts`
-- [ ] 2.3 Cały zestaw przechodzi: `npm test`
-- [ ] 2.4 Typy przechodzą, obie tabele wyczerpujące: `npx astro sync && npx astro check`
-- [ ] 2.5 Lint przechodzi: `npm run lint`
-- [ ] 2.6 `fetch.ts` i `types.ts` mają wyłącznie importy typów: `grep -n "^import" src/lib/otodom/fetch.ts src/lib/otodom/types.ts`
-- [ ] 2.7 Skrypt diagnostyczny ładuje moduł: `node scripts/otodom-inspect.mjs --help`
+- [x] 2.1 Testy granicy pobrania przechodzą: `npm test -- tests/lib/otodom/fetch.test.ts`
+- [x] 2.2 Testy trasy przechodzą: `npm test -- tests/pages/api/offers.test.ts`
+- [x] 2.3 Cały zestaw przechodzi: `npm test`
+- [x] 2.4 Typy przechodzą, obie tabele wyczerpujące: `npx astro sync && npx astro check`
+- [x] 2.5 Lint przechodzi: `npm run lint`
+- [x] 2.6 `fetch.ts` i `types.ts` mają wyłącznie importy typów: `grep -n "^import" src/lib/otodom/fetch.ts src/lib/otodom/types.ts`
+- [x] 2.7 Skrypt diagnostyczny ładuje moduł: `node scripts/otodom-inspect.mjs --help`
 
 #### Manual
 
-- [ ] 2.8 Trzy nowe zdania dla członka przeczytane w całości i zaakceptowane
+- [x] 2.8 Trzy nowe zdania dla członka przeczytane w całości i zaakceptowane
 
 ### Phase 3: Wpis trasy
 

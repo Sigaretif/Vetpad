@@ -28,11 +28,17 @@ function failureMessage(reason: IngestFailureReason, status?: number): string {
       return "Vetpad obsługuje wyłącznie mieszkania — to ogłoszenie dotyczy innego rodzaju nieruchomości.";
     case "not_found":
     case "expired":
+    case "unexpected_landing":
       return "Ogłoszenie nie istnieje lub wygasło. Nic nie zostało zapisane.";
+    case "challenged":
+      return "otodom.pl zablokował pobranie ogłoszenia — odpowiedział stroną zabezpieczającą przed automatami. Nic nie zostało zapisane — spróbuj ponownie później.";
     case "http_denied":
-      return `otodom.pl odmówił pobrania ogłoszenia${status === undefined ? "" : ` (HTTP ${status})`}. Nic nie zostało zapisane — spróbuj ponownie za chwilę.`;
+      // A refusal can come with 200 — a redirect off otodom — and that status explains nothing.
+      return `otodom.pl odmówił pobrania ogłoszenia${status === undefined || status < 400 ? "" : ` (HTTP ${status})`}. Nic nie zostało zapisane — spróbuj ponownie za chwilę.`;
     case "upstream_error":
       return `otodom.pl jest chwilowo niedostępny (HTTP ${status ?? "?"}). Nic nie zostało zapisane — spróbuj ponownie za chwilę.`;
+    case "data_missing":
+      return "otodom.pl przysłał stronę bez danych ogłoszenia — mógł zablokować pobranie albo zmienić format strony. Nic nie zostało zapisane.";
     case "shape_changed":
       return "Nie udało się odczytać treści ogłoszenia — strona otodom.pl mogła zmienić format. Nic nie zostało zapisane.";
     case "timeout":
@@ -62,8 +68,11 @@ const INGEST_OUTCOME: Record<IngestFailureReason, "refused" | "failed"> = {
   not_a_flat: "refused",
   not_found: "refused",
   expired: "refused",
+  challenged: "failed",
   http_denied: "failed",
   upstream_error: "failed",
+  unexpected_landing: "failed",
+  data_missing: "failed",
   shape_changed: "failed",
   timeout: "failed",
   network: "failed",
