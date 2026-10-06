@@ -55,9 +55,9 @@ configured early or authorisation gaps accumulate quietly.
 
 ## Pre-scaffold verification
 
-| Signal      | Value                                                          | Severity | Notes                                                                                     |
-| ----------- | -------------------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------- |
-| npm package | not run                                                         | n/a      | `cmd_template` starts with `git clone`; no npm-distributed `create-*` CLI to resolve        |
+| Signal      | Value                                                                 | Severity | Notes                                                                                                   |
+| ----------- | --------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------- |
+| npm package | not run                                                               | n/a      | `cmd_template` starts with `git clone`; no npm-distributed `create-*` CLI to resolve                    |
 | GitHub repo | `przeprogramowani/10x-astro-starter` last pushed 2026-09-12T21:16:08Z | fresh    | from `card.docs_url`; 7 days before run. `gh` CLI unavailable — read-only GitHub REST call used instead |
 
 No stale signal. Proceeded without a heads-up.
@@ -75,30 +75,30 @@ No stale signal. Proceeded without a heads-up.
 
 ### File-by-file move log
 
-| Path                | Resolution              |
-| ------------------- | ----------------------- |
-| `AGENTS.md`         | moved                   |
-| `astro.config.mjs`  | moved                   |
+| Path                | Resolution                                            |
+| ------------------- | ----------------------------------------------------- |
+| `AGENTS.md`         | moved                                                 |
+| `astro.config.mjs`  | moved                                                 |
 | `CLAUDE.md`         | sidelined → `CLAUDE.md.scaffold` (existing file wins) |
-| `components.json`   | moved                   |
-| `eslint.config.js`  | moved                   |
-| `node_modules/`     | moved (30669 files)     |
-| `package.json`      | moved                   |
-| `package-lock.json` | moved                   |
-| `public/`           | moved (3 files)         |
-| `README.md`         | moved                   |
-| `scripts/`          | moved (1 file)          |
-| `src/`              | moved (26 files)        |
-| `supabase/`         | moved (2 files)         |
-| `tsconfig.json`     | moved                   |
-| `wrangler.jsonc`    | moved                   |
-| `.env.example`      | moved                   |
-| `.github/`          | moved (1 file)          |
-| `.gitignore`        | moved                   |
-| `.husky/`           | moved (1 file)          |
-| `.nvmrc`            | moved                   |
-| `.prettierrc.json`  | moved                   |
-| `.vscode/`          | moved (3 files)         |
+| `components.json`   | moved                                                 |
+| `eslint.config.js`  | moved                                                 |
+| `node_modules/`     | moved (30669 files)                                   |
+| `package.json`      | moved                                                 |
+| `package-lock.json` | moved                                                 |
+| `public/`           | moved (3 files)                                       |
+| `README.md`         | moved                                                 |
+| `scripts/`          | moved (1 file)                                        |
+| `src/`              | moved (26 files)                                      |
+| `supabase/`         | moved (2 files)                                       |
+| `tsconfig.json`     | moved                                                 |
+| `wrangler.jsonc`    | moved                                                 |
+| `.env.example`      | moved                                                 |
+| `.github/`          | moved (1 file)                                        |
+| `.gitignore`        | moved                                                 |
+| `.husky/`           | moved (1 file)                                        |
+| `.nvmrc`            | moved                                                 |
+| `.prettierrc.json`  | moved                                                 |
+| `.vscode/`          | moved (3 files)                                       |
 
 `context/` was preserved verbatim; the scaffold carried no `context/` paths, so nothing was dropped.
 
@@ -130,21 +130,21 @@ Raw `metadata.vulnerabilities`: `{"info": 0, "low": 0, "moderate": 0, "high": 0,
 
 ## Hints recorded but not acted on
 
-| Hint                    | Value                  |
-| ----------------------- | ---------------------- |
-| bootstrapper_confidence | first-class            |
-| quality_override        | false                  |
-| path_taken              | standard               |
-| self_check_answers      | null                   |
-| team_size               | solo                   |
-| deployment_target       | cloudflare-pages       |
-| ci_provider             | github-actions         |
-| ci_default_flow         | auto-deploy-on-merge   |
-| has_auth                | true                   |
-| has_payments            | false                  |
-| has_realtime            | false                  |
-| has_ai                  | true                   |
-| has_background_jobs     | false                  |
+| Hint                    | Value                |
+| ----------------------- | -------------------- |
+| bootstrapper_confidence | first-class          |
+| quality_override        | false                |
+| path_taken              | standard             |
+| self_check_answers      | null                 |
+| team_size               | solo                 |
+| deployment_target       | cloudflare-pages     |
+| ci_provider             | github-actions       |
+| ci_default_flow         | auto-deploy-on-merge |
+| has_auth                | true                 |
+| has_payments            | false                |
+| has_realtime            | false                |
+| has_ai                  | true                 |
+| has_background_jobs     | false                |
 
 No CI/CD scaffolding, no auth/AI wiring, and no deployment configuration were derived from these values in v1. They are carried forward here for the future agent-context skill.
 
@@ -153,6 +153,7 @@ No CI/CD scaffolding, no auth/AI wiring, and no deployment configuration were de
 Next: a future skill will set up agent context (CLAUDE.md, AGENTS.md). For now, your project is scaffolded and verified — happy hacking.
 
 Useful manual steps in the meantime:
+
 - `git init` (if you have not already) to start your own repo history.
 - Review `CLAUDE.md.scaffold` against your existing `CLAUDE.md` (`diff CLAUDE.md CLAUDE.md.scaffold`) and decide which version of each part to keep.
 - Copy `.env.example` to `.env` and fill in your Supabase and model-provider credentials.

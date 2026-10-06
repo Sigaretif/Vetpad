@@ -1,10 +1,10 @@
 ---
 change_id: bootstrap-verification
 title: Log weryfikacji bootstrapu projektu
-status: implemented
+status: archived
 created: 2026-09-19
 updated: 2026-10-06
-archived_at: null
+archived_at: 2026-10-06T10:18:10Z
 ---
 
 ## Notes
