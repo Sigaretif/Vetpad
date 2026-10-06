@@ -16,8 +16,8 @@ an agent starting a fresh session with no memory of how this was set up.
 `@context/foundation/infrastructure.md` is _why_ this platform was chosen.
 This file is _how it actually behaves_, written after deploy zero — every entry
 below was observed, not predicted. The step-by-step account of that first deploy
-lives in `context/changes/deployment/deployment-plan.md` until that change is
-archived; this file is the part that outlives it.
+lives in `context/archive/2026-09-20-deployment/deployment-plan.md`; this file is
+the part that outlives it.
 
 ## Current state
 

@@ -165,7 +165,7 @@ A visitor without a session, or with one Supabase Auth refuses, is signed out an
 
 This project deploys to [Cloudflare Workers](https://workers.cloudflare.com/) — **not** Cloudflare Pages. `@astrojs/cloudflare` v14 dropped Pages support entirely, so `wrangler pages deploy` is wrong for this repository.
 
-**Runs on the Workers Free plan.** Cloudflare meters **CPU time**, not request duration: waiting on `fetch()` does not count toward it, and HTTP-triggered Workers have no hard duration limit while the client stays connected — on Free too. The only open question is whether CPU-bound work fits in Free's 10 ms per invocation, which is measured once real ingestion and audit code exists. The symptom to watch for is error **1102 "Worker exceeded resource limits"** — it reads like a code bug and is not one. See `context/changes/deployment/deployment-plan.md` → "Kiedy wrócić do pytania o plan płatny".
+**Runs on the Workers Free plan.** Cloudflare meters **CPU time**, not request duration: waiting on `fetch()` does not count toward it, and HTTP-triggered Workers have no hard duration limit while the client stays connected — on Free too. The only open question is whether CPU-bound work fits in Free's 10 ms per invocation, which is measured once real ingestion and audit code exists. The symptom to watch for is error **1102 "Worker exceeded resource limits"** — it reads like a code bug and is not one. See `context/archive/2026-09-20-deployment/deployment-plan.md` → "Kiedy wrócić do pytania o plan płatny".
 
 > `wrangler.jsonc` deliberately carries **no `limits` block**: `limits.cpu_ms` is rejected on the Free plan (API error 100328) and blocks the deploy. It is added in the same change that upgrades to Workers Paid.
 
@@ -184,7 +184,7 @@ npx wrangler deploy
 
 Set `SUPABASE_URL` and `SUPABASE_KEY` via `npx wrangler secret put <NAME>`. Each one creates a new version and deploys it immediately; secrets are write-only once set. The app deploys and renders without them — `src/lib/config-status.ts` reports the gap in a banner — so this step can follow a first successful deploy.
 
-The full deployment plan, including prerequisites, edge cases and the operational runbook, is at [`context/changes/deployment/deployment-plan.md`](./context/changes/deployment/deployment-plan.md).
+The full deployment plan, including prerequisites, edge cases and the operational runbook, is at [`context/archive/2026-09-20-deployment/deployment-plan.md`](./context/archive/2026-09-20-deployment/deployment-plan.md).
 
 ## Smoke test
 
