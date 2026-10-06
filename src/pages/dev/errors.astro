@@ -1,0 +1,42 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import ErrorPage from "@/components/ErrorPage.astro";
+
+// Visual gate for the error pages `/500` and `/503`: both views at once, through the component the
+// production pages render, in `astro dev` only. Anywhere else (a production build,
+// `npm run preview`) it answers 404. The status is set on Astro.response, not returned, because a
+// top-level `return` crashes @typescript-eslint/no-misused-promises.
+// Pattern: `src/pages/dev/board.astro`.
+const isDev = import.meta.env.DEV;
+if (!isDev) {
+  Astro.response.status = 404;
+}
+
+const stateClass = "border-border flex flex-col gap-6 border-t pt-6";
+const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppercase";
+---
+
+{isDev ? (
+  <AppLayout title="Strony błędów — stany — Vetpad">
+    <p class="text-muted-foreground text-sm">
+      Strona testowa (tylko <code>astro dev</code>): widoki stron <code>/500</code> i <code>/503</code>, z tego samego
+      komponentu co w produkcji. Hover i fokus mają własne zrzuty na linku „Spróbuj ponownie” (
+      <code>errors-hover-retry</code>, <code>errors-focus-retry</code>). Stany disabled, error, empty i loading: nie
+      dotyczy — widoki mają wyłącznie linki, stałą treść i niczego nie pobierają.
+    </p>
+
+    <div class:list={stateClass} data-state="500">
+      <p class:list={captionClass}>Stan: strona 500 (nieoczekiwany błąd)</p>
+      <ErrorPage variant="500" />
+    </div>
+
+    <div class:list={stateClass} data-state="503">
+      <p class:list={captionClass}>Stan: strona 503 (usługa logowania nie odpowiada)</p>
+      <ErrorPage variant="503" retryHref="/dashboard" />
+    </div>
+  </AppLayout>
+) : (
+  <AppLayout title="Nie znaleziono — Vetpad">
+    <p class="text-muted-foreground">Nie znaleziono.</p>
+  </AppLayout>
+)}

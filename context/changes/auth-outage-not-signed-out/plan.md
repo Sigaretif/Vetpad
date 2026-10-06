@@ -707,27 +707,27 @@ ani nowych sekretów. Ciasteczka sesji zostają w dotychczasowym kształcie.
 
 #### Automated
 
-- [x] 1.1 `npx vitest run tests/lib/auth-error.test.ts` przechodzi, a przed dodaniem `src/lib/auth-error.ts` był czerwony
-- [x] 1.2 Nowy przypadek w `tests/lib/log.test.ts` jest czerwony przed dopisaniem kluczy do białej listy i zielony po nim
-- [x] 1.3 `npm test` przechodzi
-- [x] 1.4 `npm run lint` przechodzi
-- [x] 1.5 `npx astro sync && npx astro check` przechodzi
+- [x] 1.1 `npx vitest run tests/lib/auth-error.test.ts` przechodzi, a przed dodaniem `src/lib/auth-error.ts` był czerwony — efd0627
+- [x] 1.2 Nowy przypadek w `tests/lib/log.test.ts` jest czerwony przed dopisaniem kluczy do białej listy i zielony po nim — efd0627
+- [x] 1.3 `npm test` przechodzi — efd0627
+- [x] 1.4 `npm run lint` przechodzi — efd0627
+- [x] 1.5 `npx astro sync && npx astro check` przechodzi — efd0627
 
 ### Phase 2: Strony błędów i bramka wizualna
 
 #### Automated
 
-- [ ] 2.1 `npx vitest run tests/lib/error-pages.test.ts tests/components/ErrorPage.test.ts` przechodzi, a przed dodaniem modułu i komponentu był czerwony
-- [ ] 2.2 `npm test` przechodzi
-- [ ] 2.3 `npm run lint` przechodzi, w tym reguła tokenów dla nowych widoków
-- [ ] 2.4 `npx astro sync && npx astro check` przechodzi
-- [ ] 2.5 `npm run build` przechodzi
-- [ ] 2.6 `node scripts/ui-screenshots.mjs errors context/changes/auth-outage-not-signed-out/screenshots` zapisuje cztery zrzuty zestawu `errors`
+- [x] 2.1 `npx vitest run tests/lib/error-pages.test.ts tests/components/ErrorPage.test.ts` przechodzi, a przed dodaniem modułu i komponentu był czerwony
+- [x] 2.2 `npm test` przechodzi
+- [x] 2.3 `npm run lint` przechodzi, w tym reguła tokenów dla nowych widoków
+- [x] 2.4 `npx astro sync && npx astro check` przechodzi
+- [x] 2.5 `npm run build` przechodzi
+- [x] 2.6 `node scripts/ui-screenshots.mjs errors context/changes/auth-outage-not-signed-out/screenshots` zapisuje cztery zrzuty zestawu `errors`
 
 #### Manual
 
-- [ ] 2.7 Zrzuty pokazują każdy wiersz macierzy, który ma zrzut; `errors-mobile` nie przewija się w poziomie, a pierścień fokusu na `errors-focus-retry` jest widoczny
-- [ ] 2.8 Teksty obu stron przeczytane i zaakceptowane
+- [x] 2.7 Zrzuty pokazują każdy wiersz macierzy, który ma zrzut; `errors-mobile` nie przewija się w poziomie, a pierścień fokusu na `errors-focus-retry` jest widoczny
+- [x] 2.8 Teksty obu stron przeczytane i zaakceptowane
 
 ### Phase 3: Middleware
 

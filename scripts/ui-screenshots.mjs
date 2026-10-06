@@ -24,6 +24,7 @@ const KITCHEN_SINK = "/dev/offer-card";
 const FORMS_KITCHEN_SINK = "/dev/forms";
 const BOARD_KITCHEN_SINK = "/dev/board";
 const CRITERIA_KITCHEN_SINK = "/dev/criteria";
+const ERRORS_KITCHEN_SINK = "/dev/errors";
 
 const DESKTOP = { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false };
 const MOBILE = { width: 375, height: 812, deviceScaleFactor: 2, mobile: true };
@@ -55,6 +56,8 @@ const FOCUS = {
   criteriaCity: `el.matches("[data-state=full] [data-criteria-section=limits] input[name=city]")`,
   // The own requirements' „Edytuj" in preview; „Usuń" beside it is a button too.
   requirementsEdit: `el.matches("[data-state=full] [data-criteria-section=requirements] button") && el.textContent.trim() === "Edytuj"`,
+  // /dev/errors: the 503 view's main link, „Spróbuj ponownie"; „Przejdź do logowania" follows it.
+  errorsRetry: `el.matches("[data-state='503'] [data-error-page] a") && el.textContent.trim() === "Spróbuj ponownie"`,
 };
 
 // A shot is a full page unless `viewport`, `focus` or `hover` says otherwise; `auth: false` drops
@@ -138,6 +141,13 @@ const SETS = {
       hover: "[data-state=full] [data-criteria-section=limits] button[type=submit]",
     },
   ],
+  errors: [
+    { name: "errors-desktop", path: ERRORS_KITCHEN_SINK },
+    { name: "errors-mobile", path: ERRORS_KITCHEN_SINK, device: MOBILE },
+    { name: "errors-focus-retry", path: ERRORS_KITCHEN_SINK, focus: "errorsRetry" },
+    // The retry link is the first link of the 503 view; on /dev/errors it leads to /dashboard.
+    { name: "errors-hover-retry", path: ERRORS_KITCHEN_SINK, hover: "[data-state='503'] [data-error-page] a" },
+  ],
   views: [
     { name: "views-signin", path: "/auth/signin", auth: false },
     {
@@ -175,6 +185,8 @@ Sets:
   criteria ${CRITERIA_KITCHEN_SINK}: desktop, mobile 375 px, focus on the city field
           and on the own requirements' „Edytuj", and a forced :hover on
           „Zapisz limity"
+  errors  ${ERRORS_KITCHEN_SINK}: the 500 and 503 pages' views, desktop, mobile 375 px,
+          focus on „Spróbuj ponownie" and a forced :hover on it
   views   signin, signin with an error, signin mobile 375 px, home (signed out),
           dashboard, dashboard with a server error
 

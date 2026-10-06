@@ -1,0 +1,17 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import ErrorPage from "@/components/ErrorPage.astro";
+import { retryHref } from "@/lib/error-pages";
+
+// The view of a Supabase Auth outage. Astro reroutes only 404 and 500 to an error page, so this is
+// an ordinary page that sets its own status — on every pass, under its own address too. It reads
+// neither the request body (a rewritten POST throws on that) nor `Astro.locals`.
+// `Astro.originPathname` is the path the member asked for, before any rewrite to this page.
+Astro.response.status = 503;
+---
+
+<Layout title="Usługa logowania nie odpowiada — Vetpad">
+  <main class="flex min-h-screen items-center justify-center p-4">
+    <ErrorPage variant="503" retryHref={retryHref(Astro.request.method, Astro.originPathname)} />
+  </main>
+</Layout>

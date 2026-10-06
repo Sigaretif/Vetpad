@@ -1,0 +1,15 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import ErrorPage from "@/components/ErrorPage.astro";
+
+// What a member sees when a request ends in an exception; Astro renders this page with status 500.
+// It sits in Layout, not AppLayout: the Topbar reads `locals.user`, which this pass may not have.
+// It reads nothing — no `Astro.props.error`, no `Astro.locals`, no request body — so it cannot
+// throw on its own account and never shows what went wrong.
+---
+
+<Layout title="Błąd — Vetpad">
+  <main class="flex min-h-screen items-center justify-center p-4">
+    <ErrorPage variant="500" />
+  </main>
+</Layout>

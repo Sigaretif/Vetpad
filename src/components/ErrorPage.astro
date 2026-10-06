@@ -1,0 +1,51 @@
+---
+import { Card, CardContent } from "@/components/ui/card";
+import { buttonVariants } from "@/components/ui/button";
+
+interface Props {
+  variant: "500" | "503";
+  /** Where „Spróbuj ponownie” leads on the 503 view — `retryHref` from `@/lib/error-pages`. */
+  retryHref?: string;
+}
+
+// The one view behind `/500`, `/503` and `/dev/errors`. It takes no error and no message on
+// purpose: what went wrong belongs in the log, never on the page. `data-error-page` is what
+// `scripts/smoke.mjs` looks for.
+const { variant, retryHref = "/" } = Astro.props;
+---
+
+<section data-error-page={variant} class="w-full max-w-md">
+  <Card>
+    <CardContent>
+      {variant === "503" ? (
+        <>
+          <h1 class="text-foreground mb-2 text-2xl font-bold">Nie możemy teraz potwierdzić Twojej sesji</h1>
+          <p class="text-muted-foreground">
+            Usługa logowania chwilowo nie odpowiada. To nie jest wylogowanie — spróbuj ponownie za chwilę.
+          </p>
+          <div class="mt-6 flex flex-col gap-3 sm:flex-row">
+            <a href={retryHref} class:list={buttonVariants()}>
+              Spróbuj ponownie
+            </a>
+            <a href="/auth/signin" class:list={buttonVariants({ variant: "outline" })}>
+              Przejdź do logowania
+            </a>
+          </div>
+        </>
+      ) : (
+        <>
+          <h1 class="text-foreground mb-2 text-2xl font-bold">Coś poszło nie tak</h1>
+          <p class="text-muted-foreground">
+            Vetpad napotkał nieoczekiwany błąd. Spróbuj ponownie za chwilę. Jeśli to było zapisywanie, sprawdź najpierw,
+            czy zmiana już jest na miejscu.
+          </p>
+          <div class="mt-6 flex flex-col gap-3 sm:flex-row">
+            <a href="/dashboard" class:list={buttonVariants()}>
+              Wróć do listy ofert
+            </a>
+          </div>
+        </>
+      )}
+    </CardContent>
+  </Card>
+</section>
