@@ -1,10 +1,10 @@
 ---
 change_id: deployment
 title: Pierwsze wdrożenie na Cloudflare Workers
-status: implemented
+status: archived
 created: 2026-09-20
 updated: 2026-10-06
-archived_at: null
+archived_at: 2026-10-06T10:17:03Z
 ---
 
 ## Notes

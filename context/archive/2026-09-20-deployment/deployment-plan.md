@@ -23,16 +23,16 @@ Celem jest **wdrożenie szablonu projektu**, nie funkcji produktowych. Po wykona
 
 ### Decyzje wyjściowe
 
-| Decyzja | Wybór |
-| --- | --- |
-| Auto-deploy | Cloudflare **Workers Builds** + zachowany ręczny `npx wrangler deploy`. GitHub Actions zostaje wyłącznie bramką jakości. |
-| Zakres | Wyłącznie infrastruktura. Zero implementacji FR-004 / FR-010. |
-| Supabase | Pełny provisioning. |
-| Anthropic API | Odroczone do implementacji FR-010. |
-| otodom | Jednorazowy preflight egresu, bez kodu w repo (Faza 8). |
-| Apify | Nieprovisionowane; zapisany warunek wyzwalający (Faza 8). |
+| Decyzja           | Wybór                                                                                                                                     |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Auto-deploy       | Cloudflare **Workers Builds** + zachowany ręczny `npx wrangler deploy`. GitHub Actions zostaje wyłącznie bramką jakości.                  |
+| Zakres            | Wyłącznie infrastruktura. Zero implementacji FR-004 / FR-010.                                                                             |
+| Supabase          | Pełny provisioning.                                                                                                                       |
+| Anthropic API     | Odroczone do implementacji FR-010.                                                                                                        |
+| otodom            | Jednorazowy preflight egresu, bez kodu w repo (Faza 8).                                                                                   |
+| Apify             | Nieprovisionowane; zapisany warunek wyzwalający (Faza 8).                                                                                 |
 | Supabase Data API | Wszystkie trzy opcje włączone (Data API, automatyczne wystawianie tabel, automatyczny RLS). RLS jest w efekcie jedyną bramką — patrz C.2. |
-| Plan Cloudflare | **Workers Free.** Pomiar zużycia CPU odłożony do czasu, aż powstaną FR-004 i FR-010 — patrz „Kiedy wrócić do pytania o plan płatny". |
+| Plan Cloudflare   | **Workers Free.** Pomiar zużycia CPU odłożony do czasu, aż powstaną FR-004 i FR-010 — patrz „Kiedy wrócić do pytania o plan płatny".      |
 
 ### Dlaczego otodom teraz, a Apify nie
 
@@ -48,13 +48,13 @@ To wszystko, co musisz **kliknąć ręcznie w przeglądarce**, zanim cokolwiek w
 
 ### Przegląd
 
-| Usługa | Kiedy | Koszt | Czas | Bez tego nie zadziała |
-| --- | --- | --- | --- | --- |
-| **Cloudflare** | teraz | **0** (plan Free) | ~10 min | nie ma gdzie wdrożyć aplikacji |
-| **GitHub** | teraz | 0 | ~5 min | CI i auto-deploy po pushu |
-| **Supabase** | teraz | 0 (plan Free) | ~20 min | logowanie — aplikacja wstanie, ale z czerwonym banerem |
-| Anthropic | dopiero przy FR-010 | wg zużycia | ~10 min | audyt AI (jeszcze nie implementujemy) |
-| Apify | tylko jeśli preflight z Fazy 8 zwróci 403 | ~0 przy tej skali | ~10 min | awaryjna ścieżka ingestii |
+| Usługa         | Kiedy                                     | Koszt             | Czas    | Bez tego nie zadziała                                  |
+| -------------- | ----------------------------------------- | ----------------- | ------- | ------------------------------------------------------ |
+| **Cloudflare** | teraz                                     | **0** (plan Free) | ~10 min | nie ma gdzie wdrożyć aplikacji                         |
+| **GitHub**     | teraz                                     | 0                 | ~5 min  | CI i auto-deploy po pushu                              |
+| **Supabase**   | teraz                                     | 0 (plan Free)     | ~20 min | logowanie — aplikacja wstanie, ale z czerwonym banerem |
+| Anthropic      | dopiero przy FR-010                       | wg zużycia        | ~10 min | audyt AI (jeszcze nie implementujemy)                  |
+| Apify          | tylko jeśli preflight z Fazy 8 zwróci 403 | ~0 przy tej skali | ~10 min | awaryjna ścieżka ingestii                              |
 
 Anthropic i Apify są w **załączniku na końcu tej sekcji** — nie zakładaj ich teraz.
 
@@ -92,16 +92,16 @@ To konto będzie miało prawo wdrażać kod na produkcję — włącz 2FA od raz
 
 Co daje plan Free i dlaczego to wystarcza na dziś:
 
-| Limit | Workers Free | Ma znaczenie dla Vetpada? |
-| --- | --- | --- |
-| Czas CPU na wywołanie | **10 ms** | jedyny realny znak zapytania — mierzymy, gdy powstanie kod |
-| Czas trwania żądania HTTP | **bez limitu** | trzyminutowy audyt AI mieści się bez problemu |
-| Podżądania na wywołanie | 50 | używamy 2–3 |
-| Żądania na dobę | 100 000 | trzy osoby |
-| Workers Logs | w cenie, 200 tys. zdarzeń/dobę, 3 dni retencji | `wrangler tail` i panel działają |
-| Workers Builds | 3 000 minut/mies., 1 build naraz | auto-deploy z Fazy 6 działa |
+| Limit                     | Workers Free                                   | Ma znaczenie dla Vetpada?                                  |
+| ------------------------- | ---------------------------------------------- | ---------------------------------------------------------- |
+| Czas CPU na wywołanie     | **10 ms**                                      | jedyny realny znak zapytania — mierzymy, gdy powstanie kod |
+| Czas trwania żądania HTTP | **bez limitu**                                 | trzyminutowy audyt AI mieści się bez problemu              |
+| Podżądania na wywołanie   | 50                                             | używamy 2–3                                                |
+| Żądania na dobę           | 100 000                                        | trzy osoby                                                 |
+| Workers Logs              | w cenie, 200 tys. zdarzeń/dobę, 3 dni retencji | `wrangler tail` i panel działają                           |
+| Workers Builds            | 3 000 minut/mies., 1 build naraz               | auto-deploy z Fazy 6 działa                                |
 
-> **Najczęstsze nieporozumienie, warte zapamiętania:** Cloudflare liczy **czas CPU**, nie czas trwania żądania. Dokumentacja mówi wprost, że *oczekiwanie na `fetch()` nie wlicza się do czasu CPU*, a Workery wyzwalane HTTP *nie mają twardego limitu czasu trwania, dopóki klient pozostaje połączony* — i to dotyczy również planu Free. Worker, który trzy minuty czeka na odpowiedź modelu AI, zużywa ułamek milisekundy CPU. **Integracja z AI nie jest powodem, dla którego ktokolwiek kupuje plan płatny.**
+> **Najczęstsze nieporozumienie, warte zapamiętania:** Cloudflare liczy **czas CPU**, nie czas trwania żądania. Dokumentacja mówi wprost, że _oczekiwanie na `fetch()` nie wlicza się do czasu CPU_, a Workery wyzwalane HTTP _nie mają twardego limitu czasu trwania, dopóki klient pozostaje połączony_ — i to dotyczy również planu Free. Worker, który trzy minuty czeka na odpowiedź modelu AI, zużywa ułamek milisekundy CPU. **Integracja z AI nie jest powodem, dla którego ktokolwiek kupuje plan płatny.**
 
 #### A.4 Zalogowanie CLI
 
@@ -178,11 +178,11 @@ W Fazie 6 Cloudflare poprosi o zainstalowanie swojej aplikacji GitHub na tym rep
 4. **Region**: **Central EU (Frankfurt)** — najbliżej Polski i dane zostają w UE.
 5. **Trzy checkboxy na ekranie tworzenia projektu** — zaznacz dokładnie tak:
 
-   | Opcja | Decyzja | Dlaczego |
-   | --- | --- | --- |
-   | **Enable Data API** | ✅ **zaznaczone** | to interfejs, przez który `supabase-js` rozmawia z bazą; bez niego FR-002, FR-004 i FR-012 nie powstaną |
-   | **Automatically expose new tables** | ✅ **zaznaczone** | Supabase sam nadaje uprawnienia nowym tabelom — patrz kompromis niżej |
-   | **Enable automatic RLS** | ✅ **zaznaczone** | siatka bezpieczeństwa: włącza RLS na każdej nowej tabeli, nawet gdy migracja o tym zapomni |
+   | Opcja                               | Decyzja           | Dlaczego                                                                                                |
+   | ----------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------- |
+   | **Enable Data API**                 | ✅ **zaznaczone** | to interfejs, przez który `supabase-js` rozmawia z bazą; bez niego FR-002, FR-004 i FR-012 nie powstaną |
+   | **Automatically expose new tables** | ✅ **zaznaczone** | Supabase sam nadaje uprawnienia nowym tabelom — patrz kompromis niżej                                   |
+   | **Enable automatic RLS**            | ✅ **zaznaczone** | siatka bezpieczeństwa: włącza RLS na każdej nowej tabeli, nawet gdy migracja o tym zapomni              |
 
 6. **Create new project**. Provisioning trwa ~2 minuty.
 
@@ -194,10 +194,10 @@ W Fazie 6 Cloudflare poprosi o zainstalowanie swojej aplikacji GitHub na tym rep
 >
 > Automatyczny RLS domyka pozostałą bramkę: każda nowa tabela startuje z włączonym RLS, a RLS bez polityki blokuje wszystkich. Kierunek awarii jest więc bezpieczny, ale **nie zawsze głośny** — warto znać obie sygnatury:
 >
-> | Co widzisz | Przyczyna | Naprawa |
-> | --- | --- | --- |
-> | Pusta tablica `[]`, status 200 | RLS działa, brak polityki `select` | dopisz politykę do migracji — **wygląda jak brak danych, nie jak błąd uprawnień** |
-> | `new row violates row-level security policy` | RLS działa, brak polityki `insert` | j.w. |
+> | Co widzisz                                   | Przyczyna                          | Naprawa                                                                           |
+> | -------------------------------------------- | ---------------------------------- | --------------------------------------------------------------------------------- |
+> | Pusta tablica `[]`, status 200               | RLS działa, brak polityki `select` | dopisz politykę do migracji — **wygląda jak brak danych, nie jak błąd uprawnień** |
+> | `new row violates row-level security policy` | RLS działa, brak polityki `insert` | j.w.                                                                              |
 >
 > Żadnego z nich nie naprawia się kluczem `secret`.
 >
@@ -209,10 +209,10 @@ W Fazie 6 Cloudflare poprosi o zainstalowanie swojej aplikacji GitHub na tym rep
 
 Potrzebujesz dokładnie dwóch rzeczy:
 
-| Co | Gdzie | Jak wygląda | Trafia do |
-| --- | --- | --- | --- |
-| **Project URL** | Settings → **API** (lub **Data API**) | `https://abcdefgh.supabase.co` | `SUPABASE_URL` |
-| **Publishable key** | Settings → **API Keys** | `sb_publishable_...` | `SUPABASE_KEY` |
+| Co                  | Gdzie                                 | Jak wygląda                    | Trafia do      |
+| ------------------- | ------------------------------------- | ------------------------------ | -------------- |
+| **Project URL**     | Settings → **API** (lub **Data API**) | `https://abcdefgh.supabase.co` | `SUPABASE_URL` |
+| **Publishable key** | Settings → **API Keys**               | `sb_publishable_...`           | `SUPABASE_KEY` |
 
 Supabase wycofuje stare nazewnictwo do końca 2026. Na nowym projekcie zobaczysz **publishable** i **secret**; na starszym mogą być jeszcze **anon** i **service_role**. Mapowanie jest jeden do jednego:
 
@@ -237,7 +237,7 @@ Vetpad nie ma rejestracji dla użytkowników końcowych — konta zakłada admin
 
 #### C.5 Plan Free usypia projekt
 
-Projekt na planie Free **zostaje wstrzymany po ~7 dniach bez ruchu**. Objaw jest mylący: strona się ładuje, baner ostrzegawczy się **nie** pokazuje (bo zmienne są ustawione), a logowanie pada. Baner z `src/lib/config-status.ts` wykrywa tylko *brak konfiguracji*, nie *niedostępną usługę*.
+Projekt na planie Free **zostaje wstrzymany po ~7 dniach bez ruchu**. Objaw jest mylący: strona się ładuje, baner ostrzegawczy się **nie** pokazuje (bo zmienne są ustawione), a logowanie pada. Baner z `src/lib/config-status.ts` wykrywa tylko _brak konfiguracji_, nie _niedostępną usługę_.
 
 Naprawa: panel Supabase → przycisk **Restore** / **Resume project**. Trwa ~2 minuty.
 
@@ -247,12 +247,12 @@ Naprawa: panel Supabase → przycisk **Restore** / **Resume project**. Trwa ~2 m
 
 #### D.1 Która baza gdzie — to nie jest jedna baza
 
-| Gdzie | Co to czyta | Która baza Supabase |
-| --- | --- | --- |
-| `.env` + `.dev.vars` (lokalnie) | `npm run dev`, `npm run preview`, `npm run smoke` | **lokalna** (`npx supabase start`) |
-| Job `smoke` w CI | własna konfiguracja | **własna lokalna** — startuje kontener i nadpisuje oba pliki |
-| Job `ci` w CI | krok `npm run build` | repository secrets (patrz uwaga w D.4) |
-| Workers Secrets | produkcja | **chmurowa** (Faza 4) |
+| Gdzie                           | Co to czyta                                       | Która baza Supabase                                          |
+| ------------------------------- | ------------------------------------------------- | ------------------------------------------------------------ |
+| `.env` + `.dev.vars` (lokalnie) | `npm run dev`, `npm run preview`, `npm run smoke` | **lokalna** (`npx supabase start`)                           |
+| Job `smoke` w CI                | własna konfiguracja                               | **własna lokalna** — startuje kontener i nadpisuje oba pliki |
+| Job `ci` w CI                   | krok `npm run build`                              | repository secrets (patrz uwaga w D.4)                       |
+| Workers Secrets                 | produkcja                                         | **chmurowa** (Faza 4)                                        |
 
 **Do pracy lokalnej używamy lokalnej bazy, nie chmurowej.** Trzy powody, wszystkie konkretne dla tego projektu:
 
@@ -373,15 +373,15 @@ Zweryfikowany kształt żądania, tryby awarii i koszty są w `@context/foundati
 
 Wszystko, co potrzebne, jest już w `package.json` — nie instaluj niczego globalnie.
 
-| Narzędzie | Stan | Działanie |
-| --- | --- | --- |
+| Narzędzie           | Stan                                         | Działanie                                               |
+| ------------------- | -------------------------------------------- | ------------------------------------------------------- |
 | `wrangler` ^4.131.1 | w `devDependencies`, uruchamiany przez `npx` | nie instalować globalnie — przypięta wersja jest celowa |
-| `supabase` ^2.23.4 | w `devDependencies` | brak |
-| Node | lokalnie 22.23.2, zgodne z `.nvmrc` | brak |
-| `gh` (GitHub CLI) | brak w systemie | niepotrzebne — wszystko przez przeglądarkę |
-| Docker | wymagany tylko dla **lokalnego** Supabase | niepotrzebny, jeśli pracujesz na projekcie w chmurze |
+| `supabase` ^2.23.4  | w `devDependencies`                          | brak                                                    |
+| Node                | lokalnie 22.23.2, zgodne z `.nvmrc`          | brak                                                    |
+| `gh` (GitHub CLI)   | brak w systemie                              | niepotrzebne — wszystko przez przeglądarkę              |
+| Docker              | wymagany tylko dla **lokalnego** Supabase    | niepotrzebny, jeśli pracujesz na projekcie w chmurze    |
 
-> **Zakres tokenu.** Jeśli zamiast `wrangler login` używasz API tokenu (`CLOUDFLARE_API_TOKEN`), ogranicz go do *Workers Scripts: Edit* dla tego jednego projektu. Bez DNS, bez cudzych Workers Secrets, bez billingu. Workers Builds generuje własny token automatycznie — nie trzeba go wkładać do sekretów repo.
+> **Zakres tokenu.** Jeśli zamiast `wrangler login` używasz API tokenu (`CLOUDFLARE_API_TOKEN`), ogranicz go do _Workers Scripts: Edit_ dla tego jednego projektu. Bez DNS, bez cudzych Workers Secrets, bez billingu. Workers Builds generuje własny token automatycznie — nie trzeba go wkładać do sekretów repo.
 
 ---
 
@@ -392,11 +392,11 @@ Kroki klikane w panelu są rozpisane w **Warunkach wstępnych, sekcja A**. Tutaj
 - [ ] Sekcja A odhaczona w całości (konto, 2FA, `wrangler whoami` działa). **Bez planu płatnego.**
 - [ ] Sprawdź, czy nazwa `vetpad` jest wolna na `workers.dev` — przy pierwszym `wrangler deploy` Cloudflare poprosi o wybór subdomeny konta; adres aplikacji będzie miał postać `vetpad.<twoja-subdomena>.workers.dev`.
 
-| Objaw | Przyczyna | Obsługa |
-| --- | --- | --- |
-| `wrangler login` kończy się timeoutem | headless / brak przeglądarki | użyj `CLOUDFLARE_API_TOKEN` w env zamiast OAuth |
+| Objaw                                  | Przyczyna                         | Obsługa                                                                                                                            |
+| -------------------------------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `wrangler login` kończy się timeoutem  | headless / brak przeglądarki      | użyj `CLOUDFLARE_API_TOKEN` w env zamiast OAuth                                                                                    |
 | Nazwa `vetpad` zajęta na `workers.dev` | globalna przestrzeń nazw subdomen | **nie zmieniaj `name` po pierwszym deployu** — to stworzy drugiego Workera zamiast przenieść pierwszego. Zmień teraz, przed Fazą 3 |
-| Cloudflare namawia na upgrade w panelu | marketing | zignoruj — plan Free jest tu świadomym wyborem, nie przeoczeniem |
+| Cloudflare namawia na upgrade w panelu | marketing                         | zignoruj — plan Free jest tu świadomym wyborem, nie przeoczeniem                                                                   |
 
 ---
 
@@ -449,13 +449,13 @@ Ta faza **tworzy** Workera `vetpad`. Workers Builds z Fazy 6 wymaga, żeby nazwa
 - Wrangler **sam utworzy namespace KV o nazwie `SESSION`**. To nie jest pomyłka w konfiguracji: adapter `@astrojs/cloudflare` wstrzykuje ten binding i robi to nawet wtedy, gdy sesje Astro są wyłączone ([withastro/astro#15802](https://github.com/withastro/astro/issues/15802)). Nie da się tego „posprzątać" i nie warto próbować. KV działa na planie Free.
 - W podsumowaniu deployu zobaczysz też binding `IMAGES` — z tego samego źródła.
 
-| Objaw | Przyczyna | Obsługa |
-| --- | --- | --- |
-| `Error: Missing entry-point` | `dist/` nie zbudowany | `npm run build` przed `wrangler deploy` |
-| Deploy odrzucony, błąd API **100328** | ktoś dodał blok `limits` do `wrangler.jsonc` | usuń go — na planie Free jest niedozwolony (Faza 2.1) |
-| Żądania zwracają 1102 „Worker exceeded resource limits" | **przekroczony limit 10 ms CPU planu Free** | to jest ten pomiar, na który czekamy — patrz „Kiedy wrócić do pytania o plan płatny". Komunikat wygląda jak błąd w kodzie, a nim nie jest |
-| 404 na zasobach statycznych | `assets.directory` / `public/.assetsignore` | `.assetsignore` ma zawierać `_worker.js` i `_routes.json` — tak jest dziś, nie ruszać |
-| Deploy tworzy drugiego Workera | zmieniono `name` po pierwszym deployu | usuń zbędnego Workera w panelu i przywróć nazwę |
+| Objaw                                                   | Przyczyna                                    | Obsługa                                                                                                                                   |
+| ------------------------------------------------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `Error: Missing entry-point`                            | `dist/` nie zbudowany                        | `npm run build` przed `wrangler deploy`                                                                                                   |
+| Deploy odrzucony, błąd API **100328**                   | ktoś dodał blok `limits` do `wrangler.jsonc` | usuń go — na planie Free jest niedozwolony (Faza 2.1)                                                                                     |
+| Żądania zwracają 1102 „Worker exceeded resource limits" | **przekroczony limit 10 ms CPU planu Free**  | to jest ten pomiar, na który czekamy — patrz „Kiedy wrócić do pytania o plan płatny". Komunikat wygląda jak błąd w kodzie, a nim nie jest |
+| 404 na zasobach statycznych                             | `assets.directory` / `public/.assetsignore`  | `.assetsignore` ma zawierać `_worker.js` i `_routes.json` — tak jest dziś, nie ruszać                                                     |
+| Deploy tworzy drugiego Workera                          | zmieniono `name` po pierwszym deployu        | usuń zbędnego Workera w panelu i przywróć nazwę                                                                                           |
 
 ---
 
@@ -493,21 +493,21 @@ Każde `secret put` **tworzy nową wersję Workera i natychmiast ją wdraża**. 
 
 ### 4.4 Gdzie jeszcze żyją te same sekrety
 
-| Miejsce | Po co | Kto ustawia |
-| --- | --- | --- |
-| `.env` (lokalnie) | Astro / `astro:env` | deweloper — Warunki wstępne, sekcja D |
-| `.dev.vars` (lokalnie) | runtime workerd | deweloper — Warunki wstępne, sekcja D |
+| Miejsce                   | Po co                   | Kto ustawia                            |
+| ------------------------- | ----------------------- | -------------------------------------- |
+| `.env` (lokalnie)         | Astro / `astro:env`     | deweloper — Warunki wstępne, sekcja D  |
+| `.dev.vars` (lokalnie)    | runtime workerd         | deweloper — Warunki wstępne, sekcja D  |
 | GitHub repository secrets | krok build w jobie `ci` | człowiek — Warunki wstępne, sekcja B.1 |
-| Workers Secrets | produkcja | `wrangler secret put` (krok 4.3) |
+| Workers Secrets           | produkcja               | `wrangler secret put` (krok 4.3)       |
 
 Job `smoke` sekretów nie potrzebuje — startuje własne Supabase w kontenerze.
 
-| Objaw | Przyczyna | Obsługa |
-| --- | --- | --- |
-| „Invalid login credentials" mimo dobrego hasła | użytkownik niepotwierdzony | włącz Auto Confirm albo potwierdź ręcznie w panelu |
-| Po ~7 dniach ciszy logowanie pada, **a baner się nie pokazuje** | projekt Supabase Free **uśpiony po tygodniu bezczynności** | baner z `src/lib/config-status.ts` wykrywa tylko *nieustawione* zmienne, nie *nieodpowiadającą* usługę. Wznów projekt w panelu. Rozróżnienie „skonfigurowane, ale nieosiągalne" to przyszła zmiana w kodzie |
-| `wrangler rollback` cofa też sekret | `secret put` to wersja jak każda inna | po rollbacku `wrangler secret list` i w razie potrzeby ustaw ponownie |
-| Rotacja klucza publishable | — | `wrangler secret put` ponownie **oraz** aktualizacja sekretu w GitHubie, żeby się nie rozjechały |
+| Objaw                                                           | Przyczyna                                                  | Obsługa                                                                                                                                                                                                     |
+| --------------------------------------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| „Invalid login credentials" mimo dobrego hasła                  | użytkownik niepotwierdzony                                 | włącz Auto Confirm albo potwierdź ręcznie w panelu                                                                                                                                                          |
+| Po ~7 dniach ciszy logowanie pada, **a baner się nie pokazuje** | projekt Supabase Free **uśpiony po tygodniu bezczynności** | baner z `src/lib/config-status.ts` wykrywa tylko _nieustawione_ zmienne, nie _nieodpowiadającą_ usługę. Wznów projekt w panelu. Rozróżnienie „skonfigurowane, ale nieosiągalne" to przyszła zmiana w kodzie |
+| `wrangler rollback` cofa też sekret                             | `secret put` to wersja jak każda inna                      | po rollbacku `wrangler secret list` i w razie potrzeby ustaw ponownie                                                                                                                                       |
+| Rotacja klucza publishable                                      | —                                                          | `wrangler secret put` ponownie **oraz** aktualizacja sekretu w GitHubie, żeby się nie rozjechały                                                                                                            |
 
 ---
 
@@ -515,13 +515,13 @@ Job `smoke` sekretów nie potrzebuje — startuje własne Supabase w kontenerze.
 
 **Wykonane 2026-09-20** na `https://vetpad.vetpad.workers.dev`:
 
-| Sprawdzenie | Wynik |
-| --- | --- |
-| `/`, `/auth/signin` | 200 |
-| `/dashboard` anonimowo | 302 → `/auth/signin` |
-| Baner konfiguracyjny | zniknął — sekrety wczytane |
+| Sprawdzenie                                        | Wynik                                           |
+| -------------------------------------------------- | ----------------------------------------------- |
+| `/`, `/auth/signin`                                | 200                                             |
+| `/dashboard` anonimowo                             | 302 → `/auth/signin`                            |
+| Baner konfiguracyjny                               | zniknął — sekrety wczytane                      |
 | Złe hasło → `?error=Invalid%20login%20credentials` | Worker faktycznie rozmawia z chmurowym Supabase |
-| 1102 / błąd Workera | brak |
+| 1102 / błąd Workera                                | brak                                            |
 
 > **Jak zweryfikowano logowanie bez znajomości haseł produkcyjnych.** Próba logowania **złym** hasłem jest wystarczającym dowodem, że ścieżka Worker → Supabase działa: nieosiągalne Supabase dałoby inny błąd albo 500, a nie poprawny komunikat `Invalid login credentials`. Samo udane logowanie na prawdziwe konto zostaje po stronie człowieka, w przeglądarce — agent nie przechowuje haseł produkcyjnych.
 
@@ -542,10 +542,10 @@ Job `smoke` sekretów nie potrzebuje — startuje własne Supabase w kontenerze.
 
 **Skonfigurowane i zweryfikowane 2026-09-20.** Push na `master` (commit `1af2f73`) uruchomił build w Cloudflare, który zbudował i wdrożył aplikację bez udziału człowieka:
 
-| Czas (UTC) | Zdarzenie | Źródło wg API |
-| --- | --- | --- |
-| 12:45:23 | wersja `941d57f8` utworzona | `version_upload` |
-| 12:45:24 | deployment, **100% ruchu** na tej wersji | `deployment` |
+| Czas (UTC) | Zdarzenie                                | Źródło wg API    |
+| ---------- | ---------------------------------------- | ---------------- |
+| 12:45:23   | wersja `941d57f8` utworzona              | `version_upload` |
+| 12:45:24   | deployment, **100% ruchu** na tej wersji | `deployment`     |
 
 > **Nie daj się zmylić etykietom.** `wrangler deploy` to dwa kroki: wgranie wersji, potem jej promocja. API zapisuje je osobno, więc na liście wersji widnieje `version_upload` — co wygląda jak `wrangler versions upload`, czyli polecenie dla gałęzi **nie**produkcyjnych. Rozstrzyga dopiero `wrangler deployments list`: jeśli nowa wersja obsługuje 100% ruchu, deploy się odbył.
 
@@ -572,14 +572,14 @@ Dopiero **po** zielonej Fazie 5 — automatyzujemy ścieżkę, która została r
 
 **Limity na planie Free:** 20 min timeout builda, **3 000 minut/mies.**, **1 build naraz**. Przy tempie tego projektu limit minut jest nieosiągalny; pojedynczy slot oznacza tylko, że dwa pushe pod rząd zbudują się jeden po drugim.
 
-| Objaw | Przyczyna | Obsługa |
-| --- | --- | --- |
-| Push do `master` nie uruchamia builda | production branch wciąż `main` | popraw w Settings → Builds |
-| Build pada na instalacji Node | `.nvmrc` spoza obrazu | Faza 2; awaryjnie `NODE_VERSION=22` jako zmienna build |
-| Build pada: nazwa Workera ≠ config | `name` w `wrangler.jsonc` ≠ nazwa w panelu | wyrównaj — źródłem prawdy jest `wrangler.jsonc` |
-| GitHub Actions i Workers Builds deployują naraz | dwa źródła prawdy | nie dodajemy joba deploy do `ci.yml`. Po Fazie 6 ręczny `wrangler deploy` to ścieżka **awaryjna** |
-| Wdrożył się kod z niezielonego CI | Workers Builds nie czeka na GitHub Actions | świadomy kompromis: CI jest bramką na **PR**, a `master` ma gwarancję z przeglądu PR-a. Zakaz commitowania wprost na `master` jest tu elementem bezpieczeństwa deployu, nie tylko higieną |
-| Trzeba wstrzymać auto-deploy | — | zmień deploy command na `npx wrangler versions upload` (buduje, nie promuje) |
+| Objaw                                           | Przyczyna                                  | Obsługa                                                                                                                                                                                   |
+| ----------------------------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Push do `master` nie uruchamia builda           | production branch wciąż `main`             | popraw w Settings → Builds                                                                                                                                                                |
+| Build pada na instalacji Node                   | `.nvmrc` spoza obrazu                      | Faza 2; awaryjnie `NODE_VERSION=22` jako zmienna build                                                                                                                                    |
+| Build pada: nazwa Workera ≠ config              | `name` w `wrangler.jsonc` ≠ nazwa w panelu | wyrównaj — źródłem prawdy jest `wrangler.jsonc`                                                                                                                                           |
+| GitHub Actions i Workers Builds deployują naraz | dwa źródła prawdy                          | nie dodajemy joba deploy do `ci.yml`. Po Fazie 6 ręczny `wrangler deploy` to ścieżka **awaryjna**                                                                                         |
+| Wdrożył się kod z niezielonego CI               | Workers Builds nie czeka na GitHub Actions | świadomy kompromis: CI jest bramką na **PR**, a `master` ma gwarancję z przeglądu PR-a. Zakaz commitowania wprost na `master` jest tu elementem bezpieczeństwa deployu, nie tylko higieną |
+| Trzeba wstrzymać auto-deploy                    | —                                          | zmień deploy command na `npx wrangler versions upload` (buduje, nie promuje)                                                                                                              |
 
 ---
 
@@ -622,11 +622,11 @@ Zamyka najwyżej punktowany wiersz rejestru ryzyk. Cały artefakt żyje w katalo
 - [ ] `npx wrangler delete --name vetpad-egress-probe`
 - [ ] Wynik dopisz do `@context/foundation/ingestion/otodom_fetching.md` § 9.1 (dziś „Unverified against Otodom as of 2026-09-19") wraz z datą.
 
-| Wynik | Znaczenie | Konsekwencja |
-| --- | --- | --- |
-| `200` + `__NEXT_DATA__` obecne | egres Cloudflare przechodzi | ingestia FR-004 idzie ścieżką z § 7.1: jeden `fetch`, jeden ograniczony `RegExp`, `JSON.parse` |
-| `403` / `429` / captcha | otodom blokuje zakresy Cloudflare | **przed** implementacją FR-004 podnieś z użytkownikiem decyzję o przejściu na Apify. To drugi dostawca, drugi sekret w sześciu miejscach i drugi tryb awarii — decyzja, nie odruch |
-| `200`, brak `__NEXT_DATA__` | zmieniła się struktura strony | dokument wymaga rewizji, nie kod |
+| Wynik                          | Znaczenie                         | Konsekwencja                                                                                                                                                                       |
+| ------------------------------ | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `200` + `__NEXT_DATA__` obecne | egres Cloudflare przechodzi       | ingestia FR-004 idzie ścieżką z § 7.1: jeden `fetch`, jeden ograniczony `RegExp`, `JSON.parse`                                                                                     |
+| `403` / `429` / captcha        | otodom blokuje zakresy Cloudflare | **przed** implementacją FR-004 podnieś z użytkownikiem decyzję o przejściu na Apify. To drugi dostawca, drugi sekret w sześciu miejscach i drugi tryb awarii — decyzja, nie odruch |
+| `200`, brak `__NEXT_DATA__`    | zmieniła się struktura strony     | dokument wymaga rewizji, nie kod                                                                                                                                                   |
 
 **Apify pozostaje nieprovisionowane.** Zweryfikowana ścieżka (kształt żądania, tryby awarii, koszt) jest w `@context/foundation/ingestion/otodom_apify.md`. Przy adopcji: projekcja pól po stronie serwera (`?fields=...`) jest **obowiązkowa**, nie optymalizacją — `sellerPhone` i `agencyName` niosą numer i nazwisko prywatnego sprzedawcy, a projekcja trzyma je poza Workerem w całości.
 
@@ -649,12 +649,12 @@ Rachunek za model przy ~200 audytach w całym poszukiwaniu: `claude-opus-5` ≈ 
 
 Jedyne realne pytanie brzmi: **czy praca obciążająca CPU mieści się w 10 ms.** Nikt tego nie zmierzył i dziś nie da się tego zrobić rzetelnie, bo najdrożsi kandydaci jeszcze nie istnieją:
 
-| Operacja | Charakter | Status |
-| --- | --- | --- |
-| Renderowanie SSR przez Astro | CPU-bound | istnieje, ale aplikacja jest praktycznie pusta |
-| `JSON.parse` nad `__NEXT_DATA__` (~500 KB) | **CPU-bound, największy konsument** | FR-004, nie istnieje |
-| Parsowanie ustrukturyzowanej odpowiedzi modelu | CPU-bound, mała | FR-010, nie istnieje |
-| Oczekiwanie na Supabase i na model | fetch — zero CPU | — |
+| Operacja                                       | Charakter                           | Status                                         |
+| ---------------------------------------------- | ----------------------------------- | ---------------------------------------------- |
+| Renderowanie SSR przez Astro                   | CPU-bound                           | istnieje, ale aplikacja jest praktycznie pusta |
+| `JSON.parse` nad `__NEXT_DATA__` (~500 KB)     | **CPU-bound, największy konsument** | FR-004, nie istnieje                           |
+| Parsowanie ustrukturyzowanej odpowiedzi modelu | CPU-bound, mała                     | FR-010, nie istnieje                           |
+| Oczekiwanie na Supabase i na model             | fetch — zero CPU                    | —                                              |
 
 ### Wyzwalacze, które otwierają to pytanie na nowo
 
