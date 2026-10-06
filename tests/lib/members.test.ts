@@ -1,4 +1,3 @@
-import type { AstroCookies } from "astro";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { type Saver, authorName, resolveAuthors, resolveSaver, saverName } from "@/lib/members";
 import { createClient } from "@/lib/supabase";
@@ -39,7 +38,7 @@ const UNKNOWN: Saver = { kind: "unknown" };
 
 /** The client the way a request builds it, with no session cookie. */
 function client(): NonNullable<ReturnType<typeof createClient>> {
-  const supabase = createClient(new Headers(), { set: vi.fn() } as unknown as AstroCookies);
+  const supabase = createClient(new Headers(), { set: vi.fn() });
   if (supabase === null) throw new Error("expected a configured Supabase client");
   return supabase;
 }

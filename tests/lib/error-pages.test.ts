@@ -13,6 +13,12 @@ describe("retryHref: the 503 page links back to where the member was going", () 
     expect(retryHref("GET", pathname)).toBe(pathname);
   });
 
+  // A space is the first character that is not a control character; Astro decodes %20 into it.
+  it("returns a path that holds a space", () => {
+    expect(retryHref("GET", "/offers/a b")).toBe("/offers/a b");
+    expect(retryHref("GET", "/offers/a\u001fb")).toBe("/");
+  });
+
   it("returns the home page for a GET of the home page", () => {
     expect(retryHref("GET", "/")).toBe("/");
   });
@@ -59,6 +65,16 @@ describe("retryHref: never a target outside the app", () => {
   // `//host` and `/\host` are protocol-relative in a browser.
   it.each(["//evil.example", "//evil.example/dashboard", "//"])(
     "sends %j, which begins with two slashes, to the home page",
+    (pathname) => {
+      expect(retryHref("GET", pathname)).toBe("/");
+      expect(retryHref("GET", "/dashboard")).toBe("/dashboard");
+    },
+  );
+
+  // A browser drops a tab, a line feed and a carriage return from a URL, so "/\t/evil.example"
+  // reads as "//evil.example". Astro decodes %09, %0A and %0D into them before the path gets here.
+  it.each(["/\t/evil.example", "/\n/evil.example", "/\r/evil.example", "/dash\u0000board", "/dashboard\u007f"])(
+    "sends %j, which holds a control character, to the home page",
     (pathname) => {
       expect(retryHref("GET", pathname)).toBe("/");
       expect(retryHref("GET", "/dashboard")).toBe("/dashboard");

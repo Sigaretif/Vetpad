@@ -1,4 +1,3 @@
-import type { AstroCookies } from "astro";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { type OfferNotes, loadNotes } from "@/lib/notes";
 import { createClient } from "@/lib/supabase";
@@ -74,7 +73,7 @@ const ORPHAN_ROW = {
 
 /** The client the way a request builds it, with no session cookie. */
 function client(): NonNullable<ReturnType<typeof createClient>> {
-  const supabase = createClient(new Headers(), { set: vi.fn() } as unknown as AstroCookies);
+  const supabase = createClient(new Headers(), { set: vi.fn() });
   if (supabase === null) throw new Error("expected a configured Supabase client");
   return supabase;
 }

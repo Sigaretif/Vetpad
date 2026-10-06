@@ -67,7 +67,7 @@ These come from `@context/foundation/prd.md` (Success Criteria → Guardrails, N
 Layout and route protection are in `@README.md`. The part it does not state: `src/middleware.ts` resolves the user into `context.locals.user`, typed in `src/env.d.ts`. shadcn's style, aliases and icon library: `@components.json`. Config: `@astro.config.mjs`, `@wrangler.jsonc`, `supabase/config.toml`.
 
 - `src/lib/otodom/` is the ingestion module: URL normalisation, the page fetch, and the mapper that holds the flat-sale gate, the unknown-not-zero rule and the personal-data whitelist. `src/pages/api/offers.ts` is the reference domain form route (one distinguishable `?error=` message per failure reason), and `src/pages/offers/[id].astro` is the offer card page, protected through `PROTECTED_ROUTES` in `src/middleware.ts`.
-- `src/middleware.ts` is the place that never turns a Supabase Auth outage into a sign-in redirect: an Auth that could not answer gets the 503 page (`src/pages/503.astro`) on every path outside `/auth/*` and `/api/auth/*` and the member keeps the session cookie, while only a session Auth refused reads as signed out. `src/lib/auth-error.ts` is the reference for classifying an Auth error — the middleware and `src/pages/api/auth/signin.ts` share it rather than each keeping a condition of its own, and an error it cannot recognise is an outage, never a signed-out member. A route behind the middleware therefore does not ask whether its `user: null` came from an outage. `src/middleware.ts` is also the reference for a log entry from outside a route — `event: "auth_check"` for a refused session or an outage, `event: "request"` for an exception, which it logs and throws on so that `src/pages/500.astro` answers. `tests/middleware.test.ts` is the reference test.
+- `src/middleware.ts` is the place that never turns a Supabase Auth outage into a sign-in redirect, and the reference for a log entry from outside a route. `src/lib/auth-error.ts` is the reference for classifying an Auth error — the middleware and `src/pages/api/auth/signin.ts` share it rather than each keeping a condition of its own, and an error it cannot recognise is an outage, never a signed-out member. A route behind the middleware does not ask whether its `user: null` came from an outage. `tests/middleware.test.ts` is the reference test.
 - `src/pages/dashboard.astro` is the shared offer board (FR-006). `src/lib/offer-board.ts` is the reference for its sort (`?sort=&dir=`, unknown values last via `nullsFirst: false`) and holds `auditStatus()`, the swap point S-04 replaces with a real audit status; `src/components/offers/AuditStatusBadge.astro` is the one place that status gets a label. The board's container carries `data-board-state="ok"|"error"`, which `scripts/smoke.mjs` checks, because a failed read renders with 200 just like an empty board; `data-limits-state` beside it does the same for the team's limits, whose failed read is never shown as "no breaches".
 - `supabase/migrations/20260927144141_create_team_criteria.sql` is the reference for a singleton the team shares: the migration inserts the one row, members get `select` and `update` policies and no `insert`/`delete` (clearing the limits is an update that writes nulls), and the criteria revision counter has no write policy at all — only a `security definer` trigger bumps it, and only on a real change. `src/lib/criteria.ts` is the reference for reading the criteria (a failed read is its own state, never "no limits", and so is a value in the row that does not read as a limit — zero, a negative number, non-numeric text, an empty city — which is never "no limit", while a number PostgREST sends as text reads as that number; members' requirements are read most recently edited first; `tests/lib/criteria.test.ts` is the reference; `/criteria` carries the state as `data-criteria-state`) and `src/lib/team-limits.ts` for comparing an offer with the limits (only a stated fact breaks one). Breaches always come back in the order `city`, `price_above`, `price_below`, `area_below`. For limits the form and the table's checks do not allow, the function judges each price bound on its own — an inverted range can yield both price marks — reads an empty city limit as no limit, and compares a city limit containing a comma as a whole, so it marks every offer with a stated location; `tests/lib/team-limits.test.ts` is the reference. S-04 reads the criteria through `src/lib/criteria.ts` and stores `criteria_revision.revision` with the audit, and S-09 compares that revision to flag the audit stale, rather than building a second mechanism.
 - `public.members` (`supabase/migrations/20260926185936_create_members.sql`) and `src/lib/members.ts` are the reference for naming a member — S-05's note author and S-10's archiver reuse them rather than building a second mechanism. The name is the email address. A `null` author column is a deleted account, rendered „osoba z usuniętym kontem” — with or without a client, because it is a fact from the row that needs no read. A failed read, a missing `members` row or a `null` email is the `unknown` variant: it names nobody and is never shown as a deleted account. `tests/lib/members.test.ts` is the reference for both. `scripts/smoke.mjs` checks the table's RLS from both sides, since a blocked read answers 200 with `[]`.
@@ -133,38 +133,34 @@ Changes are written in the `master` working tree, may be committed there phase b
 
 <!-- BEGIN @przeprogramowani/10x-cli -->
 
-## 10xDevs AI Toolkit - Module 3, Lesson 4 (E2E Tests)
+## 10xDevs AI Toolkit - Module 3, Lesson 5 (Debugging)
 
-**For E2E tests, use the two M3L4 skills in this order:**
+Turn a failure into a fix the agent can defend: evidence first, then a failing test, then the fix.
 
-1. **`/10x-e2e-setup`** — one-time setup: Playwright config (`webServer`,
-   auth `setup` project, `storageState`), a green seed test, and `context/foundation/test-stack.md`.
-2. **`/10x-e2e`** — the per-risk loop: risk → explore the running app with
-   `playwright-cli` → generate → review against the five anti-patterns →
-   re-prompt by name → verify with a deliberate break.
+```
+signal (monitoring | log | flaky E2E | stack trace) -> gather evidence -> reproduce -> failing test -> fix -> verify
+```
 
-The skills' `references/` carry the full rules, anti-patterns, seed pattern, and
-prompt-template.
+### Task Router - Where to start
 
-A few hard rules that hold even before you invoke the skill:
+| Skill                                                            | Use it when                                                                                                                                                                                                                                                      |
+| ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/10x-frame`                                                     | The report arrives as "bug + proposed fix". Check that the observed symptom and the stated cause actually match before anyone fixes anything.                                                                                                                    |
+| `/10x-new` -> `/10x-research` -> `/10x-plan` -> `/10x-implement` | The fix is more than a one-liner. Research collects the evidence; the plan starts with the failing regression test.                                                                                                                                              |
+| `/10x-tdd`                                                       | Writing the regression test that reproduces the bug before the fix.                                                                                                                                                                                              |
+| `/10x-e2e`                                                       | The bug only shows up in the running app. Reproduce it in the browser and keep that test.                                                                                                                                                                        |
+| `/10x-observability-audit`                                       | Errors are missing, noisy or impossible to diagnose in production. It audits the critical flows for code that hides failures and writes a dated report under `context/audits/observability/`. Use `--verify <report>` to re-check an earlier report after fixes. |
 
-- **Locators:** `getByRole` / `getByLabel` / `getByText` first; `getByTestId`
-  only when accessibility attributes are ambiguous. Never CSS selectors, XPath,
-  or DOM structure.
-- **Never `page.waitForTimeout()`.** Wait for state: `toBeVisible()`,
-  `waitForURL()`, `waitForResponse()`.
-- **Test independence + cleanup.** Each test runs standalone — its own setup,
-  action, assertion, and cleanup; unique ids (timestamp suffix) so parallel runs
-  and re-runs don't collide.
+### Hard rules
 
-Two boundaries to keep straight:
+- **Evidence before a hypothesis.** Use what the error tracker, the logs, a reproduction and the code each show. Never guess a cause from the stack trace alone.
+- **The bug becomes a failing test first.** The fix is done when that test goes from red to green and stays in the suite.
+- **Never hide the evidence.** No empty `catch`, no ignored promise rejections, no failures turned into redirects or `200`s, no dropped error causes. If the fix needs a `catch`, it logs or reports the error with its cause.
+- **Fix the cause, not the test.** Don't edit an assertion to match the new behaviour unless the requirement itself changed.
 
-- **DOM (snapshot) is the default.** Vision (`--caps=vision`) is a supplement for
-  visual-only risks (layout, z-index, animation); for pixel regression prefer
-  deterministic tools (`toHaveScreenshot`, Argos, Lost Pixel). VLM model
-  selection/cost is a debugging topic (Lesson 5), not testing.
-- **A red test is a signal, not a chore.** A changed selector → update the
-  locator in a reviewed diff. A changed business behavior → the test caught a
-  bug; never edit the assertion to match it. Fixing failing tests is Lesson 5.
+### Lesson boundaries
+
+- `/10x-observability-audit` reads code and writes a report. It never changes the audited code. Fixing what it finds goes through the change chain.
+- Choosing a monitoring vendor is `/10x-infra-research`, not this lesson.
 
 <!-- END @przeprogramowani/10x-cli -->

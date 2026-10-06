@@ -10,12 +10,12 @@ import {
   SESSION_REFRESH_TOKEN,
   SESSION_USER,
   SESSION_USER_EMAIL,
+  SESSION_USER_ID,
   authErrorResponse,
   isAuthRequest,
   jsonResponse,
   restoreFetch,
   sessionCookie,
-  sessionCookieValue,
   stubFetch,
 } from "./fixtures/http";
 
@@ -204,6 +204,8 @@ describe("middleware: a session Auth confirms is the member, with no entry", () 
 
     expectPassedOn(result);
     expect((result.locals.user as { id: string } | null)?.id).toBe(USER_ID);
+    // A session that needed no refresh writes no cookie: nothing waits to be passed on.
+    expect(result.cookiesSet).not.toHaveBeenCalled();
     expect(result.stub.requests).toHaveLength(1);
     expect(result.captured.entries()).toStrictEqual([]);
   });
@@ -394,6 +396,66 @@ describe("middleware: an Auth that could not answer is an outage, never a sign-o
         auth_code: "over_request_rate_limit",
       }),
     ]);
+  });
+
+  // An expired access token is refreshed first, and auth-js drops the session after any refresh
+  // error it does not retry — a rate limit and a paused project's page among them. @supabase/ssr
+  // then writes the cookie's deletion, which would sign the member out on the 503 page itself.
+  it.each([
+    [
+      "a rate limit",
+      () => authErrorResponse(429, "over_request_rate_limit", AUTH_MSG),
+      { error_name: "AuthApiError", auth_status: 429, auth_code: "over_request_rate_limit" },
+    ],
+    [
+      "a paused project's page",
+      () => new Response(PAUSED_PAGE, { status: 540, headers: { "Content-Type": "text/html" } }),
+      { error_name: "AuthUnknownError" },
+    ],
+  ])("keeps the cookie when the refresh of an expired token meets %s", async (_label, answer, fields) => {
+    const result = await pass({
+      path: "/dashboard",
+      routePattern: "/dashboard",
+      cookie: sessionCookie({ expired: true }),
+      auth: (request) => (isAuthRequest(request, "token") ? answer() : undefined),
+    });
+
+    expectRewrittenTo503(result);
+    expect(result.locals.user).toBeNull();
+    expect(result.cookiesSet).not.toHaveBeenCalled();
+    expect(result.captured.entries().at(-1)).toStrictEqual(
+      entry("error", { event: "auth_check", outcome: "unavailable", route: "/dashboard", method: "GET", ...fields }),
+    );
+  });
+
+  it("writes the new cookie when the refresh of an expired token succeeds", async () => {
+    const refreshed = {
+      access_token: "KANAREK-ACCESS-TOKEN-NOWY",
+      refresh_token: "KANAREK-REFRESH-TOKEN-NOWY",
+      token_type: "bearer",
+      expires_in: 3600,
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+      user: SESSION_USER,
+    };
+    const result = await pass({
+      path: "/dashboard",
+      routePattern: "/dashboard",
+      cookie: sessionCookie({ expired: true }),
+      auth: (request) => {
+        if (isAuthRequest(request, "token")) return jsonResponse(refreshed, 200);
+        if (isAuthRequest(request, "user")) return jsonResponse(SESSION_USER, 200);
+        return undefined;
+      },
+    });
+
+    expectPassedOn(result);
+    expect(result.locals.user).toMatchObject({ id: SESSION_USER_ID });
+    const written = (result.cookiesSet.mock.calls as [string, string][]).map(([name, value]) => [
+      name,
+      value.slice(0, 7),
+    ]);
+    expect(written).toContainEqual(["sb-supabase-auth-token", "base64-"]);
+    expect(result.captured.entries()).toStrictEqual([]);
   });
 
   it("#12 stops a form post before its route, without reading the body", async () => {
@@ -707,7 +769,8 @@ describe("middleware: no log entry carries the member, the session, the address 
     expect(own?.args[0]).toMatchObject({ outcome });
     expect(entries.slice(0, -1)).toStrictEqual(foreign);
 
-    const forbidden = [...FORBIDDEN, sessionCookieValue(), sessionCookieValue({ expired: true })];
+    // The value of the cookie this scenario sent — not one built again here, a second later.
+    const forbidden = [...FORBIDDEN, (scenario.cookie ?? "").replace("sb-supabase-auth-token=", "")];
     // The middleware's own entry carries none of it, Auth's words included.
     const ownText = JSON.stringify(own?.args[0]);
     for (const text of [...forbidden, ...AUTH_WORDS]) {

@@ -1,7 +1,7 @@
 ---
 change_id: auth-outage-not-signed-out
 title: Awaria Supabase Auth odróżniona od braku sesji w middleware i logach
-status: implemented
+status: impl_reviewed
 created: 2026-10-05
 updated: 2026-10-06
 archived_at: null

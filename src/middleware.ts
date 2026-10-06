@@ -1,7 +1,7 @@
 import { defineMiddleware } from "astro:middleware";
 import { classifyAuthError } from "@/lib/auth-error";
 import { logEvent } from "@/lib/log";
-import { createClient } from "@/lib/supabase";
+import { type CookieSink, createClient } from "@/lib/supabase";
 
 const PROTECTED_ROUTES = ["/dashboard", "/offers", "/criteria"];
 
@@ -29,7 +29,17 @@ export const onRequest = defineMiddleware(async (context, next) => {
       return await next();
     }
 
-    const supabase = createClient(context.request.headers, context.cookies);
+    // The client's cookie writes wait until the answer is known. After a refresh error it does
+    // not retry — a rate limit, a paused project's page — auth-js drops the session and
+    // @supabase/ssr writes the cookie's deletion; on an outage that write is thrown away.
+    const heldCookies: Parameters<CookieSink["set"]>[] = [];
+    let cookieSink: CookieSink | null = null;
+    const supabase = createClient(context.request.headers, {
+      set(...write) {
+        if (cookieSink) cookieSink.set(...write);
+        else heldCookies.push(write);
+      },
+    });
     let authUnavailable = false;
 
     if (supabase) {
@@ -56,6 +66,9 @@ export const onRequest = defineMiddleware(async (context, next) => {
       context.locals.user = null;
     }
     userId = context.locals.user?.id;
+
+    cookieSink = authUnavailable ? { set: () => undefined } : context.cookies;
+    for (const write of heldCookies) cookieSink.set(...write);
 
     // An outage is not a sign-out: the member gets the 503 page and keeps the cookie. next("/503")
     // rewrites without running this middleware again; neither side may read the request body.

@@ -987,6 +987,12 @@ sign-out. Its test plays Auth, not `@/lib/supabase`.
     an expired token it refreshes first, and a `5xx` or a rejected `fetch` on
     the refresh is retried for about 30 s. A refused refresh is `400` with
     `refresh_token_not_found`, which is not retried.
+  - An expired token whose refresh meets an error `auth-js` does **not**
+    retry — `429`, a paused project's `540` — is an outage too, and the
+    client drops the session on it. The middleware holds the client's cookie
+    writes and throws them away on an outage; those cases assert
+    `cookiesSet` was not called, beside a successful refresh that does write
+    the new cookie.
   - `auth-js` writes to the console by itself: a refused refresh token
     leaves one `console.warn` per auth-state listener, with Auth's message.
     Name those entries in the expected list (`REFRESH_REFUSED_WARNING`).
@@ -1002,6 +1008,12 @@ sign-out. Its test plays Auth, not `@/lib/supabase`.
     test. `scripts/smoke.mjs` checks the pages and a refused session against
     a live Auth; the exception path and an outage are played by hand on the
     production preview.
+  - Nothing automated drives a real rewrite. The status of the rewritten
+    response, a POST's body surviving it, the cookies on it and the value of
+    `Astro.originPathname` afterwards (Astro appends a trailing slash) are
+    covered only by that rehearsal — stop the local Auth container with a
+    signed-in session, as in the plan's manual steps. A change to the
+    rewrite or to `retryHref` repeats it.
 
 ## 7. What We Deliberately Don't Test
 

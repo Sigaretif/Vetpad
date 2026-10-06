@@ -64,8 +64,47 @@ Mutantów bez pokrycia ani z przekroczonym czasem nie ma.
 | Wiersz i mutacja                                                                                          | Decyzja             | Powód                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | --------------------------------------------------------------------------------------------------------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `auth-error.ts:24:24` — `status >= 400 && status <= 499 && status !== 429` → `status >= 400 && true && …` | równoważny          | Do tego wiersza nie dociera żaden status od 500 w górę: `isAuthOutage` w wierszu 21 zwraca dla niego `unavailable` wcześniej. Górna granica zostaje, bo wiersz ma mówić sam za siebie „tylko 4xx".                                                                                                                                                                                                                                              |
-| `auth-error.ts:21:7` — `if (isAuthOutage(error))` → `if (false)`                                          | świadomie pominięty | Dla każdego błędu, który `auth-js` potrafi zbudować, wynik jest ten sam: błąd ponawialny ma status `0` albo 502–504 i 520–530 (`node_modules/@supabase/auth-js/src/lib/fetch.ts`, `NETWORK_ERROR_CODES`), `AuthUnknownError` nie ma statusu, więc wszystkie trafiają do `unavailable` ostatnim wierszem. Zabiłby go tylko ręcznie zbudowany błąd ponawialny ze statusem 4xx, którego biblioteka nie zwraca — asercja na coś, co się nie zdarza. |
+| `auth-error.ts:21:7` — `if (isAuthOutage(error))` → `if (false)`                                          | świadomie pominięty | Dla każdego błędu, który `auth-js` potrafi zbudować, wynik jest ten sam: błąd ponawialny ma status `0` albo 500–504 i 520–530 (`node_modules/@supabase/auth-js/src/lib/fetch.ts`, `NETWORK_ERROR_CODES`), `AuthUnknownError` nie ma statusu, więc wszystkie trafiają do `unavailable` ostatnim wierszem. Zabiłby go tylko ręcznie zbudowany błąd ponawialny ze statusem 4xx, którego biblioteka nie zwraca — asercja na coś, co się nie zdarza. |
 | `log.ts:48:47` — `typeof value === "number" && Number.isFinite(value)` → `true && Number.isFinite(value)` | równoważny          | Jak w dzienniku `offers-outcome-logging`: `Number.isFinite` nie rzutuje argumentu, więc dla każdej wartości, która nie jest liczbą, odpowiada `false` i klucz nie trafia do wpisu.                                                                                                                                                                                                                                                              |
+
+## Po poprawkach z przeglądu implementacji (2026-10-06)
+
+Triage `reviews/impl-review.md` zmienił dwa mutowane pliki: `src/middleware.ts`
+wstrzymuje zapisy ciasteczek klienta i porzuca je przy awarii (F1), a
+`src/lib/error-pages.ts` odsyła na `/` ścieżkę ze znakiem sterującym (F2).
+Liczba mutantów wzrosła ze 176 do 199, więc przebieg został powtórzony.
+
+| Przebieg                     | Wynik  | Zabite | Przekroczony czas | Ocalałe | Bez pokrycia | Razem |
+| ---------------------------- | ------ | ------ | ----------------- | ------- | ------------ | ----- |
+| 3. Po poprawkach z przeglądu | 95,98% | 190    | 1                 | 7       | 1            | 199   |
+| 4. Po asercjach z tej sekcji | 96,98% | 192    | 1                 | 5       | 1            | 199   |
+
+Przebieg 4 według plików:
+
+| Plik                     | Wynik  | Zabite | Przekroczony czas | Ocalałe | Bez pokrycia | Razem |
+| ------------------------ | ------ | ------ | ----------------- | ------- | ------------ | ----- |
+| `src/lib/auth-error.ts`  | 94,44% | 34     | 0                 | 2       | 0            | 36    |
+| `src/lib/error-pages.ts` | 97,73% | 42     | 1                 | 1       | 0            | 44    |
+| `src/lib/log.ts`         | 96,77% | 30     | 0                 | 1       | 0            | 31    |
+| `src/middleware.ts`      | 97,73% | 86     | 0                 | 1       | 1            | 88    |
+
+Mutant z przekroczonym czasem (`error-pages.ts`, pętla po znakach ścieżki)
+jest wykryty: zmutowana pętla się nie kończy.
+
+Asercje dopisane po przebiegu 3 — zabiły 2 mutanty, przebieg 4 to potwierdza:
+
+| Mutant (przebieg 3)                                                 | Co by zaszkodziło                                                                                               | Asercja                                                                                                                                           |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `error-pages.ts:19:9` — `code < 0x20` → `code <= 0x20`              | Ścieżka ze spacją (Astro dekoduje `%20`) straciłaby cel linku „Spróbuj ponownie” i prowadziła na stronę główną. | `tests/lib/error-pages.test.ts`, „returns a path that holds a space”: `/offers/a b` wraca bez zmian, obok `/offers/a\u001fb`, które idzie na `/`. |
+| `middleware.ts:35:58` — `heldCookies = []` → `["Stryker was here"]` | Każde żądanie z potwierdzoną sesją zapisałoby w odpowiedzi ciasteczko, którego klient nie zlecił.               | `tests/middleware.test.ts`, „#3”: sesja, która nie wymagała odświeżenia, nie zapisuje żadnego ciasteczka (`cookiesSet` niewołane).                |
+
+Nowi ocalali i mutant bez pokrycia po przebiegu 4 (trzy decyzje z tabeli wyżej —
+`auth-error.ts:24:24`, `auth-error.ts:21:7`, `log.ts:48:47` — pozostają bez zmian):
+
+| Wiersz i mutacja                                                                                                       | Decyzja             | Powód                                                                                                                                                                                                                                                                                                                                                                 |
+| ---------------------------------------------------------------------------------------------------------------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `error-pages.ts:17:23` — `index < originPathname.length` → `index <= …`                                                | równoważny          | Dodatkowy obrót pętli czyta `charCodeAt(length)`, czyli `NaN`; oba porównania są dla niego fałszywe, więc wynik się nie zmienia.                                                                                                                                                                                                                                      |
+| `middleware.ts:39:13` — `if (cookieSink)` → `if (false)`; `39:25` — `cookieSink.set(...write)` usunięte (bez pokrycia) | świadomie pominięty | Gałąź obsługuje zapis ciasteczka, który przyszedłby po rozstrzygnięciu wyniku. `auth-js` kończy wszystkie zapisy, zanim `getUser()` zwróci, więc z krawędzi HTTP nie da się takiego zapisu wywołać. Gałąź zostaje, żeby spóźniony zapis zachował się jak przed poprawką (trafił do odpowiedzi albo został porzucony przy awarii), a nie zniknął w wstrzymanej liście. |
 
 ## Czego ten przebieg nie widzi
 
