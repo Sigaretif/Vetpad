@@ -3,7 +3,7 @@ project: Vetpad
 version: 1
 status: draft
 created: 2026-09-21
-updated: 2026-09-29
+updated: 2026-10-06
 prd_version: 1
 main_goal: market-feedback
 top_blocker: time
@@ -44,7 +44,7 @@ A small group searching for an apartment together keeps blind links in spreadshe
 | S-01 | closed-team-sign-in      | sign in only with a pre-seeded account; nobody can register                         | —             | FR-001                        | done     |
 | S-02 | paste-listing-to-card    | paste an otodom.pl URL and read the saved listing's text, parameters and photos     | S-01          | US-01, FR-004, FR-005, FR-007 | done     |
 | S-03 | team-search-criteria     | define and edit the team's shared hard limits and their own additional requirements | S-01          | FR-002, FR-003                | done     |
-| S-04 | grounded-listing-audit   | run an AI audit on a saved listing and read findings, each quoted from the listing  | S-02, S-03    | US-01, FR-010, FR-011         | proposed |
+| S-04 | grounded-listing-audit   | run an AI audit on a saved listing and read findings, each quoted from the listing  | S-02, S-03    | US-01, FR-010, FR-011         | planning |
 | S-05 | member-notes             | write their own Pros / Cons / Observations note and read everyone's, attributed     | S-02          | US-01, FR-012, FR-013         | done     |
 | S-06 | shared-offer-board       | browse every saved listing on one board with its audit status                       | S-02          | FR-006                        | done     |
 | S-07 | duplicate-listing-notice | paste an already-saved URL and land on the existing card, told who saved it         | S-02          | FR-005                        | done     |
@@ -134,7 +134,7 @@ None. Every absent or partial layer in the Baseline is first needed by a user-fa
   - How is the model's structured output checked — hand-rolled, or with a validation library the user approves? — Owner: user. Block: no.
   - Does the audit's per-request CPU still fit the hosting platform's free plan on the longest listing? — Owner: team. Block: no.
 - **Risk:** Carries the product's hardest promise — a finding that cannot be quoted from the listing is not reported — so it comes right after its two inputs exist, per `market-feedback`. Only listing text and criteria may reach the model provider; notes never do, and the seller's personal data never reaches the prompt.
-- **Status:** proposed
+- **Status:** planning
 
 ### S-05: Member notes beside the listing
 
@@ -229,7 +229,7 @@ None. Every absent or partial layer in the Baseline is first needed by a user-fa
 | S-01       | [#12](https://github.com/Sigaretif/Vetpad/issues/12) | closed-team-sign-in      | Close registration; sign-in only for pre-seeded accounts    | done                  | Done; archived 2026-09-22                                                                                                                                                                                                                                                                                                                                                           |
 | S-02       | [#13](https://github.com/Sigaretif/Vetpad/issues/13) | paste-listing-to-card    | Save an otodom listing from a pasted URL and show its card  | done                  | Done; archived 2026-09-23 → `context/archive/2026-09-22-paste-listing-to-card/`                                                                                                                                                                                                                                                                                                     |
 | S-03       | [#14](https://github.com/Sigaretif/Vetpad/issues/14) | team-search-criteria     | Shared hard limits and per-member additional requirements   | done                  | Done; archived 2026-09-29 → `context/archive/2026-09-27-team-search-criteria/`                                                                                                                                                                                                                                                                                                      |
-| S-04       | [#15](https://github.com/Sigaretif/Vetpad/issues/15) | grounded-listing-audit   | AI audit of a saved listing with verbatim excerpts          | yes                   | S-02 and S-03 done — run `/10x-plan grounded-listing-audit`. Read the criteria through `loadCriteria` (`src/lib/criteria.ts`) and store `criteria_revision.revision` with the audit; swap the board status in `auditStatus()` (`src/lib/offer-board.ts`) and label it in `src/components/offers/AuditStatusBadge.astro`                                                             |
+| S-04       | [#15](https://github.com/Sigaretif/Vetpad/issues/15) | grounded-listing-audit   | AI audit of a saved listing with verbatim excerpts          | planned               | Plan written and reviewed 2026-10-06 (`context/changes/grounded-listing-audit/plan.md`, review in `reviews/plan-review.md`) — run `/10x-implement grounded-listing-audit`. The plan reads the criteria through `loadAuditCriteria` (`src/lib/criteria.ts`), stores `criteria_revision.revision` with the audit and gives `auditStatus()` (`src/lib/offer-board.ts`) its data source |
 | S-05       | [#16](https://github.com/Sigaretif/Vetpad/issues/16) | member-notes             | Per-member Pros / Cons / Observations notes, attributed     | done                  | Done; archived 2026-09-27 → `context/archive/2026-09-26-member-notes/`                                                                                                                                                                                                                                                                                                              |
 | S-06       | [#17](https://github.com/Sigaretif/Vetpad/issues/17) | shared-offer-board       | Shared board of saved listings with audit status            | done                  | Done; archived 2026-09-26 → `context/archive/2026-09-26-shared-offer-board/`                                                                                                                                                                                                                                                                                                        |
 | S-07       | [#18](https://github.com/Sigaretif/Vetpad/issues/18) | duplicate-listing-notice | Redirect duplicate URLs to the existing card with notice    | done                  | Done; archived 2026-09-26 → `context/archive/2026-09-26-duplicate-listing-notice/`                                                                                                                                                                                                                                                                                                  |
