@@ -20,6 +20,10 @@ Fetches one live otodom.pl offer and prints three sections:
   2. characteristics - every entry as key / value / localizedValue / currency
   3. mapper output - the mapAdToOffer result, with the columns that came out null
 
+A failed fetch prints one "Fetch failed" line - the reason, the HTTP status and
+the detail when there is one - and under it what the answer said about itself,
+the evidence POST /api/offers logs for the same failure.
+
 Exit codes: 0 printed all sections (even when the gate rejects the offer),
             1 the URL was rejected or the fetch failed, 2 usage error.
 Never run in CI: it hits the live portal.`;
@@ -41,7 +45,19 @@ console.log(`Fetching ${normalized.url}`);
 
 const fetched = await fetchOfferAd(normalized.url, AbortSignal.timeout(TIMEOUT_MS));
 if (!fetched.ok) {
-  console.error(`Fetch failed: ${fetched.reason}${fetched.status === undefined ? "" : ` (HTTP ${fetched.status})`}`);
+  const status = fetched.status === undefined ? "" : ` (HTTP ${fetched.status})`;
+  const detail = fetched.detail === undefined ? "" : ` - ${fetched.detail}`;
+  console.error(`Fetch failed: ${fetched.reason}${status}${detail}`);
+  // The evidence POST /api/offers would log for this failure, under the entry's key names:
+  // `fetchFields` in src/pages/api/offers.ts maps each field to its snake_case spelling.
+  const evidence = Object.entries(fetched.evidence).map(([key, value]) => [
+    key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`),
+    value,
+  ]);
+  const keyWidth = Math.max(0, ...evidence.map(([key]) => key.length));
+  for (const [key, value] of evidence) {
+    console.error(`  ${key.padEnd(keyWidth)}  ${JSON.stringify(value)}`);
+  }
   process.exit(1);
 }
 

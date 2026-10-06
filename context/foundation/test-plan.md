@@ -926,7 +926,19 @@ seller's contact or a member's address could leave the system unnoticed.
   Postgres `details` quoting the rejected row, a member with an `email` on
   `locals.user`.
 - **One table of scenarios for the absence check,** one per stage of the
-  route, so a new field added to an entry is searched on every way out.
+  route, so a new field added to an entry is searched on every way out. The
+  forbidden list has two layers. `COMMON` holds what no entry may carry
+  whatever its subject: the seller canaries, the member's address, the
+  title, the pasted query, the offer's whole address, the path of an offer
+  page, the words of a slug, a fetched page's text. `STRICT` adds the
+  portal's host and the single words of the slug, and is what a scenario is
+  searched for unless its row says otherwise. A scenario whose subject is
+  where a redirect landed cannot be held to `STRICT` — its entry carries
+  `landed_host`, which is the portal's own host when the portal kept the
+  request — so that row names `COMMON` itself, together with the text its
+  log has to carry (the landed offer's `ID…` token, the results path). The
+  exception is written in the row, never taken by loosening the default,
+  and the fixture's landing path shares no word with the offer's slug.
 - **An exit another file's mock cannot reach gets its own file:**
   `tests/pages/api/offers.unconfigured.test.ts` runs in the zero-config state
   of `tests/setup.ts`, which `offers.test.ts` overrides for its whole file.
@@ -1030,7 +1042,7 @@ sign-out. Its test plays Auth, not `@/lib/supabase`.
 ## 8. Freshness Ledger
 
 - Strategy (§1–§5) last reviewed: 2026-09-30; §2 (#5), §3 row 2, §4 and §5 amended for the write-isolation phase: 2026-10-01
-- Cookbook (§6) last changed: 2026-10-06 — §6.10, outside the rollout (`auth-outage-not-signed-out`); before that 2026-10-05 — §6.9, outside the rollout (`offers-outcome-logging`), and 2026-10-02 — the tags paragraph, §6.7, §6.8 and a §6.6 entry (`testing-read-failure-states`)
+- Cookbook (§6) last changed: 2026-10-06 — §6.9, the two layers of the forbidden list, outside the rollout (`otodom-fetch-sub-reasons`), and §6.10, outside the rollout (`auth-outage-not-signed-out`); before that 2026-10-05 — §6.9, outside the rollout (`offers-outcome-logging`), and 2026-10-02 — the tags paragraph, §6.7, §6.8 and a §6.6 entry (`testing-read-failure-states`)
 - Stack versions last verified: 2026-09-30
 - AI-native tool references last verified: 2026-09-30
 

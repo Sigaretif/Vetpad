@@ -129,17 +129,18 @@ P9), not with the middleware.
 Every row here was hit or verified during deploy zero. All of them look like
 something other than what they are, which is the only reason this table exists.
 
-| Symptom                                                                          | Actual cause                                                                       | Action                                                                                                                                                                                                                              |
-| -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `1102 Worker exceeded resource limits`                                           | Free plan's 10 ms CPU ceiling                                                      | **Check the plan before debugging code.** The message names no limit and reads like an application bug                                                                                                                              |
-| Deploy rejected, API error **100328**                                            | a `limits` block in `wrangler.jsonc` while on Free                                 | Remove it. `limits.cpu_ms` is Paid-only and blocks the deploy outright                                                                                                                                                              |
-| `curl` exit 35 / `sslv3 alert handshake failure` on a fresh `*.workers.dev` name | certificate not issued yet — the wildcard covers one label, this host has two      | Wait ~2 minutes and retry. The Worker is already live                                                                                                                                                                               |
-| Push to `master` triggers no build, silently                                     | Workers Builds production branch left at the default `main`                        | Set it to `master`. Failure mode is silence, not an error                                                                                                                                                                           |
-| Build fails during install                                                       | `.nvmrc` pins a version the build image lacks                                      | Image preinstalls **22.23.2** and **24.18.0** only; an exact version outside those forces a source build                                                                                                                            |
-| New version shows source `version_upload`, looks unpromoted                      | `wrangler deploy` is upload **then** promotion, and the API labels them separately | Check `wrangler deployments list` — 100% traffic on the new version means it deployed                                                                                                                                               |
-| Signed-in members get the 503 page and login fails, **no banner appears**        | hosted Supabase project paused after ~7 days idle (Free tier)                      | Resume it in the Supabase dashboard. The log names it: `event: "auth_check"`, `outcome: "unavailable"`, with `auth_status` when Auth sent one. `src/lib/config-status.ts` detects _unset_ variables, never an _unreachable_ service |
-| A table returns `[]` with HTTP 200                                               | RLS is on with no `select` policy — looks like missing data                        | Add the policy. **Never** reach for the `secret` / `service_role` key                                                                                                                                                               |
-| Secrets appear to vanish after an auto-deploy                                    | they do not — secrets are per-Worker, not per-version                              | Verified: they survived the first Workers Builds deploy                                                                                                                                                                             |
+| Symptom                                                                          | Actual cause                                                                       | Action                                                                                                                                                                                                                                        |
+| -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `1102 Worker exceeded resource limits`                                           | Free plan's 10 ms CPU ceiling                                                      | **Check the plan before debugging code.** The message names no limit and reads like an application bug                                                                                                                                        |
+| Deploy rejected, API error **100328**                                            | a `limits` block in `wrangler.jsonc` while on Free                                 | Remove it. `limits.cpu_ms` is Paid-only and blocks the deploy outright                                                                                                                                                                        |
+| `curl` exit 35 / `sslv3 alert handshake failure` on a fresh `*.workers.dev` name | certificate not issued yet — the wildcard covers one label, this host has two      | Wait ~2 minutes and retry. The Worker is already live                                                                                                                                                                                         |
+| Push to `master` triggers no build, silently                                     | Workers Builds production branch left at the default `main`                        | Set it to `master`. Failure mode is silence, not an error                                                                                                                                                                                     |
+| Build fails during install                                                       | `.nvmrc` pins a version the build image lacks                                      | Image preinstalls **22.23.2** and **24.18.0** only; an exact version outside those forces a source build                                                                                                                                      |
+| New version shows source `version_upload`, looks unpromoted                      | `wrangler deploy` is upload **then** promotion, and the API labels them separately | Check `wrangler deployments list` — 100% traffic on the new version means it deployed                                                                                                                                                         |
+| Signed-in members get the 503 page and login fails, **no banner appears**        | hosted Supabase project paused after ~7 days idle (Free tier)                      | Resume it in the Supabase dashboard. The log names it: `event: "auth_check"`, `outcome: "unavailable"`, with `auth_status` when Auth sent one. `src/lib/config-status.ts` detects _unset_ variables, never an _unreachable_ service           |
+| A member reads „otodom.pl przysłał stronę bez danych ogłoszenia”                 | may be a block served with HTTP 200, not a changed page — the fetch cannot tell    | Read `body_length` and `content_type` of the `reason: "data_missing"` entry. It never has `cf_mitigated` — with that header the reason is `challenged` — so a missing header is not a missing block. Then "Ingestion starts failing (otodom)" |
+| A table returns `[]` with HTTP 200                                               | RLS is on with no `select` policy — looks like missing data                        | Add the policy. **Never** reach for the `secret` / `service_role` key                                                                                                                                                                         |
+| Secrets appear to vanish after an auto-deploy                                    | they do not — secrets are per-Worker, not per-version                              | Verified: they survived the first Workers Builds deploy                                                                                                                                                                                       |
 
 ## Contingencies
 
@@ -157,17 +158,80 @@ FR-004 fetches. So the direct path is the one in use: one `fetch`, one bounded
 
 One observation is not permanent access. Blocking of datacenter ranges arrives
 gradually, and intermittent blocking is indistinguishable from a broken parser unless
-the log tells a non-200 fetch status from a parse failure — exactly the failure the
-pre-mortem describes. `POST /api/offers` logs both (`src/pages/api/offers.ts`), so
-read the entry before concluding anything:
+the log tells a refused fetch from a page that arrived without its data, and that
+from a page whose data changed shape — exactly the failure the pre-mortem describes.
+`POST /api/offers` logs each of them (`src/pages/api/offers.ts`), together with what
+the answer said about itself, so read the entry before concluding anything.
 
-- `reason: "http_denied"` with a `status` — the portal refused the fetch;
-- `reason: "shape_changed"` with `stage: "fetch"` — the page arrived without its
-  data;
-- `reason: "shape_changed"` with `stage: "map"` — the data arrived and its shape has
-  changed.
+Filter on `event: "offer_add"` and `stage: "fetch"`. The fetch
+(`src/lib/otodom/fetch.ts`) runs its checks in the order below and the first one that
+matches names the `reason`; `status` is in the entry whenever the response's headers
+arrived. An entry at `error` has `outcome: "failed"`, one at `info` has
+`outcome: "refused"`.
 
-Re-run the probe before concluding anything: deploy a throwaway Worker **outside
+- `reason: "challenged"` (`error`) — the response carried a `cf-mitigated` header,
+  whatever its status: Cloudflare answered instead of the portal. Read `cf_mitigated`
+  (the header's value), `status`, `content_type` and `retry_after`. This check comes
+  before the status, so a 403 or a 429 with the header is `challenged` and **not**
+  `http_denied` — a query that counts blocks counts both reasons;
+- `reason: "not_found"` with `status` 404 or 410 (`info`) — no such listing. Not a
+  block;
+- `reason: "upstream_error"` (`error`) — `status` 500 or above: the portal failing,
+  not refusing;
+- `reason: "http_denied"` with any other `status` outside 2xx (`error`) — the portal
+  refused the fetch and sent no `cf-mitigated`. Read `status`, `retry_after` and
+  `content_type`; 403 and 429 are the signatures of blocked egress;
+- `reason: "http_denied"` with a 2xx `status` (`error`) — the redirects ended off
+  otodom, on a consent or anti-bot page. Read `landed_host` and `landed_path`;
+- `reason: "not_found"` with a 2xx `status` and a `landed_path` under `/wyniki` or
+  `/pl/wyniki` (`info`) — the redirects ended on the portal's results page, which
+  the fetch reads as a listing the portal no longer has. Nobody has recorded where
+  otodom really sends one, so `unexpected_landing` below is where a wrong guess shows;
+- `reason: "unexpected_landing"` (`error`) — the redirects ended on otodom, on a page
+  that is neither an offer nor the results page. Read `landed_host` and `landed_path`;
+  an entry with neither had a landing address that could not be read. The member is
+  told the listing does not exist, so the entry is the only place the difference
+  shows;
+- `reason: "timeout"` or `reason: "network"` (`error`) — a call threw. `phase` says
+  which one: `headers` is `fetch()` before any answer, ahead of every check above,
+  and the entry has no `status`; `body` is the read of the page, at this point in the
+  order, and the entry has a 2xx `status` and `content_type`. Read `error_name`,
+  `error_message` and `error_cause` — an address quoted in them reads `<url>`;
+- `reason: "data_missing"` (`error`) — a 2xx page without the `__NEXT_DATA__` script:
+  `marker_present` is `false`. A changed page and a block served with 200 look the
+  same to the fetch, so read `body_length` and `content_type`: the live offer pages
+  measured so far were over 500,000 bytes (`otodom_fetching.md` § 9.1, § 13), and a
+  short body or a content type that is not HTML points at a block;
+- `reason: "shape_changed"` with a `detail` (`error`) — the script was there
+  (`marker_present: true`) and could not be used: `next_data_unparseable` is JSON
+  that does not parse, `page_props_missing` is JSON without `props.pageProps`,
+  `ad_missing` is `pageProps` without `ad` and without the expiry flag. Read
+  `body_length`;
+- `reason: "expired"` (`info`) — the page set `shouldShowExpiredAdPage`. Not a block.
+
+Every entry from `phase: "body"` down came from an offer page on otodom, and names
+it by `landed_host` and `landed_listing` — the `ID…` token ending the slug of the
+page the redirects ended on, to compare with `listing`, the one the member pasted.
+`landed_path` is never logged for an offer page: the slug repeats the listing's
+title.
+
+- `reason: "shape_changed"` with `stage: "map"` (`error`) — the data arrived and its
+  shape has changed; `detail`, when the mapper gave one, names what it could not read.
+  The entry has no field about the response.
+
+A query written against the earlier log, looking for `shape_changed` with
+`stage: "fetch"` and no `detail`, finds nothing any more: that entry is `data_missing`
+now.
+
+`challenged` rests on the header alone — the page's text is never searched — and
+nobody has seen otodom send that header or a challenge page yet
+(`@context/foundation/ingestion/otodom_fetching.md` § 2, § 9.1). A block by another
+provider, or one Cloudflare serves without the header, arrives as `http_denied` when
+it comes with 403 or 429 and as `data_missing` when it comes with 200. So one
+`data_missing` proves nothing, and neither reason replaces the probe.
+
+Re-run the probe before deciding anything — a `challenged` entry, or `data_missing`
+that keeps coming back, is the signal to run it: deploy a throwaway Worker **outside
 this repository** that fetches one otodom URL and returns the status code plus
 whether `__NEXT_DATA__` is present, call it once, then
 `npx wrangler delete --force`. It takes ten minutes and turns a guess into a fact.

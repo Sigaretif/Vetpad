@@ -313,16 +313,27 @@ without query string, and follows the redirect if the slug changed.
 
 Checks worth having in that function:
 
-| Condition                                                   | Meaning                           | Suggested handling                             |
-| ----------------------------------------------------------- | --------------------------------- | ---------------------------------------------- |
-| `HTTPError 404` or `410`                                    | Offer removed or wrong URL        | Mark inactive locally, do not retry            |
-| Any other `4xx` (`403`, `429` above all)                    | Portal refused to serve the page  | Report with the status; see section 9.1        |
-| `5xx`                                                       | Portal failing, not refusing      | Report as unavailable; never read as a block   |
-| Redirect lands off otodom                                   | Consent or anti-bot page          | Treat as refused; see section 9.1              |
-| Redirect lands on otodom, but not on `/(pl/)oferta/<slug>`  | No listing at this address        | Treat as not found                             |
-| `pageProps.ad` missing but `shouldShowExpiredAdPage` truthy | Offer expired, page still renders | Mark expired, keep last known snapshot         |
-| `ad.shouldShowExpiredAdPage === true`                       | Same flag, carried on `ad` itself | Check it too — `ad` can be present and expired |
-| `__NEXT_DATA__` regex miss                                  | Site shape changed                | Fail loudly; do not fall back to HTML scraping |
+| Condition                                                                     | Meaning                                                         | Suggested handling                                                                                 |
+| ----------------------------------------------------------------------------- | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| A `cf-mitigated` response header, whatever the status                         | Cloudflare answered, not the portal                             | Report as a block; check it before the status — never observed here, see section 9.1               |
+| `HTTPError 404` or `410`                                                      | Offer removed or wrong URL                                      | Mark inactive locally, do not retry                                                                |
+| `5xx`                                                                         | Portal failing, not refusing                                    | Report as unavailable; never read as a block                                                       |
+| Any other `4xx` (`403`, `429` above all)                                      | Portal refused to serve the page                                | Report with the status; see section 9.1                                                            |
+| Redirect lands off otodom                                                     | Consent or anti-bot page                                        | Treat as refused; see section 9.1                                                                  |
+| Redirect lands on otodom, under `/(pl/)wyniki`                                | No listing at this address                                      | Treat as not found                                                                                 |
+| Redirect lands on otodom, on any other page that is not `/(pl/)oferta/<slug>` | A landing nobody has seen                                       | Report as a failure, with the path; do not read it as not found                                    |
+| `__NEXT_DATA__` regex miss                                                    | A changed page, or a block served with 200 — the same from here | Report as a page without data, with its length and content type; do not fall back to HTML scraping |
+| `__NEXT_DATA__` found, but its JSON does not parse                            | Site shape changed                                              | Fail loudly; kept apart from the regex miss                                                        |
+| JSON without `props.pageProps`                                                | Site shape changed                                              | Fail loudly                                                                                        |
+| `pageProps.ad` missing but `shouldShowExpiredAdPage` truthy                   | Offer expired, page still renders                               | Mark expired, keep last known snapshot                                                             |
+| `ad.shouldShowExpiredAdPage === true`                                         | Same flag, carried on `ad` itself                               | Check it too — `ad` can be present and expired                                                     |
+| `pageProps.ad` missing and no expiry flag                                     | Site shape changed                                              | Fail loudly                                                                                        |
+
+The rows are in the order Vetpad's fetch checks them (`fetchOfferAd` in
+`src/lib/otodom/fetch.ts`), and the first one that matches wins. Where the portal
+sends a listing it no longer has was not observed: reading the results page as "not
+found" is an assumption, and every other landing is reported as unexpected so that a
+wrong guess shows up in the log.
 
 A minimal, useful projection of the return value - enough for a notification
 email, no personal data stored:
@@ -653,15 +664,15 @@ are recycled without warning.
 
 ## 11. Failure modes and how to detect them
 
-| Symptom                                    | Cause                                                                 | Action                                                                                |
-| ------------------------------------------ | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `404` with body `{}` on a `_next/data` URL | Stale `buildId` (Otodom deployed)                                     | Re-read `buildId` from HTML, retry once                                               |
-| `__NEXT_DATA__` regex finds nothing        | Blocked / challenge page, or the app moved to the App Router          | Log the raw body, alert, do not retry in a loop                                       |
-| `KeyError: 'searchAds'`                    | Payload shape changed, or the URL redirected to a different page type | Assert on `pageProps.filteringQueryParams` and `data.searchAds` early and fail loudly |
-| Filters silently ignored                   | Wrong param name or a value that failed validation                    | Diff your intended filters against `filteringQueryParams` on every run                |
-| 184-byte response                          | An unfollowed 301 (filter canonicalised into the path)                | Enable redirect following                                                             |
-| `403` / `429`                              | IP reputation or rate limiting                                        | See section 9                                                                         |
-| Item count is `limit + 1`                  | Injected promoted tile                                                | Expected, see section 6                                                               |
+| Symptom                                    | Cause                                                                 | Action                                                                                                                                                                                                      |
+| ------------------------------------------ | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `404` with body `{}` on a `_next/data` URL | Stale `buildId` (Otodom deployed)                                     | Re-read `buildId` from HTML, retry once                                                                                                                                                                     |
+| `__NEXT_DATA__` regex finds nothing        | Blocked / challenge page, or the app moved to the App Router          | Log the status, the content type, the body's length and the `cf-mitigated` header — never the body, which on an offer page holds the listing's text and the seller's contact. Alert, do not retry in a loop |
+| `KeyError: 'searchAds'`                    | Payload shape changed, or the URL redirected to a different page type | Assert on `pageProps.filteringQueryParams` and `data.searchAds` early and fail loudly                                                                                                                       |
+| Filters silently ignored                   | Wrong param name or a value that failed validation                    | Diff your intended filters against `filteringQueryParams` on every run                                                                                                                                      |
+| 184-byte response                          | An unfollowed 301 (filter canonicalised into the path)                | Enable redirect following                                                                                                                                                                                   |
+| `403` / `429`                              | IP reputation or rate limiting                                        | See section 9                                                                                                                                                                                               |
+| Item count is `limit + 1`                  | Injected promoted tile                                                | Expected, see section 6                                                                                                                                                                                     |
 
 Build the scraper so that **any** unexpected shape raises rather than silently
 producing an empty result set: a notifier that quietly reports "no new offers"
