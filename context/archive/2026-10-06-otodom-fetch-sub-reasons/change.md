@@ -1,10 +1,10 @@
 ---
 change_id: otodom-fetch-sub-reasons
 title: Distinguish otodom fetch failure sub-reasons in the log entry
-status: impl_reviewed
+status: archived
 created: 2026-10-06
 updated: 2026-10-06
-archived_at: null
+archived_at: 2026-10-06T18:07:50Z
 ---
 
 ## Notes
