@@ -597,13 +597,13 @@ według runbooka.
 
 #### Automated
 
-- [x] 4.1 Cały zestaw przechodzi: `npm test`
-- [x] 4.2 Lint przechodzi: `npm run lint`
-- [x] 4.3 Skrypt diagnostyczny ładuje się i wypisuje pomoc: `node scripts/otodom-inspect.mjs --help`
-- [x] 4.4 Runbook nazywa każdy nowy powód: `grep -c "challenged\|data_missing\|unexpected_landing" context/foundation/deployment-runbook.md`
+- [x] 4.1 Cały zestaw przechodzi: `npm test` — 647af14
+- [x] 4.2 Lint przechodzi: `npm run lint` — 647af14
+- [x] 4.3 Skrypt diagnostyczny ładuje się i wypisuje pomoc: `node scripts/otodom-inspect.mjs --help` — 647af14
+- [x] 4.4 Runbook nazywa każdy nowy powód: `grep -c "challenged\|data_missing\|unexpected_landing" context/foundation/deployment-runbook.md` — 647af14
 
 #### Manual
 
-- [x] 4.5 Runbook przeczytany: z samej sekcji „Ingestion starts failing" da się zaklasyfikować każdy wiersz kontraktu powodów
-- [x] 4.6 `npm run otodom:inspect -- <adres żywej oferty>` nadal wypisuje trzy sekcje
-- [x] 4.7 `npm run otodom:inspect -- <adres nieistniejącej oferty>` wypisuje powód ze statusem i danymi
+- [x] 4.5 Runbook przeczytany: z samej sekcji „Ingestion starts failing" da się zaklasyfikować każdy wiersz kontraktu powodów — 647af14
+- [x] 4.6 `npm run otodom:inspect -- <adres żywej oferty>` nadal wypisuje trzy sekcje — 647af14
+- [x] 4.7 `npm run otodom:inspect -- <adres nieistniejącej oferty>` wypisuje powód ze statusem i danymi — 647af14
