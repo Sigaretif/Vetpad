@@ -1,0 +1,12 @@
+---
+change_id: otodom-fetch-sub-reasons
+title: Distinguish otodom fetch failure sub-reasons in the log entry
+status: implementing
+created: 2026-10-06
+updated: 2026-10-06
+archived_at: null
+---
+
+## Notes
+
+Krok 2 z context/audits/observability/2026-10-05_verify-add-offer-from-otodom.md (sekcja 6), zamyka A4, A6, A15 i resztę A3 — opisy ustaleń w sekcji 5 tego raportu oraz w context/audits/observability/2026-10-05_add-offer-from-otodom.md (sekcja 5). Dziś src/lib/otodom/fetch.ts zwraca jeden powód shape_changed dla czterech różnych źródeł (brak **NEXT_DATA**, nieparsowalny JSON, brak pageProps, brak ad), więc strona anty-botowa albo captcha podana z kodem 200 jest logowana i pokazywana członkowi jako „strona mogła zmienić format" — a to jest dokładnie rozróżnienie, od którego context/foundation/deployment-runbook.md uzależnia decyzję o przejściu na Apify. Blok catch gubi error.name, message i cause, a „network" wchłania każdy wyjątek z tego samego try, także te, które nie są awarią sieci. Lądowanie poza otodom to http_denied bez hosta, a strona wyzwania pod ścieżką otodom to not_found logowane jako oczekiwana odmowa na poziomie info. Zakres: (1) pod-powód dla każdego źródła shape_changed na granicy pobrania; (2) wpis niesie status odpowiedzi, host i ścieżkę lądowania bez query stringa, content-type, długość treści, flagę obecności znacznika oraz nagłówki cf-mitigated i retry-after; (3) catch wiąże błąd i loguje jego nazwę, komunikat i fazę (nagłówki / treść), a sprawdzenie adresu lądowania wychodzi poza try; (4) poziom dla lądowania na otodom poza ścieżką oferty przestaje być bezwarunkowo info. Warunki: nowe pola trafiają na białą listę w src/lib/log.ts z przypadkiem w tests/lib/log.test.ts, nigdy obok niej; nigdy HTML strony, payload ad ani query string w logu; fetch.ts może mieć tylko importy typów (scripts/otodom-inspect.mjs ładuje go bezpośrednio), więc logowanie zostaje w trasie, a moduł zwraca dane do wpisu; żadnego parsera HTML ani nowej zależności; najpierw czerwone testy na krawędzi HTTP według context/foundation/test-plan.md §6.9; fixture'y syntetyczne, nigdy nagrana strona. Do rozstrzygnięcia w /10x-plan: czy rozpoznana strona anty-botowa dostaje własny komunikat dla członka zamiast „zmieniony format" oraz czy runbook dostaje nowe rozróżnienie wpisów. Poza zakresem: dryf mappera (A13, A14), odczyty karty i tablicy (A8, A9, P2), pozostałe trasy (P3, P6–P8), czasy trwania (P9), klient (P10), przejście na Apify. Dialog prowadź w języku polskim.

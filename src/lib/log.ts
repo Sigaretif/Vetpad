@@ -26,6 +26,17 @@ const FIELDS = [
   "error_name",
   "auth_status",
   "auth_code",
+  "landed_host",
+  "landed_path",
+  "landed_listing",
+  "content_type",
+  "body_length",
+  "marker_present",
+  "cf_mitigated",
+  "retry_after",
+  "error_message",
+  "error_cause",
+  "phase",
 ] as const;
 
 const MAX_TEXT_LENGTH = 300;

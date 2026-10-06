@@ -67,6 +67,58 @@ describe("logEvent", () => {
     ]);
   });
 
+  it("writes the fields of a fetch-stage entry and keeps a false marker and a zero body length", () => {
+    const captured = captureConsole();
+    logEvent("error", {
+      event: "offer_add",
+      outcome: "failed",
+      stage: "fetch",
+      reason: "challenged",
+      status: 403,
+      error_name: "TypeError",
+      landed_host: "www.otodom.pl",
+      landed_path: "/pl/oferta/mieszkanie-testowe-ID4canary",
+      landed_listing: "ID4canary",
+      content_type: "text/html",
+      body_length: 0,
+      marker_present: false,
+      cf_mitigated: "challenge",
+      retry_after: "120",
+      error_message: "fetch failed for <url>",
+      error_cause: "ECONNRESET",
+      phase: "body",
+    });
+
+    // An empty body and a page without the marker are what the fetch found: values, not absences.
+    expect(captured.entries()).toStrictEqual([
+      {
+        method: "error",
+        args: [
+          {
+            level: "error",
+            event: "offer_add",
+            outcome: "failed",
+            stage: "fetch",
+            reason: "challenged",
+            status: 403,
+            error_name: "TypeError",
+            landed_host: "www.otodom.pl",
+            landed_path: "/pl/oferta/mieszkanie-testowe-ID4canary",
+            landed_listing: "ID4canary",
+            content_type: "text/html",
+            body_length: 0,
+            marker_present: false,
+            cf_mitigated: "challenge",
+            retry_after: "120",
+            error_message: "fetch failed for <url>",
+            error_cause: "ECONNRESET",
+            phase: "body",
+          },
+        ],
+      },
+    ]);
+  });
+
   it("leaves out a field that is undefined, null or an empty text", () => {
     const captured = captureConsole();
     logEvent("info", untyped({ event: "offer_add", reason: undefined, detail: null, db_hint: "" }));
