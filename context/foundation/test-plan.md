@@ -943,6 +943,66 @@ seller's contact or a member's address could leave the system unnoticed.
     scenarios go red. Passing it from the route alone changes nothing — the
     reporter drops a key that is not on its list.
 
+### 6.10 Adding a test for the middleware (what Auth answered, and where the request goes)
+
+The middleware decides for every request whether there is a member, and it
+is the one place where an Auth that could not answer could be read as a
+sign-out. Its test plays Auth, not `@/lib/supabase`.
+
+- **Where:** `tests/middleware.test.ts`; the zero-config state has its own
+  file, `tests/middleware.unconfigured.test.ts`, for the reason in §6.9.
+- **Reference test:** `tests/middleware.test.ts`.
+  `tests/lib/auth-error.test.ts` is the reference for the classification
+  alone — a pure rule, §6.8, with the errors built from the `auth-js` classes.
+- **The context is built by hand:** `onRequest` is called directly with
+  `request`, `url`, `routePattern`, `locals`, `cookies` and `redirect`, and a
+  `next` that records its arguments — `[]` is "passed on", `["/503"]` is the
+  rewrite. `routePattern` is given apart from the path, because the entry
+  logs the pattern (`/offers/[id]`) and the second pass for the 500 page has
+  the pattern `/500` with the path that threw.
+- **Auth at the HTTP edge:** `sessionCookie()` from `tests/fixtures/http.ts`
+  puts a session on the request, and the handler answers
+  `isAuthRequest(request, "user")` or `"token"`. The comment block above
+  that fixture says which request the client sends when, and how each answer
+  becomes an error. No `vi.mock` of `@/lib/*`; `astro:env/server` is
+  overridden as in the route tests.
+- **Assert the way out and the entry together:** the response (the very
+  object `next` returned, or the redirect's `Location`), the `next` calls,
+  `locals.user`, the number of requests where "asks Auth nothing" is the
+  claim, and the whole entry by hand with `toStrictEqual`, as in §6.9.
+- **Every exempt path stands beside one that is not:** the sign-in page and
+  the sign-out route pass on during an outage, a protected page and a form
+  route are rewritten; `/auth` passes on and `/authors` does not.
+- **Absence:** one table of scenarios, one per kind of entry, as in §6.9 —
+  the member's address, both tokens, the cookie's name and value, the query,
+  the id from the raw path, and the words of Auth's answer and of the thrown
+  value.
+- **Oracle:** the contract and the test contract in the archived plan of
+  `auth-outage-not-signed-out` (Phase 3), and CLAUDE.md `## Structure`.
+- **Run:** `npm test -- tests/middleware.test.ts`, then
+  `npx stryker run --mutate "src/middleware.ts,src/lib/auth-error.ts"`.
+- **Pitfalls:**
+  - An outage case needs a token that has **not** expired
+    (`sessionCookie()`), so the client asks `GET /auth/v1/user` at once. With
+    an expired token it refreshes first, and a `5xx` or a rejected `fetch` on
+    the refresh is retried for about 30 s. A refused refresh is `400` with
+    `refresh_token_not_found`, which is not retried.
+  - `auth-js` writes to the console by itself: a refused refresh token
+    leaves one `console.warn` per auth-state listener, with Auth's message.
+    Name those entries in the expected list (`REFRESH_REFUSED_WARNING`).
+    Never filter the console down to the middleware's own entries — the
+    count stops meaning anything.
+  - Auth never answering is a handler that returns a rejected promise;
+    `undefined` marks the request unplanned (§6.9).
+  - A POST gets a body in the hand-built request, and the test asserts
+    `bodyUsed` is `false`: the rewrite to `/503` builds a new request from
+    the old one, and a body already read makes it throw.
+  - What Astro does around the middleware — that `next("/503")` does not run
+    it again, that an exception leads to a second pass — is outside this
+    test. `scripts/smoke.mjs` checks the pages and a refused session against
+    a live Auth; the exception path and an outage are played by hand on the
+    production preview.
+
 ## 7. What We Deliberately Don't Test
 
 - **`/dev/*` kitchen-sink pages** — developer tools that answer 404 outside
@@ -958,7 +1018,7 @@ seller's contact or a member's address could leave the system unnoticed.
 ## 8. Freshness Ledger
 
 - Strategy (§1–§5) last reviewed: 2026-09-30; §2 (#5), §3 row 2, §4 and §5 amended for the write-isolation phase: 2026-10-01
-- Cookbook (§6) last changed: 2026-10-05 — §6.9, outside the rollout (`offers-outcome-logging`); before that 2026-10-02 — the tags paragraph, §6.7, §6.8 and a §6.6 entry (`testing-read-failure-states`)
+- Cookbook (§6) last changed: 2026-10-06 — §6.10, outside the rollout (`auth-outage-not-signed-out`); before that 2026-10-05 — §6.9, outside the rollout (`offers-outcome-logging`), and 2026-10-02 — the tags paragraph, §6.7, §6.8 and a §6.6 entry (`testing-read-failure-states`)
 - Stack versions last verified: 2026-09-30
 - AI-native tool references last verified: 2026-09-30
 

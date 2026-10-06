@@ -465,6 +465,37 @@ describe("middleware: an Auth that could not answer is an outage, never a sign-o
     ]);
   });
 
+  it("#14 leaves the bare /auth path alone, but not a path that only begins like it", async () => {
+    // Neither path has a page, so Astro matches both to its 404 route.
+    const bare = await pass({
+      path: "/auth",
+      routePattern: "/404",
+      cookie: sessionCookie(),
+      auth: userEndpoint(unavailable),
+    });
+
+    expectPassedOn(bare);
+    expect(bare.captured.entries()).toStrictEqual([
+      entry("error", {
+        event: "auth_check",
+        outcome: "unavailable",
+        route: "/404",
+        method: "GET",
+        error_name: "AuthRetryableFetchError",
+        auth_status: 503,
+      }),
+    ]);
+
+    const lookalike = await pass({
+      path: "/authors",
+      routePattern: "/404",
+      cookie: sessionCookie(),
+      auth: userEndpoint(unavailable),
+    });
+
+    expectRewrittenTo503(lookalike);
+  });
+
   it("#15 leaves the sign-out route reachable", async () => {
     const result = await pass({
       method: "POST",

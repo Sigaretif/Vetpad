@@ -94,4 +94,10 @@ describe("isAuthOutage", () => {
   ])("is false for %s", (_name, error) => {
     expect(isAuthOutage(error)).toBe(false);
   });
+
+  // The sign-in route reads this predicate alone: a 500 from Auth is an outage there, never a wrong password.
+  it("puts the bound between 499 and 500", () => {
+    expect(isAuthOutage(apiError(499))).toBe(false);
+    expect(isAuthOutage(apiError(500))).toBe(true);
+  });
 });

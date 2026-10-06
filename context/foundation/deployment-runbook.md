@@ -109,22 +109,37 @@ extra setup.
 Every attempt to add an offer leaves entries with `event: "offer_add"`: filter on that
 field, then on `outcome`, `stage` and `reason`.
 
+The middleware (`src/middleware.ts`) writes two more. `event: "auth_check"` is a session
+Supabase Auth did not confirm: `outcome: "rejected"` at `info` is a session Auth refused,
+and the member is signed out; `outcome: "unavailable"` at `error` is an Auth that could
+not answer, and the member got the 503 page — read `auth_status`, `auth_code` and
+`error_name` to tell a paused project from a rate limit or a network failure. A visitor
+without a session cookie leaves no entry. `event: "request"` with `outcome: "unhandled"`
+is an exception that ended in the 500 page: `route` is the route's pattern, never the
+path, and the stack is in Astro's own line beside it.
+
+Known limitation: when Auth refuses a refresh token (a stale cookie), `auth-js` itself
+calls `console.warn` with the `AuthApiError` — Auth's message and a stack — once per
+auth-state listener, outside `logEvent`; it predates the `auth_check` entries, and
+silencing it belongs with the `createClient` fetch wrapper (observability audit finding
+P9), not with the middleware.
+
 ## Symptoms that lie
 
 Every row here was hit or verified during deploy zero. All of them look like
 something other than what they are, which is the only reason this table exists.
 
-| Symptom                                                                          | Actual cause                                                                       | Action                                                                                                                    |
-| -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `1102 Worker exceeded resource limits`                                           | Free plan's 10 ms CPU ceiling                                                      | **Check the plan before debugging code.** The message names no limit and reads like an application bug                    |
-| Deploy rejected, API error **100328**                                            | a `limits` block in `wrangler.jsonc` while on Free                                 | Remove it. `limits.cpu_ms` is Paid-only and blocks the deploy outright                                                    |
-| `curl` exit 35 / `sslv3 alert handshake failure` on a fresh `*.workers.dev` name | certificate not issued yet — the wildcard covers one label, this host has two      | Wait ~2 minutes and retry. The Worker is already live                                                                     |
-| Push to `master` triggers no build, silently                                     | Workers Builds production branch left at the default `main`                        | Set it to `master`. Failure mode is silence, not an error                                                                 |
-| Build fails during install                                                       | `.nvmrc` pins a version the build image lacks                                      | Image preinstalls **22.23.2** and **24.18.0** only; an exact version outside those forces a source build                  |
-| New version shows source `version_upload`, looks unpromoted                      | `wrangler deploy` is upload **then** promotion, and the API labels them separately | Check `wrangler deployments list` — 100% traffic on the new version means it deployed                                     |
-| Login fails in production, **and no banner appears**                             | hosted Supabase project paused after ~7 days idle (Free tier)                      | Resume it in the Supabase dashboard. `src/lib/config-status.ts` detects _unset_ variables, never an _unreachable_ service |
-| A table returns `[]` with HTTP 200                                               | RLS is on with no `select` policy — looks like missing data                        | Add the policy. **Never** reach for the `secret` / `service_role` key                                                     |
-| Secrets appear to vanish after an auto-deploy                                    | they do not — secrets are per-Worker, not per-version                              | Verified: they survived the first Workers Builds deploy                                                                   |
+| Symptom                                                                          | Actual cause                                                                       | Action                                                                                                                                                                                                                              |
+| -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `1102 Worker exceeded resource limits`                                           | Free plan's 10 ms CPU ceiling                                                      | **Check the plan before debugging code.** The message names no limit and reads like an application bug                                                                                                                              |
+| Deploy rejected, API error **100328**                                            | a `limits` block in `wrangler.jsonc` while on Free                                 | Remove it. `limits.cpu_ms` is Paid-only and blocks the deploy outright                                                                                                                                                              |
+| `curl` exit 35 / `sslv3 alert handshake failure` on a fresh `*.workers.dev` name | certificate not issued yet — the wildcard covers one label, this host has two      | Wait ~2 minutes and retry. The Worker is already live                                                                                                                                                                               |
+| Push to `master` triggers no build, silently                                     | Workers Builds production branch left at the default `main`                        | Set it to `master`. Failure mode is silence, not an error                                                                                                                                                                           |
+| Build fails during install                                                       | `.nvmrc` pins a version the build image lacks                                      | Image preinstalls **22.23.2** and **24.18.0** only; an exact version outside those forces a source build                                                                                                                            |
+| New version shows source `version_upload`, looks unpromoted                      | `wrangler deploy` is upload **then** promotion, and the API labels them separately | Check `wrangler deployments list` — 100% traffic on the new version means it deployed                                                                                                                                               |
+| Signed-in members get the 503 page and login fails, **no banner appears**        | hosted Supabase project paused after ~7 days idle (Free tier)                      | Resume it in the Supabase dashboard. The log names it: `event: "auth_check"`, `outcome: "unavailable"`, with `auth_status` when Auth sent one. `src/lib/config-status.ts` detects _unset_ variables, never an _unreachable_ service |
+| A table returns `[]` with HTTP 200                                               | RLS is on with no `select` policy — looks like missing data                        | Add the policy. **Never** reach for the `secret` / `service_role` key                                                                                                                                                               |
+| Secrets appear to vanish after an auto-deploy                                    | they do not — secrets are per-Worker, not per-version                              | Verified: they survived the first Workers Builds deploy                                                                                                                                                                             |
 
 ## Contingencies
 

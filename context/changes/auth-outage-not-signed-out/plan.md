@@ -733,32 +733,32 @@ ani nowych sekretów. Ciasteczka sesji zostają w dotychczasowym kształcie.
 
 #### Automated
 
-- [x] 3.1 Przypadki 5–19 w `tests/middleware.test.ts` są czerwone przed zmianą `src/middleware.ts` i zielone po niej; przypadki 1–4 i 20 są zielone przed i po
-- [x] 3.2 `npm test` przechodzi, w tym `tests/pages/api/offers.test.ts` bez zmiany asercji
-- [x] 3.3 `npm run lint` przechodzi
-- [x] 3.4 `npx astro sync && npx astro check` przechodzi
-- [x] 3.5 `npm run build` przechodzi
-- [x] 3.6 `npm run smoke` przechodzi bez zmian w `scripts/smoke.mjs`
+- [x] 3.1 Przypadki 5–19 w `tests/middleware.test.ts` są czerwone przed zmianą `src/middleware.ts` i zielone po niej; przypadki 1–4 i 20 są zielone przed i po — 2c87cba
+- [x] 3.2 `npm test` przechodzi, w tym `tests/pages/api/offers.test.ts` bez zmiany asercji — 2c87cba
+- [x] 3.3 `npm run lint` przechodzi — 2c87cba
+- [x] 3.4 `npx astro sync && npx astro check` przechodzi — 2c87cba
+- [x] 3.5 `npm run build` przechodzi — 2c87cba
+- [x] 3.6 `npm run smoke` przechodzi bez zmian w `scripts/smoke.mjs` — 2c87cba
 
 #### Manual
 
-- [x] 3.7 W `npm run dev` z lokalnym Supabase logowanie, tablica, karta oferty, kryteria i wylogowanie działają jak przed zmianą, a terminal nie pokazuje żadnego wpisu `auth_check`
+- [x] 3.7 W `npm run dev` z lokalnym Supabase logowanie, tablica, karta oferty, kryteria i wylogowanie działają jak przed zmianą, a terminal nie pokazuje żadnego wpisu `auth_check` — 2c87cba
 
 ### Phase 4: Smoke, mutacje, dokumentacja
 
 #### Automated
 
-- [ ] 4.1 `npm run smoke` z nowymi krokami przechodzi na podglądzie produkcyjnym (`npm run build`, `npm run preview`) przy lokalnym Supabase
-- [ ] 4.2 Próba wyjątku na podglądzie produkcyjnym: tymczasowy `throw new Error("KANAREK-500")` we frontmatterze `src/pages/criteria.astro` daje zalogowanemu członkowi odpowiedź 500 z `data-error-page="500"` i bez tekstu `KANAREK-500` w treści, a log serwera ma dokładnie jeden wpis `request` / `unhandled` z `route: "/criteria"`, `method: "GET"` i `user_id`; zmiana zostaje cofnięta
-- [ ] 4.3 Przebieg Strykera zawężony do czterech plików kończy się, a `mutation.md` ma decyzję dla każdego ocalałego i niepokrytego mutanta
-- [ ] 4.4 `npm test` przechodzi
-- [ ] 4.5 `npm run lint` przechodzi
-- [ ] 4.6 `npx astro sync && npx astro check` przechodzi
-- [ ] 4.7 `npm run build` przechodzi po cofnięciu próby
+- [x] 4.1 `npm run smoke` z nowymi krokami przechodzi na podglądzie produkcyjnym (`npm run build`, `npm run preview`) przy lokalnym Supabase
+- [x] 4.2 Próba wyjątku na podglądzie produkcyjnym: tymczasowy `throw new Error("KANAREK-500")` we frontmatterze `src/pages/criteria.astro` daje zalogowanemu członkowi odpowiedź 500 z `data-error-page="500"` i bez tekstu `KANAREK-500` w treści, a log serwera ma dokładnie jeden wpis `request` / `unhandled` z `route: "/criteria"`, `method: "GET"` i `user_id`; zmiana zostaje cofnięta
+- [x] 4.3 Przebieg Strykera zawężony do czterech plików kończy się, a `mutation.md` ma decyzję dla każdego ocalałego i niepokrytego mutanta
+- [x] 4.4 `npm test` przechodzi
+- [x] 4.5 `npm run lint` przechodzi
+- [x] 4.6 `npx astro sync && npx astro check` przechodzi
+- [x] 4.7 `npm run build` przechodzi po cofnięciu próby
 
 #### Manual
 
-- [ ] 4.8 Awaria odegrana ręcznie: zalogowana przeglądarka, zatrzymany lokalny kontener Supabase Auth — `/dashboard` pokazuje stronę 503, terminal jeden wpis `auth_check` / `unavailable` na żądanie, a `/auth/signin` nadal się renderuje; po wznowieniu kontenera „Spróbuj ponownie” otwiera tablicę bez ponownego logowania
-- [ ] 4.9 Wysłanie formularza dodawania oferty przy zatrzymanym Auth pokazuje stronę 503, a nie błąd przepisania żądania
-- [ ] 4.10 Dziennik mutantów przeczytany: decyzje „świadomie pominięty” mają powód, z którym się zgadzasz
-- [ ] 4.11 Punkty w `CLAUDE.md`, wiersz runbooka i akapity README opisują to, co robi kod, i nie powtarzają go
+- [x] 4.8 Awaria odegrana ręcznie: zalogowana przeglądarka, zatrzymany lokalny kontener Supabase Auth — `/dashboard` pokazuje stronę 503, terminal jeden wpis `auth_check` / `unavailable` na żądanie, a `/auth/signin` nadal się renderuje; po wznowieniu kontenera „Spróbuj ponownie” otwiera tablicę bez ponownego logowania
+- [x] 4.9 Wysłanie formularza dodawania oferty przy zatrzymanym Auth pokazuje stronę 503, a nie błąd przepisania żądania
+- [x] 4.10 Dziennik mutantów przeczytany: decyzje „świadomie pominięty” mają powód, z którym się zgadzasz
+- [x] 4.11 Punkty w `CLAUDE.md`, wiersz runbooka i akapity README opisują to, co robi kod, i nie powtarzają go

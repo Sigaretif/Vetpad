@@ -54,11 +54,19 @@
 // Cleanup runs whatever failed before it: the limits read at the start are written back (signed by the first
 // member, as any restore would be), and both members' requirements are deleted with the rows counted - none left
 // of the first member's, which the route removed, and one of the second member's, which must have lasted until then.
-// It also checks that the dev-only kitchen sinks /dev/offer-card, /dev/forms, /dev/board and /dev/criteria answer 404: in CI this runs
+// A session Auth refuses is a sign-out, never an outage (src/middleware.ts): before signing in, it sends a forged
+// session cookie - named after the SUPABASE_URL host, with a token that has not expired and a signature that is not
+// real - on GET /dashboard and on POST /api/offers, and both must redirect to /auth/signin, not answer with the 503
+// page. The cookie goes instead of the cookie jar and nothing the server answers is stored in it. An outage itself
+// cannot be played against a live Auth; tests/middleware.test.ts covers it. The error pages answer under their own
+// addresses with their own status and marker: /503 with 503 and data-error-page="503", /500 with 500 and
+// data-error-page="500".
+// It also checks that the dev-only kitchen sinks /dev/offer-card, /dev/forms, /dev/board, /dev/criteria and /dev/errors answer 404: in CI this runs
 // against the production preview, where the pages must not exist (on `npm run dev` those steps fail by design).
 // Zero dependencies on purpose. Run against a live server: BASE_URL=http://localhost:4321 npm run smoke
 
-import { randomUUID } from "node:crypto";
+import { Buffer } from "node:buffer";
+import { randomBytes, randomUUID } from "node:crypto";
 import { URL } from "node:url";
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:4321";
@@ -137,24 +145,57 @@ function storeCookies(response) {
   }
 }
 
-async function request(path, { method = "GET", form, json } = {}) {
+// `cookie` replaces the cookie jar for one request: it is sent instead of the jar, and nothing the server sets in
+// its answer is stored.
+async function request(path, { method = "GET", form, json, cookie } = {}) {
   const response = await fetch(BASE_URL + path, {
     method,
     redirect: "manual",
     headers: {
-      Cookie: cookieHeader(),
+      Cookie: cookie ?? cookieHeader(),
       Origin: BASE_URL,
       ...(form ? { "Content-Type": "application/x-www-form-urlencoded" } : {}),
       ...(json ? { "Content-Type": "application/json" } : {}),
     },
     body: form ? new URLSearchParams(form).toString() : json ? JSON.stringify(json) : undefined,
   });
-  storeCookies(response);
+  if (cookie === undefined) storeCookies(response);
   return {
     status: response.status,
     location: response.headers.get("location") ?? "",
     body: await response.text(),
   };
+}
+
+// A session cookie the way @supabase/ssr writes one: `sb-<first label of the Supabase host>-auth-token`, holding
+// `base64-` and the session's JSON in base64url. The access token is shaped like a JWT that expires in an hour, so
+// the client asks Auth for the user at once instead of refreshing first - and its signature is random bytes, so
+// Auth refuses it. The app must read SUPABASE_URL with the same host as this script, or it looks for the session
+// under another name and sees an anonymous visitor.
+function forgedSessionCookie() {
+  const encode = (value) => Buffer.from(JSON.stringify(value), "utf8").toString("base64url");
+  const now = Math.floor(Date.now() / 1000);
+  const user = { id: randomUUID(), aud: "authenticated", role: "authenticated" };
+  const accessToken = [
+    encode({ alg: "HS256", typ: "JWT" }),
+    encode({ sub: user.id, aud: user.aud, role: user.role, iat: now, exp: now + 3600 }),
+    randomBytes(32).toString("base64url"),
+  ].join(".");
+  const session = {
+    access_token: accessToken,
+    refresh_token: randomBytes(12).toString("base64url"),
+    token_type: "bearer",
+    expires_in: 3600,
+    expires_at: now + 3600,
+    user,
+  };
+  return `sb-${new URL(SUPABASE_URL).hostname.split(".")[0]}-auth-token=base64-${encode(session)}`;
+}
+
+// One request carrying the forged session instead of the cookie jar.
+function requestWithForgedSession(path, options = {}) {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return { status: 0, location: "", error: MISSING_SUPABASE };
+  return request(path, { ...options, cookie: forgedSessionCookie() });
 }
 
 async function supabaseSignup() {
@@ -582,6 +623,10 @@ const steps = [
   ["dev forms kitchen sink is absent from the build", () => request("/dev/forms"), { status: 404 }],
   ["dev board kitchen sink is absent from the build", () => request("/dev/board"), { status: 404 }],
   ["dev criteria kitchen sink is absent from the build", () => request("/dev/criteria"), { status: 404 }],
+  ["dev errors kitchen sink is absent from the build", () => request("/dev/errors"), { status: 404 }],
+  // The error pages under their own addresses: each answers with its own status and carries its marker.
+  ["503 page answers 503", () => request("/503"), { status: 503, bodyIncludes: 'data-error-page="503"' }],
+  ["500 page answers 500", () => request("/500"), { status: 500, bodyIncludes: 'data-error-page="500"' }],
   [
     "signup route is gone",
     () => request("/api/auth/signup", { method: "POST", form: { email, password } }),
@@ -648,6 +693,22 @@ const steps = [
   [
     "requirements save redirects anonymous user",
     () => request("/api/requirements", { method: "POST", form: { body: "smoke" } }),
+    { status: 302, location: "/auth/signin" },
+  ],
+  // A session Auth refuses reads as signed out, on a page and on a form route alike: the 503 page is for an Auth
+  // that could not answer, never for one that said no.
+  [
+    "dashboard redirects a forged session to sign-in",
+    () => requestWithForgedSession("/dashboard"),
+    { status: 302, location: "/auth/signin" },
+  ],
+  [
+    "offer save redirects a forged session to sign-in",
+    () =>
+      requestWithForgedSession("/api/offers", {
+        method: "POST",
+        form: { url: "https://www.otodom.pl/pl/oferta/x-ID1" },
+      }),
     { status: 302, location: "/auth/signin" },
   ],
   ["criteria page redirects anonymous user", () => request("/criteria"), { status: 302, location: "/auth/signin" }],
