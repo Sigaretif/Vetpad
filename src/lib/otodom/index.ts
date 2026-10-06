@@ -3,7 +3,7 @@ import { mapAdToOffer } from "./map";
 import type { FetchEvidence, FetchFailureReason, MapFailureReason, OfferInsert, UrlFailureReason } from "./types";
 import { normalizeOfferUrl } from "./url";
 
-export type { OfferImage, OfferInsert } from "./types";
+export type { FetchEvidence, OfferImage, OfferInsert } from "./types";
 export { normalizeOfferUrl } from "./url";
 
 /** Every way ingestion can refuse. The API route maps each one to a message in one place. */

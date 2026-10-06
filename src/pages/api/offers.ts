@@ -1,8 +1,7 @@
 import type { APIRoute } from "astro";
 import { type LogFields, logEvent } from "@/lib/log";
 import { createClient } from "@/lib/supabase";
-import { ingestOffer, normalizeOfferUrl, type IngestFailureReason } from "@/lib/otodom";
-import type { FetchEvidence } from "@/lib/otodom/types";
+import { ingestOffer, normalizeOfferUrl, type FetchEvidence, type IngestFailureReason } from "@/lib/otodom";
 
 const NOT_CONFIGURED = "Supabase nie jest skonfigurowany — nie można zapisać oferty.";
 const SAVE_FAILED = "Nie udało się zapisać oferty. Nic nie zostało zapisane.";

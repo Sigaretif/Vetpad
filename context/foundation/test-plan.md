@@ -932,13 +932,16 @@ seller's contact or a member's address could leave the system unnoticed.
   title, the pasted query, the offer's whole address, the path of an offer
   page, the words of a slug, a fetched page's text. `STRICT` adds the
   portal's host and the single words of the slug, and is what a scenario is
-  searched for unless its row says otherwise. A scenario whose subject is
-  where a redirect landed cannot be held to `STRICT` — its entry carries
-  `landed_host`, which is the portal's own host when the portal kept the
-  request — so that row names `COMMON` itself, together with the text its
-  log has to carry (the landed offer's `ID…` token, the results path). The
-  exception is written in the row, never taken by loosening the default,
-  and the fixture's landing path shares no word with the offer's slug.
+  searched for unless its row says otherwise. A scenario whose redirect
+  landed on the portal cannot be held to `STRICT` — its entry carries
+  `landed_host`, the portal's own host — so that row names `COMMON` itself,
+  together with the text its log has to carry (the landed offer's `ID…`
+  token, the results path). A landing off the portal stays on `STRICT`. One
+  row goes a step further: a landing under an offer's path logs
+  `/pl/oferta/<slug>/…`, so it searches `COMMON` without `/oferta/` and
+  still forbids the slug's words. The exception is written in the row,
+  never taken by loosening the default, and the fixture's landing path
+  shares no word with the offer's slug.
 - **An exit another file's mock cannot reach gets its own file:**
   `tests/pages/api/offers.unconfigured.test.ts` runs in the zero-config state
   of `tests/setup.ts`, which `offers.test.ts` overrides for its whole file.

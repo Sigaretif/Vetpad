@@ -13,6 +13,7 @@ import {
   isOtodomRequest,
   jsonResponse,
   otodomPage,
+  otodomPageProps,
   pageWithNextData,
   responseAt,
   restoreFetch,
@@ -133,6 +134,8 @@ function offerInserts(requests: RecordedRequest[]): RecordedRequest[] {
 describe("POST /api/offers: a refusal saves nothing (#1, FR-005)", () => {
   const EXPIRED_PAGE = otodomPage(flatSaleAd({ shouldShowExpiredAdPage: true }));
   const TRUNCATED_PAGE = pageWithNextData('{"props":{"pageProps":{"ad":{"id":65000001,"tit');
+  const PAGE_WITHOUT_PAGE_PROPS = pageWithNextData('{"props":{}}');
+  const PAGE_WITHOUT_AD = otodomPageProps({});
 
   // Each distinguishing fragment is the part of the message that names the reason. The last two
   // columns are the log entry: a refusal the product expects is info, a failure is an error,
@@ -185,10 +188,42 @@ describe("POST /api/offers: a refusal saves nothing (#1, FR-005)", () => {
       },
     ],
     [
+      "a page whose JSON has no pageProps",
+      () => responseAt(PAGE_WITHOUT_PAGE_PROPS),
+      ["Nie udało się odczytać treści ogłoszenia", "zmienić format"],
+      "error",
+      {
+        outcome: "failed",
+        stage: "fetch",
+        reason: "shape_changed",
+        detail: "page_props_missing",
+        status: 200,
+        content_type: HTML,
+        body_length: PAGE_WITHOUT_PAGE_PROPS.length,
+        marker_present: true,
+      },
+    ],
+    [
+      "a page whose pageProps has no ad and no expiry flag",
+      () => responseAt(PAGE_WITHOUT_AD),
+      ["Nie udało się odczytać treści ogłoszenia", "zmienić format"],
+      "error",
+      {
+        outcome: "failed",
+        stage: "fetch",
+        reason: "shape_changed",
+        detail: "ad_missing",
+        status: 200,
+        content_type: HTML,
+        body_length: PAGE_WITHOUT_AD.length,
+        marker_present: true,
+      },
+    ],
+    [
       // The landing is an offer page, so it is named by its token: the slug's words stay out.
-      "a redirect to another offer whose page carries no data",
+      "a redirect to the same offer under another slug, whose page carries no data",
       () =>
-        responseAt(PAGE_WITHOUT_NEXT_DATA, { url: "https://www.otodom.pl/pl/oferta/kawalerka-po-remoncie-IDKANAR2" }),
+        responseAt(PAGE_WITHOUT_NEXT_DATA, { url: "https://www.otodom.pl/pl/oferta/kawalerka-po-remoncie-IDKANAR1" }),
       ["przysłał stronę bez danych ogłoszenia"],
       "error",
       {
@@ -198,9 +233,27 @@ describe("POST /api/offers: a refusal saves nothing (#1, FR-005)", () => {
         status: 200,
         content_type: HTML,
         landed_host: "www.otodom.pl",
-        landed_listing: "IDKANAR2",
+        landed_listing: "IDKANAR1",
         body_length: PAGE_WITHOUT_NEXT_DATA.length,
         marker_present: false,
+      },
+    ],
+    [
+      // The page is whole and readable, and it is another listing: nothing is saved under the
+      // pasted address. `listing` beside `landed_listing` shows the two tokens apart.
+      "a redirect to another offer",
+      () =>
+        responseAt(otodomPage(flatSaleAd()), { url: "https://www.otodom.pl/pl/oferta/kawalerka-po-remoncie-IDKANAR2" }),
+      ["nie istnieje lub wygasło"],
+      "error",
+      {
+        outcome: "failed",
+        stage: "fetch",
+        reason: "unexpected_landing",
+        status: 200,
+        content_type: HTML,
+        landed_host: "www.otodom.pl",
+        landed_listing: "IDKANAR2",
       },
     ],
     [
@@ -253,6 +306,13 @@ describe("POST /api/offers: a refusal saves nothing (#1, FR-005)", () => {
         content_type: HTML,
         retry_after: "120",
       },
+    ],
+    [
+      "an HTTP 410 from otodom",
+      () => responseAt("<html></html>", { status: 410 }),
+      ["nie istnieje lub wygasło"],
+      "info",
+      { outcome: "refused", stage: "fetch", reason: "not_found", status: 410, content_type: HTML },
     ],
     [
       "an HTTP 404 from otodom",
@@ -377,6 +437,22 @@ describe("POST /api/offers: a refusal saves nothing (#1, FR-005)", () => {
         error_name: "TimeoutError",
         error_message: "The operation timed out.",
         phase: "headers",
+      },
+    ],
+    [
+      "a body cut short while it was being read",
+      () => unreadableResponse(new TypeError("terminated")),
+      ["Nie udało się połączyć z otodom.pl"],
+      "error",
+      {
+        outcome: "failed",
+        stage: "fetch",
+        reason: "network",
+        status: 200,
+        content_type: HTML,
+        error_name: "TypeError",
+        error_message: "terminated",
+        phase: "body",
       },
     ],
     [
@@ -993,13 +1069,34 @@ describe("POST /api/offers: no log entry carries listing, seller or member data 
     ],
     [
       "fetch",
-      "a redirect to another offer whose page carries no data",
+      "a redirect to another offer",
       () => {
         const url = `https://www.otodom.pl/pl/oferta/${LANDED_SLUG_WORDS}-IDKANAR2?utm_source=kanarek`;
-        stubNetwork(() => responseAt(PAGE_WITHOUT_NEXT_DATA, { url }));
+        stubNetwork(() => responseAt(otodomPage(flatSaleAd()), { url }));
         return submit(PASTED_URL);
       },
       { forbidden: COMMON, present: "IDKANAR2" },
+    ],
+    [
+      // The path keeps its shape and loses the slug, so this row allows the segment's name alone.
+      "fetch",
+      "a redirect to a page under another offer",
+      () => {
+        const url = `https://www.otodom.pl/pl/oferta/${LANDED_SLUG_WORDS}-IDKANAR2/galeria?utm_source=kanarek`;
+        stubNetwork(() => responseAt(otodomPage(flatSaleAd()), { url }));
+        return submit(PASTED_URL);
+      },
+      { forbidden: COMMON.filter((text) => text !== "/oferta/"), present: "/pl/oferta/<slug>/galeria" },
+    ],
+    [
+      "fetch",
+      "a redirect off otodom to a page that repeats the offer's address in its path",
+      () => {
+        const url = `https://consent.example/r/${encodeURIComponent(NORMALISED_URL)}`;
+        stubNetwork(() => responseAt(otodomPage(flatSaleAd()), { url }));
+        return submit(PASTED_URL);
+      },
+      { forbidden: STRICT, present: "/r/<slug>" },
     ],
     [
       // The path is logged, so the fixture's path shares no word with the offer's slug.

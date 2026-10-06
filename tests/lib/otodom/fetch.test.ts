@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { ingestOffer } from "@/lib/otodom";
 import { fetchOfferAd } from "@/lib/otodom/fetch";
-import type { FetchFailureReason, FetchOfferResult } from "@/lib/otodom/types";
+import type { FetchEvidence, FetchFailureReason, FetchOfferResult } from "@/lib/otodom/types";
 import {
   CHALLENGE_PAGE,
   PAGE_WITHOUT_NEXT_DATA,
@@ -225,6 +225,39 @@ describe("fetchOfferAd: where a followed redirect lands (#1)", () => {
     });
   });
 
+  // Another host's status says nothing about the offer: its 404 is not a listing that is gone,
+  // and its 503 is not the portal failing. The landing is checked before the status.
+  it.each([404, 410, 503])("treats HTTP %i from a page off otodom as refused, not by its status", async (status) => {
+    serve(() => responseAt("<html></html>", { status, url: "https://consent.example/zgoda/start" }));
+    expect(failure(await fetchAd())).toStrictEqual({
+      ok: false,
+      reason: "http_denied",
+      status,
+      evidence: { contentType: HTML, landedHost: "consent.example", landedPath: "/zgoda/start" },
+    });
+  });
+
+  it("still reads a block marked cf-mitigated first, wherever the request landed", async () => {
+    serve(() =>
+      responseAt(CHALLENGE_PAGE, {
+        status: 403,
+        url: "https://consent.example/zgoda/start",
+        headers: { "cf-mitigated": "challenge" },
+      }),
+    );
+    expect(failure(await fetchAd())).toStrictEqual({
+      ok: false,
+      reason: "challenged",
+      status: 403,
+      evidence: {
+        contentType: HTML,
+        cfMitigated: "challenge",
+        landedHost: "consent.example",
+        landedPath: "/zgoda/start",
+      },
+    });
+  });
+
   // A results page is where the portal sends a listing it no longer has.
   it.each([
     [
@@ -250,10 +283,8 @@ describe("fetchOfferAd: where a followed redirect lands (#1)", () => {
     ["https://www.otodom.pl/pl/firmy/biura-nieruchomosci", "/pl/firmy/biura-nieruchomosci"],
     ["https://www.otodom.pl/", "/"],
     ["https://www.otodom.pl/pl/wynikiX/sprzedaz", "/pl/wynikiX/sprzedaz"],
-    ["https://www.otodom.pl/pl/oferta/kawalerka-IDKANAR2/galeria", "/pl/oferta/kawalerka-IDKANAR2/galeria"],
-    // A path that merely ends like a results page or an offer page is neither.
+    // A path that merely ends like a results page is not one.
     ["https://www.otodom.pl/pl/blog/wyniki", "/pl/blog/wyniki"],
-    ["https://www.otodom.pl/pl/archiwum/oferta/kawalerka-IDKANAR2", "/pl/archiwum/oferta/kawalerka-IDKANAR2"],
   ])("treats a redirect to %s as an unexpected landing", async (url, landedPath) => {
     serve(() => responseAt(otodomPage(flatSaleAd()), { url }));
     expect(failure(await fetchAd())).toStrictEqual({
@@ -261,6 +292,66 @@ describe("fetchOfferAd: where a followed redirect lands (#1)", () => {
       reason: "unexpected_landing",
       status: 200,
       evidence: { contentType: HTML, landedHost: "www.otodom.pl", landedPath },
+    });
+  });
+
+  // A slug repeats the listing's title, whatever page it stands on: the path keeps its shape and
+  // loses the slug, and the offer is named by its token.
+  it.each<[string, FetchFailureReason, FetchEvidence]>([
+    [
+      // A path that merely ends like an offer page is not one.
+      "https://www.otodom.pl/pl/archiwum/oferta/kawalerka-po-remoncie-IDKANAR2",
+      "unexpected_landing",
+      { landedHost: "www.otodom.pl", landedPath: "/pl/archiwum/oferta/<slug>", landedListing: "IDKANAR2" },
+    ],
+    [
+      "https://www.otodom.pl/pl/oferta/kawalerka-po-remoncie-IDKANAR2/galeria",
+      "unexpected_landing",
+      { landedHost: "www.otodom.pl", landedPath: "/pl/oferta/<slug>/galeria", landedListing: "IDKANAR2" },
+    ],
+    [
+      "https://www.otodom.pl/pl/oferta/kawalerka-bez-tokenu/galeria",
+      "unexpected_landing",
+      { landedHost: "www.otodom.pl", landedPath: "/pl/oferta/<slug>/galeria" },
+    ],
+    [
+      "https://www.otodom.pl/en/ad/kawalerka-po-remoncie-IDKANAR2",
+      "unexpected_landing",
+      { landedHost: "www.otodom.pl", landedPath: "/en/ad/<slug>", landedListing: "IDKANAR2" },
+    ],
+    [
+      "https://m.otodom.pl/pl/oferta/kawalerka-po-remoncie-IDKANAR2?utm_source=kanarek",
+      "http_denied",
+      { landedHost: "m.otodom.pl", landedPath: "/pl/oferta/<slug>", landedListing: "IDKANAR2" },
+    ],
+    [
+      "https://www.otodom.pl./pl/oferta/kawalerka-po-remoncie-IDKANAR2",
+      "http_denied",
+      { landedHost: "www.otodom.pl.", landedPath: "/pl/oferta/<slug>", landedListing: "IDKANAR2" },
+    ],
+    [
+      // A foreign page that repeats the offer's address in its own path, encoded into one segment.
+      "https://consent.example/r/https%3A%2F%2Fwww.otodom.pl%2Fpl%2Foferta%2Fkawalerka-po-remoncie-IDKANAR2",
+      "http_denied",
+      { landedHost: "consent.example", landedPath: "/r/<slug>", landedListing: "IDKANAR2" },
+    ],
+    [
+      "https://consent.example/r/https%3A%2F%2Fwww.otodom.pl%2Fpl%2FOferta%2Fkawalerka-bez-tokenu",
+      "http_denied",
+      { landedHost: "consent.example", landedPath: "/r/<slug>" },
+    ],
+    [
+      "https://consent.example/r/https://www.otodom.pl/pl/oferta/kawalerka-bez-tokenu",
+      "http_denied",
+      { landedHost: "consent.example", landedPath: "/r/https://www.otodom.pl/pl/oferta/<slug>" },
+    ],
+  ])("logs the landing %s without its slug", async (url, reason, landed) => {
+    serve(() => responseAt(otodomPage(flatSaleAd()), { url }));
+    expect(failure(await fetchAd())).toStrictEqual({
+      ok: false,
+      reason,
+      status: 200,
+      evidence: { contentType: HTML, ...landed },
     });
   });
 
@@ -288,10 +379,30 @@ describe("fetchOfferAd: where a followed redirect lands (#1)", () => {
     expect(await fetchAd()).toStrictEqual({ ok: true, ad: flatSaleAd() });
   });
 
+  // Another offer's page is complete and readable, and it is not the listing the member pasted:
+  // saving it under the pasted address would be an invented fact. The body is never read.
+  it("refuses a redirect to another offer, although its page carries a whole ad", async () => {
+    serve(() =>
+      responseAt(otodomPage(flatSaleAd()), { url: "https://www.otodom.pl/pl/oferta/kawalerka-po-remoncie-IDKANAR2" }),
+    );
+    expect(failure(await fetchAd())).toStrictEqual({
+      ok: false,
+      reason: "unexpected_landing",
+      status: 200,
+      evidence: { contentType: HTML, landedHost: "www.otodom.pl", landedListing: "IDKANAR2" },
+    });
+  });
+
+  // Without a token on the landing there is nothing to compare, and the page is read.
+  it("reads the page of an offer whose slug has no token", async () => {
+    serve(() => responseAt(otodomPage(flatSaleAd()), { url: "https://www.otodom.pl/pl/oferta/kawalerka-bez-tokenu" }));
+    expect(await fetchAd()).toStrictEqual({ ok: true, ad: flatSaleAd() });
+  });
+
   // The landing is named by its token alone: the rest of the slug repeats the listing's title.
   it("names the offer a redirect landed on by its token when that page carries no data", async () => {
     serve(() =>
-      responseAt(PAGE_WITHOUT_NEXT_DATA, { url: "https://www.otodom.pl/pl/oferta/kawalerka-po-remoncie-IDKANAR2/" }),
+      responseAt(PAGE_WITHOUT_NEXT_DATA, { url: "https://www.otodom.pl/pl/oferta/kawalerka-po-remoncie-IDKANAR1/" }),
     );
     expect(failure(await fetchAd())).toStrictEqual({
       ok: false,
@@ -300,7 +411,7 @@ describe("fetchOfferAd: where a followed redirect lands (#1)", () => {
       evidence: {
         contentType: HTML,
         landedHost: "www.otodom.pl",
-        landedListing: "IDKANAR2",
+        landedListing: "IDKANAR1",
         bodyLength: PAGE_WITHOUT_NEXT_DATA.length,
         markerPresent: false,
       },
@@ -371,6 +482,38 @@ describe("fetchOfferAd: a request that never completes (#1)", () => {
     });
   });
 
+  it.each([
+    [
+      "an address with its scheme in capitals",
+      "request to HTTPS://WWW.OTODOM.PL/pl/oferta/slowa-IDKANAR1?utm_source=kanarek failed",
+      "request to <url> failed",
+    ],
+    [
+      "an address without a scheme",
+      "Invalid URL: www.otodom.pl/pl/oferta/slowa-tytulu-IDKANAR1?utm_source=kanarek",
+      "Invalid URL: <url>",
+    ],
+    [
+      "an offer's path alone",
+      "redirect to /pl/oferta/slowa-tytulu-IDKANAR1?utm_source=kanarek not allowed",
+      "redirect to <url> not allowed",
+    ],
+    [
+      "an offer's path in capitals",
+      "redirect to /PL/OFERTA/SLOWA-IDKANAR1 not allowed",
+      "redirect to <url> not allowed",
+    ],
+  ])("replaces %s in the error message", async (_label, message, errorMessage) => {
+    serve(() => {
+      throw new TypeError(message);
+    });
+    expect(failure(await fetchAd())).toStrictEqual({
+      ok: false,
+      reason: "network",
+      evidence: { errorName: "TypeError", errorMessage, phase: "headers" },
+    });
+  });
+
   it("carries the cause of the error, with its addresses replaced too", async () => {
     serve(() => {
       throw new TypeError("fetch failed", {
@@ -432,9 +575,48 @@ describe("fetchOfferAd: a request that never completes (#1)", () => {
     });
   });
 
-  it("leaves out a cause that says nothing in words", async () => {
+  // The code is often the one part of a cause that says what happened.
+  it("carries the code of a cause between its name and its message", async () => {
     serve(() => {
-      throw new TypeError("fetch failed", { cause: { name: "SystemError", code: "ECONNRESET" } });
+      const cause = Object.assign(new Error("connect ECONNREFUSED 203.0.113.7:443"), { code: "ECONNREFUSED" });
+      throw new TypeError("fetch failed", { cause });
+    });
+    expect(failure(await fetchAd())).toStrictEqual({
+      ok: false,
+      reason: "network",
+      evidence: {
+        errorName: "TypeError",
+        errorMessage: "fetch failed",
+        errorCause: "Error ECONNREFUSED: connect ECONNREFUSED 203.0.113.7:443",
+        phase: "headers",
+      },
+    });
+  });
+
+  it("carries a cause that has a code and no message", async () => {
+    serve(() => {
+      const cause = Object.assign(new AggregateError([], ""), { code: "ECONNRESET" });
+      throw new TypeError("fetch failed", { cause });
+    });
+    expect(failure(await fetchAd())).toStrictEqual({
+      ok: false,
+      reason: "network",
+      evidence: {
+        errorName: "TypeError",
+        errorMessage: "fetch failed",
+        errorCause: "AggregateError ECONNRESET",
+        phase: "headers",
+      },
+    });
+  });
+
+  it.each([
+    ["a name alone", new AggregateError([], "")],
+    ["a code that is not text", { name: "SystemError", code: 104 }],
+    ["a code that is not a code", { name: "SystemError", code: "see https://www.otodom.pl/pl/oferta/slowa-IDKANAR1" }],
+  ])("leaves out a cause that holds %s", async (_label, cause) => {
+    serve(() => {
+      throw new TypeError("fetch failed", { cause });
     });
     expect(failure(await fetchAd())).toStrictEqual({
       ok: false,
