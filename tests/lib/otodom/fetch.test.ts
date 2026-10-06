@@ -251,6 +251,9 @@ describe("fetchOfferAd: where a followed redirect lands (#1)", () => {
     ["https://www.otodom.pl/", "/"],
     ["https://www.otodom.pl/pl/wynikiX/sprzedaz", "/pl/wynikiX/sprzedaz"],
     ["https://www.otodom.pl/pl/oferta/kawalerka-IDKANAR2/galeria", "/pl/oferta/kawalerka-IDKANAR2/galeria"],
+    // A path that merely ends like a results page or an offer page is neither.
+    ["https://www.otodom.pl/pl/blog/wyniki", "/pl/blog/wyniki"],
+    ["https://www.otodom.pl/pl/archiwum/oferta/kawalerka-IDKANAR2", "/pl/archiwum/oferta/kawalerka-IDKANAR2"],
   ])("treats a redirect to %s as an unexpected landing", async (url, landedPath) => {
     serve(() => responseAt(otodomPage(flatSaleAd()), { url }));
     expect(failure(await fetchAd())).toStrictEqual({
@@ -278,6 +281,13 @@ describe("fetchOfferAd: where a followed redirect lands (#1)", () => {
     expect(await fetchAd()).toStrictEqual({ ok: true, ad: flatSaleAd() });
   });
 
+  it("follows a redirect to the offer under a path without the language prefix", async () => {
+    serve(() =>
+      responseAt(otodomPage(flatSaleAd()), { url: "https://www.otodom.pl/oferta/mieszkanie-3-pokoje-IDKANAR1" }),
+    );
+    expect(await fetchAd()).toStrictEqual({ ok: true, ad: flatSaleAd() });
+  });
+
   // The landing is named by its token alone: the rest of the slug repeats the listing's title.
   it("names the offer a redirect landed on by its token when that page carries no data", async () => {
     serve(() =>
@@ -299,6 +309,26 @@ describe("fetchOfferAd: where a followed redirect lands (#1)", () => {
 
   it("names no listing for an offer slug without a token", async () => {
     serve(() => responseAt(PAGE_WITHOUT_NEXT_DATA, { url: "https://www.otodom.pl/pl/oferta/kawalerka-bez-tokenu" }));
+    expect(failure(await fetchAd())).toStrictEqual({
+      ok: false,
+      reason: "data_missing",
+      status: 200,
+      evidence: {
+        contentType: HTML,
+        landedHost: "www.otodom.pl",
+        bodyLength: PAGE_WITHOUT_NEXT_DATA.length,
+        markerPresent: false,
+      },
+    });
+  });
+});
+
+describe("fetchOfferAd: a token is read from the end of the slug alone (#6)", () => {
+  // A word of the title that happens to start with "ID" is still a word of the title.
+  it("names no listing for a slug whose only ID-like word is not its last", async () => {
+    serve(() =>
+      responseAt(PAGE_WITHOUT_NEXT_DATA, { url: "https://www.otodom.pl/pl/oferta/kawalerka-IDealna-lokalizacja" }),
+    );
     expect(failure(await fetchAd())).toStrictEqual({
       ok: false,
       reason: "data_missing",
@@ -367,6 +397,85 @@ describe("fetchOfferAd: a request that never completes (#1)", () => {
       ok: false,
       reason: "network",
       evidence: { errorName: "TypeError", errorMessage: "fetch failed", errorCause: "socket closed", phase: "headers" },
+    });
+  });
+
+  it("carries a cause without a name as its message alone", async () => {
+    serve(() => {
+      throw new TypeError("fetch failed", { cause: { message: "socket closed by peer" } });
+    });
+    expect(failure(await fetchAd())).toStrictEqual({
+      ok: false,
+      reason: "network",
+      evidence: {
+        errorName: "TypeError",
+        errorMessage: "fetch failed",
+        errorCause: "socket closed by peer",
+        phase: "headers",
+      },
+    });
+  });
+
+  it("carries a cause with an empty name as its message alone", async () => {
+    serve(() => {
+      throw new TypeError("fetch failed", { cause: { name: "", message: "socket closed by peer" } });
+    });
+    expect(failure(await fetchAd())).toStrictEqual({
+      ok: false,
+      reason: "network",
+      evidence: {
+        errorName: "TypeError",
+        errorMessage: "fetch failed",
+        errorCause: "socket closed by peer",
+        phase: "headers",
+      },
+    });
+  });
+
+  it("leaves out a cause that says nothing in words", async () => {
+    serve(() => {
+      throw new TypeError("fetch failed", { cause: { name: "SystemError", code: "ECONNRESET" } });
+    });
+    expect(failure(await fetchAd())).toStrictEqual({
+      ok: false,
+      reason: "network",
+      evidence: { errorName: "TypeError", errorMessage: "fetch failed", phase: "headers" },
+    });
+  });
+
+  it("leaves out a name that is not text", async () => {
+    serve(() => {
+      throw Object.assign(new Error("fetch failed"), { name: 42 });
+    });
+    expect(failure(await fetchAd())).toStrictEqual({
+      ok: false,
+      reason: "network",
+      evidence: { errorMessage: "fetch failed", phase: "headers" },
+    });
+  });
+
+  // Nothing obliges a runtime to reject with an Error. The text is typed as one only because
+  // the lint rule on rejection reasons would otherwise keep a test from doing what a runtime may.
+  it("carries a rejection that is plain text as the message, with its addresses replaced", async () => {
+    const text = `socket hang up at ${FLAT_SALE_URL}?utm_source=kanarek` as unknown as Error;
+    serve(() => {
+      throw text;
+    });
+    expect(failure(await fetchAd())).toStrictEqual({
+      ok: false,
+      reason: "network",
+      evidence: { errorMessage: "socket hang up at <url>", phase: "headers" },
+    });
+  });
+
+  it("reports a rejection named AbortError as a timeout, even with a signal that is not aborted", async () => {
+    serve(() => {
+      throw new DOMException("This operation was aborted", "AbortError");
+    });
+    expect(failure(await fetchAd())).toStrictEqual({
+      ok: false,
+      reason: "timeout",
+      evidence: { errorName: "AbortError", errorMessage: "This operation was aborted", phase: "headers" },
     });
   });
 
@@ -441,6 +550,29 @@ describe("fetchOfferAd: a body that cannot be read (#1)", () => {
         phase: "body",
       },
     });
+  });
+});
+
+describe("fetchOfferAd: an aborted signal is a timeout, whatever the error is called (#1)", () => {
+  it("reports a body cut short under an aborted signal as a timeout", async () => {
+    const controller = new AbortController();
+    serve(() => {
+      controller.abort();
+      return unreadableResponse(new TypeError("terminated"));
+    });
+    expect(failure(await fetchAd(controller.signal))).toStrictEqual({
+      ok: false,
+      reason: "timeout",
+      status: 200,
+      evidence: { contentType: HTML, errorName: "TypeError", errorMessage: "terminated", phase: "body" },
+    });
+  });
+});
+
+describe("fetchOfferAd: a header the answer does not send is an absent key (#1)", () => {
+  it("carries no content type for an answer without one", async () => {
+    serve(() => new Response(null, { status: 403 }));
+    expect(failure(await fetchAd())).toStrictEqual({ ok: false, reason: "http_denied", status: 403, evidence: {} });
   });
 });
 

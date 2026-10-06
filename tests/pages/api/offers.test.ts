@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { POST } from "@/pages/api/offers";
 import { type ConsoleCapture, type ConsoleEntry, captureConsole, restoreConsole } from "../../fixtures/console";
 import {
+  CHALLENGE_CANARY,
+  CHALLENGE_PAGE,
   INSERTED_OFFER_ID,
   PAGE_WITHOUT_NEXT_DATA,
   type RecordedRequest,
@@ -11,9 +13,11 @@ import {
   isOtodomRequest,
   jsonResponse,
   otodomPage,
+  pageWithNextData,
   responseAt,
   restoreFetch,
   stubFetch,
+  unreadableResponse,
 } from "../../fixtures/http";
 import {
   CANARY_NAME,
@@ -66,6 +70,8 @@ const MEMBER: Member = { id: USER_ID, email: USER_EMAIL };
 // slug, `otodom_id` the `id` of `flatSaleAd()`.
 const LISTING = "IDKANAR1";
 const OTODOM_ID = 65000001;
+/** The `Content-Type` `responseAt` sends unless a test says otherwise. */
+const HTML = "text/html; charset=utf-8";
 
 /** The entry the route leaves before it reaches for otodom.pl, so a fetch the platform cut short still has a trace. */
 const STARTED: ConsoleEntry = {
@@ -125,10 +131,14 @@ function offerInserts(requests: RecordedRequest[]): RecordedRequest[] {
 }
 
 describe("POST /api/offers: a refusal saves nothing (#1, FR-005)", () => {
+  const EXPIRED_PAGE = otodomPage(flatSaleAd({ shouldShowExpiredAdPage: true }));
+  const TRUNCATED_PAGE = pageWithNextData('{"props":{"pageProps":{"ad":{"id":65000001,"tit');
+
   // Each distinguishing fragment is the part of the message that names the reason. The last two
   // columns are the log entry: a refusal the product expects is info, a failure is an error,
-  // and the stage tells the two `shape_changed` apart.
-  const REFUSALS: [string, Answer, string[], "info" | "error", Record<string, string | number>][] = [
+  // and the stage tells the two `shape_changed` apart. A failure at the fetch stage also carries
+  // what the answer said about itself — and nothing about a body that was never read.
+  const REFUSALS: [string, Answer, string[], "info" | "error", Record<string, string | number | boolean>][] = [
     [
       "a flat for rent",
       () => responseAt(otodomPage(rentalFlat())),
@@ -148,7 +158,50 @@ describe("POST /api/offers: a refusal saves nothing (#1, FR-005)", () => {
       () => responseAt(PAGE_WITHOUT_NEXT_DATA),
       ["przysłał stronę bez danych ogłoszenia", "mógł zablokować pobranie albo zmienić format strony"],
       "error",
-      { outcome: "failed", stage: "fetch", reason: "data_missing", status: 200 },
+      {
+        outcome: "failed",
+        stage: "fetch",
+        reason: "data_missing",
+        status: 200,
+        content_type: HTML,
+        body_length: PAGE_WITHOUT_NEXT_DATA.length,
+        marker_present: false,
+      },
+    ],
+    [
+      "a page whose __NEXT_DATA__ cannot be parsed",
+      () => responseAt(TRUNCATED_PAGE),
+      ["Nie udało się odczytać treści ogłoszenia", "zmienić format"],
+      "error",
+      {
+        outcome: "failed",
+        stage: "fetch",
+        reason: "shape_changed",
+        detail: "next_data_unparseable",
+        status: 200,
+        content_type: HTML,
+        body_length: TRUNCATED_PAGE.length,
+        marker_present: true,
+      },
+    ],
+    [
+      // The landing is an offer page, so it is named by its token: the slug's words stay out.
+      "a redirect to another offer whose page carries no data",
+      () =>
+        responseAt(PAGE_WITHOUT_NEXT_DATA, { url: "https://www.otodom.pl/pl/oferta/kawalerka-po-remoncie-IDKANAR2" }),
+      ["przysłał stronę bez danych ogłoszenia"],
+      "error",
+      {
+        outcome: "failed",
+        stage: "fetch",
+        reason: "data_missing",
+        status: 200,
+        content_type: HTML,
+        landed_host: "www.otodom.pl",
+        landed_listing: "IDKANAR2",
+        body_length: PAGE_WITHOUT_NEXT_DATA.length,
+        marker_present: false,
+      },
     ],
     [
       "a listing without a title",
@@ -162,50 +215,186 @@ describe("POST /api/offers: a refusal saves nothing (#1, FR-005)", () => {
       () => responseAt("<html></html>", { status: 403 }),
       ["odmówił", "(HTTP 403)"],
       "error",
-      { outcome: "failed", stage: "fetch", reason: "http_denied", status: 403 },
+      { outcome: "failed", stage: "fetch", reason: "http_denied", status: 403, content_type: HTML },
+    ],
+    [
+      // The lowest status that is shown: from 400 up the number says why otodom refused.
+      "an HTTP 400 from otodom",
+      () => responseAt("<html></html>", { status: 400 }),
+      ["odmówił", "(HTTP 400)"],
+      "error",
+      { outcome: "failed", stage: "fetch", reason: "http_denied", status: 400, content_type: HTML },
+    ],
+    [
+      // Recognised by the header alone; the page's text is never read.
+      "an HTTP 403 marked cf-mitigated",
+      () => responseAt(CHALLENGE_PAGE, { status: 403, headers: { "cf-mitigated": "challenge" } }),
+      ["zablokował pobranie ogłoszenia", "stroną zabezpieczającą przed automatami"],
+      "error",
+      {
+        outcome: "failed",
+        stage: "fetch",
+        reason: "challenged",
+        status: 403,
+        content_type: HTML,
+        cf_mitigated: "challenge",
+      },
+    ],
+    [
+      "an HTTP 429 that says when to come back",
+      () => responseAt("<html></html>", { status: 429, headers: { "Retry-After": "120" } }),
+      ["odmówił", "(HTTP 429)"],
+      "error",
+      {
+        outcome: "failed",
+        stage: "fetch",
+        reason: "http_denied",
+        status: 429,
+        content_type: HTML,
+        retry_after: "120",
+      },
     ],
     [
       "an HTTP 404 from otodom",
       () => responseAt("<html></html>", { status: 404 }),
       ["nie istnieje lub wygasło"],
       "info",
-      { outcome: "refused", stage: "fetch", reason: "not_found", status: 404 },
+      { outcome: "refused", stage: "fetch", reason: "not_found", status: 404, content_type: HTML },
+    ],
+    [
+      // Still otodom, on the results page: the portal no longer has the listing. A refusal.
+      "a redirect to the results page",
+      () =>
+        responseAt(otodomPage(flatSaleAd()), {
+          url: "https://www.otodom.pl/pl/wyniki/sprzedaz/kawalerka/krakow?page=2",
+        }),
+      ["nie istnieje lub wygasło"],
+      "info",
+      {
+        outcome: "refused",
+        stage: "fetch",
+        reason: "not_found",
+        status: 200,
+        content_type: HTML,
+        landed_host: "www.otodom.pl",
+        landed_path: "/pl/wyniki/sprzedaz/kawalerka/krakow",
+      },
+    ],
+    [
+      // Anywhere else on otodom: the member reads the same sentence, the log gets an error.
+      "a redirect to an otodom page nobody has seen",
+      () => responseAt(otodomPage(flatSaleAd()), { url: "https://www.otodom.pl/pl/firmy/biura-nieruchomosci" }),
+      ["nie istnieje lub wygasło"],
+      "error",
+      {
+        outcome: "failed",
+        stage: "fetch",
+        reason: "unexpected_landing",
+        status: 200,
+        content_type: HTML,
+        landed_host: "www.otodom.pl",
+        landed_path: "/pl/firmy/biura-nieruchomosci",
+      },
     ],
     [
       "an expired listing that still ships its payload",
-      () => responseAt(otodomPage(flatSaleAd({ shouldShowExpiredAdPage: true }))),
+      () => responseAt(EXPIRED_PAGE),
       ["nie istnieje lub wygasło"],
       "info",
-      { outcome: "refused", stage: "fetch", reason: "expired", status: 200 },
+      {
+        outcome: "refused",
+        stage: "fetch",
+        reason: "expired",
+        status: 200,
+        content_type: HTML,
+        body_length: EXPIRED_PAGE.length,
+        marker_present: true,
+      },
     ],
     [
       "an HTTP 503 from otodom",
       () => responseAt("<html></html>", { status: 503 }),
       ["chwilowo niedostępny", "(HTTP 503)"],
       "error",
-      { outcome: "failed", stage: "fetch", reason: "upstream_error", status: 503 },
+      { outcome: "failed", stage: "fetch", reason: "upstream_error", status: 503, content_type: HTML },
     ],
     [
       // The answer came with 200, which explains nothing: the sentence ends right after the noun.
+      // The entry names where the redirect ended, without the query string.
       "a redirect off otodom",
-      () => responseAt(otodomPage(flatSaleAd()), { url: "https://consent.example/?next=oferta" }),
+      () => responseAt(otodomPage(flatSaleAd()), { url: "https://consent.example/zgoda/start?next=oferta" }),
       ["odmówił pobrania ogłoszenia. Nic nie zostało zapisane"],
       "error",
-      { outcome: "failed", stage: "fetch", reason: "http_denied", status: 200 },
+      {
+        outcome: "failed",
+        stage: "fetch",
+        reason: "http_denied",
+        status: 200,
+        content_type: HTML,
+        landed_host: "consent.example",
+        landed_path: "/zgoda/start",
+      },
     ],
     [
+      // No `status` and nothing about a response: no headers ever arrived.
       "a fetch that never connected",
       () => Promise.reject(new TypeError("fetch failed")),
       ["Nie udało się połączyć z otodom.pl"],
       "error",
-      { outcome: "failed", stage: "fetch", reason: "network" },
+      {
+        outcome: "failed",
+        stage: "fetch",
+        reason: "network",
+        error_name: "TypeError",
+        error_message: "fetch failed",
+        phase: "headers",
+      },
+    ],
+    [
+      "a fetch that never connected, for a reason the error names",
+      () => Promise.reject(new TypeError("fetch failed", { cause: new RangeError("connect ECONNREFUSED") })),
+      ["Nie udało się połączyć z otodom.pl"],
+      "error",
+      {
+        outcome: "failed",
+        stage: "fetch",
+        reason: "network",
+        error_name: "TypeError",
+        error_message: "fetch failed",
+        error_cause: "RangeError: connect ECONNREFUSED",
+        phase: "headers",
+      },
     ],
     [
       "a fetch that timed out",
       () => Promise.reject(new DOMException("The operation timed out.", "TimeoutError")),
       ["dłużej niż 45 sekund"],
       "error",
-      { outcome: "failed", stage: "fetch", reason: "timeout" },
+      {
+        outcome: "failed",
+        stage: "fetch",
+        reason: "timeout",
+        error_name: "TimeoutError",
+        error_message: "The operation timed out.",
+        phase: "headers",
+      },
+    ],
+    [
+      // The headers did arrive, so the entry keeps what they said beside the error.
+      "a body that timed out while it was being read",
+      () => unreadableResponse(new DOMException("The operation timed out.", "TimeoutError")),
+      ["dłużej niż 45 sekund"],
+      "error",
+      {
+        outcome: "failed",
+        stage: "fetch",
+        reason: "timeout",
+        status: 200,
+        content_type: HTML,
+        error_name: "TimeoutError",
+        error_message: "The operation timed out.",
+        phase: "body",
+      },
     ],
   ];
 
@@ -676,7 +865,10 @@ describe("POST /api/offers: a database failure is logged with its code and told 
 describe("POST /api/offers: no log entry carries listing, seller or member data (#6)", () => {
   const TITLE = "Mieszkanie 3 pokoje, 54,5 m², Praga-Południe";
   const FAILING_ROW = `Failing row contains (65000001, ${TITLE}, Kontakt: ${CANARY_NAME}, tel. ${CANARY_PHONE}).`;
-  const FORBIDDEN = [
+  /** The slug of the offer a redirect lands on in one scenario; only its `ID…` token may be logged. */
+  const LANDED_SLUG_WORDS = "kawalerka-po-remoncie";
+  // Forbidden on every way out.
+  const COMMON = [
     ...SELLER_CANARIES,
     CANARY_PHONE,
     CANARY_NAME,
@@ -684,13 +876,26 @@ describe("POST /api/offers: no log entry carries listing, seller or member data 
     TITLE,
     "Failing row",
     "utm_source",
-    "otodom.pl",
     "olx.pl",
+    NORMALISED_URL,
+    // The path of an offer page, the pasted one or the one a redirect landed on.
+    "/oferta/",
     // The words of the pasted slug; only its `ID…` token may be logged.
     "mieszkanie-54-m-warszawa",
-    "mieszkanie",
-    "warszawa",
+    LANDED_SLUG_WORDS,
+    // A fetched page's text.
+    CHALLENGE_CANARY,
   ];
+  // What every scenario is searched for unless its row says otherwise. An entry whose subject is
+  // where a redirect landed carries the landing's host — `www.otodom.pl` when the portal kept the
+  // request — so only such a row names `COMMON`, in its fourth column.
+  const STRICT = [...COMMON, "otodom.pl", "mieszkanie", "warszawa"];
+
+  /** A row's own terms: the list it is searched for, and a text its log has to carry. */
+  interface Searched {
+    forbidden: readonly string[];
+    present?: string;
+  }
 
   const jsonBody = () =>
     new Request("http://localhost/api/offers", {
@@ -699,7 +904,7 @@ describe("POST /api/offers: no log entry carries listing, seller or member data 
       body: JSON.stringify({ url: PASTED_URL }),
     });
 
-  const SCENARIOS: [string, string, () => Promise<Response>][] = [
+  const SCENARIOS: [string, string, () => Promise<Response>, Searched?][] = [
     [
       "auth",
       "a signed-out visitor",
@@ -749,6 +954,65 @@ describe("POST /api/offers: no log entry carries listing, seller or member data 
       },
     ],
     [
+      "fetch",
+      "a challenge page marked cf-mitigated, with a canary in its text",
+      () => {
+        stubNetwork(() => responseAt(CHALLENGE_PAGE, { status: 403, headers: { "cf-mitigated": "challenge" } }));
+        return submit(PASTED_URL);
+      },
+    ],
+    [
+      // The one challenge page whose text the fetch does read.
+      "fetch",
+      "a challenge page served with 200 and no header, with a canary in its text",
+      () => {
+        stubNetwork(() => responseAt(CHALLENGE_PAGE));
+        return submit(PASTED_URL);
+      },
+    ],
+    [
+      "fetch",
+      "a redirect off otodom whose query string carries the offer's address",
+      () => {
+        const next = encodeURIComponent(NORMALISED_URL);
+        const url = `https://consent.example/zgoda/start?next=${next}&back=${NORMALISED_URL}&utm_source=kanarek#krok-1`;
+        stubNetwork(() => responseAt(otodomPage(flatSaleAd()), { url }));
+        return submit(PASTED_URL);
+      },
+    ],
+    [
+      "fetch",
+      "a network error whose message quotes the whole address",
+      () => {
+        const error = new TypeError(`request to ${NORMALISED_URL}?utm_source=kanarek failed, reason: socket hang up`, {
+          cause: new RangeError(`connect ECONNREFUSED ${PASTED_URL}`),
+        });
+        stubNetwork(() => Promise.reject(error));
+        return submit(PASTED_URL);
+      },
+    ],
+    [
+      "fetch",
+      "a redirect to another offer whose page carries no data",
+      () => {
+        const url = `https://www.otodom.pl/pl/oferta/${LANDED_SLUG_WORDS}-IDKANAR2?utm_source=kanarek`;
+        stubNetwork(() => responseAt(PAGE_WITHOUT_NEXT_DATA, { url }));
+        return submit(PASTED_URL);
+      },
+      { forbidden: COMMON, present: "IDKANAR2" },
+    ],
+    [
+      // The path is logged, so the fixture's path shares no word with the offer's slug.
+      "fetch",
+      "a redirect to the results page",
+      () => {
+        const url = "https://www.otodom.pl/pl/wyniki/sprzedaz/kawalerka/krakow?utm_source=kanarek";
+        stubNetwork(() => responseAt(otodomPage(flatSaleAd()), { url }));
+        return submit(PASTED_URL);
+      },
+      { forbidden: COMMON, present: "/pl/wyniki/sprzedaz/kawalerka/krakow" },
+    ],
+    [
       "map",
       "a house for sale",
       () => {
@@ -788,7 +1052,7 @@ describe("POST /api/offers: no log entry carries listing, seller or member data 
     ],
   ];
 
-  it.each(SCENARIOS)("at the %s stage: %s", async (stage, _label, run) => {
+  it.each(SCENARIOS)("at the %s stage: %s", async (stage, _label, run, searched = { forbidden: STRICT }) => {
     const captured = captureConsole();
     await run();
 
@@ -797,8 +1061,9 @@ describe("POST /api/offers: no log entry carries listing, seller or member data 
     expect(last?.args[0]).toMatchObject({ event: "offer_add", stage });
 
     const text = captured.text();
-    for (const forbidden of FORBIDDEN) {
+    for (const forbidden of searched.forbidden) {
       expect(text).not.toContain(forbidden);
     }
+    if (searched.present !== undefined) expect(text).toContain(searched.present);
   });
 });

@@ -2,6 +2,7 @@ import type { APIRoute } from "astro";
 import { type LogFields, logEvent } from "@/lib/log";
 import { createClient } from "@/lib/supabase";
 import { ingestOffer, normalizeOfferUrl, type IngestFailureReason } from "@/lib/otodom";
+import type { FetchEvidence } from "@/lib/otodom/types";
 
 const NOT_CONFIGURED = "Supabase nie jest skonfigurowany — nie można zapisać oferty.";
 const SAVE_FAILED = "Nie udało się zapisać oferty. Nic nie zostało zapisane.";
@@ -101,6 +102,27 @@ function dbFields(error: { code: string; message: string; hint: string }, status
   return { db_code: error.code, db_message: error.message, db_hint: error.hint, db_status: status };
 }
 
+/**
+ * What a failed fetch learned about the answer it got, key by key. Ingestion hands it over for the
+ * `fetch` stage alone; a refusal from the URL or the mapper has none, and adds nothing.
+ */
+function fetchFields(evidence: FetchEvidence = {}) {
+  return {
+    landed_host: evidence.landedHost,
+    landed_path: evidence.landedPath,
+    landed_listing: evidence.landedListing,
+    content_type: evidence.contentType,
+    body_length: evidence.bodyLength,
+    marker_present: evidence.markerPresent,
+    cf_mitigated: evidence.cfMitigated,
+    retry_after: evidence.retryAfter,
+    error_name: evidence.errorName,
+    error_message: evidence.errorMessage,
+    error_cause: evidence.errorCause,
+    phase: evidence.phase,
+  };
+}
+
 export const POST: APIRoute = async (context) => {
   const fail = (message: string) => context.redirect(`/dashboard?error=${encodeURIComponent(message)}`);
 
@@ -159,6 +181,7 @@ export const POST: APIRoute = async (context) => {
       reason: result.reason,
       status: result.status,
       detail: result.detail,
+      ...fetchFields(result.evidence),
     });
     return fail(failureMessage(result.reason, result.status));
   }
