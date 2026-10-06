@@ -717,32 +717,32 @@ ani nowych sekretów. Ciasteczka sesji zostają w dotychczasowym kształcie.
 
 #### Automated
 
-- [x] 2.1 `npx vitest run tests/lib/error-pages.test.ts tests/components/ErrorPage.test.ts` przechodzi, a przed dodaniem modułu i komponentu był czerwony
-- [x] 2.2 `npm test` przechodzi
-- [x] 2.3 `npm run lint` przechodzi, w tym reguła tokenów dla nowych widoków
-- [x] 2.4 `npx astro sync && npx astro check` przechodzi
-- [x] 2.5 `npm run build` przechodzi
-- [x] 2.6 `node scripts/ui-screenshots.mjs errors context/changes/auth-outage-not-signed-out/screenshots` zapisuje cztery zrzuty zestawu `errors`
+- [x] 2.1 `npx vitest run tests/lib/error-pages.test.ts tests/components/ErrorPage.test.ts` przechodzi, a przed dodaniem modułu i komponentu był czerwony — 7d04d3a
+- [x] 2.2 `npm test` przechodzi — 7d04d3a
+- [x] 2.3 `npm run lint` przechodzi, w tym reguła tokenów dla nowych widoków — 7d04d3a
+- [x] 2.4 `npx astro sync && npx astro check` przechodzi — 7d04d3a
+- [x] 2.5 `npm run build` przechodzi — 7d04d3a
+- [x] 2.6 `node scripts/ui-screenshots.mjs errors context/changes/auth-outage-not-signed-out/screenshots` zapisuje cztery zrzuty zestawu `errors` — 7d04d3a
 
 #### Manual
 
-- [x] 2.7 Zrzuty pokazują każdy wiersz macierzy, który ma zrzut; `errors-mobile` nie przewija się w poziomie, a pierścień fokusu na `errors-focus-retry` jest widoczny
-- [x] 2.8 Teksty obu stron przeczytane i zaakceptowane
+- [x] 2.7 Zrzuty pokazują każdy wiersz macierzy, który ma zrzut; `errors-mobile` nie przewija się w poziomie, a pierścień fokusu na `errors-focus-retry` jest widoczny — 7d04d3a
+- [x] 2.8 Teksty obu stron przeczytane i zaakceptowane — 7d04d3a
 
 ### Phase 3: Middleware
 
 #### Automated
 
-- [ ] 3.1 Przypadki 5–19 w `tests/middleware.test.ts` są czerwone przed zmianą `src/middleware.ts` i zielone po niej; przypadki 1–4 i 20 są zielone przed i po
-- [ ] 3.2 `npm test` przechodzi, w tym `tests/pages/api/offers.test.ts` bez zmiany asercji
-- [ ] 3.3 `npm run lint` przechodzi
-- [ ] 3.4 `npx astro sync && npx astro check` przechodzi
-- [ ] 3.5 `npm run build` przechodzi
-- [ ] 3.6 `npm run smoke` przechodzi bez zmian w `scripts/smoke.mjs`
+- [x] 3.1 Przypadki 5–19 w `tests/middleware.test.ts` są czerwone przed zmianą `src/middleware.ts` i zielone po niej; przypadki 1–4 i 20 są zielone przed i po
+- [x] 3.2 `npm test` przechodzi, w tym `tests/pages/api/offers.test.ts` bez zmiany asercji
+- [x] 3.3 `npm run lint` przechodzi
+- [x] 3.4 `npx astro sync && npx astro check` przechodzi
+- [x] 3.5 `npm run build` przechodzi
+- [x] 3.6 `npm run smoke` przechodzi bez zmian w `scripts/smoke.mjs`
 
 #### Manual
 
-- [ ] 3.7 W `npm run dev` z lokalnym Supabase logowanie, tablica, karta oferty, kryteria i wylogowanie działają jak przed zmianą, a terminal nie pokazuje żadnego wpisu `auth_check`
+- [x] 3.7 W `npm run dev` z lokalnym Supabase logowanie, tablica, karta oferty, kryteria i wylogowanie działają jak przed zmianą, a terminal nie pokazuje żadnego wpisu `auth_check`
 
 ### Phase 4: Smoke, mutacje, dokumentacja
 

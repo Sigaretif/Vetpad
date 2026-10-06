@@ -228,6 +228,90 @@ export function emptyOffersTable(request: RecordedRequest): Response | undefined
   return undefined;
 }
 
+// Supabase Auth, as the middleware talks to it through `supabase.auth.getUser()` (@supabase/ssr
+// 0.12 and auth-js 2.116, read from node_modules/@supabase/ssr/src/cookies.ts,
+// node_modules/@supabase/auth-js/src/GoTrueClient.ts and node_modules/@supabase/auth-js/src/lib/fetch.ts):
+//
+// - The session lives in the request's `Cookie` header under `sb-<ref>-auth-token`, where
+//   `<ref>` is the first label of the Supabase host — `sb-supabase-auth-token` for
+//   `SUPABASE_TEST_URL`. Its value is `base64-` followed by the session's JSON in base64url; a
+//   value over 3180 characters is split into `.0`, `.1`… chunks, which the session here never is.
+// - Without that cookie `getUser()` answers `AuthSessionMissingError` and makes no request.
+// - With a token that is not within 90 s of `expires_at`: one `GET <SUPABASE_URL>/auth/v1/user`
+//   carrying `Authorization: Bearer <access token>`. `200` with the user's JSON is the user. The
+//   request is sent once — an answer of any kind, or a rejected `fetch`, is never retried.
+// - With a token past `expires_at`, first `POST <SUPABASE_URL>/auth/v1/token?grant_type=refresh_token`
+//   with the body `{ "refresh_token": … }`. A refusal (`400`, `refresh_token_not_found`) ends
+//   there: no `/user` request follows, the client drops the session from its storage and
+//   `getUser()` returns the refusal. The client also writes to the console by itself here: each
+//   of its two auth-state listeners calls `console.warn` with the error, message included. A
+//   `5xx` or a rejected `fetch` on this request is retried with back-off for about 30 s, so no
+//   test here uses one.
+// - How an answer that is not `2xx` becomes an error (`handleError` in lib/fetch.ts):
+//   - a rejected `fetch` → `AuthRetryableFetchError`, status `0`;
+//   - `500`–`504` and `520`–`530` → `AuthRetryableFetchError` with that status, whatever the body;
+//   - any other status whose body is not JSON (a paused project's `540` with an HTML page) →
+//     `AuthUnknownError`, which has no status and no code;
+//   - a JSON body → `AuthApiError` with the response's status and, as its code, the body's
+//     `error_code` — except `session_not_found`, which becomes `AuthSessionMissingError`. The
+//     body's `msg` becomes the error's message.
+// - None of these throws: `getUser()` returns `{ data: { user: null }, error }` for all of them.
+
+/** The member the stubbed Auth knows. Canaries: no log entry may carry the address or a token. */
+export const SESSION_USER_ID = "7a2e9d41-5c3b-4f6a-9e1d-00000000cafe";
+export const SESSION_USER_EMAIL = "sesja.kanarek@vetpad.local";
+export const SESSION_ACCESS_TOKEN = "KANAREK-ACCESS-TOKEN-1f0e";
+export const SESSION_REFRESH_TOKEN = "KANAREK-REFRESH-TOKEN-9c7b";
+
+/** The user as `GET /auth/v1/user` answers it. */
+export const SESSION_USER = {
+  id: SESSION_USER_ID,
+  aud: "authenticated",
+  role: "authenticated",
+  email: SESSION_USER_EMAIL,
+  app_metadata: {},
+  user_metadata: {},
+  created_at: "2026-09-20T10:00:00.000Z",
+};
+
+/**
+ * The value of the session cookie for `SUPABASE_TEST_URL`, the way `@supabase/ssr` writes it. The
+ * access token is an hour from expiry, or an hour past it with `expired` — which makes the
+ * client refresh it before anything else.
+ */
+export function sessionCookieValue({ expired = false }: { expired?: boolean } = {}): string {
+  const now = Math.floor(Date.now() / 1000);
+  const session = {
+    access_token: SESSION_ACCESS_TOKEN,
+    refresh_token: SESSION_REFRESH_TOKEN,
+    token_type: "bearer",
+    expires_in: 3600,
+    expires_at: expired ? now - 3600 : now + 3600,
+    user: SESSION_USER,
+  };
+  return `base64-${Buffer.from(JSON.stringify(session), "utf8").toString("base64url")}`;
+}
+
+/** A `Cookie` header carrying that session. */
+export function sessionCookie(options: { expired?: boolean } = {}): string {
+  return `sb-supabase-auth-token=${sessionCookieValue(options)}`;
+}
+
+/** True for a request to the stubbed Supabase Auth: `GET /auth/v1/user` or `POST /auth/v1/token`. */
+export function isAuthRequest(request: RecordedRequest, endpoint: "user" | "token"): boolean {
+  const url = new URL(request.url);
+  return (
+    url.origin === SUPABASE_TEST_URL &&
+    url.pathname === `/auth/v1/${endpoint}` &&
+    request.method === (endpoint === "user" ? "GET" : "POST")
+  );
+}
+
+/** An error the way Supabase Auth sends one: the HTTP status as `code`, the reason as `error_code`. */
+export function authErrorResponse(status: number, errorCode: string, msg: string): Response {
+  return jsonResponse({ code: status, error_code: errorCode, msg }, status);
+}
+
 /** True for a request to otodom.pl. */
 export function isOtodomRequest(request: RecordedRequest): boolean {
   const host = new URL(request.url).hostname;
