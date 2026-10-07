@@ -5,14 +5,23 @@ import AddOfferForm from "@/components/offers/AddOfferForm";
 import NoteEditor from "@/components/offers/NoteEditor";
 import TeamLimitsForm from "@/components/criteria/TeamLimitsForm";
 import RequirementsEditor from "@/components/criteria/RequirementsEditor";
+import AuditSettingsForm from "@/components/criteria/AuditSettingsForm";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/form/FormField";
 import { PasswordToggle } from "@/components/form/PasswordToggle";
 import { SubmitButton } from "@/components/form/SubmitButton";
 import { ServerError } from "@/components/form/ServerError";
+import { SelectField } from "@/components/form/SelectField";
 import { TextareaField } from "@/components/form/TextareaField";
 import { NOTE_BLANK, NOTE_FIELDS, NOTE_FIELD_LABELS, NOTE_MAX_LENGTH } from "@/lib/notes";
 import { REQUIREMENTS_BLANK, REQUIREMENTS_MAX_LENGTH } from "@/lib/criteria";
+import {
+  AUDIT_EFFORTS,
+  AUDIT_EFFORT_LABELS,
+  AUDIT_MODELS,
+  AUDIT_MODEL_LABELS,
+  DEFAULT_AUDIT_SETTINGS,
+} from "@/lib/audit/settings";
 import { fullLimits } from "@/pages/dev/_criteria-fixtures";
 import {
   Banknote,
@@ -30,7 +39,7 @@ import {
 import { createElement } from "react";
 
 // Visual gate for the shared form composites: every named state of SignInForm, AddOfferForm,
-// NoteEditor, TeamLimitsForm and RequirementsEditor at once, in `astro dev` only. Anywhere else
+// NoteEditor, TeamLimitsForm, RequirementsEditor and AuditSettingsForm at once, in `astro dev` only. Anywhere else
 // (a production build, `npm run preview`) it answers 404 — `scripts/smoke.mjs` checks that on the
 // production preview. The status is set on
 // Astro.response, not returned, because a top-level `return` crashes
@@ -72,6 +81,10 @@ const reversedRange: Record<(typeof limitFields)[number]["name"], string> = {
   area_min: "45",
 };
 
+// The audit settings' two lists as AuditSettingsForm fills them, for the composite-only states.
+const modelOptions = AUDIT_MODELS.map((model) => ({ value: model, label: AUDIT_MODEL_LABELS[model].name }));
+const effortOptions = AUDIT_EFFORTS.map((effort) => ({ value: effort, label: AUDIT_EFFORT_LABELS[effort].name }));
+
 // The note editor posts for an offer; this fixture offer does not exist, so a save here fails.
 const noteOfferId = "00000000-0000-4000-8000-000000000001";
 const hiddenPasswordToggle = createElement(PasswordToggle, { visible: false, onToggle: noop });
@@ -88,9 +101,10 @@ const noteClass = "text-muted-foreground text-sm";
   <AppLayout title="Formularze — stany — Vetpad">
     <p class="text-muted-foreground text-sm">
       Strona testowa (tylko <code>astro dev</code>): <code>SignInForm</code>, <code>AddOfferForm</code>,{" "}
-      <code>NoteEditor</code>, <code>TeamLimitsForm</code> i <code>RequirementsEditor</code> w każdym nazwanym stanie,
-      złożonym z tych samych kompozytów (<code>src/components/form/</code>), których używają formularze w produkcji.
-      Zmiana wyglądu formularza przechodzi przez zrzut tej strony.
+      <code>NoteEditor</code>, <code>TeamLimitsForm</code>, <code>RequirementsEditor</code> i{" "}
+      <code>AuditSettingsForm</code> w każdym nazwanym stanie, złożonym z tych samych kompozytów (
+      <code>src/components/form/</code>), których używają formularze w produkcji. Zmiana wyglądu formularza przechodzi
+      przez zrzut tej strony.
     </p>
 
     <div class:list={stateClass} data-state="default">
@@ -115,6 +129,10 @@ const noteClass = "text-muted-foreground text-sm";
         <div class:list={columnClass} data-form="requirements">
           <p class:list={labelClass}>RequirementsEditor</p>
           <RequirementsEditor client:load own={null} />
+        </div>
+        <div class:list={columnClass} data-form="audit">
+          <p class:list={labelClass}>AuditSettingsForm</p>
+          <AuditSettingsForm client:load settings={DEFAULT_AUDIT_SETTINGS} />
         </div>
       </div>
     </div>
@@ -164,6 +182,14 @@ const noteClass = "text-muted-foreground text-sm";
             wymusza <code>:hover</code>. Pole: nie dotyczy (jak obok).
           </p>
         </div>
+        <div class:list={columnClass} data-form="audit">
+          <p class:list={labelClass}>AuditSettingsForm</p>
+          <p class:list={noteClass}>
+            Przycisk „Zapisz ustawienia” w stanie „default” powyżej: zrzut <code>forms-hover-audit-submit</code> wymusza{" "}
+            <code>:hover</code>. Wyzwalacz listy ma własny stan hover (<code>dark:hover:bg-input/50</code>): zrzut{" "}
+            <code>forms-hover-audit-select</code>.
+          </p>
+        </div>
       </div>
     </div>
 
@@ -207,6 +233,14 @@ const noteClass = "text-muted-foreground text-sm";
           <p class:list={noteClass}>
             Pole wymagań: ten sam <code>TextareaField</code> co „Zalety” notatki (zrzut{" "}
             <code>forms-focus-note-field</code>). „Edytuj” w podglądzie: zrzut na <code>/dev/criteria</code>.
+          </p>
+        </div>
+        <div class:list={columnClass} data-form="audit">
+          <p class:list={labelClass}>AuditSettingsForm</p>
+          <p class:list={noteClass}>
+            Wyzwalacz listy „Model” w stanie „default” powyżej, prawdziwymi naciśnięciami Tab (zrzut{" "}
+            <code>forms-focus-audit-select</code>): ten sam pierścień fokusu co <code>Input</code>. Lista „Poziom
+            rozumowania” to ten sam <code>SelectField</code>, przycisk to <code>SubmitButton</code>.
           </p>
         </div>
       </div>
@@ -262,6 +296,16 @@ const noteClass = "text-muted-foreground text-sm";
           </Button>
           <p class:list={noteClass}>
             „Anuluj” (tylko przy edycji zapisanych wymagań) blokuje się razem z przyciskiem zapisu. Pole: nie dotyczy.
+          </p>
+        </div>
+        <div class:list={columnClass} data-form="audit">
+          <p class:list={labelClass}>AuditSettingsForm</p>
+          <SubmitButton pending pendingText="Zapisywanie…" icon={saveIcon}>
+            Zapisz ustawienia
+          </SubmitButton>
+          <p class:list={noteClass}>
+            Przycisk zablokowany tylko w trakcie wysyłki (ten sam render co „loading”). Listy: nie dotyczy — nigdy nie
+            są blokowane, bo POST jest już wysłany, a strona się przeładuje.
           </p>
         </div>
       </div>
@@ -359,6 +403,31 @@ const noteClass = "text-muted-foreground text-sm";
           </p>
           <ServerError message="Nie udało się zapisać wymagań. Spróbuj ponownie." />
         </div>
+        <div class:list={columnClass} data-form="audit">
+          <p class:list={labelClass}>AuditSettingsForm</p>
+          <ServerError message="Nie udało się zapisać ustawień audytu. Spróbuj ponownie." />
+          <SelectField
+            id="error-audit-model"
+            name="model"
+            label="Model"
+            value={DEFAULT_AUDIT_SETTINGS.model}
+            onChange={noop}
+            options={modelOptions}
+          />
+          <SelectField
+            id="error-audit-effort"
+            name="effort"
+            label="Poziom rozumowania"
+            value={DEFAULT_AUDIT_SETTINGS.effort}
+            onChange={noop}
+            options={effortOptions}
+          />
+          <p class:list={noteClass}>
+            Komunikat serwera stoi nad listami. Błąd pola: nie dotyczy — lista zamknięta nie przyjmuje wartości, którą
+            trasa by odrzuciła. Nieudany odczyt ustawień (bez formularza): <code>/dev/criteria</code>, stan
+            „audit-read-error”.
+          </p>
+        </div>
       </div>
     </div>
 
@@ -443,6 +512,13 @@ const noteClass = "text-muted-foreground text-sm";
             rows={6}
           />
         </div>
+        <div class:list={columnClass} data-form="audit">
+          <p class:list={labelClass}>AuditSettingsForm</p>
+          <p class:list={noteClass}>
+            Nie dotyczy: wiersz ustawień istnieje od migracji i zawsze ma model i poziom rozumowania, więc formularz
+            nigdy nie otwiera się pusty.
+          </p>
+        </div>
       </div>
     </div>
 
@@ -477,6 +553,12 @@ const noteClass = "text-muted-foreground text-sm";
           <p class:list={labelClass}>RequirementsEditor</p>
           <SubmitButton pending pendingText="Zapisuję…" icon={saveIcon}>
             Zapisz wymagania
+          </SubmitButton>
+        </div>
+        <div class:list={columnClass} data-form="audit">
+          <p class:list={labelClass}>AuditSettingsForm</p>
+          <SubmitButton pending pendingText="Zapisywanie…" icon={saveIcon}>
+            Zapisz ustawienia
           </SubmitButton>
         </div>
       </div>

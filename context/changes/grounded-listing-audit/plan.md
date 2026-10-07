@@ -1283,28 +1283,28 @@ się raz.
 
 #### Automated
 
-- [x] 1.1 Migracje nakładają się na czystą bazę: `npx supabase db reset`
-- [x] 1.2 `npm run test:db` przechodzi z nowymi przypadkami usunięcia konta i ze skryptem stanów audytu
-- [x] 1.3 `npm run smoke` przechodzi z krokami RLS dla `offer_audits` i `audit_settings`
-- [x] 1.4 `npm run lint`, `npx astro sync && npx astro check` i `npm test` przechodzą
+- [x] 1.1 Migracje nakładają się na czystą bazę: `npx supabase db reset` — d7fc7c5
+- [x] 1.2 `npm run test:db` przechodzi z nowymi przypadkami usunięcia konta i ze skryptem stanów audytu — d7fc7c5
+- [x] 1.3 `npm run smoke` przechodzi z krokami RLS dla `offer_audits` i `audit_settings` — d7fc7c5
+- [x] 1.4 `npm run lint`, `npx astro sync && npx astro check` i `npm test` przechodzą — d7fc7c5
 
 #### Manual
 
-- [x] 1.5 Użytkownik przejrzał obie migracje: jedna polityka na operację, brak `for all`, brak `using (true)`, brak polityk dla `anon`
+- [x] 1.5 Użytkownik przejrzał obie migracje: jedna polityka na operację, brak `for all`, brak `using (true)`, brak polityk dla `anon` — d7fc7c5
 
 ### Phase 2: Ustawienia audytu zespołu
 
 #### Automated
 
-- [ ] 2.1 `npm test` przechodzi z testami odczytu i trasy ustawień audytu
-- [ ] 2.2 `npm run lint`, `npx astro sync && npx astro check` i `npm run build` przechodzą
-- [ ] 2.3 `npm run smoke` przechodzi z krokami ustawień audytu i z `/dev/*` nadal odpowiadającym 404 na podglądzie produkcyjnym
-- [ ] 2.4 `node scripts/ui-screenshots.mjs criteria context/changes/grounded-listing-audit/screenshots` i zestaw `forms` tworzą zrzuty nowych stanów
+- [x] 2.1 `npm test` przechodzi z testami odczytu i trasy ustawień audytu
+- [x] 2.2 `npm run lint`, `npx astro sync && npx astro check` i `npm run build` przechodzą
+- [x] 2.3 `npm run smoke` przechodzi z krokami ustawień audytu i z `/dev/*` nadal odpowiadającym 404 na podglądzie produkcyjnym
+- [x] 2.4 `node scripts/ui-screenshots.mjs criteria context/changes/grounded-listing-audit/screenshots` i zestaw `forms` tworzą zrzuty nowych stanów
 
 #### Manual
 
-- [ ] 2.5 Zmiana modelu i effort na `/criteria` jest po zapisie widoczna z podpisem osoby i datą, a ponowny zapis tych samych wartości nie zmienia podpisu
-- [ ] 2.6 Zrzuty pokazują każdy wiersz macierzy formularza ustawień, lista wyboru działa klawiaturą, widok mobilny nie przewija się w poziomie
+- [x] 2.5 Zmiana modelu i effort na `/criteria` jest po zapisie widoczna z podpisem osoby i datą, a ponowny zapis tych samych wartości nie zmienia podpisu
+- [x] 2.6 Zrzuty pokazują każdy wiersz macierzy formularza ustawień, lista wyboru działa klawiaturą, widok mobilny nie przewija się w poziomie
 
 ### Phase 3: Rdzeń audytu
 

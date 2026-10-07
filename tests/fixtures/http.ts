@@ -230,6 +230,29 @@ export const CHALLENGE_PAGE =
 // - With `maybeSingle()`, a `200` whose body is not an array is handed to the calling code as
 //   it came: an object is read as the row itself. A `200` whose requirements body is not an array
 //   is what makes `loadCriteria` throw inside; no answer makes `loadTeamLimits` throw.
+//
+// And as the audit settings module (src/lib/audit/settings.ts) and its route
+// (src/pages/api/audit-settings.ts) talk to it, read from the same file:
+//
+// - The team's audit settings with their signature, for `loadAuditSettings`:
+//   `.from("audit_settings").select("model, effort, updated_at, updated_by").eq("id", true)
+//   .maybeSingle()`:
+//   `GET <SUPABASE_URL>/rest/v1/audit_settings?select=model,effort,updated_at,updated_by
+//   &id=eq.true`. `maybeSingle()` is the client-side flag described above: `200 []` becomes
+//   `data: null` with no error, which here is the missing singleton row; `[row]` becomes `row`,
+//   and two rows become an error, `PGRST116`. A `200` whose body is an object is read as the row
+//   itself, so no answer makes `loadAuditSettings` throw.
+// - After it, only when the row carries a date and a signature that is not the viewer's, the "one
+//   member" request above (`resolveSaver`) — none at all for settings never changed, changed by
+//   the viewer, or signed by nobody (a deleted account).
+// - The save, `.from("audit_settings").update({ model, effort }).eq("id", true).select("id")`:
+//   `PATCH <SUPABASE_URL>/rest/v1/audit_settings?id=eq.true&select=id` with
+//   `Content-Type: application/json` and `Prefer: return=representation`; the body is
+//   `JSON.stringify({ model, effort })`. PostgREST answers `200` with an array of the rows it
+//   changed — `[{ "id": true }]`, also when the values were the same as before, or `[]` when RLS
+//   filtered the update down to no row, which is not an error. The trigger's refusal of a change
+//   it cannot sign answers `403` with `{ "code": "42501", … }`, and a value outside the table's
+//   checks `400` with `{ "code": "23514", … }`.
 
 /** Test values only — never a real project's. */
 export const SUPABASE_TEST_URL = "https://supabase.test";

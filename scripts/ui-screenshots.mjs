@@ -52,10 +52,16 @@ const FOCUS = {
   boardSort: `el.matches("[data-state=default] nav[aria-label='Sortowanie ofert'] a")`,
   // /dev/forms: the real TeamLimitsForm island in the "default" section, its first field („Miasto").
   limitsField: `el.matches("[data-state=default] [data-form=limits] input[name=city]")`,
+  // /dev/forms: the real AuditSettingsForm island in the "default" section. Its two lists are Radix
+  // triggers (button[role=combobox]); Tab reaches „Model" first. The trigger carries a `data-state`
+  // of its own (open/closed), which the section's `[data-state=default]` ancestor does not meet.
+  auditSelect: `el.matches("[data-state=default] [data-form=audit] button[role=combobox]")`,
   // /dev/criteria: the "full" section only — every section renders the whole view.
   criteriaCity: `el.matches("[data-state=full] [data-criteria-section=limits] input[name=city]")`,
   // The own requirements' „Edytuj" in preview; „Usuń" beside it is a button too.
   requirementsEdit: `el.matches("[data-state=full] [data-criteria-section=requirements] button") && el.textContent.trim() === "Edytuj"`,
+  // The audit settings' „Model" list in the same section: the first of its two triggers.
+  criteriaAuditModel: `el.matches("[data-state=full] [data-criteria-section=audit] button[role=combobox]")`,
   // /dev/errors: the 503 view's main link, „Spróbuj ponownie"; „Przejdź do logowania" follows it.
   errorsRetry: `el.matches("[data-state='503'] [data-error-page] a") && el.textContent.trim() === "Spróbuj ponownie"`,
 };
@@ -115,6 +121,19 @@ const SETS = {
       path: FORMS_KITCHEN_SINK,
       hover: "[data-state=default] [data-form=requirements] button[type=submit]",
     },
+    // The audit settings form: its „Model" list focused and hovered, and its submit button hovered.
+    // Its disabled and loading renders are in the full-page shots above.
+    { name: "forms-focus-audit-select", path: FORMS_KITCHEN_SINK, focus: "auditSelect" },
+    {
+      name: "forms-hover-audit-select",
+      path: FORMS_KITCHEN_SINK,
+      hover: "[data-state=default] [data-form=audit] button[role=combobox]",
+    },
+    {
+      name: "forms-hover-audit-submit",
+      path: FORMS_KITCHEN_SINK,
+      hover: "[data-state=default] [data-form=audit] button[type=submit]",
+    },
   ],
   board: [
     { name: "board-desktop", path: BOARD_KITCHEN_SINK },
@@ -139,6 +158,34 @@ const SETS = {
       name: "criteria-hover-limits-submit",
       path: CRITERIA_KITCHEN_SINK,
       hover: "[data-state=full] [data-criteria-section=limits] button[type=submit]",
+    },
+    // The audit settings section on its own: current values with their signature, never changed
+    // (no signature), a failed save above the form, and a failed read with no form.
+    {
+      name: "criteria-audit-default",
+      path: CRITERIA_KITCHEN_SINK,
+      clip: "[data-state=full] [data-criteria-section=audit]",
+    },
+    {
+      name: "criteria-audit-unsigned",
+      path: CRITERIA_KITCHEN_SINK,
+      clip: "[data-state=empty] [data-criteria-section=audit]",
+    },
+    {
+      name: "criteria-audit-error",
+      path: CRITERIA_KITCHEN_SINK,
+      clip: "[data-state=audit-error] [data-criteria-section=audit]",
+    },
+    {
+      name: "criteria-audit-read-error",
+      path: CRITERIA_KITCHEN_SINK,
+      clip: "[data-state=audit-read-error] [data-criteria-section=audit]",
+    },
+    { name: "criteria-focus-audit-model", path: CRITERIA_KITCHEN_SINK, focus: "criteriaAuditModel" },
+    {
+      name: "criteria-hover-audit-submit",
+      path: CRITERIA_KITCHEN_SINK,
+      hover: "[data-state=full] [data-criteria-section=audit] button[type=submit]",
     },
   ],
   errors: [
@@ -176,15 +223,18 @@ Sets:
           note's „Edytuj" button, and a forced :hover on that button
   forms   ${FORMS_KITCHEN_SINK}: desktop, mobile 375 px, focus on the email field,
           the password toggle, the submit button, the errored field, the
-          note's first field and the limits' city field, and a forced :hover
-          on the sign-in, the note and the requirements submit buttons
+          note's first field, the limits' city field and the audit settings'
+          „Model" list, and a forced :hover on the sign-in, the note, the
+          requirements and the audit settings submit buttons and on that list
   board   ${BOARD_KITCHEN_SINK}: desktop, mobile 375 px, focus on the first offer row and
           the first sort link, a forced :hover on the first offer row and on
           a row outside the team's limits, and the sections with limit
           breaches and with a failed limits read on their own
-  criteria ${CRITERIA_KITCHEN_SINK}: desktop, mobile 375 px, focus on the city field
-          and on the own requirements' „Edytuj", and a forced :hover on
-          „Zapisz limity"
+  criteria ${CRITERIA_KITCHEN_SINK}: desktop, mobile 375 px, focus on the city field,
+          on the own requirements' „Edytuj" and on the audit settings'
+          „Model" list, a forced :hover on „Zapisz limity" and on „Zapisz
+          ustawienia", and the audit settings section on its own: signed,
+          never changed, with a failed save and with a failed read
   errors  ${ERRORS_KITCHEN_SINK}: the 500 and 503 pages' views, desktop, mobile 375 px,
           focus on „Spróbuj ponownie" and a forced :hover on it
   views   signin, signin with an error, signin mobile 375 px, home (signed out),

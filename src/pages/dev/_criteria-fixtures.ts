@@ -1,9 +1,10 @@
-// Criteria for the /dev/criteria kitchen sink (and the limits and requirements columns of
-// /dev/forms): one per named state of the view, so the visual gate renders without Supabase
-// (zero-config). The `_` prefix keeps this file out of routing. Savers come from the offer
+// Criteria and audit settings for the /dev/criteria kitchen sink (and the limits, requirements
+// and audit settings columns of /dev/forms): one per named state of the view, so the visual gate
+// renders without Supabase (zero-config). The `_` prefix keeps this file out of routing. Savers come from the offer
 // fixtures — `example.com` addresses that name a role, never a person — and requirements talk
 // about the flat only: no people, no phone numbers, no company names.
 
+import { DEFAULT_AUDIT_SETTINGS, type AuditSettingsResult } from "@/lib/audit/settings";
 import type { CriteriaResult, RequirementsView, TeamLimits } from "@/lib/criteria";
 import type { Saver } from "@/lib/members";
 import { deletedSaver, longEmailSaver, memberSaver, selfSaver, unknownSaver } from "@/pages/dev/_offer-fixtures";
@@ -145,3 +146,59 @@ export const longCriteria: CriteriaResult = {
   own: longWordRequirements,
   others: [longEmailRequirements],
 };
+
+/** The settings as the migration leaves them: the defaults, never changed, so no signature. */
+export const defaultAuditSettings: AuditSettingsResult = {
+  state: "ok",
+  ...DEFAULT_AUDIT_SETTINGS,
+  changedBy: null,
+  changedAt: null,
+};
+
+/** The other model and the highest effort, chosen by another member. */
+export const memberAuditSettings: AuditSettingsResult = {
+  state: "ok",
+  model: "claude-sonnet-5-5",
+  effort: "high",
+  changedBy: memberSaver,
+  changedAt: "2026-10-06T16:40:00Z",
+};
+
+/** The lowest effort, chosen by the viewer. */
+export const selfAuditSettings: AuditSettingsResult = {
+  state: "ok",
+  model: "claude-opus-5-5",
+  effort: "low",
+  changedBy: selfSaver,
+  changedAt: "2026-10-05T09:15:00Z",
+};
+
+/** Settings last changed by an account that has since been deleted. */
+export const deletedSaverAuditSettings: AuditSettingsResult = {
+  state: "ok",
+  model: "claude-sonnet-5-5",
+  effort: "medium",
+  changedBy: deletedSaver,
+  changedAt: "2026-10-01T12:00:00Z",
+};
+
+/** Whoever changed the settings could not be established: the date stands, nobody is named. */
+export const unknownAuthorAuditSettings: AuditSettingsResult = {
+  state: "ok",
+  model: "claude-opus-5-5",
+  effort: "high",
+  changedBy: unknownSaver,
+  changedAt: "2026-10-02T18:30:00Z",
+};
+
+/** A very long address in the signature: it must wrap at 375 px. */
+export const longEmailAuditSettings: AuditSettingsResult = {
+  state: "ok",
+  model: "claude-sonnet-5-5",
+  effort: "low",
+  changedBy: longEmailSaver,
+  changedAt: "2026-10-03T07:05:00Z",
+};
+
+/** A failed read: the section renders no form, and never the defaults. */
+export const failedAuditSettings: AuditSettingsResult = { state: "error" };

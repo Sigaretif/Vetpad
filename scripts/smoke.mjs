@@ -64,17 +64,24 @@
 // for that comparison. The first fixture offer is left without an attempt for the whole run: it is the offer whose
 // card the run opens, and it stays one that was never audited. Deleting the second fixture offer takes the attempt
 // with it.
+// The audit settings through the app (FR-010): /api/audit-settings turns an anonymous caller away, and a forged
+// session too. Signed in, it refuses a body that is not a form, a model outside the list and an effort outside the
+// list - each lands back on /criteria naming its form (`&form=audit#audyt`), and the settings row is the same
+// afterwards. Saving a model and an effort the row did not hold is the control step for the route: the row must be
+// reported as changed, and is then read back holding both values, signed by the member. /criteria shows them under
+// data-audit-settings-state="ok", as data-audit-model and data-audit-effort on the same section, and saving the same
+// values again leaves the whole row - signature and date included - as it was.
 // Cleanup runs whatever failed before it: the limits read at the start are written back (signed by the first
 // member, as any restore would be), the audit settings read at the start likewise, and both members' requirements
 // are deleted with the rows counted - none left of the first member's, which the route removed, and one of the
 // second member's, which must have lasted until then.
 // A session Auth refuses is a sign-out, never an outage (src/middleware.ts): before signing in, it sends a forged
 // session cookie - named after the SUPABASE_URL host, with a token that has not expired and a signature that is not
-// real - on GET /dashboard and on POST /api/offers, and both must redirect to /auth/signin, not answer with the 503
-// page. The cookie goes instead of the cookie jar and nothing the server answers is stored in it. An outage itself
-// cannot be played against a live Auth; tests/middleware.test.ts covers it. The error pages answer under their own
-// addresses with their own status and marker: /503 with 503 and data-error-page="503", /500 with 500 and
-// data-error-page="500".
+// real - on GET /dashboard, on POST /api/offers and on POST /api/audit-settings, and each must redirect to
+// /auth/signin, not answer with the 503 page. The cookie goes instead of the cookie jar and nothing the server
+// answers is stored in it. An outage itself cannot be played against a live Auth; tests/middleware.test.ts covers
+// it. The error pages answer under their own addresses with their own status and marker: /503 with 503 and
+// data-error-page="503", /500 with 500 and data-error-page="500".
 // It also checks that the dev-only kitchen sinks /dev/offer-card, /dev/forms, /dev/board, /dev/criteria and /dev/errors answer 404: in CI this runs
 // against the production preview, where the pages must not exist (on `npm run dev` those steps fail by design).
 // Zero dependencies on purpose. Run against a live server: BASE_URL=http://localhost:4321 npm run smoke
@@ -147,6 +154,10 @@ let limitsBefore = null;
 // The team's audit settings: one row, and the two models its check admits (public.audit_settings).
 const AUDIT_SETTINGS = "audit_settings?id=eq.true";
 const AUDIT_MODELS = ["claude-opus-5-5", "claude-sonnet-5-5"];
+// The three efforts its other check admits.
+const AUDIT_EFFORTS = ["low", "medium", "high"];
+// The audit settings section's marker for a successful read on /criteria; a failed read renders "error".
+const AUDIT_SETTINGS_OK = 'data-audit-settings-state="ok"';
 // The audit settings as they stood before this run, read before the first write and written back by cleanup.
 let auditSettingsBefore = null;
 // The audit attempt this run starts hangs on the second fixture offer. The first one - the offer behind FIXTURE_CARD,
@@ -667,6 +678,50 @@ async function patchAuditSettingsSignature() {
   });
 }
 
+// The model and the effort this run saves through /api/audit-settings: the model the settings held at the start,
+// which the control step above has switched away from by then, and an effort they did not hold. So the save is a
+// real change of the row whatever the local database held, and cleanup still writes back what was read. Throws
+// when the settings were never read, which fails the step that asked for it.
+function formAuditSettings() {
+  if (auditSettingsBefore === null) {
+    throw new Error("the audit settings were never read at the start, so no other values are known");
+  }
+  return {
+    model: auditSettingsBefore.model,
+    effort: AUDIT_EFFORTS.find((effort) => effort !== auditSettingsBefore.effort),
+  };
+}
+
+// A member saves those settings the way the form on /criteria does.
+function saveAuditSettingsThroughForm() {
+  return request("/api/audit-settings", { method: "POST", form: formAuditSettings() });
+}
+
+// The audit settings, read only if they hold what the form saved and the first member signed them: a separate
+// read, because a redirect says nothing about the stored row.
+async function auditSettingsAsSavedThroughForm() {
+  const member = await memberId(MEMBER);
+  if (member.error) return { status: 0, location: "", error: member.error };
+  const { model, effort } = formAuditSettings();
+  return supabaseRest(
+    `${AUDIT_SETTINGS}&model=eq.${model}&effort=eq.${effort}&updated_by=eq.${member.userId}&select=id`,
+    { as: MEMBER },
+  );
+}
+
+// /criteria as the member sees it after that save. The settings section names the stored model and effort in its
+// own attributes, so the page is checked for the values the form sent and not for a label. Throws when either is
+// missing, which fails the step that asked for it.
+async function criteriaAfterAuditSettingsSave() {
+  const { model, effort } = formAuditSettings();
+  const response = await request("/criteria");
+  const missing = [`data-audit-model="${model}"`, `data-audit-effort="${effort}"`].filter(
+    (marker) => !response.body.includes(marker),
+  );
+  if (missing.length > 0) throw new Error(`/criteria does not carry ${missing.join(" or ")} (${response.status})`);
+  return response;
+}
+
 // Writes back the audit settings read at the start. As with the limits, the trigger signs the row with the first
 // member whenever that changes a value; who chose the settings before the run cannot be restored, only what they
 // were.
@@ -846,6 +901,16 @@ const steps = [
     () => request("/api/requirements", { method: "POST", form: { body: "smoke" } }),
     { status: 302, location: "/auth/signin" },
   ],
+  // The values are ones the route would save, so the redirect is the missing session and not a refused value. The
+  // settings row is watched around it: an anonymous save must not reach it.
+  [
+    "audit settings save redirects anonymous user",
+    () =>
+      withSnapshot([observedAuditSettings()], () =>
+        request("/api/audit-settings", { method: "POST", form: { model: AUDIT_MODELS[1], effort: "low" } }),
+      ),
+    { status: 302, location: "/auth/signin", snapshot: "same" },
+  ],
   // A session Auth refuses reads as signed out, on a page and on a form route alike: the 503 page is for an Auth
   // that could not answer, never for one that said no.
   [
@@ -861,6 +926,17 @@ const steps = [
         form: { url: "https://www.otodom.pl/pl/oferta/x-ID1" },
       }),
     { status: 302, location: "/auth/signin" },
+  ],
+  [
+    "audit settings save redirects a forged session to sign-in",
+    () =>
+      withSnapshot([observedAuditSettings()], () =>
+        requestWithForgedSession("/api/audit-settings", {
+          method: "POST",
+          form: { model: AUDIT_MODELS[1], effort: "low" },
+        }),
+      ),
+    { status: 302, location: "/auth/signin", snapshot: "same" },
   ],
   ["criteria page redirects anonymous user", () => request("/criteria"), { status: 302, location: "/auth/signin" }],
   [
@@ -1441,6 +1517,56 @@ const steps = [
     "member's patch of the audit settings' signature, date and id is accepted and changes nothing",
     () => withSnapshot([observedAuditSettings()], () => patchAuditSettingsSignature()),
     { status: 200, rows: 1, snapshot: "same" },
+  ],
+  // The settings through the app's own route, with the member's session cookie. A refusal lands back on /criteria
+  // naming the settings form, and the row is the same afterwards.
+  [
+    "audit settings save rejects a non-form body",
+    () =>
+      withSnapshot([observedAuditSettings()], () =>
+        request("/api/audit-settings", { method: "POST", json: { model: AUDIT_MODELS[0], effort: "medium" } }),
+      ),
+    { status: 302, locationPrefix: "/criteria?error=", locationIncludes: "&form=audit#audyt", snapshot: "same" },
+  ],
+  [
+    "audit settings save rejects a model outside the list",
+    () =>
+      withSnapshot([observedAuditSettings()], () =>
+        request("/api/audit-settings", { method: "POST", form: { model: "smoke-model", effort: "medium" } }),
+      ),
+    { status: 302, locationPrefix: "/criteria?error=", locationIncludes: "&form=audit#audyt", snapshot: "same" },
+  ],
+  // `max` is an effort the provider takes and the team's list leaves out.
+  [
+    "audit settings save rejects an effort outside the list",
+    () =>
+      withSnapshot([observedAuditSettings()], () =>
+        request("/api/audit-settings", { method: "POST", form: { model: AUDIT_MODELS[0], effort: "max" } }),
+      ),
+    { status: 302, locationPrefix: "/criteria?error=", locationIncludes: "&form=audit#audyt", snapshot: "same" },
+  ],
+  // The control for the route, as the Data API one above is for the table: the form's save must be reported as a
+  // change, or the "same" steps around it would pass on a route that writes nothing.
+  [
+    "control: audit settings save stores the chosen model and effort and is reported as changed",
+    () => withSnapshot([observedAuditSettings()], () => saveAuditSettingsThroughForm()),
+    { status: 302, location: "/criteria#audyt", snapshot: "changed" },
+  ],
+  [
+    "audit settings hold what the form saved, signed by the member",
+    () => auditSettingsAsSavedThroughForm(),
+    { status: 200, rows: 1 },
+  ],
+  [
+    "criteria page shows the saved audit settings",
+    () => criteriaAfterAuditSettingsSave(),
+    { status: 200, bodyIncludes: [CRITERIA_OK, AUDIT_SETTINGS_OK] },
+  ],
+  // The trigger keeps the signature and the date when nothing changes, so re-saving the form is not a change.
+  [
+    "saving the same audit settings again keeps the row, its signature and date",
+    () => withSnapshot([observedAuditSettings()], () => saveAuditSettingsThroughForm()),
+    { status: 302, location: "/criteria#audyt", snapshot: "same" },
   ],
   // Audit attempts. The anonymous insert aims at the first fixture offer, which has no audit row: were it admitted,
   // no unique violation would hide it, and the step after the member's insert would find it.

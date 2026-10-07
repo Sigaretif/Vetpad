@@ -3,9 +3,11 @@ import { CircleAlert } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { ServerError } from "@/components/form/ServerError";
+import AuditSettingsForm from "@/components/criteria/AuditSettingsForm";
 import { RequirementsCard } from "@/components/criteria/RequirementsCard";
 import RequirementsEditor from "@/components/criteria/RequirementsEditor";
 import TeamLimitsForm from "@/components/criteria/TeamLimitsForm";
+import { AUDIT_EFFORT_LABELS, AUDIT_MODEL_LABELS, type AuditSettingsResult } from "@/lib/audit/settings";
 import type { CriteriaResult } from "@/lib/criteria";
 import { formatTimestamp } from "@/lib/format";
 import { saverName } from "@/lib/members";
@@ -14,31 +16,50 @@ import { formatArea, formatMoney } from "@/lib/otodom/labels";
 /*
  * The team's search criteria (FR-002, FR-003): the shared limits with who last changed them and
  * the form that edits them, then the member's own requirements in the editor island and everyone
- * else's, rendered without a client directive. One component for /criteria and the
- * /dev/criteria kitchen sink.
+ * else's, rendered without a client directive. Below them, the team's audit settings (FR-010):
+ * the model and the reasoning effort the next AI audit runs with, who last changed them, and the
+ * form that changes them. One component for /criteria and the /dev/criteria kitchen sink.
  *
  * A failed read is never "no limits": the view then renders no form, because a form prefilled
  * from it would overwrite the team's row with blanks. `data-criteria-state` carries ok or error
  * into the markup, where scripts/smoke.mjs can check it — a 200 alone cannot tell them apart.
+ *
+ * The audit settings are a read of their own, so their section renders whatever the criteria
+ * read did, and carries its own `data-audit-settings-state`. A failed settings read is never
+ * shown as the defaults, and renders no form either. With a successful one the section also
+ * carries the stored values as `data-audit-model` and `data-audit-effort`, for the same script.
  */
 interface Props {
   criteria: CriteriaResult;
+  auditSettings: AuditSettingsResult;
   /** The page's `?error=`, and which form it belongs to (`?form=`); `null` when none is named. */
   serverError?: string | null;
-  serverErrorFor?: "limits" | "requirements" | null;
+  serverErrorFor?: "limits" | "requirements" | "audit" | null;
   startEditing?: boolean;
-  /** Appended to the sections' ids: the routes redirect to `#limity`/`#wymagania`; the kitchen sink passes unique values. */
+  /** Appended to the sections' ids: the routes redirect to `#limity`/`#wymagania`/`#audyt`; the kitchen sink passes unique values. */
   anchorSuffix?: string;
 }
 
-const { criteria, serverError = null, serverErrorFor = null, startEditing = false, anchorSuffix = "" } = Astro.props;
+const {
+  criteria,
+  auditSettings,
+  serverError = null,
+  serverErrorFor = null,
+  startEditing = false,
+  anchorSuffix = "",
+} = Astro.props;
 
 const limitsId = `limity${anchorSuffix}`;
 const requirementsId = `wymagania${anchorSuffix}`;
+const auditId = `audyt${anchorSuffix}`;
 const limitsError = serverErrorFor === "limits" ? serverError : null;
 const requirementsError = serverErrorFor === "requirements" ? serverError : null;
-// A message that names no form is still shown once, above both, rather than lost.
+// The audit section renders in every state of the view, so its message is always shown there.
+const auditError = serverErrorFor === "audit" ? serverError : null;
+// A message that names no form is still shown once, above the criteria forms, rather than lost.
 const unattributedError = serverErrorFor === null ? serverError : null;
+// With the criteria unread neither criteria form renders, so their messages are shown above the alert.
+const criteriaError = serverErrorFor === "audit" ? null : serverError;
 
 const NO_LIMIT = "bez limitu";
 
@@ -65,6 +86,20 @@ const limitRows =
 // we could not establish is not named at all, and limits never set carry no signature.
 const changedAt = criteria.state === "ok" ? criteria.limitsChangedAt : null;
 const changedBy = criteria.state === "ok" && criteria.limitsChangedBy ? saverName(criteria.limitsChangedBy) : null;
+
+const settingRows =
+  auditSettings.state === "ok"
+    ? [
+        { label: "Model", value: AUDIT_MODEL_LABELS[auditSettings.model] },
+        { label: "Poziom rozumowania", value: AUDIT_EFFORT_LABELS[auditSettings.effort] },
+      ]
+    : [];
+
+// The same rule as for the limits: settings never changed carry no signature, and a member we
+// could not establish is not named.
+const settingsChangedAt = auditSettings.state === "ok" ? auditSettings.changedAt : null;
+const settingsChangedBy =
+  auditSettings.state === "ok" && auditSettings.changedBy ? saverName(auditSettings.changedBy) : null;
 
 const sectionClass = "flex scroll-mt-4 flex-col gap-4";
 const labelClass = "text-muted-foreground mb-1 text-xs font-medium tracking-wide uppercase";
@@ -162,11 +197,82 @@ const labelClass = "text-muted-foreground mb-1 text-xs font-medium tracking-wide
   ) : (
     <>
       {/* A failed save that landed on a failed read: the member still has to learn the save did not happen. */}
-      <ServerError message={serverError} />
+      <ServerError message={criteriaError} />
       <Alert variant="destructive">
         <CircleAlert />
         <AlertDescription>Nie udało się wczytać kryteriów.</AlertDescription>
       </Alert>
     </>
   )}
+
+  <section
+    id={auditId}
+    aria-labelledby={`${auditId}-naglowek`}
+    data-criteria-section="audit"
+    data-audit-settings-state={auditSettings.state}
+    data-audit-model={auditSettings.state === "ok" ? auditSettings.model : undefined}
+    data-audit-effort={auditSettings.state === "ok" ? auditSettings.effort : undefined}
+    class:list={sectionClass}
+  >
+    <div class="flex flex-col gap-1">
+      <h2 id={`${auditId}-naglowek`} class="text-xl font-semibold">
+        Ustawienia audytu AI
+      </h2>
+      <p class="text-muted-foreground text-sm">
+        Model i poziom rozumowania, z którymi wykonywany jest audyt AI ogłoszenia. Wspólne dla całego zespołu — każdy
+        członek może je zmienić.
+      </p>
+    </div>
+
+    {auditSettings.state === "ok" ? (
+      <div class="grid gap-4 md:grid-cols-2 md:items-start">
+        <Card className="gap-4">
+          <CardHeader>
+            <h3 class="leading-snug font-semibold">Obowiązujące ustawienia</h3>
+            {settingsChangedAt !== null && (
+              <CardDescription>
+                Ostatnio zmienione{" "}
+                {settingsChangedBy !== null && <span class="wrap-anywhere">przez {settingsChangedBy},</span>}{" "}
+                <time datetime={settingsChangedAt}>{formatTimestamp(settingsChangedAt)}</time>
+              </CardDescription>
+            )}
+          </CardHeader>
+          <CardContent>
+            <dl class="flex flex-col gap-3 text-sm">
+              {settingRows.map((row) => (
+                <div>
+                  <dt class:list={labelClass}>{row.label}</dt>
+                  <dd class="wrap-anywhere">
+                    {row.value.name} <span class="text-muted-foreground">({row.value.hint})</span>
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </CardContent>
+        </Card>
+
+        <Card className="gap-4">
+          <CardHeader>
+            <h3 class="leading-snug font-semibold">Zmień ustawienia</h3>
+          </CardHeader>
+          <CardContent>
+            <AuditSettingsForm
+              client:load
+              settings={{ model: auditSettings.model, effort: auditSettings.effort }}
+              serverError={auditError}
+            />
+          </CardContent>
+        </Card>
+      </div>
+    ) : (
+      <>
+        {/* As for the criteria: a failed save that landed on a failed read is still reported. */}
+        <ServerError message={auditError} />
+        <Alert variant="destructive">
+          <CircleAlert />
+          <AlertDescription>Nie udało się wczytać ustawień audytu.</AlertDescription>
+        </Alert>
+      </>
+    )}
+  </section>
 </div>
