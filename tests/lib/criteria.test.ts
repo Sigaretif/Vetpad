@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { type CriteriaResult, type TeamLimitsResult, loadCriteria, loadTeamLimits } from "@/lib/criteria";
+import {
+  type AuditCriteriaResult,
+  type CriteriaResult,
+  type TeamLimitsResult,
+  loadAuditCriteria,
+  loadCriteria,
+  loadTeamLimits,
+} from "@/lib/criteria";
 import { createClient } from "@/lib/supabase";
 import { type RecordedRequest, isTableRequest, jsonResponse, restoreFetch, stubFetch } from "../fixtures/http";
 
@@ -19,7 +26,10 @@ vi.mock("astro:env/server", async () => {
 // `updated_by` means with and without a date), the `resolveAuthors` contract in
 // context/archive/2026-09-26-member-notes/plan.md, and CLAUDE.md (## Structure, the
 // `team_criteria` bullet: a failed read is its own state, never "no limits", and so is a value
-// that does not read as a limit).
+// that does not read as a limit). For `loadAuditCriteria`: its contract in
+// context/changes/grounded-listing-audit/plan.md (Phase 3: the limits, the requirements' texts
+// alone in a fixed order, and the revision read before and after them — one difference repeats
+// the read, a second is an error) and the `criteria_revision` section of the same migration.
 //
 // The two states that must never be confused are "the read failed" and "the team has set no
 // limits": on the board the second would hide every breach, and on /criteria a form prefilled
@@ -613,5 +623,411 @@ describe("loadTeamLimits: a failed read is never a team without limits (#1)", ()
     expect(limits).toEqual({ ok: false });
     expect(limits).not.toEqual(NO_LIMITS);
     expect(stub.requests).toHaveLength(1);
+  });
+});
+
+// The audit's read. What it must never be confused with is "the team has no criteria": an audit
+// is allowed without any, so a failed read answered as none would be stored as an audit made
+// against no limits and no requirements, under a revision nobody read.
+
+/** "No limits, no requirements, never revised": a successful read. */
+const NO_AUDIT_CRITERIA: AuditCriteriaResult = {
+  state: "ok",
+  limits: { city: null, priceMin: null, priceMax: null, areaMin: null },
+  requirements: [],
+  revision: 0,
+};
+
+function revision(value: unknown): () => Response {
+  return rows({ revision: value });
+}
+
+/** Answers in turn, one per request; a request past the last answer is unplanned. */
+function inTurn(...answers: (() => Response)[]): () => Response | undefined {
+  let next = 0;
+  return () => {
+    const answer = answers.at(next);
+    next += 1;
+    return answer?.();
+  };
+}
+
+interface AuditAnswers {
+  /** One answer per read of `criteria_revision`, in the order the reads are made. */
+  revisions: (() => Response)[];
+  /** One answer per read of `team_criteria`; a single one serves a read that is not repeated. */
+  criteria?: (() => Response)[];
+  requirements?: (() => Response)[];
+}
+
+/**
+ * Answers the three tables `loadAuditCriteria` reads, each from its own list in turn. `members`
+ * and `offer_notes` have no answer: the audit's criteria name nobody and never touch a note, so
+ * a request to either fails the test.
+ */
+function stubAuditCriteria({ revisions, criteria = [], requirements = [] }: AuditAnswers) {
+  const nextRevision = inTurn(...revisions);
+  const nextCriteria = inTurn(...criteria);
+  const nextRequirements = inTurn(...requirements);
+  return stubFetch((request) => {
+    if (isTableRequest(request, "criteria_revision", "GET")) return nextRevision();
+    if (isTableRequest(request, "team_criteria", "GET")) return nextCriteria();
+    if (isTableRequest(request, "member_requirements", "GET")) return nextRequirements();
+    return undefined;
+  });
+}
+
+/** The tables asked, in the order of the requests. */
+function tablesAsked(requests: RecordedRequest[]): string[] {
+  return requests.map((request) => new URL(request.url).pathname.replace("/rest/v1/", ""));
+}
+
+describe("loadAuditCriteria: a failed read is its own state, never an audit without criteria (#1)", () => {
+  it("control: answers no limits, no requirements and revision 0 for a team that has set nothing", async () => {
+    const stub = stubAuditCriteria({
+      revisions: [revision(0), revision(0)],
+      criteria: [rows(UNSET_LIMITS)],
+      requirements: [noRows],
+    });
+
+    // An unset limit is null — never 0, never "" — and the counter starts at 0.
+    expect(await loadAuditCriteria(client())).toEqual({
+      state: "ok",
+      limits: { city: null, priceMin: null, priceMax: null, areaMin: null },
+      requirements: [],
+      revision: 0,
+    });
+
+    // The revision, the criteria, the revision again — and nothing else.
+    expect(requestsTo(stub.requests, "criteria_revision")).toHaveLength(2);
+    expect(requestsTo(stub.requests, "team_criteria")).toHaveLength(1);
+    expect(requestsTo(stub.requests, "member_requirements")).toHaveLength(1);
+    expect(stub.requests).toHaveLength(4);
+  });
+
+  it("answers error without a client, and asks the database nothing", async () => {
+    const stub = stubFetch(() => undefined);
+
+    const criteria = await loadAuditCriteria(null);
+
+    expect(criteria).toEqual({ state: "error" });
+    expect(criteria).not.toEqual(NO_AUDIT_CRITERIA);
+    expect(stub.requests).toHaveLength(0);
+  });
+
+  // The first read of the revision decides before anything else is asked.
+  it.each<[string, () => Response]>([
+    ["the database fails the read (500)", failedRead],
+    ["the singleton row is missing (200 [])", noRows],
+    ["the read answers two rows (PGRST116)", rows({ revision: 0 }, { revision: 0 })],
+    ["the row has no revision column", rows({})],
+    ["the row is null", rows(null)],
+    ["the body is an empty object", () => jsonResponse({}, 200)],
+  ])("answers error when %s for the first read of the revision, and reads no criteria", async (_case, answer) => {
+    const stub = stubAuditCriteria({ revisions: [answer] });
+
+    const criteria = await loadAuditCriteria(client());
+
+    expect(criteria).toEqual({ state: "error" });
+    expect(criteria).not.toEqual(NO_AUDIT_CRITERIA);
+    expect(tablesAsked(stub.requests)).toEqual(["criteria_revision"]);
+  });
+
+  // The criteria were read, and what they were read under could not be confirmed.
+  it.each<[string, () => Response]>([
+    ["the database fails the read (500)", failedRead],
+    ["the singleton row is missing (200 [])", noRows],
+    ["the row has no revision column", rows({})],
+  ])("answers error when %s for the second read of the revision", async (_case, answer) => {
+    const stub = stubAuditCriteria({
+      revisions: [revision(0), answer],
+      criteria: [rows(UNSET_LIMITS)],
+      requirements: [noRows],
+    });
+
+    const criteria = await loadAuditCriteria(client());
+
+    expect(criteria).toEqual({ state: "error" });
+    expect(criteria).not.toEqual(NO_AUDIT_CRITERIA);
+    expect(stub.requests).toHaveLength(4);
+  });
+
+  it.each<[string, () => Response, () => Response]>([
+    ["the database fails the limits read (500)", failedRead, noRows],
+    ["the limits' singleton row is missing (200 [])", noRows, noRows],
+    ["the limits read answers two rows (PGRST116)", rows(UNSET_LIMITS, UNSET_LIMITS), noRows],
+    ["the limits body is an empty object", () => jsonResponse({}, 200), noRows],
+    ["the limits row has no limit columns", rows({}), noRows],
+    ["the limits row is null", rows(null), noRows],
+    ["the database fails the requirements read (500)", rows(UNSET_LIMITS), failedRead],
+    ["the requirements body is an object", rows(UNSET_LIMITS), () => jsonResponse({}, 200)],
+    ["the requirements body is null", rows(UNSET_LIMITS), () => jsonResponse(null, 200)],
+    ["the requirements list holds something that is not a row", rows(UNSET_LIMITS), rows(null)],
+    ["the requirements list holds a text", rows(UNSET_LIMITS), rows("Balkon albo loggia")],
+    ["a requirements row has no body", rows(UNSET_LIMITS), rows({ author_id: ANNA })],
+    ["a requirements row has a null body", rows(UNSET_LIMITS), rows({ body: null })],
+    ["a requirements row has a number for a body", rows(UNSET_LIMITS), rows({ body: 5 })],
+    ["a requirements row has an empty body", rows(UNSET_LIMITS), rows({ body: "" })],
+    ["a requirements row has a blank body", rows(UNSET_LIMITS), rows({ body: " \n " })],
+    ["one requirements row among readable ones has no body", rows(UNSET_LIMITS), rows(ANNA_ROW, {}, BARTEK_ROW)],
+  ])("answers error when %s, and does not throw", async (_case, limits, requirements) => {
+    const stub = stubAuditCriteria({
+      revisions: [revision(0), revision(0)],
+      criteria: [limits],
+      requirements: [requirements],
+    });
+
+    const criteria = await loadAuditCriteria(client());
+
+    expect(criteria).toEqual({ state: "error" });
+    expect(criteria).not.toEqual(NO_AUDIT_CRITERIA);
+    // The outcome came from the database's answers — both reads did go out, once each — and a
+    // failed read is not read again.
+    expect(requestsTo(stub.requests, "team_criteria")).toHaveLength(1);
+    expect(requestsTo(stub.requests, "member_requirements")).toHaveLength(1);
+  });
+
+  // The same rule as on /criteria and on the board, through the same `readLimits`.
+  it.each(UNREADABLE)("answers error when %s holds %s — never no limit", async (column, _what, value) => {
+    stubAuditCriteria({
+      revisions: [revision(0), revision(0)],
+      criteria: [rows({ ...SET_LIMITS, [column]: value })],
+      requirements: [noRows],
+    });
+
+    const criteria = await loadAuditCriteria(client());
+
+    expect(criteria).toEqual({ state: "error" });
+    expect(criteria).not.toEqual(NO_AUDIT_CRITERIA);
+  });
+
+  // A revision that is not a whole number cannot be stored with an audit or compared later.
+  it.each<[string, unknown]>([
+    ["null", null],
+    ["non-numeric text", "abc"],
+    ["an empty text", ""],
+    ["a negative number", -1],
+    ["a negative number as text", "-1"],
+    ["a fraction", 7.5],
+    ["a fraction as text", "7.0"],
+    ["exponent notation as text", "1e3"],
+    ["a boolean", true],
+    ["a list", [7]],
+    ["a number past the safe integers", 2 ** 53],
+  ])("answers error when the revision is %s", async (_what, value) => {
+    stubAuditCriteria({ revisions: [revision(value)] });
+
+    const criteria = await loadAuditCriteria(client());
+
+    expect(criteria).toEqual({ state: "error" });
+    expect(criteria).not.toEqual(NO_AUDIT_CRITERIA);
+  });
+});
+
+describe("loadAuditCriteria: the limits, the requirements' texts and the revision (FR-010)", () => {
+  it("carries the limits, the texts in the order answered, and the revision", async () => {
+    stubAuditCriteria({
+      revisions: [revision(7), revision(7)],
+      criteria: [rows(SET_LIMITS)],
+      requirements: [rows({ body: "Balkon albo loggia" }, { body: "Najwyżej trzecie piętro bez windy" })],
+    });
+
+    expect(await loadAuditCriteria(client())).toEqual({
+      state: "ok",
+      limits: { city: "Warszawa", priceMin: 800000, priceMax: 900000, areaMin: 45.5 },
+      requirements: ["Balkon albo loggia", "Najwyżej trzecie piętro bez windy"],
+      revision: 7,
+    });
+  });
+
+  it("reads a limit and a revision sent as numeric text as those numbers", async () => {
+    stubAuditCriteria({
+      revisions: [revision("12"), revision("12")],
+      criteria: [rows(SET_LIMITS_AS_TEXT)],
+      requirements: [noRows],
+    });
+
+    expect(await loadAuditCriteria(client())).toEqual({
+      state: "ok",
+      limits: { city: "Warszawa", priceMin: 800000, priceMax: 900000, areaMin: 45.5 },
+      requirements: [],
+      revision: 12,
+    });
+  });
+
+  it("keeps a limit that is set beside the ones that are not", async () => {
+    stubAuditCriteria({
+      revisions: [revision(3), revision(3)],
+      criteria: [rows({ city: null, price_min: null, price_max: 900000, area_min: null })],
+      requirements: [noRows],
+    });
+
+    expect(await loadAuditCriteria(client())).toMatchObject({
+      state: "ok",
+      limits: { city: null, priceMin: null, priceMax: 900000, areaMin: null },
+    });
+  });
+
+  it("keeps a requirement's text exactly as written, line breaks included", async () => {
+    stubAuditCriteria({
+      revisions: [revision(1), revision(1)],
+      criteria: [rows(UNSET_LIMITS)],
+      requirements: [rows({ body: "  Balkon.\nNajwyżej trzecie piętro. " })],
+    });
+
+    expect(await loadAuditCriteria(client())).toMatchObject({
+      state: "ok",
+      requirements: ["  Balkon.\nNajwyżej trzecie piętro. "],
+    });
+  });
+
+  // Written by hand from postgrest-js: `select` as sent, the singleton's key, and two `order`
+  // calls joined with a comma. A fixed order numbers the same criteria the same way every time.
+  it("asks for the singleton rows, and for the requirements oldest first, then by author", async () => {
+    const stub = stubAuditCriteria({
+      revisions: [revision(0), revision(0)],
+      criteria: [rows(UNSET_LIMITS)],
+      requirements: [noRows],
+    });
+
+    await loadAuditCriteria(client());
+
+    const [revisionRead] = requestsTo(stub.requests, "criteria_revision");
+    expect(new URL(revisionRead.url).searchParams.get("select")).toBe("revision");
+    expect(new URL(revisionRead.url).searchParams.get("id")).toBe("eq.true");
+    const [limitsRead] = requestsTo(stub.requests, "team_criteria");
+    expect(new URL(limitsRead.url).searchParams.get("select")).toBe("city,price_min,price_max,area_min");
+    expect(new URL(limitsRead.url).searchParams.get("id")).toBe("eq.true");
+    const [requirementsRead] = requestsTo(stub.requests, "member_requirements");
+    expect(new URL(requirementsRead.url).searchParams.get("order")).toBe("created_at.asc,author_id.asc");
+  });
+
+  it("reads the revision before the criteria and again after them", async () => {
+    const stub = stubAuditCriteria({
+      revisions: [revision(0), revision(0)],
+      criteria: [rows(UNSET_LIMITS)],
+      requirements: [noRows],
+    });
+
+    await loadAuditCriteria(client());
+
+    const asked = tablesAsked(stub.requests);
+    expect(asked[0]).toBe("criteria_revision");
+    expect(asked[3]).toBe("criteria_revision");
+    // The two reads between them go out together, in either order.
+    expect(asked.slice(1, 3).sort()).toEqual(["member_requirements", "team_criteria"]);
+  });
+});
+
+describe("loadAuditCriteria: only the criteria themselves leave the database (#6)", () => {
+  it("asks for the requirements' texts alone — no author, no dates", async () => {
+    const stub = stubAuditCriteria({
+      revisions: [revision(0), revision(0)],
+      criteria: [rows(UNSET_LIMITS)],
+      requirements: [noRows],
+    });
+
+    await loadAuditCriteria(client());
+
+    const [requirementsRead] = requestsTo(stub.requests, "member_requirements");
+    expect(new URL(requirementsRead.url).searchParams.get("select")).toBe("body");
+    // And the limits without their signature.
+    const [limitsRead] = requestsTo(stub.requests, "team_criteria");
+    expect(new URL(limitsRead.url).searchParams.get("select")).not.toContain("updated_by");
+  });
+
+  // Even from a database that answers more than it was asked for.
+  it("passes on no author and no email address, whatever the rows carry", async () => {
+    const stub = stubAuditCriteria({
+      revisions: [revision(4), revision(4)],
+      criteria: [rows({ ...SET_LIMITS, updated_at: CHANGED_AT, updated_by: CELINA, email: CELINA_EMAIL })],
+      requirements: [rows({ ...ANNA_ROW, email: ANNA_EMAIL }, { ...BARTEK_ROW, email: BARTEK_EMAIL })],
+    });
+
+    const criteria = await loadAuditCriteria(client());
+
+    expect(criteria).toEqual({
+      state: "ok",
+      limits: { city: "Warszawa", priceMin: 800000, priceMax: 900000, areaMin: 45.5 },
+      requirements: ["Balkon albo loggia", "Miejsce postojowe"],
+      revision: 4,
+    });
+    const serialised = JSON.stringify(criteria);
+    for (const personal of [ANNA, BARTEK, CELINA, ANNA_EMAIL, BARTEK_EMAIL, CELINA_EMAIL, CHANGED_AT]) {
+      expect(serialised).not.toContain(personal);
+    }
+    // Nobody is named, so `members` is never asked.
+    expect(requestsTo(stub.requests, "members")).toHaveLength(0);
+    expect(stub.requests).toHaveLength(4);
+  });
+});
+
+describe("loadAuditCriteria: the criteria and their revision come from one moment (FR-003)", () => {
+  // A member saved new limits and requirements while the first read was under way.
+  it("reads everything again when the revision moved, and answers the second read", async () => {
+    const stub = stubAuditCriteria({
+      revisions: [revision(7), revision(8), revision(8), revision(8)],
+      criteria: [rows(UNSET_LIMITS), rows(SET_LIMITS)],
+      requirements: [rows({ body: "Balkon albo loggia" }), rows({ body: "Balkon albo loggia" }, { body: "Garaż" })],
+    });
+
+    expect(await loadAuditCriteria(client())).toEqual({
+      state: "ok",
+      limits: { city: "Warszawa", priceMin: 800000, priceMax: 900000, areaMin: 45.5 },
+      requirements: ["Balkon albo loggia", "Garaż"],
+      revision: 8,
+    });
+
+    // Two whole reads: the revision twice in each, the criteria once in each.
+    expect(tablesAsked(stub.requests).filter((table) => table === "criteria_revision")).toHaveLength(4);
+    expect(requestsTo(stub.requests, "team_criteria")).toHaveLength(2);
+    expect(requestsTo(stub.requests, "member_requirements")).toHaveLength(2);
+    expect(stub.requests).toHaveLength(8);
+  });
+
+  // Beside it: an unchanged revision is one read, not two.
+  it("reads once when the revision did not move", async () => {
+    const stub = stubAuditCriteria({
+      revisions: [revision(7), revision(7)],
+      criteria: [rows(SET_LIMITS)],
+      requirements: [noRows],
+    });
+
+    expect(await loadAuditCriteria(client())).toMatchObject({ state: "ok", revision: 7 });
+    expect(stub.requests).toHaveLength(4);
+  });
+
+  it.each<[string, number[]]>([
+    ["moved during both reads", [7, 8, 8, 9]],
+    ["moved between every read of it", [7, 8, 9, 10]],
+    ["moved back to where it started", [7, 8, 7, 8]],
+  ])("answers error when the revision %s, and does not read a third time", async (_case, values) => {
+    const stub = stubAuditCriteria({
+      revisions: values.map((value) => revision(value)),
+      criteria: [rows(SET_LIMITS), rows(SET_LIMITS)],
+      requirements: [noRows, noRows],
+    });
+
+    const criteria = await loadAuditCriteria(client());
+
+    expect(criteria).toEqual({ state: "error" });
+    expect(criteria).not.toEqual(NO_AUDIT_CRITERIA);
+    // Two whole reads and no more: a third would be unplanned and fail the test in `restoreFetch`.
+    expect(stub.requests).toHaveLength(8);
+  });
+
+  it("answers error when the repeated read fails, rather than the first read's criteria", async () => {
+    const stub = stubAuditCriteria({
+      revisions: [revision(7), revision(8), revision(8), revision(8)],
+      criteria: [rows(UNSET_LIMITS), failedRead],
+      requirements: [noRows, noRows],
+    });
+
+    const criteria = await loadAuditCriteria(client());
+
+    expect(criteria).toEqual({ state: "error" });
+    expect(criteria).not.toEqual({ ...NO_AUDIT_CRITERIA, revision: 8 });
+    // The repeated read stopped at its failed criteria read: no fourth read of the revision.
+    expect(tablesAsked(stub.requests).filter((table) => table === "criteria_revision")).toHaveLength(3);
   });
 });

@@ -283,3 +283,91 @@ export async function loadTeamLimits(supabase: SupabaseClient | null): Promise<T
     return { ok: false };
   }
 }
+
+/**
+ * What an audit is made against (FR-010): the limits, the text of every member's requirements and
+ * the criteria revision they were read under — or a failed read, which is never "no criteria": an
+ * audit made against criteria nobody could read would be stored as if the team had none.
+ * `requirements` carries the texts alone. Who wrote them stays in the database: an author is an
+ * email address, and only the criteria themselves may reach the model provider.
+ */
+export type AuditCriteriaResult =
+  { state: "ok"; limits: TeamLimits; requirements: string[]; revision: number } | { state: "error" };
+
+/** How many times the criteria are read before a revision that keeps moving is a failed read. */
+const AUDIT_CRITERIA_READS = 2;
+
+/** The counter as PostgREST sends a `bigint` (a JSON number, or digits as text), or `null` when unreadable. */
+function revisionNumber(value: unknown): number | null {
+  const digits = typeof value === "string" && WHOLE.test(value);
+  const parsed = typeof value === "number" ? value : digits ? Number(value) : Number.NaN;
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
+}
+
+/** `criteria_revision.revision` as it stands now, or `null` for a failed query, a missing row or an unreadable value. */
+async function readRevision(supabase: SupabaseClient): Promise<number | null> {
+  const result = await supabase.from("criteria_revision").select("revision").eq("id", true).maybeSingle();
+  if (result.error || !result.data) return null;
+  return revisionNumber((result.data as Record<string, unknown>).revision);
+}
+
+/**
+ * The texts of the requirements rows, or `null` when a row does not read as one. The table's
+ * checks admit no blank body, so a blank one is a row that cannot be trusted, not a requirement.
+ */
+function readRequirementBodies(rows: unknown): string[] | null {
+  if (!Array.isArray(rows)) return null;
+  const bodies: string[] = [];
+  for (const row of rows as unknown[]) {
+    const body: unknown = typeof row === "object" && row !== null ? (row as Record<string, unknown>).body : undefined;
+    if (typeof body !== "string" || body.trim() === "") return null;
+    bodies.push(body);
+  }
+  return bodies;
+}
+
+/**
+ * The criteria for one audit, from one consistent moment. The three reads share no snapshot, so
+ * the revision is read before the criteria and again after them: equal values mean nothing
+ * changed in between, and the audit can be stored under that revision. A difference repeats the
+ * whole read once; a second difference is a failed read rather than an audit whose stored
+ * revision might not match the criteria it was sent.
+ *
+ * Requirements come in a fixed order — oldest first, then by author — so the same criteria always
+ * number the same way (`W1…Wn` in `@/lib/audit/input`). Only `body` is selected: the author column
+ * orders the rows in the database and never arrives here.
+ *
+ * No client (the zero-config state), a failed query, a missing singleton row (limits or
+ * revision), a limit that does not read as one (`readLimits`), a requirements row without a text,
+ * a revision that is not a whole number, or an exception is `{ state: "error" }`. Never throws.
+ */
+export async function loadAuditCriteria(supabase: SupabaseClient | null): Promise<AuditCriteriaResult> {
+  if (!supabase) return { state: "error" };
+  try {
+    for (let read = 0; read < AUDIT_CRITERIA_READS; read += 1) {
+      const before = await readRevision(supabase);
+      if (before === null) return { state: "error" };
+
+      const [criteria, requirements] = await Promise.all([
+        supabase.from("team_criteria").select(LIMIT_COLUMNS).eq("id", true).maybeSingle(),
+        supabase
+          .from("member_requirements")
+          .select("body")
+          .order("created_at", { ascending: true })
+          .order("author_id", { ascending: true }),
+      ]);
+      if (criteria.error || requirements.error || !criteria.data) return { state: "error" };
+
+      const limits = readLimits(criteria.data);
+      const bodies = readRequirementBodies(requirements.data);
+      if (limits === null || bodies === null) return { state: "error" };
+
+      const after = await readRevision(supabase);
+      if (after === null) return { state: "error" };
+      if (after === before) return { state: "ok", limits, requirements: bodies, revision: after };
+    }
+    return { state: "error" };
+  } catch {
+    return { state: "error" };
+  }
+}

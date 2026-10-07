@@ -231,6 +231,23 @@ export const CHALLENGE_PAGE =
 //   it came: an object is read as the row itself. A `200` whose requirements body is not an array
 //   is what makes `loadCriteria` throw inside; no answer makes `loadTeamLimits` throw.
 //
+// And as the same module reads the criteria for an audit (`loadAuditCriteria`), read from the
+// same file:
+//
+// - The criteria revision, `.from("criteria_revision").select("revision").eq("id", true)
+//   .maybeSingle()`: `GET <SUPABASE_URL>/rest/v1/criteria_revision?select=revision&id=eq.true`.
+//   It goes out first and last: once before the criteria and once after them.
+// - Between the two, in parallel, the limits alone — the `loadTeamLimits` request above — and
+//   the requirements' texts, `.from("member_requirements").select("body").order("created_at",
+//   { ascending: true }).order("author_id", { ascending: true })`:
+//   `GET <SUPABASE_URL>/rest/v1/member_requirements?select=body&order=created_at.asc,
+//   author_id.asc` — a second `order()` is appended to the first after a comma. The author
+//   column orders the rows and is not selected.
+// - Four requests when the two revisions are equal. When they differ, the same four once more —
+//   eight in all — and never a third round. `members` is never asked: nobody is named.
+// - A `200` whose requirements body is not an array is read as unreadable rows, not walked, so
+//   no answer makes `loadAuditCriteria` throw.
+//
 // And as the audit settings module (src/lib/audit/settings.ts) and its route
 // (src/pages/api/audit-settings.ts) talk to it, read from the same file:
 //

@@ -1296,29 +1296,29 @@ się raz.
 
 #### Automated
 
-- [x] 2.1 `npm test` przechodzi z testami odczytu i trasy ustawień audytu
-- [x] 2.2 `npm run lint`, `npx astro sync && npx astro check` i `npm run build` przechodzą
-- [x] 2.3 `npm run smoke` przechodzi z krokami ustawień audytu i z `/dev/*` nadal odpowiadającym 404 na podglądzie produkcyjnym
-- [x] 2.4 `node scripts/ui-screenshots.mjs criteria context/changes/grounded-listing-audit/screenshots` i zestaw `forms` tworzą zrzuty nowych stanów
+- [x] 2.1 `npm test` przechodzi z testami odczytu i trasy ustawień audytu — 8be2696
+- [x] 2.2 `npm run lint`, `npx astro sync && npx astro check` i `npm run build` przechodzą — 8be2696
+- [x] 2.3 `npm run smoke` przechodzi z krokami ustawień audytu i z `/dev/*` nadal odpowiadającym 404 na podglądzie produkcyjnym — 8be2696
+- [x] 2.4 `node scripts/ui-screenshots.mjs criteria context/changes/grounded-listing-audit/screenshots` i zestaw `forms` tworzą zrzuty nowych stanów — 8be2696
 
 #### Manual
 
-- [x] 2.5 Zmiana modelu i effort na `/criteria` jest po zapisie widoczna z podpisem osoby i datą, a ponowny zapis tych samych wartości nie zmienia podpisu
-- [x] 2.6 Zrzuty pokazują każdy wiersz macierzy formularza ustawień, lista wyboru działa klawiaturą, widok mobilny nie przewija się w poziomie
+- [x] 2.5 Zmiana modelu i effort na `/criteria` jest po zapisie widoczna z podpisem osoby i datą, a ponowny zapis tych samych wartości nie zmienia podpisu — 8be2696
+- [x] 2.6 Zrzuty pokazują każdy wiersz macierzy formularza ustawień, lista wyboru działa klawiaturą, widok mobilny nie przewija się w poziomie — 8be2696
 
 ### Phase 3: Rdzeń audytu
 
 #### Automated
 
-- [ ] 3.1 `npm test` przechodzi z testami wejścia, promptu, ugruntowania, schematu i odczytu kryteriów dla audytu
-- [ ] 3.2 `npm run lint` przechodzi z regułą zakazującą importu `@/lib/notes` w module audytu
-- [ ] 3.3 `npx astro sync && npx astro check` przechodzi
+- [x] 3.1 `npm test` przechodzi z testami wejścia, promptu, ugruntowania, schematu i odczytu kryteriów dla audytu
+- [x] 3.2 `npm run lint` przechodzi z regułą zakazującą importu `@/lib/notes` w module audytu
+- [x] 3.3 `npx astro sync && npx astro check` przechodzi
 
 #### Manual
 
-- [ ] 3.4 Użytkownik przeczytał i zaakceptował treść instrukcji dla modelu
-- [ ] 3.5 `npx stryker run --mutate "src/lib/audit/grounding.ts"` i to samo dla `src/lib/audit/input.ts`: każdy ocalały mutant oceniony według sekcji o Strykerze w `CLAUDE.md`
-- [ ] 3.6 Celowe dodanie importu `@/lib/notes` w `src/lib/audit/` wywraca `npm run lint`, po czym import znika
+- [x] 3.4 Użytkownik przeczytał i zaakceptował treść instrukcji dla modelu
+- [x] 3.5 `npx stryker run --mutate "src/lib/audit/grounding.ts"` i to samo dla `src/lib/audit/input.ts`: każdy ocalały mutant oceniony według sekcji o Strykerze w `CLAUDE.md`
+- [x] 3.6 Celowe dodanie importu `@/lib/notes` w `src/lib/audit/` wywraca `npm run lint`, po czym import znika
 
 ### Phase 4: Dostawca i trasa
 

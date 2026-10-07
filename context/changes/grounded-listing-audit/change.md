@@ -62,3 +62,35 @@ Raised by the agent in the same conversation, not yet answered by the user:
   finding can be traced to what produced it.
 - **Notes are never an input to the audit** (PRD, Business Logic and Non-Functional Requirements),
   so the instruction is written from the listing and the criteria alone.
+
+Decisions the user made on 2026-10-07, during `/10x-implement` phase 3, after reading the first
+draft of the model's instruction (`src/lib/audit/prompt.ts`) and the agent's two reviews of it — one
+against the PRD, one from general knowledge of Polish sale listings and of how models follow such
+instructions. The instruction holds more than the plan's seven parts on purpose; a review should not
+read these as drift:
+
+- **One requirement, several expectations.** A member's requirements are one free text; each
+  expectation the listing is silent on gets its own entry under the same `Wn`, written exactly as
+  the message numbers it. `groundFindings` already kept several findings per `Wn`.
+- **A generality is not a value.** "Low rent" does not state the rent: the attribute is missing and
+  the question asks for the figure.
+- **Questions reach further.** One sentence, no greeting, and where the listing does not say it: the
+  land register and encumbrances beside the ownership form, what the rent covers, the kind of
+  heating and how it is billed, the lift beside the floor. The list of nine attributes is unchanged.
+- **Costs and conditions are defined by kind**, costs as anything beyond the purchase price that the
+  text names (PRD, FR-011).
+- **Red flags**: a contradiction with a parameter counts; "anything about the legal or technical
+  state" was narrowed to an encumbrance, an unsettled legal state, a defect or a needed renovation;
+  and an open list names the legal matters to highlight wherever the text mentions one.
+- **One fragment, one field**: a cost, else a condition, else a red flag.
+- **A listing's standard formulas are not findings**, unless one names a cost or a condition.
+- **The excerpt rule says why it is strict** (the application checks every excerpt), asks for the
+  listing's own typographic characters, and for an excerpt that reads without the rest of the text.
+- **The listing is read to its last sentence**: the instruction says so, and the message ends with
+  the request, after the last block.
+
+Not changed, and why: attributes beyond the nine (land register, lift, handover date, parking) are
+not added to the list, because the code tells a missing attribute by an empty column and these have
+none — a member writes them as additional requirements on `/criteria`, which the audit already asks
+about. A requirement contradicted only by a stated parameter is reported nowhere; that is
+`context/foundation/prd.md`, Open Questions, 2. The PRD's resolved block records the decisions above.

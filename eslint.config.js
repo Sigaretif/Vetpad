@@ -109,6 +109,32 @@ const consoleConfig = defineConfig(
   { files: ["src/lib/log.ts"], rules: { "no-console": "off" } },
 );
 
+// Members' notes never leave the system (prd.md, Non-Functional Requirements), and row-level
+// security cannot hold that line: every signed-in member may read every note. So the structure of
+// the code holds it — the audit, the only code that talks to the model provider, cannot import the
+// notes module. The regex takes the module by any path: the alias (@/lib/notes), a relative one
+// (../notes, ../../lib/notes) and either with a file extension. src/pages/api/audits.ts is named
+// before it exists, so the rule binds the moment the file is created. No other block sets
+// no-restricted-imports; one that starts to must merge with this pattern, since flat config
+// replaces a rule's options rather than adding to them.
+const auditNoNotesConfig = defineConfig({
+  files: ["src/lib/audit/**", "src/pages/api/audits.ts"],
+  rules: {
+    "no-restricted-imports": [
+      "error",
+      {
+        patterns: [
+          {
+            regex: "(?:^|/)notes(?:\\.[cm]?[jt]sx?)?$",
+            message:
+              "The audit must not import the notes module: members' notes never reach the model provider (CLAUDE.md, Secrets and data access).",
+          },
+        ],
+      },
+    ],
+  },
+});
+
 const scriptsConfig = defineConfig({
   files: ["scripts/**/*.mjs"],
   extends: [tseslint.configs.disableTypeChecked],
@@ -127,6 +153,7 @@ export default defineConfig(
   astroConfig,
   tokensOnlyConfig,
   consoleConfig,
+  auditNoNotesConfig,
   scriptsConfig,
   eslintPluginPrettier,
 );
