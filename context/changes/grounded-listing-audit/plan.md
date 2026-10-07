@@ -1283,14 +1283,14 @@ się raz.
 
 #### Automated
 
-- [ ] 1.1 Migracje nakładają się na czystą bazę: `npx supabase db reset`
-- [ ] 1.2 `npm run test:db` przechodzi z nowymi przypadkami usunięcia konta i ze skryptem stanów audytu
-- [ ] 1.3 `npm run smoke` przechodzi z krokami RLS dla `offer_audits` i `audit_settings`
-- [ ] 1.4 `npm run lint`, `npx astro sync && npx astro check` i `npm test` przechodzą
+- [x] 1.1 Migracje nakładają się na czystą bazę: `npx supabase db reset`
+- [x] 1.2 `npm run test:db` przechodzi z nowymi przypadkami usunięcia konta i ze skryptem stanów audytu
+- [x] 1.3 `npm run smoke` przechodzi z krokami RLS dla `offer_audits` i `audit_settings`
+- [x] 1.4 `npm run lint`, `npx astro sync && npx astro check` i `npm test` przechodzą
 
 #### Manual
 
-- [ ] 1.5 Użytkownik przejrzał obie migracje: jedna polityka na operację, brak `for all`, brak `using (true)`, brak polityk dla `anon`
+- [x] 1.5 Użytkownik przejrzał obie migracje: jedna polityka na operację, brak `for all`, brak `using (true)`, brak polityk dla `anon`
 
 ### Phase 2: Ustawienia audytu zespołu
 

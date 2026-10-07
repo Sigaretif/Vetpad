@@ -51,9 +51,23 @@
 // signature, date and id, or of their own requirements' author and dates, is accepted and undone by the triggers,
 // with no revision bump. The second member's requirements are the same row after everything the first member does
 // next to them: the identity patch, the delete through the route, the limits clear and the limits restore.
+// AI audit (FR-010, FR-011), straight against Supabase and never near a model provider: the publishable key alone
+// reads nothing from public.audit_settings or public.offer_audits, changes no setting and starts no attempt (401,
+// 42501). A member reads the settings as they stood before the run; nobody inserts or deletes the settings row (403
+// with 42501, 200 with no rows). The settings are judged by the whole row, as notes are: a member's change of the
+// model is the control step - the row must be reported as changed, and is then signed by that member - while their
+// PATCH of the signature, the date and the id is accepted and leaves the row as it was. On the second fixture offer
+// the first member starts an audit attempt, naming the second member as its starter and auditor and sending a date
+// and findings of their own: the stored attempt is signed and dated by the database and holds no result. The second
+// member reads it but cannot take it over while it runs (400 with the table's own SQLSTATE, VP001), and its starter
+// cannot delete it (200 with no rows) - the row is the same after each, and failing the attempt is the control step
+// for that comparison. The first fixture offer is left without an attempt for the whole run: it is the offer whose
+// card the run opens, and it stays one that was never audited. Deleting the second fixture offer takes the attempt
+// with it.
 // Cleanup runs whatever failed before it: the limits read at the start are written back (signed by the first
-// member, as any restore would be), and both members' requirements are deleted with the rows counted - none left
-// of the first member's, which the route removed, and one of the second member's, which must have lasted until then.
+// member, as any restore would be), the audit settings read at the start likewise, and both members' requirements
+// are deleted with the rows counted - none left of the first member's, which the route removed, and one of the
+// second member's, which must have lasted until then.
 // A session Auth refuses is a sign-out, never an outage (src/middleware.ts): before signing in, it sends a forged
 // session cookie - named after the SUPABASE_URL host, with a token that has not expired and a signature that is not
 // real - on GET /dashboard and on POST /api/offers, and both must redirect to /auth/signin, not answer with the 503
@@ -130,6 +144,15 @@ const REQUIREMENTS_WIDE = `smoke-wymagania-${FIXTURE_OFFER_ID}-wide`;
 const REQUIREMENTS_OTHER = `smoke-wymagania-${FIXTURE_OFFER_ID}-other`;
 // The shared limits as they stood before this run, read by the first criteria step and written back by cleanup.
 let limitsBefore = null;
+// The team's audit settings: one row, and the two models its check admits (public.audit_settings).
+const AUDIT_SETTINGS = "audit_settings?id=eq.true";
+const AUDIT_MODELS = ["claude-opus-5-5", "claude-sonnet-5-5"];
+// The audit settings as they stood before this run, read before the first write and written back by cleanup.
+let auditSettingsBefore = null;
+// The audit attempt this run starts hangs on the second fixture offer. The first one - the offer behind FIXTURE_CARD,
+// whose card the run opens - never gets an audit row, so a step that reads that card sees an offer nobody audited.
+const FIXTURE_AUDIT = `offer_audits?offer_id=eq.${FIXTURE_OFFER_ID}`;
+const FIXTURE_AUDIT_2 = `offer_audits?offer_id=eq.${FIXTURE_OFFER_ID_2}`;
 
 function cookieHeader() {
   return [...jar.entries()].map(([k, v]) => `${k}=${v}`).join("; ");
@@ -592,6 +615,117 @@ async function writeBothRequirements(as, options) {
   return supabaseRest(await bothRequirementsPath(), { as, prefer: "return=representation", ...options });
 }
 
+// Reads the team's audit settings as a member and keeps them for cleanup to write back.
+async function readAuditSettingsBefore() {
+  const response = await supabaseRest(`${AUDIT_SETTINGS}&select=model,effort`, { as: MEMBER });
+  if (response.status === 200 && response.rows === 1) [auditSettingsBefore] = JSON.parse(response.body);
+  return response;
+}
+
+// An observed read for withSnapshot: the audit settings row, its signature and date included.
+function observedAuditSettings() {
+  return { as: MEMBER, order: "id", path: AUDIT_SETTINGS };
+}
+
+// A member switches the audit model to the one the settings did not hold at the start, so the write is a real
+// change whatever the local database held, and the signature trigger signs it.
+function changeAuditModel() {
+  if (auditSettingsBefore === null) {
+    return {
+      status: 0,
+      location: "",
+      error: "the audit settings were never read at the start, so no other model is known",
+    };
+  }
+  return supabaseRest(AUDIT_SETTINGS, {
+    as: MEMBER,
+    method: "PATCH",
+    prefer: "return=representation",
+    body: { model: AUDIT_MODELS.find((model) => model !== auditSettingsBefore.model) },
+  });
+}
+
+// The audit settings, read only if the first member signed them: a separate read, because the PATCH's own answer
+// is not where the stored signature is checked.
+async function auditSettingsSignedByMember() {
+  const member = await memberId(MEMBER);
+  if (member.error) return { status: 0, location: "", error: member.error };
+  return supabaseRest(`${AUDIT_SETTINGS}&updated_by=eq.${member.userId}&select=id`, { as: MEMBER });
+}
+
+// A member re-signs the audit settings for the second member, dates them and re-ids the row, changing no setting.
+// RLS allows the update (any member changes the settings); the signature trigger must keep the stored signature,
+// date and id.
+async function patchAuditSettingsSignature() {
+  const other = await memberId(OTHER_MEMBER);
+  if (other.error) return { status: 0, location: "", error: other.error };
+  return supabaseRest(AUDIT_SETTINGS, {
+    as: MEMBER,
+    method: "PATCH",
+    prefer: "return=representation",
+    body: { id: false, updated_by: other.userId, updated_at: "2099-01-01T00:00:00Z" },
+  });
+}
+
+// Writes back the audit settings read at the start. As with the limits, the trigger signs the row with the first
+// member whenever that changes a value; who chose the settings before the run cannot be restored, only what they
+// were.
+function restoreAuditSettings() {
+  if (auditSettingsBefore === null) {
+    return {
+      status: 0,
+      location: "",
+      error: "the audit settings were never read at the start, so they cannot be restored",
+    };
+  }
+  return supabaseRest(AUDIT_SETTINGS, {
+    as: MEMBER,
+    method: "PATCH",
+    prefer: "return=representation",
+    body: auditSettingsBefore,
+  });
+}
+
+// The first member starts an audit attempt on the second fixture offer, and claims the rest while at it: the second
+// member as the starter and the auditor, a start and an audit date of their own, and findings. The insert trigger
+// must keep none of that.
+async function startAuditAttempt() {
+  const other = await memberId(OTHER_MEMBER);
+  if (other.error) return { status: 0, location: "", error: other.error };
+  return supabaseRest("offer_audits", {
+    as: MEMBER,
+    method: "POST",
+    prefer: "return=representation",
+    body: {
+      offer_id: FIXTURE_OFFER_ID_2,
+      run_state: "running",
+      run_started_by: other.userId,
+      run_started_at: "2000-01-01T00:00:00Z",
+      audited_by: other.userId,
+      audited_at: "2000-01-01T00:00:00Z",
+      findings: { forged: true },
+    },
+  });
+}
+
+// The attempt as stored after that insert: running, started by the member who sent it, dated by the database, and
+// with no result, auditor or audit date.
+async function auditAttemptAsStored() {
+  const member = await memberId(MEMBER);
+  if (member.error) return { status: 0, location: "", error: member.error };
+  return supabaseRest(
+    `${FIXTURE_AUDIT_2}&run_state=eq.running&run_started_by=eq.${member.userId}&run_started_at=gt.2001-01-01` +
+      "&findings=is.null&audited_by=is.null&audited_at=is.null&select=offer_id",
+    { as: MEMBER },
+  );
+}
+
+// An observed read for withSnapshot: the audit row of the second fixture offer, read by the first member, who
+// reads every audit. The table's key is the offer, so that is what the read is ordered by.
+function observedAudit() {
+  return { as: MEMBER, order: "offer_id", path: FIXTURE_AUDIT_2 };
+}
+
 // The fixture offer's row on /dashboard: from its link to the link's end, so a mark on another offer (the local
 // database may hold real ones) cannot pass for the fixture's. No row is an empty body.
 async function fixtureBoardRow() {
@@ -664,6 +798,23 @@ const steps = [
         body: { city: "smoke: anon" },
       }),
     { status: 200, rows: 0 },
+  ],
+  // The audit settings are a singleton as well, so 0 rows is the denial there too. They are read before the first
+  // attempt to write them and written back by cleanup, as the limits are; that read is also the member's side of
+  // the gate.
+  ["anon cannot read the audit settings", () => supabaseRest("audit_settings?select=id"), { status: 200, rows: 0 }],
+  ["audit settings before the run are read", () => readAuditSettingsBefore(), { status: 200, rows: 1 }],
+  [
+    "anon cannot change the audit settings",
+    () =>
+      withSnapshot([observedAuditSettings()], () =>
+        supabaseRest(AUDIT_SETTINGS, {
+          method: "PATCH",
+          prefer: "return=representation",
+          body: { effort: "low" },
+        }),
+      ),
+    { status: 200, rows: 0, snapshot: "same" },
   ],
   [
     "signin rejects wrong password",
@@ -1250,6 +1401,115 @@ const steps = [
       }),
     { status: 200, rows: 1 },
   ],
+  // AI audit, straight against Supabase. The settings first: the row is watched whole around every attempt on it,
+  // signature and date included. The insert carries a model and an effort the table would take, so the refusal is
+  // the missing insert policy and not a check.
+  [
+    "member cannot insert a second audit settings row",
+    () =>
+      withSnapshot([observedAuditSettings()], () =>
+        supabaseRest("audit_settings", {
+          as: MEMBER,
+          method: "POST",
+          body: { id: true, model: AUDIT_MODELS[0], effort: "medium" },
+        }),
+      ),
+    { status: 403, errorCode: "42501", snapshot: "same" },
+  ],
+  [
+    "member cannot delete the audit settings row",
+    () =>
+      withSnapshot([observedAuditSettings()], () =>
+        supabaseRest(AUDIT_SETTINGS, { as: MEMBER, method: "DELETE", prefer: "return=representation" }),
+      ),
+    { status: 200, rows: 0, snapshot: "same" },
+  ],
+  // The control for the settings, as for notes and requirements: a real change must be reported as one, or the
+  // "same" steps around this one would pass on a comparison that sees nothing. It also puts a signature on the row
+  // for the next two steps: the first member's, set by the trigger.
+  [
+    "control: a changed audit model is reported as changed",
+    () => withSnapshot([observedAuditSettings()], () => changeAuditModel()),
+    { status: 200, rows: 1, snapshot: "changed" },
+  ],
+  [
+    "audit settings are signed by the member who changed them",
+    () => auditSettingsSignedByMember(),
+    { status: 200, rows: 1 },
+  ],
+  [
+    "member's patch of the audit settings' signature, date and id is accepted and changes nothing",
+    () => withSnapshot([observedAuditSettings()], () => patchAuditSettingsSignature()),
+    { status: 200, rows: 1, snapshot: "same" },
+  ],
+  // Audit attempts. The anonymous insert aims at the first fixture offer, which has no audit row: were it admitted,
+  // no unique violation would hide it, and the step after the member's insert would find it.
+  [
+    "anon cannot start an audit attempt",
+    () => supabaseRest("offer_audits", { method: "POST", body: { offer_id: FIXTURE_OFFER_ID, run_state: "running" } }),
+    { status: 401, errorCode: "42501" },
+  ],
+  ["member starts an audit attempt on the second fixture offer", () => startAuditAttempt(), { status: 201, rows: 1 }],
+  [
+    "audit attempt is signed and dated by the database and holds no result",
+    () => auditAttemptAsStored(),
+    { status: 200, rows: 1 },
+  ],
+  // The member has just read the second offer's attempt, so 0 rows here is an offer without one, not a denial.
+  [
+    "first fixture offer has no audit attempt",
+    () => supabaseRest(`${FIXTURE_AUDIT}&select=offer_id`, { as: MEMBER }),
+    { status: 200, rows: 0 },
+  ],
+  // RLS from the other sides, only now that an attempt exists: before it, `[]` would prove nothing.
+  [
+    "anon cannot read audit attempts",
+    () => supabaseRest(`${FIXTURE_AUDIT_2}&select=offer_id`),
+    { status: 200, rows: 0 },
+  ],
+  [
+    "another member reads the audit attempt",
+    () => supabaseRest(`${FIXTURE_AUDIT_2}&select=offer_id`, { as: OTHER_MEMBER }),
+    { status: 200, rows: 1 },
+  ],
+  // The lock: the attempt started a moment ago, far inside the 175 seconds a running one is protected for, so the
+  // update policy lets the second member's write through and the trigger refuses it with the table's own SQLSTATE.
+  [
+    "another member cannot take over the running audit attempt",
+    () =>
+      withSnapshot([observedAudit()], () =>
+        supabaseRest(FIXTURE_AUDIT_2, {
+          as: OTHER_MEMBER,
+          method: "PATCH",
+          prefer: "return=representation",
+          body: { run_state: "running" },
+        }),
+      ),
+    { status: 400, errorCode: "VP001", snapshot: "same" },
+  ],
+  // Nobody has a delete policy on an audit, its starter included: it goes only with its offer (cleanup, below).
+  [
+    "member cannot delete their own audit attempt",
+    () =>
+      withSnapshot([observedAudit()], () =>
+        supabaseRest(FIXTURE_AUDIT_2, { as: MEMBER, method: "DELETE", prefer: "return=representation" }),
+      ),
+    { status: 200, rows: 0, snapshot: "same" },
+  ],
+  // The control for the attempt's row: failing it is a move the trigger allows, and it must be reported as a change.
+  [
+    "control: a failed audit attempt is reported as changed",
+    () =>
+      withSnapshot([observedAudit()], () =>
+        supabaseRest(FIXTURE_AUDIT_2, {
+          as: MEMBER,
+          method: "PATCH",
+          prefer: "return=representation",
+          body: { run_state: "failed", run_failure: "smoke" },
+        }),
+      ),
+    { status: 200, rows: 1, snapshot: "changed" },
+  ],
   // Cleanup: runs even when a step above failed, because every step runs. The limits are written back even when
   // the second member's requirements are no longer there to observe.
   [
@@ -1257,6 +1517,7 @@ const steps = [
     () => withSnapshot([observedRequirements(OTHER_MEMBER)], () => restoreLimits(), { runUnobserved: true }),
     { status: 200, rows: 1, snapshot: "same" },
   ],
+  ["audit settings are restored to their state before the run", () => restoreAuditSettings(), { status: 200, rows: 1 }],
   // Both deletes count their rows: a bare 204 would pass whether or not a row was there. The route deleted the
   // first member's requirements, so none are left; the second member's must have lasted until now.
   [
@@ -1290,6 +1551,12 @@ const steps = [
     () => supabaseRest(`${FIXTURE_NOTES}&select=id`, { as: MEMBER }),
     { status: 200, rows: 0 },
   ],
+  // The same cascade for the audit, which no member can delete by itself: it is there until its offer goes.
+  [
+    "second fixture offer holds its audit attempt before it is deleted",
+    () => supabaseRest(`${FIXTURE_AUDIT_2}&select=offer_id`, { as: MEMBER }),
+    { status: 200, rows: 1 },
+  ],
   [
     "second fixture offer is deleted",
     () => supabaseRest(FIXTURE_OFFER_2, { as: MEMBER, method: "DELETE", prefer: "return=representation" }),
@@ -1298,6 +1565,11 @@ const steps = [
   [
     "second fixture offer's notes are gone with it",
     () => supabaseRest(`${FIXTURE_NOTES_2}&select=id`, { as: MEMBER }),
+    { status: 200, rows: 0 },
+  ],
+  [
+    "second fixture offer's audit attempt is gone with it",
+    () => supabaseRest(`${FIXTURE_AUDIT_2}&select=offer_id`, { as: MEMBER }),
     { status: 200, rows: 0 },
   ],
   // Both fixture offers are gone by now, so this finds nothing. Were a delete above to fail or never run, this

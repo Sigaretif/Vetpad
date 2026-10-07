@@ -1,9 +1,10 @@
 -- Account deletion: what is left of a member once their account is gone (PRD, Non-Functional Requirements).
 -- A saved offer and a note outlive the account, with no author, and nobody edits the note any more; the member's
--- additional requirements go with the account; the team's limits stay as they were, signed by nobody; every other
--- member's rows are untouched. These are the `on delete` actions hanging off auth.users, which the publishable key
--- cannot reach, so scripts/smoke.mjs cannot cover them. A freeze trigger that puts a deleted author back has already
--- blocked account deletion once (context/foundation/lessons.md, "Declare `on delete` on every author column").
+-- additional requirements go with the account; the team's limits and audit settings stay as they were, signed by
+-- nobody; an audit the member ran stays with its findings, dates and state, started and audited by nobody; every
+-- other member's rows are untouched. These are the `on delete` actions hanging off auth.users, which the publishable
+-- key cannot reach, so scripts/smoke.mjs cannot cover them. A freeze trigger that puts a deleted author back has
+-- already blocked account deletion once (context/foundation/lessons.md, "Declare `on delete` on every author column").
 --
 -- The whole file is one transaction that ends in ROLLBACK: it deletes the third account from supabase/seed.sql and
 -- leaves no trace, whether it passes or fails (psql stops at the first error and the open transaction dies with the
@@ -29,7 +30,9 @@ end $$;
 
 -- Fixtures. "Leaving" is sigaretif3, the account deleted below; "staying" is sigaretif1. Two offers, one saved by
 -- each; the leaving member has a note on both, the staying member has a note beside it on the leaving member's
--- offer; both have requirements (an upsert, because a local database may already hold some typed by hand).
+-- offer; both have requirements (an upsert, because a local database may already hold some typed by hand). The
+-- leaving member changed the limits and the audit settings last and audited both offers; the staying member is
+-- re-running the audit of their own.
 do $$
 declare
   leaving uuid := (select id from auth.users where email = 'sigaretif3@vetpad.local');
@@ -64,6 +67,28 @@ begin
   update public.team_criteria
   set area_min = case when area_min is distinct from 41 then 41 else 42 end
   where id;
+  -- The audit settings are signed the same way: the write picks a model the row does not hold yet.
+  update public.audit_settings
+  set model = case when model is distinct from 'claude-sonnet-5-5' then 'claude-sonnet-5-5' else 'claude-opus-5-5' end
+  where id;
+
+  -- An audit's people are set by triggers too: the starter is auth.uid() when the attempt starts, and the result is
+  -- signed by that starter when the attempt completes. The leaving member starts and completes one on each offer.
+  insert into public.offer_audits (offer_id, run_state)
+  values
+    ('acc0de1e-0000-4000-8000-000000000003', 'running'),
+    ('acc0de1e-0000-4000-8000-000000000001', 'running');
+  update public.offer_audits
+  set run_state = 'completed', findings = '{"version": 1, "fixture": "account deletion"}'::jsonb, rejected_count = 1,
+      model = 'claude-opus-5-5', effort = 'medium', criteria_revision = 1, listing_fingerprint = 'v1:fixture',
+      had_limits = true, requirements_count = 2
+  where offer_id in ('acc0de1e-0000-4000-8000-000000000003', 'acc0de1e-0000-4000-8000-000000000001');
+
+  -- The staying member then starts a re-run on their own offer and it is still running: that row names two members,
+  -- the staying one as the starter and the leaving one as the auditor of the result it still holds.
+  perform set_config('request.jwt.claims', json_build_object('sub', staying, 'role', 'authenticated')::text, true);
+  update public.offer_audits set run_state = 'running' where offer_id = 'acc0de1e-0000-4000-8000-000000000001';
+
   -- The deletion below is an administrator's action, outside any member's session.
   perform set_config('request.jwt.claims', '', true);
 
@@ -71,11 +96,35 @@ begin
     raise exception 'account-deletion: [fixture: limits signed by the leaving member] updated_by is %, expected %',
       (select updated_by from public.team_criteria where id), leaving;
   end if;
+  if (select updated_by from public.audit_settings where id) is distinct from leaving then
+    raise exception 'account-deletion: [fixture: audit settings signed by the leaving member] updated_by is %, expected %',
+      (select updated_by from public.audit_settings where id), leaving;
+  end if;
+  if not exists (
+    select 1
+    from public.offer_audits
+    where offer_id = 'acc0de1e-0000-4000-8000-000000000003'
+      and run_state = 'completed' and run_started_by = leaving and audited_by = leaving
+  ) then
+    raise exception 'account-deletion: [fixture: audit started and completed by the leaving member] the row is %',
+      (select to_jsonb(a) from public.offer_audits a where a.offer_id = 'acc0de1e-0000-4000-8000-000000000003');
+  end if;
+  if not exists (
+    select 1
+    from public.offer_audits
+    where offer_id = 'acc0de1e-0000-4000-8000-000000000001'
+      and run_state = 'running' and run_started_by = staying and audited_by = leaving
+  ) then
+    raise exception 'account-deletion: [fixture: audit by the leaving member, re-run by the staying member] the row is %',
+      (select to_jsonb(a) from public.offer_audits a where a.offer_id = 'acc0de1e-0000-4000-8000-000000000001');
+  end if;
 end $$;
 
 -- Snapshot before the deletion. The leaving member's rows are kept without the columns the PRD lets change or says
 -- nothing about: the author, and a note's `updated_at` (`on delete set null` is an UPDATE, and the PRD does not
--- say what an orphaned note's date is). The staying member's rows are kept whole.
+-- say what an orphaned note's date is). The audits and the audit settings are kept without the person columns the
+-- deletion is expected to clear and with everything else, dates and state included. The staying member's rows are
+-- kept whole.
 create temporary table account_deletion_before (name text primary key, doc jsonb not null) on commit drop;
 
 insert into account_deletion_before (name, doc)
@@ -101,6 +150,18 @@ select
   jsonb_build_object('id', c.id, 'city', c.city, 'price_min', c.price_min, 'price_max', c.price_max, 'area_min', c.area_min)
 from public.team_criteria c
 union all
+select 'audit settings', to_jsonb(s) - 'updated_by'
+from public.audit_settings s
+union all
+select 'leaving audit', to_jsonb(a) - 'run_started_by' - 'audited_by'
+from public.offer_audits a
+where a.offer_id = 'acc0de1e-0000-4000-8000-000000000003'
+union all
+-- The starter of the re-run is the staying member and stays in the snapshot: only the auditor may change.
+select 'audit re-run by the staying member', to_jsonb(a) - 'audited_by'
+from public.offer_audits a
+where a.offer_id = 'acc0de1e-0000-4000-8000-000000000001'
+union all
 select 'staying offer', to_jsonb(o)
 from public.offers o
 where o.id = 'acc0de1e-0000-4000-8000-000000000001'
@@ -121,7 +182,7 @@ where u.email = 'sigaretif3@vetpad.local';
 
 do $$
 begin
-  if (select count(*) from account_deletion_before) <> 7
+  if (select count(*) from account_deletion_before) <> 10
     or (select jsonb_array_length(doc) from account_deletion_before where name = 'leaving notes') <> 2 then
     raise exception 'account-deletion: [fixture: snapshot is complete] a fixture row is missing from the snapshot - an empty "before" proves nothing';
   end if;
@@ -228,6 +289,66 @@ begin
   end if;
   if signed_by is not null then
     raise exception 'account-deletion: [limits are signed by nobody] updated_by is %', signed_by;
+  end if;
+end $$;
+
+-- The audit settings outlive whoever changed them last, as the limits do: same model, effort and date, signed by
+-- nobody.
+do $$
+declare
+  after_settings jsonb;
+begin
+  select to_jsonb(s) into after_settings from public.audit_settings s;
+
+  if after_settings - 'updated_by' is distinct from (select doc from account_deletion_before where name = 'audit settings') then
+    raise exception 'account-deletion: [audit settings keep their model, effort and date] before: %, after: %',
+      (select doc from account_deletion_before where name = 'audit settings'), after_settings - 'updated_by';
+  end if;
+  if after_settings ->> 'updated_by' is not null then
+    raise exception 'account-deletion: [audit settings are signed by nobody] updated_by is %', after_settings ->> 'updated_by';
+  end if;
+end $$;
+
+-- The audit the deleted member ran belongs to the team: it stays, started and audited by nobody, with the findings,
+-- the dates and the state exactly as they were. The row holds the deleted account in two columns, and Postgres
+-- clears each with an UPDATE of its own - a trigger that put either id back would have failed the deletion above.
+do $$
+declare
+  after_row jsonb;
+begin
+  select to_jsonb(a) into after_row from public.offer_audits a where a.offer_id = 'acc0de1e-0000-4000-8000-000000000003';
+
+  if after_row is null then
+    raise exception 'account-deletion: [deleted member''s audit stays] the audit is gone';
+  end if;
+  if after_row ->> 'run_started_by' is not null or after_row ->> 'audited_by' is not null then
+    raise exception 'account-deletion: [deleted member''s audit is started and audited by nobody] run_started_by is %, audited_by is %',
+      after_row ->> 'run_started_by', after_row ->> 'audited_by';
+  end if;
+  if after_row - 'run_started_by' - 'audited_by' is distinct from (select doc from account_deletion_before where name = 'leaving audit') then
+    raise exception 'account-deletion: [deleted member''s audit keeps its findings, dates and state] before: %, after: %',
+      (select doc from account_deletion_before where name = 'leaving audit'), after_row - 'run_started_by' - 'audited_by';
+  end if;
+end $$;
+
+-- The audit the staying member is re-running loses its auditor and nothing else: the attempt is still running,
+-- started by the staying member at the same moment, beside the same result. The UPDATE that cleared the auditor
+-- reached a running row, which a member's write could not have touched.
+do $$
+declare
+  after_row jsonb;
+begin
+  select to_jsonb(a) into after_row from public.offer_audits a where a.offer_id = 'acc0de1e-0000-4000-8000-000000000001';
+
+  if after_row is null then
+    raise exception 'account-deletion: [audit re-run by another member stays] the audit is gone';
+  end if;
+  if after_row ->> 'audited_by' is not null then
+    raise exception 'account-deletion: [audit re-run by another member has no auditor] audited_by is %', after_row ->> 'audited_by';
+  end if;
+  if after_row - 'audited_by' is distinct from (select doc from account_deletion_before where name = 'audit re-run by the staying member') then
+    raise exception 'account-deletion: [audit re-run by another member keeps its starter, result, dates and state] before: %, after: %',
+      (select doc from account_deletion_before where name = 'audit re-run by the staying member'), after_row - 'audited_by';
   end if;
 end $$;
 

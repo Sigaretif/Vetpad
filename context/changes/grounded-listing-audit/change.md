@@ -1,9 +1,9 @@
 ---
 change_id: grounded-listing-audit
 title: Grounded listing audit
-status: plan_reviewed
+status: implementing
 created: 2026-10-06
-updated: 2026-10-06
+updated: 2026-10-07
 archived_at: null
 ---
 
