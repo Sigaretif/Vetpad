@@ -1369,13 +1369,13 @@ się raz.
 #### Automated
 
 - [x] 7.1 `npx supabase db push --dry-run` wymienia dokładnie dwie migracje tej zmiany
-- [ ] 7.2 Oba zadania CI przechodzą na zmianie zawierającej kod
-- [ ] 7.3 Przebieg weryfikacji z runbooka daje oczekiwane wyniki, a `POST /api/audits` bez sesji przekierowuje na `/auth/signin`
+- [x] 7.2 Oba zadania CI przechodzą na zmianie zawierającej kod
+- [x] 7.3 Przebieg weryfikacji z runbooka daje oczekiwane wyniki, a `POST /api/audits` bez sesji przekierowuje na `/auth/signin`
 
 #### Manual
 
-- [ ] 7.4 Użytkownik ustawił `ANTHROPIC_API_KEY` w Workers Secrets i w sekretach repozytorium GitHub, a baner o braku klucza zniknął z produkcji
+- [x] 7.4 Użytkownik ustawił `ANTHROPIC_API_KEY` w Workers Secrets i w sekretach repozytorium GitHub, a baner o braku klucza zniknął z produkcji
 - [x] 7.5 Użytkownik zgodził się na `db push` i migracje są na hostowanym projekcie
-- [ ] 7.6 Użytkownik wybrał `/git-ship` albo `/git-land`, a nowa wersja obsługuje 100% ruchu
-- [ ] 7.7 Jeden audyt najdłuższego ogłoszenia zakończył się na produkcji, etap i licznik były widoczne na żywo, a CPU, tokeny i czas zostały odczytane
-- [ ] 7.8 Runbook, roadmapa i `research.md` niosą zmierzone wartości, a aktualizacja wyszła na `master`
+- [x] 7.6 Użytkownik wybrał `/git-ship` albo `/git-land`, a nowa wersja obsługuje 100% ruchu
+- [x] 7.7 Jeden audyt najdłuższego ogłoszenia zakończył się na produkcji, etap i licznik były widoczne na żywo, a CPU, tokeny i czas zostały odczytane
+- [x] 7.8 Runbook, roadmapa i `research.md` niosą zmierzone wartości, a aktualizacja wyszła na `master`

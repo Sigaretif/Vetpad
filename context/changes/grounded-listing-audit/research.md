@@ -354,10 +354,19 @@ Needing a measurement:
    nothing has been measured. The runbook's procedure stands: run one audit on the longest listing
    and read the per-request CPU in the Workers dashboard
    (`context/foundation/deployment-runbook.md:282-284`).
+   **Measured 2026-10-09 on production (phase 7): no, and it does not matter yet.** One audit on
+   `claude-opus-5-5` at `medium` took 27 ms of CPU and completed; the Free plan tolerates
+   infrequent overruns. The stream was 21 events, so it is not where the CPU goes — page renders
+   read 17–48 ms in the same log. The runbook's "The CPU ceiling is reached" holds the table.
 2. **Is a silent upstream call cut after 100 seconds?** Unverified community report. A streamed
    call sidesteps the question; a non-streamed one depends on the answer.
 3. **How long are real listings, in characters and tokens?** Not measured anywhere. It sets
    `max_tokens`, the cost per audit and whether question 1 is a concern at all.
+   **Two listings measured, 2026-10-09:** 1600 characters locally (6033 input and 771 output
+   tokens, 10.5 s, 58 stream events, 5 findings) and 1472 characters on production (5923 input
+   and 749 output tokens, 8.2 s at the provider, 21 stream events, 1 finding). Both far below
+   the `max_tokens` of 16000. Two listings are not a distribution, and nobody confirmed the
+   production one was the longest saved.
 
 Needing a decision from the user:
 

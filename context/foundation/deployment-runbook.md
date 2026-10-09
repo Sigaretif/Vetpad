@@ -21,17 +21,17 @@ the part that outlives it.
 
 ## Current state
 
-|                       |                                                                             |
-| --------------------- | --------------------------------------------------------------------------- |
-| Worker                | `vetpad`                                                                    |
-| Production URL        | <https://vetpad.vetpad.workers.dev>                                         |
-| Cloudflare account    | `917c8d5693d671be4227202d2ceb42ed`                                          |
-| Plan                  | **Workers Free** — deliberate, see "When to buy Workers Paid"               |
-| Auto-deploy           | Workers Builds, production branch **`master`**                              |
-| Secrets in production | `SUPABASE_URL`, `SUPABASE_KEY` (hosted Supabase, publishable key)           |
-| KV binding            | `SESSION` → namespace `vetpad-session` (auto-provisioned, adapter-injected) |
-| Preview URLs          | **disabled** (`preview_urls: false`)                                        |
-| Observability         | enabled; `wrangler tail` and Workers Logs both work on Free                 |
+|                       |                                                                                                           |
+| --------------------- | --------------------------------------------------------------------------------------------------------- |
+| Worker                | `vetpad`                                                                                                  |
+| Production URL        | <https://vetpad.vetpad.workers.dev>                                                                       |
+| Cloudflare account    | `917c8d5693d671be4227202d2ceb42ed`                                                                        |
+| Plan                  | **Workers Free** — deliberate, see "When to buy Workers Paid"                                             |
+| Auto-deploy           | Workers Builds, production branch **`master`**                                                            |
+| Secrets in production | `SUPABASE_URL`, `SUPABASE_KEY` (hosted Supabase, publishable key), `ANTHROPIC_API_KEY` (since 2026-10-09) |
+| KV binding            | `SESSION` → namespace `vetpad-session` (auto-provisioned, adapter-injected)                               |
+| Preview URLs          | **disabled** (`preview_urls: false`)                                                                      |
+| Observability         | enabled; `wrangler tail` and Workers Logs both work on Free                                               |
 
 ## How a change reaches production
 
@@ -64,22 +64,30 @@ for p in "/" "/auth/signin" "/auth/signup"; do printf '%-14s %s\n' "$p" "$(curl 
 curl -s -o /dev/null -w "/dashboard %{http_code} -> %{redirect_url}\n" "$B/dashboard"
 curl -s -o /tmp/p.html "$B/"
 grep -q "Supabase nie jest skonfigurowany" /tmp/p.html && echo "banner: VISIBLE — secrets missing" || echo "banner: gone"
+grep -q "ANTHROPIC_API_KEY" /tmp/p.html && echo "provider banner: VISIBLE — key missing" || echo "provider banner: gone"
 grep -qiE "1102|exceeded resource limits" /tmp/p.html && echo "!!! 1102" || echo "1102: none"
 curl -s -o /dev/null -w "wrong-password -> %{redirect_url}\n" -X POST "$B/api/auth/signin" \
   -H "Origin: $B" --data-urlencode "email=x@y.z" --data-urlencode "password=wrong"
+curl -s -o /dev/null -w "audit without a session %{http_code} -> %{redirect_url}\n" -X POST "$B/api/audits" \
+  -H "Origin: $B" --data-urlencode "offer_id=00000000-0000-4000-8000-000000000000"
 # SUPABASE_URL / SUPABASE_KEY: the hosted project URL and its publishable key
 curl -s "$SUPABASE_URL/auth/v1/settings" -H "apikey: $SUPABASE_KEY" | grep -o '"disable_signup":[a-z]*'
 ```
 
-Expected: `200`, `200`, `404`, `302 -> /auth/signin`, banner gone, no 1102, the wrong
-password redirect carrying `?error=Invalid%20login%20credentials`, and
-`"disable_signup":true`.
+Expected: `200`, `200`, `404`, `302 -> /auth/signin`, both banners gone, no 1102, the
+wrong password redirect carrying `?error=Nieprawid%C5%82owy%20e-mail%20lub%20has%C5%82o.`
+(the application's own sentence for credentials Auth refused), the audit route answering
+`302 -> /auth/signin`, and `"disable_signup":true`.
+
+The audit request carries no session, so the route ends it before it looks for an offer
+or a key: it costs nothing and never reaches the model provider. Nothing in this pass
+runs an audit — a real one is a deliberate, paid, manual action (`CLAUDE.md`, Testing).
 
 Registration is checked by **reading** the Auth settings, never by a trial
 `POST /auth/v1/signup`: if sign-up were open, that probe would create an account in
 production. The trial sign-up belongs to `npm run smoke`, on a throwaway local database.
 
-**That last check is the useful one.** A correct `Invalid login credentials` proves
+**The wrong-password check is the useful one.** That sentence proves
 the Worker reached the hosted Supabase — an unreachable one fails differently. It
 verifies the whole path without anybody holding a production password. Signing in
 for real stays a human action in a browser.
@@ -118,6 +126,30 @@ without a session cookie leaves no entry. `event: "request"` with `outcome: "unh
 is an exception that ended in the 500 page: `route` is the route's pattern, never the
 path, and the stack is in Astro's own line beside it.
 
+Every audit leaves entries with `event: "offer_audit"` (`src/pages/api/audits.ts`). An
+audit that reached the model provider leaves two: `outcome: "started"` with
+`stage: "provider"` before the paid call, and one more on the way out — `completed`
+(`info`), `refused` (`info`, a refusal the product expects, such as an attempt already
+running) or `failed` (`error`), with `stage` and `reason`. The entries carry `user_id`,
+`offer_id`, `model`, `effort`, `criteria_revision` and `listing_chars`; the closing one
+adds `provider_request_id`, `stop_reason`, `input_tokens`, `output_tokens`,
+`duration_ms` (the provider call), `stream_events`, `findings_count`, `rejected_count`
+and `dropped_count`. A provider failure is told by `reason`, `status`,
+`provider_error_type` and `provider_request_id`; `provider_error_message` appears only
+on a request the provider rejected as invalid, cut short. A failed read of the criteria
+or of the settings says which step failed in `detail`, `db_code`, `db_status` and
+`error_name`. No entry holds the prompt, the listing's text, an excerpt, a requirement
+or the model's answer. A request that never got as far as the claim leaves one entry
+and no `started`.
+
+`event: "audit_settings"` (`src/pages/api/audit-settings.ts`) is a change of the team's
+model or effort on `/criteria`: `refused` at `info`, `failed` at `error` with `stage`,
+`reason` and, from the database, `db_code` and `db_status`.
+
+`wrangler tail --format json` also gives each request's `cpuTime` and `wallTime` in
+milliseconds, next to its log entries — the per-request CPU reading "The CPU ceiling is
+reached" asks for, without the dashboard.
+
 Known limitation: when Auth refuses a refresh token (a stale cookie), `auth-js` itself
 calls `console.warn` with the `AuthApiError` — Auth's message and a stack — once per
 auth-state listener, outside `logEvent`; it predates the `auth_check` entries, and
@@ -129,18 +161,22 @@ P9), not with the middleware.
 Every row here was hit or verified during deploy zero. All of them look like
 something other than what they are, which is the only reason this table exists.
 
-| Symptom                                                                          | Actual cause                                                                       | Action                                                                                                                                                                                                                                        |
-| -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `1102 Worker exceeded resource limits`                                           | Free plan's 10 ms CPU ceiling                                                      | **Check the plan before debugging code.** The message names no limit and reads like an application bug                                                                                                                                        |
-| Deploy rejected, API error **100328**                                            | a `limits` block in `wrangler.jsonc` while on Free                                 | Remove it. `limits.cpu_ms` is Paid-only and blocks the deploy outright                                                                                                                                                                        |
-| `curl` exit 35 / `sslv3 alert handshake failure` on a fresh `*.workers.dev` name | certificate not issued yet — the wildcard covers one label, this host has two      | Wait ~2 minutes and retry. The Worker is already live                                                                                                                                                                                         |
-| Push to `master` triggers no build, silently                                     | Workers Builds production branch left at the default `main`                        | Set it to `master`. Failure mode is silence, not an error                                                                                                                                                                                     |
-| Build fails during install                                                       | `.nvmrc` pins a version the build image lacks                                      | Image preinstalls **22.23.2** and **24.18.0** only; an exact version outside those forces a source build                                                                                                                                      |
-| New version shows source `version_upload`, looks unpromoted                      | `wrangler deploy` is upload **then** promotion, and the API labels them separately | Check `wrangler deployments list` — 100% traffic on the new version means it deployed                                                                                                                                                         |
-| Signed-in members get the 503 page and login fails, **no banner appears**        | hosted Supabase project paused after ~7 days idle (Free tier)                      | Resume it in the Supabase dashboard. The log names it: `event: "auth_check"`, `outcome: "unavailable"`, with `auth_status` when Auth sent one. `src/lib/config-status.ts` detects _unset_ variables, never an _unreachable_ service           |
-| A member reads „otodom.pl przysłał stronę bez danych ogłoszenia”                 | may be a block served with HTTP 200, not a changed page — the fetch cannot tell    | Read `body_length` and `content_type` of the `reason: "data_missing"` entry. It never has `cf_mitigated` — with that header the reason is `challenged` — so a missing header is not a missing block. Then "Ingestion starts failing (otodom)" |
-| A table returns `[]` with HTTP 200                                               | RLS is on with no `select` policy — looks like missing data                        | Add the policy. **Never** reach for the `secret` / `service_role` key                                                                                                                                                                         |
-| Secrets appear to vanish after an auto-deploy                                    | they do not — secrets are per-Worker, not per-version                              | Verified: they survived the first Workers Builds deploy                                                                                                                                                                                       |
+| Symptom                                                                                                       | Actual cause                                                                                                                                                          | Action                                                                                                                                                                                                                                        |
+| ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `1102 Worker exceeded resource limits`                                                                        | Free plan's 10 ms CPU ceiling                                                                                                                                         | **Check the plan before debugging code.** The message names no limit and reads like an application bug                                                                                                                                        |
+| Deploy rejected, API error **100328**                                                                         | a `limits` block in `wrangler.jsonc` while on Free                                                                                                                    | Remove it. `limits.cpu_ms` is Paid-only and blocks the deploy outright                                                                                                                                                                        |
+| `curl` exit 35 / `sslv3 alert handshake failure` on a fresh `*.workers.dev` name                              | certificate not issued yet — the wildcard covers one label, this host has two                                                                                         | Wait ~2 minutes and retry. The Worker is already live                                                                                                                                                                                         |
+| Push to `master` triggers no build, silently                                                                  | Workers Builds production branch left at the default `main`                                                                                                           | Set it to `master`. Failure mode is silence, not an error                                                                                                                                                                                     |
+| Build fails during install                                                                                    | `.nvmrc` pins a version the build image lacks                                                                                                                         | Image preinstalls **22.23.2** and **24.18.0** only; an exact version outside those forces a source build                                                                                                                                      |
+| New version shows source `version_upload`, looks unpromoted                                                   | `wrangler deploy` is upload **then** promotion, and the API labels them separately                                                                                    | Check `wrangler deployments list` — 100% traffic on the new version means it deployed                                                                                                                                                         |
+| Signed-in members get the 503 page and login fails, **no banner appears**                                     | hosted Supabase project paused after ~7 days idle (Free tier)                                                                                                         | Resume it in the Supabase dashboard. The log names it: `event: "auth_check"`, `outcome: "unavailable"`, with `auth_status` when Auth sent one. `src/lib/config-status.ts` detects _unset_ variables, never an _unreachable_ service           |
+| A member reads „otodom.pl przysłał stronę bez danych ogłoszenia”                                              | may be a block served with HTTP 200, not a changed page — the fetch cannot tell                                                                                       | Read `body_length` and `content_type` of the `reason: "data_missing"` entry. It never has `cf_mitigated` — with that header the reason is `challenged` — so a missing header is not a missing block. Then "Ingestion starts failing (otodom)" |
+| A table returns `[]` with HTTP 200                                                                            | RLS is on with no `select` policy — looks like missing data                                                                                                           | Add the policy. **Never** reach for the `secret` / `service_role` key                                                                                                                                                                         |
+| A member reads „Konto u dostawcy modelu nie ma środków albo osiągnęło limit wydatków…”, **no banner appears** | the prepaid balance in the Claude Console is used up, or the workspace's spend limit is reached — the key is set, so `src/lib/config-status.ts` has nothing to report | Filter `event: "offer_audit"`, `reason: "provider_credit"`. Top up or raise the limit in the Console (a human's step); auto-reload is off on purpose. Nothing in the application is broken                                                    |
+| An audit fails with `reason: "provider_auth"` on a key that was just created                                  | the key belongs to no workspace: the provider answers `400 invalid_request_error`, not 401, and the provider module reads it as a refused key                         | Create the key inside the workspace and set it again. Seen locally 2026-10-09                                                                                                                                                                 |
+| `npm run preview` keeps failing with `provider_auth` after `.dev.vars` was fixed                              | `npm run build` copies `.dev.vars` into `dist/server/`, and the preview reads the copy                                                                                | Rebuild, then restart the preview. Local only — production reads Workers Secrets                                                                                                                                                              |
+| `cpuTime` far above 10 ms on Free, and no `1102`                                                              | the limit tolerates a Worker that runs over it infrequently; the documentation gives no number for that tolerance                                                     | Not a fault and not proof of headroom — see "The CPU ceiling is reached"                                                                                                                                                                      |
+| Secrets appear to vanish after an auto-deploy                                                                 | they do not — secrets are per-Worker, not per-version                                                                                                                 | Verified: they survived the first Workers Builds deploy                                                                                                                                                                                       |
 
 ## Contingencies
 
@@ -266,22 +302,48 @@ failure mode. Three things to know before starting:
 
 ### The CPU ceiling is reached
 
-The Free plan carried deploy zero with room to spare: Astro SSR showed no 1102, and
-a probe decoded 1.2 MB of HTML and scanned it without tripping the limit.
+**Measured 2026-10-09, after S-04 deployed: this application runs over the Free plan's
+10 ms on most requests, and nothing has failed.** An earlier version of this section
+said the plan carried deploy zero "with room to spare"; that rested on the absence of
+1102, not on a per-request reading, and the reading says otherwise. From one
+`wrangler tail` session on production, every request with `outcome: "ok"`:
 
-**The FR-004 ingestion cost has since been measured, and the earlier warning in this
-file overstated it.** A probe ran the full section 7.1 path against a live offer page
-on the Free plan: `RegExp` plus `JSON.parse` completed in **under a millisecond**, no 1102. The reason the fear was misplaced is worth keeping — the offer page is ~558 KB
-of _HTML_, but the embedded `__NEXT_DATA__` JSON is only ~102 KB, a fifth of it. The
-parse was never operating on the number that made it look expensive.
+| Request                               | `cpuTime`     |
+| ------------------------------------- | ------------- |
+| `GET /`                               | 4 ms          |
+| `GET /auth/signin`                    | 48 ms         |
+| `POST /api/auth/signin`               | 7 ms, 25 ms   |
+| `GET /dashboard`                      | 17, 33, 46 ms |
+| `GET /criteria`                       | 32 ms         |
+| `GET /offers/<id>`                    | 19, 21, 40 ms |
+| `POST /api/offers` (FR-004 ingestion) | 19 ms         |
+| `POST /api/audits` (FR-010 audit)     | 27 ms         |
 
-Still re-measure before this lands on `master`:
+The plan allows this because the limit has "built-in flexibility" for a Worker that
+"infrequently runs over" it, and terminates one that hits it "consistently"
+(<https://developers.cloudflare.com/workers/platform/limits/>, read 2026-10-09). The page
+gives no number for either word. So the application lives on that tolerance at the
+traffic of a few members, and nobody knows where it ends.
 
-- **FR-004 ingestion** — measured cheap on one offer; confirm on the longest listing
-  you can find, since description length is the variable this scales with.
-- **FR-010 audit** — parsing the model's structured output is small, but it adds to
-  an existing budget. The model call itself costs almost no CPU: waiting on `fetch`
-  is not metered, and HTTP-triggered Workers have no duration limit on Free either.
+**The audit is not the expensive request.** One real audit on production
+(`claude-opus-5-5`, effort `medium`, a listing of 1472 characters, the team's criteria
+at revision 2): 27 ms of CPU, 8.5 s of wall time of which the provider call took 8.2 s,
+5923 input and 749 output tokens, 21 stream events, one finding, none rejected or
+dropped, `stop_reason: "end_turn"`. An ordinary page render costs as much or more, and
+waiting on the provider is not metered — so the stream is not where the CPU goes, and a
+longer listing is not expected to move the audit's number much. Not measured: where the
+17–48 ms of a page render is spent, a listing much longer than 1472 characters (nobody
+confirmed that one was the longest saved), and an audit with many findings.
+
+**The user's decision, 2026-10-09: stay on Workers Free.** The trigger to revisit it is
+the first `1102` a member sees, or the first request in the log with
+`outcome: "exceededCpu"` — not a `cpuTime` above 10 ms, which is every day's reading.
+Finding where a page render's CPU goes would be a change of its own; nothing has been
+started.
+
+The FR-004 parse itself stays cheap: a probe ran the section 7.1 path against a live
+offer page on Free and `RegExp` plus `JSON.parse` completed in under a millisecond — the
+page is ~558 KB of HTML, but the embedded `__NEXT_DATA__` JSON is only ~102 KB.
 
 When the ceiling is reached, enable Workers Paid and **in the same change** add:
 
@@ -293,15 +355,23 @@ Without it the Paid default is 30 s, not the headline 5 minutes — the pre-mort
 exact failure: the audit dies on the longest listings, the ones that most needed
 auditing, and it looks like a model-provider problem for weeks.
 
-### Adding the model provider key (FR-010)
+### The model provider key (FR-010)
 
-Server-only, and it lands in **six** places: the `astro.config.mjs` schema, `.env`,
-`.dev.vars`, `.env.example`, Workers Secrets, and GitHub repository secrets. Plus a
-factory returning `null` when unset and a `ConfigStatus` entry, so absence shows up
-in the banner instead of crashing a route.
+`ANTHROPIC_API_KEY` is in all **six** places since 2026-10-09: the `astro.config.mjs`
+schema, `.env`, `.dev.vars`, `.env.example`, Workers Secrets, and the GitHub repository
+secrets, which `.github/workflows/ci.yml` hands to the `ci` job's build step only. The
+factory in `src/lib/audit/provider.ts` returns `null` when it is unset and
+`src/lib/config-status.ts` raises the banner, so a deploy without the key degrades the
+audit instead of crashing a route. A second provider key, or a renamed one, repeats all
+six.
 
-Never call a model provider from a React island — islands ship to the browser and
-the key would ship with them.
+Production runs on the same key as local development, in a Claude Console workspace:
+prepaid credits, auto-reload off and a monthly spend limit (confirmed by the user in phase 4 of S-04).
+Rotating it is a human's step in both places, and a `wrangler secret put` is a new
+Worker version (see "Rollback").
+
+Never call a model provider from a React island — islands ship to the browser and the
+key would ship with them.
 
 ## What only a human does
 
