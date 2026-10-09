@@ -7,22 +7,27 @@
  * whatever the offers read did. A failed limits read is never "no breaches": above a list it is
  * one sentence saying the offers were not compared, and no row carries a mark. Offers outside the
  * limits are marked, never hidden.
+ * The audits are a third read: `data-audits-state` carries its ok or error. When it fails, every
+ * row says its audit status could not be checked — never „Nie audytowano".
  */
 import BoardSort from "@/components/offers/BoardSort.astro";
 import OfferBoardItem from "@/components/offers/OfferBoardItem.astro";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import type { AuditIndex } from "@/lib/audit/store";
 import type { TeamLimitsResult } from "@/lib/criteria";
 import type { BoardResult, BoardSort as BoardSortValue } from "@/lib/offer-board";
 
 interface Props {
   result: BoardResult;
   limits: TeamLimitsResult;
+  /** Which offers have a stored audit result, or a failed read of that (`loadAuditIndex`). */
+  audits: AuditIndex;
   sort: BoardSortValue;
   /** Unique per page: a page that renders more than one board (/dev/board) passes its own. */
   headingId?: string;
 }
 
-const { result, limits, sort, headingId = "board-heading" } = Astro.props;
+const { result, limits, audits, sort, headingId = "board-heading" } = Astro.props;
 const offers = result.ok ? result.offers : [];
 ---
 
@@ -30,6 +35,7 @@ const offers = result.ok ? result.offers : [];
   aria-labelledby={headingId}
   data-board-state={result.ok ? "ok" : "error"}
   data-limits-state={limits.ok ? "ok" : "error"}
+  data-audits-state={audits.ok ? "ok" : "error"}
   class="flex flex-col gap-4"
 >
   <div class="flex flex-wrap items-center justify-between gap-3">
@@ -57,7 +63,7 @@ const offers = result.ok ? result.offers : [];
       <ul class="flex flex-col gap-3">
         {offers.map((offer) => (
           <li>
-            <OfferBoardItem offer={offer} limits={limits} />
+            <OfferBoardItem offer={offer} limits={limits} audits={audits} />
           </li>
         ))}
       </ul>

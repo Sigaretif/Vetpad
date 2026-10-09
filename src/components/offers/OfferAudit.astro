@@ -1,0 +1,298 @@
+---
+import { CircleAlert, CircleHelp, Coins, Flag, ListChecks } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import AuditRunner, { type AuditRunnerPreview } from "@/components/offers/AuditRunner";
+import { auditFailureMessage } from "@/lib/audit/failure";
+import { DECISION_CRITICAL } from "@/lib/audit/input";
+import { REQUIREMENT_ATTRIBUTE, type ExcerptSource, type StoredMissing } from "@/lib/audit/schema";
+import { AUDIT_EFFORT_LABELS, AUDIT_MODEL_LABELS, type AuditOptionLabel } from "@/lib/audit/settings";
+import { auditDataState, type OfferAudit } from "@/lib/audit/store";
+import { formatClock, formatTimestamp, pluralForm } from "@/lib/format";
+import { saverName } from "@/lib/members";
+import { cn } from "@/lib/utils";
+
+/*
+ * The AI audit of a saved offer (FR-010, FR-011), in the team column above the notes: the button
+ * that runs it (the `AuditRunner` island), and the last result that succeeded — rendered by the
+ * server, as text. One component for the card page and the /dev/offer-card kitchen sink.
+ *
+ * `data-audit-state` carries what the audit's data says — `none`, `running`, `done`, `failed` or
+ * `error`, as `auditDataState` maps it — into the markup, where scripts/smoke.mjs reads it: a 200
+ * alone cannot tell a failed read from an offer nobody audited. `data-audit-available` says
+ * whether the application holds a provider key, and never changes the other attribute.
+ *
+ * A failed read is never "not audited": the section then says so and renders no button, because
+ * a run started from it could pay for an audit the offer already has.
+ *
+ * Nothing a finding carries is trusted (lessons.md): any member can write `offer_audits` through
+ * the Data API. Every label, question, excerpt and requirement is an Astro text expression, which
+ * escapes it — never `set:html`, never an attribute, never an island. An excerpt is the listing's
+ * own words and stands in a `<blockquote>`.
+ *
+ * The four categories are told apart by their heading and icon; the colour role only repeats it.
+ * A category with nothing in it says so in a sentence of its own: the model pointed at nothing,
+ * which is not the listing stating there is nothing (prd.md, Guardrails).
+ */
+interface Props {
+  offerId: string;
+  audit: OfferAudit;
+  /** Whether the application holds a model-provider key (`isAuditAvailable` in `@/lib/config-status`). */
+  available: boolean;
+  /** The section's id: the island reloads the card at `#audyt`; the kitchen sink passes unique values. */
+  anchorId?: string;
+  /** A state the island opens in — for the kitchen sink only. */
+  runnerPreview?: AuditRunnerPreview;
+}
+
+const { offerId, audit, available, anchorId = "audyt", runnerPreview } = Astro.props;
+
+const headingId = `${anchorId}-naglowek`;
+const attempt = audit.state === "ok" ? audit.attempt : null;
+const result = audit.state === "ok" ? audit.result : null;
+
+// What the island opens with: an attempt in progress, or the reason the latest one failed.
+// „przez" takes the accusative `saverName` gives; a member who could not be established is not named.
+const running = attempt?.kind === "running" ? { by: saverName(attempt.startedBy), at: attempt.startedAt } : null;
+const failure =
+  attempt?.kind === "failed"
+    ? attempt.message
+    : attempt?.kind === "interrupted"
+      ? auditFailureMessage("interrupted")
+      : null;
+
+/** An option by the name /criteria gives it; one the lists no longer hold is shown as stored. */
+function optionName(labels: Record<string, AuditOptionLabel>, value: string): string {
+  return Object.hasOwn(labels, value) ? labels[value].name : value;
+}
+
+const auditedBy = result ? saverName(result.auditedBy) : null;
+const requirementsMade = result
+  ? result.requirementsCount === 0
+    ? "bez wymagań"
+    : `${result.requirementsCount} ${pluralForm(result.requirementsCount, "wymaganie", "wymagania", "wymagań")}`
+  : "";
+const rejected = result?.rejectedCount ?? 0;
+const rejectedNote =
+  rejected === 1
+    ? "Pominięto 1 znalezisko, bo jego cytatu nie znaleziono w treści ogłoszenia."
+    : `Pominięto ${rejected} ${pluralForm(rejected, "znalezisko", "znaleziska", "znalezisk")}, bo ich cytatów nie znaleziono w treści ogłoszenia.`;
+
+/** What a missing-information finding is about: one of the nine attributes by its Polish name, or a requirement. */
+function missingSubject(finding: StoredMissing): string {
+  return finding.attribute === REQUIREMENT_ATTRIBUTE
+    ? "Ogłoszenie nie odpowiada na wymaganie zespołu"
+    : `Ogłoszenie nie podaje: ${DECISION_CRITICAL[finding.attribute].name}`;
+}
+
+const SOURCE: Record<ExcerptSource, string> = {
+  title: "cytat z tytułu ogłoszenia",
+  description: "cytat z opisu ogłoszenia",
+};
+
+// One colour role per category, from the tokens of src/styles/global.css. On the card's surface
+// each pair is above 4.5:1: info 12.9, neutral 14.5, warning 13.5, destructive 5.1.
+const TONE = {
+  info: { head: "border-info-foreground/30 bg-info text-info-foreground", quote: "border-info-foreground/50" },
+  neutral: { head: "border-border bg-muted text-foreground", quote: "border-muted-foreground/50" },
+  warning: {
+    head: "border-warning-foreground/30 bg-warning text-warning-foreground",
+    quote: "border-warning-foreground/50",
+  },
+  destructive: { head: "border-destructive/40 bg-destructive/15 text-destructive", quote: "border-destructive/60" },
+};
+
+// The three categories whose findings rest on an excerpt, in the order the card shows them.
+const excerpted = result
+  ? [
+      {
+        key: "conditions",
+        heading: "Warunki obowiązkowe",
+        icon: ListChecks,
+        tone: TONE.neutral,
+        items: result.findings.conditions.map((finding) => ({ ...finding, requirement: null })),
+        empty:
+          "Model nie wskazał w tekście ogłoszenia fragmentu, który stawia kupującemu warunek. To nie znaczy, że sprzedający żadnego nie stawia.",
+      },
+      {
+        key: "costs",
+        heading: "Koszty nazwane w ogłoszeniu",
+        icon: Coins,
+        tone: TONE.warning,
+        items: result.findings.costs.map((finding) => ({ ...finding, requirement: null })),
+        empty:
+          "Model nie wskazał w tekście ogłoszenia fragmentu, który nazywa koszt poza ceną. To nie znaczy, że dodatkowych kosztów nie będzie.",
+      },
+      {
+        key: "red_flags",
+        heading: "Czerwone flagi",
+        icon: Flag,
+        tone: TONE.destructive,
+        items: result.findings.red_flags,
+        empty:
+          "Model nie wskazał w tekście ogłoszenia fragmentu, który byłby czerwoną flagą. To nie znaczy, że oferta nie niesie ryzyka.",
+      },
+    ]
+  : [];
+
+const MISSING_EMPTY =
+  "Model nie wskazał brakujących informacji. To nie znaczy, że ogłoszenie mówi wszystko, co ważne dla decyzji.";
+
+const headClass = "flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold";
+const emptyClass = "text-muted-foreground text-sm";
+const captionClass = "text-muted-foreground text-xs";
+---
+
+<section
+  id={anchorId}
+  aria-labelledby={headingId}
+  data-audit-state={auditDataState(audit)}
+  data-audit-available={available ? "true" : "false"}
+  class="flex scroll-mt-4 flex-col gap-4"
+>
+  <div class="flex flex-col gap-1">
+    <h2 id={headingId} class="text-xl font-semibold">
+      Audyt AI
+    </h2>
+    <p class="text-muted-foreground text-sm">
+      Model czyta tytuł, opis i parametry ogłoszenia oraz kryteria zespołu. Warunki, koszty i czerwone flagi opierają
+      się na dosłownych cytatach z ogłoszenia.
+    </p>
+  </div>
+
+  {audit.state === "error" ? (
+    <Alert variant="destructive">
+      <CircleAlert />
+      <AlertDescription>
+        Nie udało się wczytać audytu tej oferty. Odśwież kartę za chwilę — dopóki stan audytu jest nieznany, nie można
+        uruchomić kolejnego.
+      </AlertDescription>
+    </Alert>
+  ) : (
+    <>
+      {result === null && <p class:list={emptyClass}>Ta oferta nie ma jeszcze wyniku audytu.</p>}
+
+      <AuditRunner
+        client:load
+        offerId={offerId}
+        hasResult={result !== null}
+        available={available}
+        running={running}
+        failure={failure}
+        anchorId={anchorId}
+        preview={runnerPreview}
+      />
+
+      {result !== null && (
+        <Card className="gap-4">
+          <CardHeader>
+            <h3 class="leading-snug font-semibold">
+              {attempt?.kind === "none" ? "Wynik audytu" : "Wynik poprzedniego audytu"}
+            </h3>
+            <dl class="text-muted-foreground flex flex-col gap-1 text-sm">
+              <div>
+                <dt class="inline">Wykonano:</dt>{" "}
+                <dd class="text-foreground inline wrap-anywhere">
+                  <time datetime={result.auditedAt}>
+                    {formatTimestamp(result.auditedAt)}, {formatClock(result.auditedAt)}
+                  </time>
+                  {auditedBy !== null && <> przez {auditedBy}</>}
+                </dd>
+              </div>
+              <div>
+                <dt class="inline">Model:</dt>{" "}
+                <dd class="text-foreground inline wrap-anywhere">{optionName(AUDIT_MODEL_LABELS, result.model)}</dd>
+              </div>
+              <div>
+                <dt class="inline">Poziom rozumowania:</dt>{" "}
+                <dd class="text-foreground inline wrap-anywhere">{optionName(AUDIT_EFFORT_LABELS, result.effort)}</dd>
+              </div>
+              <div>
+                <dt class="inline">Kryteria w chwili audytu:</dt>{" "}
+                <dd class="text-foreground inline">
+                  {result.hadLimits ? "z limitami zespołu" : "bez limitów zespołu"}, {requirementsMade}
+                </dd>
+              </div>
+            </dl>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-6">
+            <div data-audit-category="missing" class="flex flex-col gap-3">
+              <h4 class:list={cn(headClass, TONE.info.head)}>
+                <CircleHelp className="size-4 shrink-0" />
+                <span>
+                  Brakujące informacje{result.findings.missing.length > 0 && ` (${result.findings.missing.length})`}
+                </span>
+              </h4>
+              {result.findings.missing.length === 0 ? (
+                <p class:list={emptyClass}>{MISSING_EMPTY}</p>
+              ) : (
+                <ul class="flex flex-col gap-4 text-sm">
+                  {result.findings.missing.map((finding) => (
+                    <li class="flex flex-col gap-1">
+                      <p class="font-medium wrap-anywhere">{missingSubject(finding)}</p>
+                      {finding.requirement !== null && (
+                        <p class:list={cn(captionClass, "wrap-anywhere whitespace-pre-line")}>
+                          Wymaganie: {finding.requirement}
+                        </p>
+                      )}
+                      <p class:list={cn(captionClass, "mt-1")}>Pytanie do sprzedającego:</p>
+                      <p class="leading-relaxed wrap-anywhere select-all">{finding.question}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {excerpted.map((category) => {
+              const Icon = category.icon;
+              return (
+                <div data-audit-category={category.key} class="flex flex-col gap-3">
+                  <h4 class:list={cn(headClass, category.tone.head)}>
+                    <Icon className="size-4 shrink-0" />
+                    <span>
+                      {category.heading}
+                      {category.items.length > 0 && ` (${category.items.length})`}
+                    </span>
+                  </h4>
+                  {category.items.length === 0 ? (
+                    <p class:list={emptyClass}>{category.empty}</p>
+                  ) : (
+                    <ul class="flex flex-col gap-4 text-sm">
+                      {category.items.map((finding) => (
+                        <li class="flex flex-col gap-1.5">
+                          {finding.label.trim() !== "" && <p class="font-medium wrap-anywhere">{finding.label}</p>}
+                          <figure class="flex flex-col gap-1">
+                            <blockquote
+                              class:list={cn(
+                                "border-l-2 pl-3 leading-relaxed wrap-anywhere whitespace-pre-line",
+                                category.tone.quote,
+                              )}
+                            >
+                              {finding.excerpt}
+                            </blockquote>
+                            <figcaption class:list={captionClass}>{SOURCE[finding.source]}</figcaption>
+                          </figure>
+                          {finding.requirement !== null && (
+                            <p class:list={cn(captionClass, "wrap-anywhere whitespace-pre-line")}>
+                              Dotyczy wymagania: {finding.requirement}
+                            </p>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              );
+            })}
+
+            {rejected > 0 && (
+              <p data-audit-rejected={rejected} class:list={emptyClass}>
+                {rejectedNote}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+    </>
+  )}
+</section>

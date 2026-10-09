@@ -5,11 +5,14 @@
  * listing does not state reads as unstated, never as 0 or an empty value (prd.md, Guardrails).
  * Beside the audit status sit the team's limits the offer's stated facts break — only when the
  * limits were read: a failed read marks nothing here, the board says so once above the list.
+ * The audit status comes from the index the board read beside the offers; a failed read of it
+ * is a status of its own on every row, never "not audited".
  */
 import AuditStatusBadge from "@/components/offers/AuditStatusBadge.astro";
 import LimitBreachBadges from "@/components/offers/LimitBreachBadges.astro";
 import Unstated from "@/components/offers/Unstated.astro";
 import { Card } from "@/components/ui/card";
+import type { AuditIndex } from "@/lib/audit/store";
 import type { TeamLimitsResult } from "@/lib/criteria";
 import { auditStatus, type OfferBoardItem } from "@/lib/offer-board";
 import { formatArea, formatMoney } from "@/lib/otodom/labels";
@@ -20,9 +23,11 @@ import { limitBreaches } from "@/lib/team-limits";
 interface Props {
   offer: OfferBoardItem;
   limits: TeamLimitsResult;
+  /** Which offers have a stored audit result, or a failed read of that (`loadAuditIndex`). */
+  audits: AuditIndex;
 }
 
-const { offer, limits } = Astro.props;
+const { offer, limits, audits } = Astro.props;
 
 const breaches = limits.ok ? limitBreaches(offer, limits.limits) : [];
 
@@ -75,7 +80,7 @@ const location = [offer.location_label, offer.street_name]
         {location === "" ? <Unstated>Lokalizacja: nie podano w ogłoszeniu</Unstated> : location}
       </p>
       <div class="mt-1 flex flex-wrap gap-2">
-        <AuditStatusBadge status={auditStatus(offer)} />
+        <AuditStatusBadge status={auditStatus(offer, audits)} />
         {limits.ok && breaches.length > 0 && <LimitBreachBadges breaches={breaches} limits={limits.limits} />}
       </div>
     </div>

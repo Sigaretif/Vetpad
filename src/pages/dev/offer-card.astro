@@ -2,12 +2,25 @@
 import AppLayout from "@/layouts/AppLayout.astro";
 import Banner from "@/components/Banner.astro";
 import DuplicateNotice from "@/components/offers/DuplicateNotice.astro";
+import type { AuditRunnerPreview } from "@/components/offers/AuditRunner";
+import OfferAudit from "@/components/offers/OfferAudit.astro";
 import OfferNotFound from "@/components/offers/OfferNotFound.astro";
 import OfferView from "@/components/offers/OfferView.astro";
+import type { OfferAudit as OfferAuditData } from "@/lib/audit/store";
 import type { Saver } from "@/lib/members";
 import type { OfferNotes } from "@/lib/notes";
 import type { OfferRow } from "@/lib/otodom/types";
 import {
+  auditDone,
+  auditEmptyCategories,
+  auditFailedKept,
+  auditFailedNoResult,
+  auditInterrupted,
+  auditLong,
+  auditNone,
+  auditReadFailed,
+  auditRerunning,
+  auditRunning,
   deletedSaver,
   failedNotes,
   fullNotes,
@@ -40,56 +53,177 @@ interface State {
   offer: OfferRow;
   saver: Saver;
   notes: OfferNotes;
+  audit: OfferAuditData;
+  auditAvailable: boolean;
   noteError?: string;
   startEditing?: boolean;
 }
 
-// Each state renders the whole view (card + team column); `notatki-<n>` keeps the sections' ids
-// unique on one page. The editor islands post to /api/notes for fixture offers that do not exist.
+// Each state renders the whole view (card + team column); `notatki-<n>` and `audyt-<n>` keep the
+// sections' ids unique on one page. The editor islands post to /api/notes, and the audit buttons
+// to /api/audits, for fixture offers that do not exist: the audit route answers `offer_not_found`
+// before it looks for a provider key, so a click here cannot reach the model provider.
 const states: State[] = [
   {
-    caption: "Pełna oferta · autor: członek zespołu · notatki: własna w podglądzie, członka, usuniętego konta",
+    caption:
+      "Pełna oferta · autor: członek zespołu · audyt: wynik z czterema kategoriami · notatki: własna w podglądzie, członka, usuniętego konta",
     offer: fullOffer,
     saver: memberSaver,
     notes: fullNotes,
+    audit: auditDone,
+    auditAvailable: true,
   },
   {
     caption:
-      "Wszystko nieznane (brak linku do oryginału) · autor: osoba z usuniętym kontem · notatki: brak (pusty formularz)",
+      "Wszystko nieznane (brak linku do oryginału) · autor: osoba z usuniętym kontem · audyt: same braki, trzy kategorie puste · notatki: brak (pusty formularz)",
     offer: unknownOffer,
     saver: deletedSaver,
     notes: noNotes,
+    audit: auditEmptyCategories,
+    auditAvailable: true,
   },
   {
     caption:
-      "Jedno zdjęcie · autor: oglądający (Ciebie) · notatki: bez własnej, autor nieustalony i długi adres, puste pole",
+      "Jedno zdjęcie · autor: oglądający (Ciebie) · audyt: ponowienie w toku przy zachowanym wyniku · notatki: bez własnej, autor nieustalony i długi adres, puste pole",
     offer: singleImageOffer,
     saver: selfSaver,
     notes: othersOnlyNotes,
+    audit: auditRerunning,
+    auditAvailable: true,
   },
   {
     caption:
-      "Filtr adresów zdjęć (http: i javascript: odrzucone) · autor nieustalony · notatki: błąd odczytu po nieudanym zapisie",
+      "Filtr adresów zdjęć (http: i javascript: odrzucone) · autor nieustalony · audyt: błąd odczytu · notatki: błąd odczytu po nieudanym zapisie",
     offer: unsafeImagesOffer,
     saver: unknownSaver,
     notes: failedNotes,
+    audit: auditReadFailed,
+    auditAvailable: true,
     noteError: "Nie udało się zapisać notatki. Spróbuj ponownie.",
   },
   {
     caption:
-      "Długi tytuł bez spacji, długi opis · autor: członek z długim adresem · notatki: własna w edycji z błędem zapisu, długie słowo i akapity",
+      "Długi tytuł bez spacji, długi opis · autor: członek z długim adresem · audyt: długa etykieta, długi cytat · notatki: własna w edycji z błędem zapisu, długie słowo i akapity",
     offer: longTitleOffer,
     saver: longEmailSaver,
     notes: longNotes,
+    audit: auditLong,
+    auditAvailable: true,
     noteError: "Nie udało się zapisać notatki. Spróbuj ponownie.",
     startEditing: true,
   },
   {
     caption:
-      "Uszkodzone wpisy zdjęć (null, liczba, pusty obiekt, javascript: w dużym zdjęciu) · autor: członek zespołu · notatki: brak (pusty formularz)",
+      "Uszkodzone wpisy zdjęć (null, liczba, pusty obiekt, javascript: w dużym zdjęciu) · autor: członek zespołu · audyt: brak, bez klucza dostawcy · notatki: brak (pusty formularz)",
     offer: malformedImagesOffer,
     saver: memberSaver,
     notes: noNotes,
+    audit: auditNone,
+    auditAvailable: false,
+  },
+];
+
+interface AuditState {
+  /** `data-state` of the wrapper: what `scripts/ui-screenshots.mjs` clips, hovers and focuses. */
+  state: string;
+  /** The row of the 7-state matrix the state belongs to. */
+  matrix: string;
+  caption: string;
+  audit: OfferAuditData;
+  available: boolean;
+  runnerPreview?: AuditRunnerPreview;
+}
+
+// The audit section on its own, in a column as wide as the team column (24rem): one entry per
+// state of the 7-state matrix, through the production component. Hover and focus are shots of the
+// button of „audit-none". The two last states open the island in a state it otherwise reaches
+// only during a run, through its `preview` prop — nothing is sent and no clock runs.
+const auditStates: AuditState[] = [
+  {
+    state: "audit-default",
+    matrix: "default",
+    caption: "wynik z czterema kategoriami, wierszem meta i liczbą pominiętych znalezisk",
+    audit: auditDone,
+    available: true,
+  },
+  {
+    state: "audit-none",
+    matrix: "empty · hover · focus",
+    caption: "brak audytu — przycisk uruchomienia (zrzuty gate-hover-audit-run i gate-focus-audit-run)",
+    audit: auditNone,
+    available: true,
+  },
+  {
+    state: "audit-empty-categories",
+    matrix: "empty",
+    caption: "wynik z trzema pustymi kategoriami · bez limitów, bez wymagań · audytor: usunięte konto",
+    audit: auditEmptyCategories,
+    available: true,
+  },
+  {
+    state: "audit-unavailable",
+    matrix: "disabled",
+    caption: "brak klucza dostawcy modelu",
+    audit: auditNone,
+    available: false,
+  },
+  {
+    state: "audit-running",
+    matrix: "disabled",
+    caption: "próba w toku, widziana przez innego członka",
+    audit: auditRunning,
+    available: true,
+  },
+  {
+    state: "audit-failed-kept",
+    matrix: "error",
+    caption: "nieudana próba przy zachowanym wyniku",
+    audit: auditFailedKept,
+    available: true,
+  },
+  {
+    state: "audit-failed",
+    matrix: "error",
+    caption: "nieudana próba bez wyniku",
+    audit: auditFailedNoResult,
+    available: true,
+  },
+  {
+    state: "audit-interrupted",
+    matrix: "error",
+    caption: "przerwana próba",
+    audit: auditInterrupted,
+    available: true,
+  },
+  {
+    state: "audit-read-error",
+    matrix: "error",
+    caption: "nieudany odczyt audytu — bez przycisku",
+    audit: auditReadFailed,
+    available: true,
+  },
+  {
+    state: "audit-unreadable",
+    matrix: "error",
+    caption: "odpowiedź, która nie jest strumieniem audytu (strona 503 przy awarii logowania) — bez ponowienia",
+    audit: auditNone,
+    available: true,
+    runnerPreview: { kind: "unreadable", status: 503 },
+  },
+  {
+    state: "audit-progress",
+    matrix: "loading",
+    caption: "audyt w toku z etapem i licznikiem czasu",
+    audit: auditNone,
+    available: true,
+    runnerPreview: { kind: "progress", stage: "model", elapsedSeconds: 74 },
+  },
+  {
+    state: "audit-long",
+    matrix: "default",
+    caption: "długa etykieta, długi cytat, długie wymaganie i długi adres audytora w wąskiej kolumnie",
+    audit: auditLong,
+    available: true,
   },
 ];
 
@@ -121,7 +255,8 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
 
     <p class="text-muted-foreground text-sm">
       Strona testowa (tylko <code>astro dev</code>): karta oferty w każdym stanie, z danych testowych. Zmiana wyglądu
-      karty przechodzi przez zrzut tej strony. Każdy stan pokazuje też kolumnę „Notatki zespołu” w innym wariancie.
+      karty przechodzi przez zrzut tej strony. Każdy stan pokazuje też kolumnę zespołu — sekcję „Audyt AI” i „Notatki
+      zespołu” — w innym wariancie. Pod kartami sekcja audytu stoi osobno w każdym stanie swojej macierzy.
     </p>
 
     {states.map((state, index) => (
@@ -131,10 +266,30 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
           offer={state.offer}
           saver={state.saver}
           notes={state.notes}
+          audit={state.audit}
+          auditAvailable={state.auditAvailable}
           noteError={state.noteError}
           startEditing={state.startEditing}
           notesAnchorId={`notatki-${index + 1}`}
+          auditAnchorId={`audyt-${index + 1}`}
         />
+      </div>
+    ))}
+
+    {auditStates.map((state) => (
+      <div class:list={stateClass} data-state={state.state}>
+        <p class:list={captionClass}>
+          Audyt · {state.matrix}: {state.caption}
+        </p>
+        <div class="w-full max-w-sm">
+          <OfferAudit
+            offerId={fullOffer.id}
+            audit={state.audit}
+            available={state.available}
+            anchorId={`audyt-${state.state}`}
+            runnerPreview={state.runnerPreview}
+          />
+        </div>
       </div>
     ))}
 

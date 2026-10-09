@@ -3,8 +3,12 @@
 // routing. Image URLs are an external https placeholder — never the listing portal's own
 // hosts, never `data:` or relative paths — and no row carries a phone number or a person's name.
 // Saver fixtures use `example.com` addresses that name a role, never a person. Note fixtures talk
-// about the flat only: no people, no phone numbers, no company names.
+// about the flat only: no people, no phone numbers, no company names. Audit fixtures are written
+// by hand as well — no finding here was produced by a model or taken from a real listing.
 
+import { auditFailureMessage } from "@/lib/audit/failure";
+import type { StoredFindings } from "@/lib/audit/schema";
+import type { AuditIndex, OfferAudit, StoredAudit } from "@/lib/audit/store";
 import type { TeamLimitsResult } from "@/lib/criteria";
 import type { Saver } from "@/lib/members";
 import type { NoteView, OfferNotes } from "@/lib/notes";
@@ -48,7 +52,7 @@ export const fullOffer: OfferRow = {
 
   title: "Mieszkanie 3-pokojowe z balkonem, Stary Mokotów",
   description:
-    "Słoneczne mieszkanie na trzecim piętrze w ceglanym bloku z windą.\n\nSalon z wyjściem na balkon, oddzielna kuchnia, dwie sypialnie, łazienka z oknem. Do mieszkania przynależy piwnica.\n\nCzynsz obejmuje ogrzewanie miejskie i wywóz śmieci.",
+    "Słoneczne mieszkanie na trzecim piętrze w ceglanym bloku z windą.\n\nSalon z wyjściem na balkon, oddzielna kuchnia, dwie sypialnie, łazienka z oknem. Do mieszkania przynależy piwnica.\n\nCzynsz obejmuje ogrzewanie miejskie i wywóz śmieci.\n\nKupujący pokrywa prowizję biura w wysokości 2% ceny oraz koszty notarialne. Warunkiem rezerwacji jest wpłata zadatku w wysokości 10% ceny przy umowie przedwstępnej.\n\nMieszkanie jest obecnie wynajmowane, umowa najmu obowiązuje do końca 2027 roku.",
 
   price: 890000,
   price_currency: "PLN",
@@ -400,3 +404,204 @@ export const failedNotes: OfferNotes = { state: "error" };
 
 /** Own note (opened in the editor with a server error) and a note with a long word and paragraphs. */
 export const longNotes: OfferNotes = { state: "ok", own: ownNote, others: [longWordNote] };
+
+// AI audits for the /dev/offer-card kitchen sink: one per named state of the card's audit section.
+// The excerpts of `fullFindings` are cut from `fullOffer`'s title and description, so each can be
+// found on the card beside it, as on a real card.
+
+/** All four categories filled: a requirement the listing is silent on, a condition, two costs and a red flag. */
+const fullFindings: StoredFindings = {
+  version: 1,
+  missing: [
+    {
+      attribute: "requirement",
+      requirement: "Miejsce postojowe w garażu podziemnym albo na zamkniętym parkingu.",
+      question: "Czy do mieszkania przynależy miejsce postojowe, a jeśli tak, to czy jest wliczone w cenę?",
+    },
+  ],
+  conditions: [
+    {
+      label: "Zadatek przy umowie przedwstępnej",
+      excerpt: "Warunkiem rezerwacji jest wpłata zadatku w wysokości 10% ceny przy umowie przedwstępnej.",
+      source: "description",
+    },
+  ],
+  costs: [
+    {
+      label: "Prowizja biura po stronie kupującego",
+      excerpt: "Kupujący pokrywa prowizję biura w wysokości 2% ceny",
+      source: "description",
+    },
+    { label: "Koszty notarialne", excerpt: "oraz koszty notarialne", source: "description" },
+  ],
+  red_flags: [
+    {
+      label: "Mieszkanie z najemcą",
+      excerpt: "Mieszkanie jest obecnie wynajmowane, umowa najmu obowiązuje do końca 2027 roku.",
+      source: "description",
+      requirement: "Mieszkanie wolne najpóźniej trzy miesiące po zakupie.",
+    },
+  ],
+};
+
+/** A result with every category filled, made against limits and three requirements, with two findings left out. */
+const fullAuditResult: StoredAudit = {
+  findings: fullFindings,
+  rejectedCount: 2,
+  auditedAt: "2026-10-08T12:32:00Z",
+  auditedBy: memberSaver,
+  model: "claude-opus-5-5",
+  effort: "medium",
+  hadLimits: true,
+  requirementsCount: 3,
+};
+
+/**
+ * Only missing information, about three of the nine attributes; the other three categories are
+ * empty and each says so. Made with no limits and no requirements, by a member whose account is gone.
+ */
+const missingOnlyAuditResult: StoredAudit = {
+  findings: {
+    version: 1,
+    missing: [
+      {
+        attribute: "floor",
+        requirement: null,
+        question: "Na którym piętrze jest mieszkanie i czy w budynku jest winda?",
+      },
+      {
+        attribute: "heating",
+        requirement: null,
+        question: "Jakie jest ogrzewanie mieszkania i jak jest rozliczane?",
+      },
+      {
+        attribute: "ownership",
+        requirement: null,
+        question: "Jaka jest forma własności i czy mieszkanie ma założoną księgę wieczystą?",
+      },
+    ],
+    conditions: [],
+    costs: [],
+    red_flags: [],
+  },
+  rejectedCount: 0,
+  auditedAt: "2026-10-07T07:05:00Z",
+  auditedBy: deletedSaver,
+  model: "claude-sonnet-5-5",
+  effort: "low",
+  hadLimits: false,
+  requirementsCount: 0,
+};
+
+/**
+ * Long content for the narrow column: a label and a requirement with no break points, an excerpt
+ * of two paragraphs, a long question, a long address of the auditor, and counts that take the
+ * other plural forms (22 wymagania, 5 znalezisk).
+ */
+const longAuditResult: StoredAudit = {
+  findings: {
+    version: 1,
+    missing: [
+      {
+        attribute: "requirement",
+        requirement:
+          "Mieszkanie-musi-mieć-osobne-pomieszczenie-do-pracy-zdalnej-z-oknem-i-drzwiami-oraz-szybki-internet-światłowodowy",
+        question:
+          "Czy w mieszkaniu da się wydzielić osobne, zamykane pomieszczenie do pracy z oknem, a jeśli nie, to czy układ ścian pozwala na taką przebudowę bez zgody wspólnoty i bez naruszania ścian nośnych?",
+      },
+    ],
+    conditions: [
+      {
+        label:
+          "Bardzo-długa-etykieta-warunku-bez-spacji-do-sprawdzenia-zawijania-w-wąskiej-kolumnie-audytu-na-telefonie-i-na-komputerze",
+        excerpt: "teren wokół zamknięty i monitorowany",
+        source: "description",
+      },
+    ],
+    costs: [],
+    red_flags: [
+      {
+        label: "Generalny remont i wymiana instalacji bez podanego zakresu i daty",
+        excerpt:
+          "Akapit 1. Mieszkanie po generalnym remoncie, z nową instalacją elektryczną i wodną, wymienionymi oknami i drzwiami antywłamaniowymi. Budynek ocieplony, klatka schodowa po odświeżeniu, teren wokół zamknięty i monitorowany. W okolicy sklepy, przychodnia, szkoła i przystanki kilku linii tramwajowych.\n\nAkapit 2. Mieszkanie po generalnym remoncie, z nową instalacją elektryczną i wodną, wymienionymi oknami i drzwiami antywłamaniowymi.",
+        source: "description",
+        requirement: "Instalacje wymienione nie dawniej niż dziesięć lat temu, z dokumentami odbioru.",
+      },
+      {
+        label: "",
+        excerpt:
+          "Przestronne-czteropokojowe-mieszkanie-z-dwoma-balkonami-i-widokiem-na-park-w-spokojnej-okolicy-blisko-metra-szkoly-i-przedszkola-bez-posrednikow-od-zaraz",
+        source: "title",
+        requirement: null,
+      },
+    ],
+  },
+  rejectedCount: 5,
+  auditedAt: "2026-10-09T21:47:00Z",
+  auditedBy: longEmailSaver,
+  model: "claude-opus-5-5",
+  effort: "high",
+  hadLimits: true,
+  requirementsCount: 22,
+};
+
+/** Never audited and never tried: no row. */
+export const auditNone: OfferAudit = { state: "ok", attempt: { kind: "none" }, result: null };
+
+/** A stored result and no attempt after it — the default state. */
+export const auditDone: OfferAudit = { state: "ok", attempt: { kind: "none" }, result: fullAuditResult };
+
+/** A stored result in which three of the four categories are empty. */
+export const auditEmptyCategories: OfferAudit = {
+  state: "ok",
+  attempt: { kind: "none" },
+  result: missingOnlyAuditResult,
+};
+
+/** A stored result with long content. */
+export const auditLong: OfferAudit = { state: "ok", attempt: { kind: "none" }, result: longAuditResult };
+
+/** A first attempt in progress, started by another member: seen by somebody who opened the card meanwhile. */
+export const auditRunning: OfferAudit = {
+  state: "ok",
+  attempt: { kind: "running", startedAt: "2026-10-09T12:31:00Z", startedBy: memberSaver },
+  result: null,
+};
+
+/** A re-run in progress beside the result it has not replaced yet, started by a member who cannot be named. */
+export const auditRerunning: OfferAudit = {
+  state: "ok",
+  attempt: { kind: "running", startedAt: "2026-10-09T12:31:00Z", startedBy: unknownSaver },
+  result: fullAuditResult,
+};
+
+/** A re-run that failed on the provider's billing state; the earlier result stays. */
+export const auditFailedKept: OfferAudit = {
+  state: "ok",
+  attempt: { kind: "failed", reason: "provider_credit", message: auditFailureMessage("provider_credit") },
+  result: fullAuditResult,
+};
+
+/** A first attempt that failed: there is no result to show. */
+export const auditFailedNoResult: OfferAudit = {
+  state: "ok",
+  attempt: { kind: "failed", reason: "provider_timeout", message: auditFailureMessage("provider_timeout") },
+  result: null,
+};
+
+/** An attempt left `running` past the threshold: its request is gone. */
+export const auditInterrupted: OfferAudit = { state: "ok", attempt: { kind: "interrupted" }, result: null };
+
+/** A failed read of the audit: the section renders no button. */
+export const auditReadFailed: OfferAudit = { state: "error" };
+
+// The audit index for the /dev/board kitchen sink.
+
+/** No offer has a stored result: every row reads „Nie audytowano" (the existing sections). */
+export const noAudits: AuditIndex = { ok: true, audited: new Set() };
+
+/** `fullOffer` has a stored result; every other offer has none. */
+export const someAudits: AuditIndex = { ok: true, audited: new Set([fullOffer.id]) };
+
+/** A failed read of the audits: every row says its status could not be checked. */
+export const failedAudits: AuditIndex = { ok: false };

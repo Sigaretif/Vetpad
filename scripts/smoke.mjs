@@ -62,8 +62,7 @@
 // member reads it but cannot take it over while it runs (400 with the table's own SQLSTATE, VP001), and its starter
 // cannot delete it (200 with no rows) - the row is the same after each, and failing the attempt is the control step
 // for that comparison. The first fixture offer is left without an attempt for the whole run: it is the offer whose
-// card the run opens, and it stays one that was never audited. Deleting the second fixture offer takes the attempt
-// with it.
+// card must read as never audited. Deleting the second fixture offer takes the attempt with it.
 // The audit settings through the app (FR-010): /api/audit-settings turns an anonymous caller away, and a forged
 // session too. Signed in, it refuses a body that is not a form, a model outside the list and an effort outside the
 // list - each lands back on /criteria naming its form (`&form=audit#audyt`), and the settings row is the same
@@ -79,6 +78,13 @@
 // sends an audit request for an offer that exists, so no step can reach the model provider and none can cost
 // anything - the helper refuses the two fixture offers' ids outright. What a real audit does is covered against a
 // stubbed provider in tests/pages/api/audits.test.ts.
+// The audit on the card and the board (FR-006, FR-010), read from the pages and never run: the card of the first
+// fixture offer, which never gets an attempt, carries data-audit-state="none" - whatever data-audit-available says
+// beside it, since CI has no provider key and a local run may have one. The card of the second fixture offer is the
+// control for that marker: it carries "running" while the attempt this run started is fresh, and "failed" once the
+// control step has failed it, so a card that said "none" about every offer cannot pass. /dashboard carries
+// data-audits-state="ok", because a failed read of the audits renders with 200 too, and the first fixture offer's row
+// reads „Nie audytowano" - a running or failed attempt on another offer audits nothing.
 // Cleanup runs whatever failed before it: the limits read at the start are written back (signed by the first
 // member, as any restore would be), the audit settings read at the start likewise, and both members' requirements
 // are deleted with the rows counted - none left of the first member's, which the route removed, and one of the
@@ -172,6 +178,15 @@ let auditSettingsBefore = null;
 // whose card the run opens - never gets an audit row, so a step that reads that card sees an offer nobody audited.
 const FIXTURE_AUDIT = `offer_audits?offer_id=eq.${FIXTURE_OFFER_ID}`;
 const FIXTURE_AUDIT_2 = `offer_audits?offer_id=eq.${FIXTURE_OFFER_ID_2}`;
+// The second fixture offer's card: the one whose audit section has an attempt to show.
+const FIXTURE_CARD_2 = `/offers/${FIXTURE_OFFER_ID_2}`;
+// What the card's audit section says about the audit's data (src/lib/audit/store.ts, auditDataState). A failed
+// read renders "error"; whether a provider key exists is a separate attribute, data-audit-available.
+const AUDIT_NONE = 'data-audit-state="none"';
+const AUDIT_RUNNING = 'data-audit-state="running"';
+const AUDIT_FAILED = 'data-audit-state="failed"';
+// The board's marker for a successful read of the audits; a failed read renders data-audits-state="error".
+const AUDITS_OK = 'data-audits-state="ok"';
 // What POST /api/audits answers with whenever it does not redirect: one JSON object per line.
 const AUDIT_STREAM_TYPE = "application/x-ndjson; charset=utf-8";
 
@@ -1647,6 +1662,27 @@ const steps = [
     () => supabaseRest(`${FIXTURE_AUDIT}&select=offer_id`, { as: MEMBER }),
     { status: 200, rows: 0 },
   ],
+  // The cards, read and never run. The first offer has no row, so its card says "none" with a provider key and
+  // without one. The second offer's attempt started a moment ago, far inside the 175 seconds after which it would
+  // read as interrupted: its card says "running", which is what proves the marker follows the offer's own row.
+  [
+    "offer card of an offer nobody audited says so",
+    () => request(FIXTURE_CARD),
+    { status: 200, bodyIncludes: AUDIT_NONE },
+  ],
+  [
+    "control: offer card of the second fixture offer shows its running attempt",
+    () => request(FIXTURE_CARD_2),
+    { status: 200, bodyIncludes: AUDIT_RUNNING },
+  ],
+  // The board reads the audits beside the offers. An attempt is not a result: the row of the first fixture offer
+  // reads „Nie audytowano", and the marker says that sentence comes from a read that succeeded.
+  ["board reads the audits without error", () => request("/dashboard"), { status: 200, bodyIncludes: AUDITS_OK }],
+  [
+    "board row of an offer nobody audited says so",
+    () => fixtureBoardRow(),
+    { status: 200, bodyIncludes: "Nie audytowano" },
+  ],
   // RLS from the other sides, only now that an attempt exists: before it, `[]` would prove nothing.
   [
     "anon cannot read audit attempts",
@@ -1695,6 +1731,18 @@ const steps = [
         }),
       ),
     { status: 200, rows: 1, snapshot: "changed" },
+  ],
+  // The same card after the control step failed its attempt: the marker moved with the row, and the first offer's
+  // card still says "none".
+  [
+    "control: offer card of the second fixture offer shows its failed attempt",
+    () => request(FIXTURE_CARD_2),
+    { status: 200, bodyIncludes: AUDIT_FAILED },
+  ],
+  [
+    "offer card of an offer nobody audited still says so",
+    () => request(FIXTURE_CARD),
+    { status: 200, bodyIncludes: AUDIT_NONE },
   ],
   // Cleanup: runs even when a step above failed, because every step runs. The limits are written back even when
   // the second member's requirements are no longer there to observe.

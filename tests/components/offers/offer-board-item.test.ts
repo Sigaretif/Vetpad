@@ -3,8 +3,9 @@ import { loadRenderers } from "astro:container";
 import { experimental_AstroContainer as AstroContainer } from "astro/container";
 import { beforeAll, describe, expect, it } from "vitest";
 import OfferBoardItem from "@/components/offers/OfferBoardItem.astro";
+import type { AuditIndex } from "@/lib/audit/store";
 import type { OfferRow } from "@/lib/otodom/types";
-import { fullOffer, noLimits, unknownOffer } from "@/pages/dev/_offer-fixtures";
+import { fullOffer, noAudits, noLimits, unknownOffer } from "@/pages/dev/_offer-fixtures";
 
 // Unknown, not zero (prd.md, Success Criteria → Guardrails): a price or an area the listing does
 // not state reads „nie podano w ogłoszeniu" (prd.md, Open Questions, resolved 2026-09-22 in S-02),
@@ -22,8 +23,8 @@ beforeAll(async () => {
 });
 
 /** The row's visible text: tags dropped, every run of whitespace (NBSP included) one space. */
-async function rowText(offer: OfferRow): Promise<string> {
-  const html = await container.renderToString(OfferBoardItem, { props: { offer, limits: noLimits } });
+async function rowText(offer: OfferRow, audits: AuditIndex = noAudits): Promise<string> {
+  const html = await container.renderToString(OfferBoardItem, { props: { offer, limits: noLimits, audits } });
   return html
     .replace(/<[^>]*>/g, " ")
     .replace(/\s+/g, " ")
@@ -81,5 +82,42 @@ describe("OfferBoardItem: an unstated price or area reads as unstated, never as 
     expect(occurrences(text, UNSTATED)).toBe(0);
     expect(text).toMatch(/890\s*000\s*zł/);
     expect(text).toMatch(/\b57\s*m²/);
+  });
+});
+
+// The audit status on a row (FR-006), from the contract in
+// context/changes/grounded-listing-audit/plan.md (Phase 5): „Audytowano" when the offer has a
+// stored result, „Nie audytowano" when the audits were read and it has none, and „Nie udało się
+// sprawdzić audytu" when they could not be read — which is never shown as „Nie audytowano".
+describe("OfferBoardItem: the audit status is one of three, and a failed read is its own (#3)", () => {
+  const AUDITED = "Audytowano";
+  const NOT_AUDITED = "Nie audytowano";
+  const UNKNOWN = "Nie udało się sprawdzić audytu";
+
+  it("says the offer was audited when the index holds it", async () => {
+    const text = await rowText(fullOffer, { ok: true, audited: new Set([fullOffer.id]) });
+
+    expect(text).toContain(AUDITED);
+    expect(text).not.toContain(NOT_AUDITED);
+    expect(text).not.toContain(UNKNOWN);
+  });
+
+  it.each<[string, AuditIndex]>([
+    ["no offer has a result", { ok: true, audited: new Set() }],
+    ["only another offer has a result", { ok: true, audited: new Set([unknownOffer.id]) }],
+  ])("says the offer was not audited when %s", async (_case, audits) => {
+    const text = await rowText(fullOffer, audits);
+
+    expect(text).toContain(NOT_AUDITED);
+    expect(text).not.toContain(AUDITED);
+    expect(text).not.toContain(UNKNOWN);
+  });
+
+  it("says the status could not be checked when the audits were not read, never that nobody audited", async () => {
+    const text = await rowText(fullOffer, { ok: false });
+
+    expect(text).toContain(UNKNOWN);
+    expect(text).not.toContain(NOT_AUDITED);
+    expect(text).not.toContain(AUDITED);
   });
 });

@@ -7,17 +7,20 @@ import { parseBoardSort, type BoardSort as BoardSortValue } from "@/lib/offer-bo
 import {
   areaBelowOffer,
   boardLimits,
+  failedAudits,
   failedLimits,
   fullOffer,
   lodzLimits,
   longCityLimits,
   longTitleOffer,
   manyBreachesOffer,
+  noAudits,
   noLimits,
   outsideCityOffer,
   priceAboveOffer,
   priceBelowOffer,
   singleImageOffer,
+  someAudits,
   streetOnlyOffer,
   unknownOffer,
   unsafeImagesOffer,
@@ -124,13 +127,22 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
       testowych. Hover i fokus mają własne zrzuty na sekcji „default” (<code>board-hover-row</code>,{" "}
       <code>board-focus-row</code>, <code>board-focus-sort</code>); hover na wierszu ze złamanym limitem —{" "}
       <code>board-hover-breach-row</code> na sekcji „breaches”. Sekcje „breaches” i „limits-error” mają też zrzuty
-      samych siebie (<code>board-breaches</code>, <code>board-limits-error</code>). Stany disabled i loading: nie
-      dotyczy — tablica nie ma wyłączanych kontrolek i nie pobiera niczego po stronie klienta.
+      samych siebie (<code>board-breaches</code>, <code>board-limits-error</code>), tak samo sekcje „audits” i
+      „audits-error” ze znaczkiem statusu audytu (<code>board-audits</code>, <code>board-audits-error</code>). Stany
+      disabled i loading: nie dotyczy — tablica nie ma wyłączanych kontrolek i nie pobiera niczego po stronie klienta.
+      Znaczek statusu audytu: default („Audytowano”, „Nie audytowano”) i error („Nie udało się sprawdzić audytu”);
+      hover, focus, disabled, empty i loading nie dotyczą — znaczek nie jest interaktywny i nie ma własnego stanu
+      ładowania.
     </p>
 
     <div class:list={stateClass} data-state="default">
       <p class:list={captionClass}>Stan: default (lista, sortowanie domyślne)</p>
-      <OfferBoard result={{ ok: true, offers: [fullOffer, singleImageOffer] }} limits={noLimits} sort={defaultSort} />
+      <OfferBoard
+        result={{ ok: true, offers: [fullOffer, singleImageOffer] }}
+        limits={noLimits}
+        audits={noAudits}
+        sort={defaultSort}
+      />
     </div>
 
     <div class:list={stateClass} data-state="breaches">
@@ -138,6 +150,7 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
       <OfferBoard
         result={{ ok: true, offers: [fullOffer, outsideCityOffer, unknownOffer] }}
         limits={boardLimits}
+        audits={noAudits}
         sort={defaultSort}
         headingId="board-heading-breaches"
       />
@@ -148,8 +161,33 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
       <OfferBoard
         result={{ ok: true, offers: [fullOffer, singleImageOffer] }}
         limits={failedLimits}
+        audits={noAudits}
         sort={defaultSort}
         headingId="board-heading-limits-error"
+      />
+    </div>
+
+    <div class:list={stateClass} data-state="audits">
+      <p class:list={captionClass}>Stan: status audytu — „Audytowano” (pierwsza oferta) i „Nie audytowano” (druga)</p>
+      <OfferBoard
+        result={{ ok: true, offers: [fullOffer, singleImageOffer] }}
+        limits={noLimits}
+        audits={someAudits}
+        sort={defaultSort}
+        headingId="board-heading-audits"
+      />
+    </div>
+
+    <div class:list={stateClass} data-state="audits-error">
+      <p class:list={captionClass}>
+        Stan: błąd odczytu audytów (każdy wiersz: „Nie udało się sprawdzić audytu”, nigdy „Nie audytowano”)
+      </p>
+      <OfferBoard
+        result={{ ok: true, offers: [fullOffer, longTitleOffer] }}
+        limits={boardLimits}
+        audits={failedAudits}
+        sort={defaultSort}
+        headingId="board-heading-audits-error"
       />
     </div>
 
@@ -168,6 +206,7 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
       <OfferBoard
         result={{ ok: true, offers: [] }}
         limits={noLimits}
+        audits={noAudits}
         sort={defaultSort}
         headingId="board-heading-empty"
       />
@@ -175,7 +214,13 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
 
     <div class:list={stateClass} data-state="error">
       <p class:list={captionClass}>Stan: błąd odczytu</p>
-      <OfferBoard result={{ ok: false }} limits={noLimits} sort={defaultSort} headingId="board-heading-error" />
+      <OfferBoard
+        result={{ ok: false }}
+        limits={noLimits}
+        audits={noAudits}
+        sort={defaultSort}
+        headingId="board-heading-error"
+      />
     </div>
 
     {rows.map((row) => (
@@ -183,7 +228,7 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
         <p class:list={captionClass}>Stan: {row.caption}</p>
         <ul class="flex flex-col gap-3">
           <li>
-            <OfferBoardItem offer={row.offer} limits={row.limits} />
+            <OfferBoardItem offer={row.offer} limits={row.limits} audits={noAudits} />
           </li>
         </ul>
       </div>

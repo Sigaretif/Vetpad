@@ -3,6 +3,7 @@ import AppLayout from "@/layouts/AppLayout.astro";
 import AddOfferForm from "@/components/offers/AddOfferForm";
 import OfferBoard from "@/components/offers/OfferBoard.astro";
 import { Card, CardHeader, CardDescription, CardContent } from "@/components/ui/card";
+import { loadAuditIndex } from "@/lib/audit/store";
 import { loadTeamLimits } from "@/lib/criteria";
 import { BOARD_COLUMNS, BOARD_SORT_COLUMN, parseBoardSort, type BoardResult, type BoardSort } from "@/lib/offer-board";
 import { createClient } from "@/lib/supabase";
@@ -32,8 +33,13 @@ async function loadBoard({ key, dir }: BoardSort): Promise<BoardResult> {
   }
 }
 
-// The team's limits are read beside the offers, not after them; either read may fail on its own.
-const [board, limits] = await Promise.all([loadBoard(sort), loadTeamLimits(supabase)]);
+// The team's limits and the index of audited offers are read beside the offers, not after them;
+// each of the three reads may fail on its own, and none of them throws.
+const [board, limits, audits] = await Promise.all([
+  loadBoard(sort),
+  loadTeamLimits(supabase),
+  loadAuditIndex(supabase),
+]);
 ---
 
 <AppLayout title="Oferty — Vetpad">
@@ -49,5 +55,5 @@ const [board, limits] = await Promise.all([loadBoard(sort), loadTeamLimits(supab
     </CardContent>
   </Card>
 
-  <OfferBoard result={board} limits={limits} sort={sort} />
+  <OfferBoard result={board} limits={limits} audits={audits} sort={sort} />
 </AppLayout>

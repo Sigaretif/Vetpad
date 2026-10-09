@@ -38,6 +38,9 @@ const FOCUS = {
   banner: `el.matches(".banner a")`,
   // The first „Edytuj" in a notes column: state „pełna oferta", whose own note is in preview.
   noteEdit: `el.matches("[data-notes-state] button") && el.textContent.trim() === "Edytuj"`,
+  // The audit section on its own, state „brak audytu": its one button, „Uruchom audyt AI". The
+  // sections above it carry audit buttons too, so the match names the state.
+  auditRun: `el.matches("[data-state=audit-none] [data-audit-runner] button")`,
   // /dev/forms: the real SignInForm island in the "default" section, reached with real Tab
   // presses; the errored field lives in the "error" section instead (its own composite).
   emailField: `el.matches("[data-state=default] [data-form=signin] input[type=email]")`,
@@ -96,6 +99,31 @@ const SETS = {
     { name: "gate-focus-banner", path: KITCHEN_SINK, focus: "banner" },
     { name: "gate-focus-note-edit", path: KITCHEN_SINK, focus: "noteEdit" },
     { name: "gate-hover-note-edit", path: KITCHEN_SINK, hover: "[data-notes-state] [data-slot=card-action] button" },
+    // The audit section's 7-state matrix, each state on its own in a column as wide as the team
+    // column. default: a result with all four categories, the meta row and the left-out count.
+    { name: "gate-audit-default", path: KITCHEN_SINK, clip: "[data-state=audit-default]" },
+    // hover and focus: the run button of an offer nobody audited.
+    { name: "gate-hover-audit-run", path: KITCHEN_SINK, hover: "[data-state=audit-none] [data-audit-runner] button" },
+    { name: "gate-focus-audit-run", path: KITCHEN_SINK, focus: "auditRun" },
+    // disabled: no provider key; an attempt in progress, seen by another member.
+    { name: "gate-audit-unavailable", path: KITCHEN_SINK, clip: "[data-state=audit-unavailable]" },
+    { name: "gate-audit-running", path: KITCHEN_SINK, clip: "[data-state=audit-running]" },
+    // error: a failed attempt beside a kept result and with no result, an interrupted attempt, a
+    // failed read of the audit, and an answer that is not the audit's stream.
+    { name: "gate-audit-failed-kept", path: KITCHEN_SINK, clip: "[data-state=audit-failed-kept]" },
+    { name: "gate-audit-failed", path: KITCHEN_SINK, clip: "[data-state=audit-failed]" },
+    { name: "gate-audit-interrupted", path: KITCHEN_SINK, clip: "[data-state=audit-interrupted]" },
+    { name: "gate-audit-read-error", path: KITCHEN_SINK, clip: "[data-state=audit-read-error]" },
+    { name: "gate-audit-unreadable", path: KITCHEN_SINK, clip: "[data-state=audit-unreadable]" },
+    // empty: no audit; a result whose categories are empty.
+    { name: "gate-audit-none", path: KITCHEN_SINK, clip: "[data-state=audit-none]" },
+    { name: "gate-audit-empty-categories", path: KITCHEN_SINK, clip: "[data-state=audit-empty-categories]" },
+    // loading: an audit in progress, with its stage and the running time.
+    { name: "gate-audit-progress", path: KITCHEN_SINK, clip: "[data-state=audit-progress]" },
+    // A long label, a long excerpt and a long requirement in the narrow column, and at 375 px.
+    { name: "gate-audit-long", path: KITCHEN_SINK, clip: "[data-state=audit-long]" },
+    { name: "gate-audit-long-mobile", path: KITCHEN_SINK, clip: "[data-state=audit-long]", device: MOBILE },
+    { name: "gate-audit-default-mobile", path: KITCHEN_SINK, clip: "[data-state=audit-default]", device: MOBILE },
   ],
   forms: [
     { name: "forms-desktop", path: FORMS_KITCHEN_SINK },
@@ -148,6 +176,12 @@ const SETS = {
       path: BOARD_KITCHEN_SINK,
       hover: "[data-state=breaches] a[href^='/offers/']",
     },
+    // The audit status badge: „Audytowano" beside „Nie audytowano", and a failed read of the
+    // audits, where every row says its status could not be checked. The second also at 375 px,
+    // where the longest label has to wrap.
+    { name: "board-audits", path: BOARD_KITCHEN_SINK, clip: "[data-state=audits]" },
+    { name: "board-audits-error", path: BOARD_KITCHEN_SINK, clip: "[data-state=audits-error]" },
+    { name: "board-audits-error-mobile", path: BOARD_KITCHEN_SINK, clip: "[data-state=audits-error]", device: MOBILE },
   ],
   criteria: [
     { name: "criteria-desktop", path: CRITERIA_KITCHEN_SINK },
@@ -220,7 +254,13 @@ Sets:
   p3      the real offer card (full page and ?duplicate=1 banner), home
   gate    ${KITCHEN_SINK}: desktop, mobile 375 px, focus on the Topbar link,
           the external link, a gallery thumbnail, a banner link and the own
-          note's „Edytuj" button, and a forced :hover on that button
+          note's „Edytuj" button, and a forced :hover on that button; the
+          audit section on its own in every state of its matrix (a result,
+          no audit, empty categories, no provider key, an attempt in
+          progress, a failed and an interrupted attempt, a failed read, an
+          answer that is not the audit's stream, an audit in progress, long
+          content - also at 375 px), with focus and a forced :hover on
+          „Uruchom audyt AI"
   forms   ${FORMS_KITCHEN_SINK}: desktop, mobile 375 px, focus on the email field,
           the password toggle, the submit button, the errored field, the
           note's first field, the limits' city field and the audit settings'
@@ -229,7 +269,8 @@ Sets:
   board   ${BOARD_KITCHEN_SINK}: desktop, mobile 375 px, focus on the first offer row and
           the first sort link, a forced :hover on the first offer row and on
           a row outside the team's limits, and the sections with limit
-          breaches and with a failed limits read on their own
+          breaches, with a failed limits read, with the audit status badges
+          and with a failed read of the audits on their own
   criteria ${CRITERIA_KITCHEN_SINK}: desktop, mobile 375 px, focus on the city field,
           on the own requirements' „Edytuj" and on the audit settings'
           „Model" list, a forced :hover on „Zapisz limity" and on „Zapisz

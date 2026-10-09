@@ -2,6 +2,7 @@
 // is read from the URL, how a sort link is built, and what audit status a row shows.
 // Pure on purpose, like otodom/labels.ts: no runtime imports, only types.
 
+import type { AuditIndex } from "@/lib/audit/store";
 import type { OfferRow } from "@/lib/otodom/types";
 
 export type BoardSortKey = "added" | "price" | "area";
@@ -69,13 +70,20 @@ export type OfferBoardItem = Pick<
 /** A board read: the rows, or a failure the board shows as an error — never as an empty board. */
 export type BoardResult = { ok: true; offers: OfferBoardItem[] } | { ok: false };
 
-export type AuditStatus = "not_audited";
+/**
+ * What a board row says about the offer's audit. `unknown` is a failed read of the audits: the
+ * row then says the status could not be checked, never that the offer was not audited.
+ */
+export type AuditStatus = "not_audited" | "audited" | "unknown";
 
 /**
- * Every offer is unaudited today: there is no audit table yet. This is the swap point for S-04
- * (grounded-listing-audit), which extends `AuditStatus` with the audited state and gives this
- * function its data source; `AuditStatusBadge.astro` is the one place its label is rendered.
+ * The audit status of one row, from the index the board read beside the offers
+ * (`loadAuditIndex` in `@/lib/audit/store`): `audited` when the offer has a stored result,
+ * `not_audited` when the index was read and does not hold it — an attempt that is running or
+ * failed is not a result — and `unknown` when the index could not be read.
+ * `AuditStatusBadge.astro` is the one place a status gets its label.
  */
-export function auditStatus(_offer: OfferBoardItem): AuditStatus {
-  return "not_audited";
+export function auditStatus(offer: Pick<OfferBoardItem, "id">, index: AuditIndex): AuditStatus {
+  if (!index.ok) return "unknown";
+  return index.audited.has(offer.id) ? "audited" : "not_audited";
 }

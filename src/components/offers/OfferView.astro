@@ -1,37 +1,70 @@
 ---
+import type { AuditRunnerPreview } from "@/components/offers/AuditRunner";
+import OfferAudit from "@/components/offers/OfferAudit.astro";
 import OfferCard from "@/components/offers/OfferCard.astro";
 import OfferNotes from "@/components/offers/OfferNotes.astro";
+import type { OfferAudit as OfferAuditData } from "@/lib/audit/store";
 import type { Saver } from "@/lib/members";
 import type { OfferNotes as OfferNotesData } from "@/lib/notes";
 import type { OfferRow } from "@/lib/otodom/types";
 
 /*
  * The offer card beside the team column: two columns from `lg` up, stacked below it (the listing
- * first, then the notes). One component for the card page and the /dev/offer-card kitchen sink;
- * the page renders it inside `<AppLayout wide>`.
+ * first, then the team column). The team column holds the AI audit and, under it, the notes: two
+ * reads of their own, so the audit renders whatever the notes' read did, and the other way round.
+ * One component for the card page and the /dev/offer-card kitchen sink; the page renders it inside
+ * `<AppLayout wide>`.
  */
 interface Props {
   offer: OfferRow;
   saver: Saver;
   notes: OfferNotesData;
+  /** The offer's audit as `loadOfferAudit` read it; a failed read is its own state. */
+  audit: OfferAuditData;
+  /** Whether the application holds a model-provider key (`isAuditAvailable`). */
+  auditAvailable: boolean;
   noteError?: string | null;
   startEditing?: boolean;
   /** Passed to OfferNotes as `anchorId`; unique per instance on the kitchen sink. */
   notesAnchorId?: string;
+  /** Passed to OfferAudit as `anchorId`; unique per instance on the kitchen sink. */
+  auditAnchorId?: string;
+  /** A state the audit island opens in — for the kitchen sink only. */
+  auditRunnerPreview?: AuditRunnerPreview;
 }
 
-const { offer, saver, notes, noteError = null, startEditing = false, notesAnchorId } = Astro.props;
+const {
+  offer,
+  saver,
+  notes,
+  audit,
+  auditAvailable,
+  noteError = null,
+  startEditing = false,
+  notesAnchorId,
+  auditAnchorId,
+  auditRunnerPreview,
+} = Astro.props;
 ---
 
 <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] lg:items-start">
   <div class="flex min-w-0 flex-col gap-6">
     <OfferCard offer={offer} saver={saver} />
   </div>
-  <OfferNotes
-    offerId={offer.id}
-    notes={notes}
-    serverError={noteError}
-    startEditing={startEditing}
-    anchorId={notesAnchorId}
-  />
+  <div class="flex min-w-0 flex-col gap-8">
+    <OfferAudit
+      offerId={offer.id}
+      audit={audit}
+      available={auditAvailable}
+      anchorId={auditAnchorId}
+      runnerPreview={auditRunnerPreview}
+    />
+    <OfferNotes
+      offerId={offer.id}
+      notes={notes}
+      serverError={noteError}
+      startEditing={startEditing}
+      anchorId={notesAnchorId}
+    />
+  </div>
 </div>

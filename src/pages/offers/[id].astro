@@ -4,6 +4,8 @@ import DuplicateNotice from "@/components/offers/DuplicateNotice.astro";
 import OfferNotFound from "@/components/offers/OfferNotFound.astro";
 import OfferView from "@/components/offers/OfferView.astro";
 import { buttonVariants } from "@/components/ui/button";
+import { loadOfferAudit, type OfferAudit } from "@/lib/audit/store";
+import { isAuditAvailable } from "@/lib/config-status";
 import { resolveSaver, type Saver } from "@/lib/members";
 import { loadNotes, type OfferNotes } from "@/lib/notes";
 import { createClient } from "@/lib/supabase";
@@ -11,7 +13,7 @@ import type { OfferRow } from "@/lib/otodom/types";
 import { cn } from "@/lib/utils";
 import { isUuid } from "@/lib/uuid";
 
-// One client per view, for the offer, its author and its notes; `null` when Supabase is unconfigured.
+// One client per view, for the offer, its author, its notes and its audit; `null` when Supabase is unconfigured.
 const supabase = createClient(Astro.request.headers, Astro.cookies);
 
 /**
@@ -41,13 +43,18 @@ if (!offer) {
 // and the card's author line to the unnamed variant instead of a 500.
 // Notes are read once per view, and only for an existing offer. loadNotes never throws: a failed
 // read is `{ state: "error" }`, which renders the column without the editor, never a 500.
-// Both reads are independent and never throw, so they run side by side.
-const [saver, notes]: [Saver, OfferNotes | null] = offer
+// The audit is read the same way: loadOfferAudit never throws, and a failed read is
+// `{ state: "error" }`, which renders the audit section without its button. The moment of the view
+// decides whether an attempt still counts as running. The module read here is the audit's store —
+// never its provider, whose SDK a card render must not load.
+// The three reads are independent and never throw, so they run side by side.
+const [saver, notes, audit]: [Saver, OfferNotes | null, OfferAudit | null] = offer
   ? await Promise.all([
       resolveSaver(supabase, offer.created_by, Astro.locals.user?.id),
       loadNotes(supabase, offer.id, Astro.locals.user?.id),
+      loadOfferAudit(supabase, offer.id, Astro.locals.user?.id, new Date()),
     ])
-  : [{ kind: "unknown" }, null];
+  : [{ kind: "unknown" }, null, null];
 const duplicate = offer !== null && Astro.url.searchParams.get("duplicate") === "1";
 
 // Only POST /api/notes redirects back to the card with `?error=` (`/offers/<id>?error=…#notatki`),
@@ -62,9 +69,16 @@ const noteError = offer ? Astro.url.searchParams.get("error") : null;
     ← Wróć do ofert
   </a>
 
-  {offer === null || notes === null ? (
+  {offer === null || notes === null || audit === null ? (
     <OfferNotFound />
   ) : (
-    <OfferView offer={offer} saver={saver} notes={notes} noteError={noteError} />
+    <OfferView
+      offer={offer}
+      saver={saver}
+      notes={notes}
+      audit={audit}
+      auditAvailable={isAuditAvailable()}
+      noteError={noteError}
+    />
   )}
 </AppLayout>

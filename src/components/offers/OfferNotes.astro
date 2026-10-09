@@ -7,9 +7,10 @@ import NoteEditor from "@/components/offers/NoteEditor";
 import type { OfferNotes } from "@/lib/notes";
 
 /*
- * The team column of the offer card (FR-012, FR-013): the member's own note in the editor island,
- * then everyone else's notes, rendered without a client directive. One component for the card page
- * and the /dev/offer-card kitchen sink.
+ * The notes in the team column of the offer card (FR-012, FR-013): the member's own note in the
+ * editor island, then everyone else's notes, rendered without a client directive. One component
+ * for the card page and the /dev/offer-card kitchen sink. The AI audit stands above it in the same
+ * column (`OfferAudit.astro`, placed by `OfferView.astro`).
  *
  * A failed read is never "no notes": the column then renders no editor, because an empty form
  * saved as an upsert would overwrite the member's existing note.
@@ -42,8 +43,6 @@ const own =
   <h2 id={headingId} class="text-xl font-semibold">
     Notatki zespołu
   </h2>
-
-  {/* S-04 inserts the audit here, above the notes. */}
 
   {notes.state === "ok" ? (
     <>

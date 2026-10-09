@@ -25,3 +25,13 @@ export const configStatuses: ConfigStatus[] = [
 ];
 
 export const missingConfigs = configStatuses.filter((s) => !s.configured);
+
+/**
+ * Whether the application holds a model-provider key, so an AI audit can be started (FR-010).
+ * The offer card asks here — never by building the provider, whose module carries the SDK and
+ * must not load with a card render. Without a key the card still renders: its audit button is
+ * disabled and says why (the zero-config state).
+ */
+export function isAuditAvailable(): boolean {
+  return Boolean(ANTHROPIC_API_KEY);
+}

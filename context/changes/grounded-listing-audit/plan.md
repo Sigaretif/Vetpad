@@ -1324,33 +1324,33 @@ się raz.
 
 #### Automated
 
-- [x] 4.1 `npm test` przechodzi z testami trasy audytu, w tym z liczbą wywołań dostawcy w każdym scenariuszu tabeli
-- [x] 4.2 `npm test` przechodzi z testem stanu zero-config trasy i z przypadkami nowych pól w `tests/lib/log.test.ts`
-- [x] 4.3 `npm run lint`, `npx astro sync && npx astro check` i `npm run build` przechodzą z `@anthropic-ai/sdk`
-- [x] 4.4 `npm run smoke` przechodzi z krokami `POST /api/audits`, bez klucza dostawcy w środowisku
+- [x] 4.1 `npm test` przechodzi z testami trasy audytu, w tym z liczbą wywołań dostawcy w każdym scenariuszu tabeli — 64256f4
+- [x] 4.2 `npm test` przechodzi z testem stanu zero-config trasy i z przypadkami nowych pól w `tests/lib/log.test.ts` — 64256f4
+- [x] 4.3 `npm run lint`, `npx astro sync && npx astro check` i `npm run build` przechodzą z `@anthropic-ai/sdk` — 64256f4
+- [x] 4.4 `npm run smoke` przechodzi z krokami `POST /api/audits`, bez klucza dostawcy w środowisku — 64256f4
 
 #### Manual
 
-- [x] 4.5 Użytkownik potwierdził w konsoli wyłączony auto-reload i limit wydatków, utworzył klucz i wpisał `ANTHROPIC_API_KEY` do lokalnych `.env` i `.dev.vars`
-- [x] 4.6 Jeden prawdziwy audyt pod `npm run preview` kończy się `done` na `claude-opus-5-5` i jeden na `claude-sonnet-5-5`, a wpisy logu niosą tokeny, czas i identyfikator żądania
-- [x] 4.7 Dwa równoczesne żądania audytu tej samej oferty dają jedno żądanie widoczne w konsoli dostawcy, a drugie kończy się `busy`
+- [x] 4.5 Użytkownik potwierdził w konsoli wyłączony auto-reload i limit wydatków, utworzył klucz i wpisał `ANTHROPIC_API_KEY` do lokalnych `.env` i `.dev.vars` — 64256f4
+- [x] 4.6 Jeden prawdziwy audyt pod `npm run preview` kończy się `done` na `claude-opus-5-5` i jeden na `claude-sonnet-5-5`, a wpisy logu niosą tokeny, czas i identyfikator żądania — 64256f4
+- [x] 4.7 Dwa równoczesne żądania audytu tej samej oferty dają jedno żądanie widoczne w konsoli dostawcy, a drugie kończy się `busy` — 64256f4
 
 ### Phase 5: Karta i tablica
 
 #### Automated
 
-- [ ] 5.1 `npm test` przechodzi z testami odczytu audytu, `auditStatus` i renderowania sekcji audytu
-- [ ] 5.2 `npm run lint`, `npx astro sync && npx astro check` i `npm run build` przechodzą
-- [ ] 5.3 `npm run smoke` przechodzi ze sprawdzeniem `data-audit-state` i `data-audits-state`
-- [ ] 5.4 `node scripts/ui-screenshots.mjs gate context/changes/grounded-listing-audit/screenshots` i zestaw `board` tworzą zrzuty nowych stanów
+- [x] 5.1 `npm test` przechodzi z testami odczytu audytu, `auditStatus` i renderowania sekcji audytu
+- [x] 5.2 `npm run lint`, `npx astro sync && npx astro check` i `npm run build` przechodzą
+- [x] 5.3 `npm run smoke` przechodzi ze sprawdzeniem `data-audit-state` i `data-audits-state`
+- [x] 5.4 `node scripts/ui-screenshots.mjs gate context/changes/grounded-listing-audit/screenshots` i zestaw `board` tworzą zrzuty nowych stanów
 
 #### Manual
 
-- [ ] 5.5 Audyt uruchomiony z karty pokazuje etap i płynący czas, po zakończeniu karta pokazuje znaleziska z cytatami, a tablica „Audytowano"
-- [ ] 5.6 Każdy pokazany cytat da się znaleźć w opisie albo tytule oferty na tej samej karcie
-- [ ] 5.7 Ponowienie z celowo błędnym kluczem pokazuje komunikat o niepowodzeniu, a poprzednie znaleziska zostają
-- [ ] 5.8 Drugi członek otwierający kartę w trakcie audytu widzi „w toku" z osobą i godziną oraz wyłączony przycisk
-- [ ] 5.9 Zrzuty pokazują każdy wiersz obu macierzy, cztery kategorie są rozróżnialne bez polegania na samym kolorze, kontrast co najmniej 4,5:1, widok mobilny bez poziomego przewijania
+- [x] 5.5 Audyt uruchomiony z karty pokazuje etap i płynący czas, po zakończeniu karta pokazuje znaleziska z cytatami, a tablica „Audytowano"
+- [x] 5.6 Każdy pokazany cytat da się znaleźć w opisie albo tytule oferty na tej samej karcie
+- [x] 5.7 Ponowienie z celowo błędnym kluczem pokazuje komunikat o niepowodzeniu, a poprzednie znaleziska zostają
+- [x] 5.8 Drugi członek otwierający kartę w trakcie audytu widzi „w toku" z osobą i godziną oraz wyłączony przycisk
+- [x] 5.9 Zrzuty pokazują każdy wiersz obu macierzy, cztery kategorie są rozróżnialne bez polegania na samym kolorze, kontrast co najmniej 4,5:1, widok mobilny bez poziomego przewijania
 - [ ] 5.10 Bramka wizualna powtórzona po triage z `/10x-impl-review`, jeśli zmienił widok
 
 ### Phase 6: Dokumentacja i reguły

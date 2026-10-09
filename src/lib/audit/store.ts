@@ -13,10 +13,20 @@
 //
 // No function here throws: an exception from the client is a failed write like any other.
 // `@/lib/supabase` enters only through `import type`.
+//
+// The two reads at the end are what the views show: `loadOfferAudit` for the offer card and
+// `loadAuditIndex` for the board. Neither ever answers "not audited" for a read that failed.
+// Nothing here imports the provider or its SDK, so a card or a board render never loads them.
 
-import type { AuditFailureReason } from "@/lib/audit/failure";
-import type { StoredFindings } from "@/lib/audit/schema";
+import {
+  AUDIT_STALE_ATTEMPT_MS,
+  type AuditFailureReason,
+  auditFailureMessage,
+  isAuditFailureReason,
+} from "@/lib/audit/failure";
+import { type StoredFindings, readFindings } from "@/lib/audit/schema";
 import type { AuditEffort, AuditModel } from "@/lib/audit/settings";
+import { type Saver, resolveAuthors } from "@/lib/members";
 import type { createClient } from "@/lib/supabase";
 
 type SupabaseClient = NonNullable<ReturnType<typeof createClient>>;
@@ -207,4 +217,249 @@ export async function failAudit(
     run_failure: reason,
   });
   return state === "failed" ? { state: "error", attempts: 1, ...failure } : { state };
+}
+
+// Reads for the views.
+
+/**
+ * The offer's latest attempt, as the card tells it. `none`: nothing to tell — the offer has no
+ * row, or its last attempt completed and is the result itself. `interrupted`: the row says
+ * `running`, and has for `AUDIT_STALE_ATTEMPT_MS` or longer — the request behind it is gone, and
+ * the database lets another attempt take the row over.
+ */
+export type AuditAttempt =
+  | { kind: "none" }
+  | { kind: "running"; /** `run_started_at` as stored. */ startedAt: string; startedBy: Saver }
+  | {
+      kind: "failed";
+      /** `run_failure` when it is a reason this version knows; `null` for any other text. */
+      reason: AuditFailureReason | null;
+      /** The sentence for the reason, or `AUDIT_FAILURE_UNNAMED`: no cause is invented for an unknown one. */
+      message: string;
+    }
+  | { kind: "interrupted" };
+
+/** What the card says about a failed attempt whose stored reason this version does not know. */
+export const AUDIT_FAILURE_UNNAMED =
+  "Ostatnia próba audytu nie powiodła się, a aplikacja nie rozpoznaje zapisanej przyczyny.";
+
+/** The last audit that succeeded, as the card shows it. */
+export interface StoredAudit {
+  findings: StoredFindings;
+  /** Positive findings left out because their excerpt was not found in the listing. */
+  rejectedCount: number;
+  auditedAt: string;
+  auditedBy: Saver;
+  /**
+   * The model and the effort as stored — a record of what produced the findings, not a setting.
+   * Kept as text: an audit made with an option the lists no longer hold must still be readable,
+   * and the card shows such a value as it stands.
+   */
+  model: string;
+  effort: string;
+  hadLimits: boolean;
+  requirementsCount: number;
+}
+
+/**
+ * An offer's audit, or a failed read — which is never shown as "not audited". With `ok`, the
+ * attempt and the result are independent: a failed or interrupted re-run stands beside the result
+ * it did not replace, and so does one that is still running.
+ */
+export type OfferAudit = { state: "error" } | { state: "ok"; attempt: AuditAttempt; result: StoredAudit | null };
+
+/** Everything the card reads. `criteria_revision` and `listing_fingerprint` are S-09's, and are not shown. */
+const VIEW_COLUMNS =
+  "run_state, run_started_at, run_started_by, run_failure, findings, rejected_count, audited_at, audited_by, model, effort, had_limits, requirements_count";
+
+function isReadableDate(value: unknown): value is string {
+  return typeof value === "string" && !Number.isNaN(Date.parse(value));
+}
+
+/** A person column: a member's id, or `null` for a deleted account. Anything else does not read. */
+function isPerson(value: unknown): value is string | null {
+  return value === null || (typeof value === "string" && value !== "");
+}
+
+function isCount(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0;
+}
+
+function isText(value: unknown): value is string {
+  return typeof value === "string" && value.trim() !== "";
+}
+
+type RowAttempt =
+  | { kind: "none" }
+  | { kind: "running"; startedAt: string; startedBy: string | null }
+  | Extract<AuditAttempt, { kind: "failed" | "interrupted" }>;
+
+/** The attempt columns of a row, or `null` when they do not read. The clock comes from the caller. */
+function readAttempt(row: Record<string, unknown>, now: Date): RowAttempt | null {
+  const { run_state: state, run_started_at: startedAt, run_started_by: startedBy, run_failure: failure } = row;
+  if (!isReadableDate(startedAt) || !isPerson(startedBy)) return null;
+  switch (state) {
+    case "completed":
+      return { kind: "none" };
+    case "failed": {
+      const reason = isAuditFailureReason(failure) ? failure : null;
+      return { kind: "failed", reason, message: reason === null ? AUDIT_FAILURE_UNNAMED : auditFailureMessage(reason) };
+    }
+    case "running":
+      // The same line the database draws: an attempt is protected while it is younger than the threshold.
+      return now.getTime() - Date.parse(startedAt) >= AUDIT_STALE_ATTEMPT_MS
+        ? { kind: "interrupted" }
+        : { kind: "running", startedAt, startedBy };
+    default:
+      return null;
+  }
+}
+
+type RowResult = Omit<StoredAudit, "auditedBy"> & { auditedBy: string | null };
+
+/**
+ * The result columns of a row: `null` for an offer never audited (every column empty),
+ * `undefined` when they do not read — half a result, findings `readFindings` turns away, a count
+ * that is not one, a date that is not one. The table's check keeps a result whole or absent; the
+ * row is still not trusted to be either.
+ */
+function readResult(row: Record<string, unknown>): RowResult | null | undefined {
+  const {
+    findings: stored,
+    rejected_count: rejectedCount,
+    audited_at: auditedAt,
+    audited_by: auditedBy,
+    model,
+    effort,
+    had_limits: hadLimits,
+    requirements_count: requirementsCount,
+  } = row;
+  if (!isPerson(auditedBy)) return undefined;
+  const columns = [stored, rejectedCount, auditedAt, model, effort, hadLimits, requirementsCount];
+  // `audited_by` stays out of the count: a deleted account leaves it empty beside a whole result.
+  if (columns.every((value) => value === null) && auditedBy === null) return null;
+
+  const findings = readFindings(stored);
+  if (findings === null) return undefined;
+  if (!isCount(rejectedCount) || !isCount(requirementsCount) || !isReadableDate(auditedAt)) return undefined;
+  if (!isText(model) || !isText(effort) || typeof hadLimits !== "boolean") return undefined;
+  return { findings, rejectedCount, auditedAt, auditedBy, model, effort, hadLimits, requirementsCount };
+}
+
+/**
+ * The offer's audit for its card: the latest attempt and the last result that succeeded, with the
+ * people named as the viewer should read them. `now` is the moment of the view — there is no
+ * clock in here — and decides one thing: a `running` attempt that started `AUDIT_STALE_ATTEMPT_MS`
+ * ago or earlier reads as `interrupted`.
+ *
+ * An offer without a row is `attempt: none, result: null`: never audited, and never tried. That
+ * answer is given for a read that succeeded and found no row, and for nothing else. No client (the
+ * zero-config state), a failed query, an answer that is not the offer's one row, an unknown
+ * `run_state`, an unreadable date, a person column that is not an id, findings that do not read
+ * or half a result is `{ state: "error" }` — never "not audited".
+ *
+ * The people are read with one `resolveAuthors` query, and only those the card will name: who
+ * started an attempt that is still running, and who made the stored result. A failed read of
+ * their names leaves them `unknown` and the audit readable. Never throws.
+ */
+export async function loadOfferAudit(
+  supabase: SupabaseClient | null,
+  offerId: string,
+  viewerId: string | undefined,
+  now: Date,
+): Promise<OfferAudit> {
+  if (!supabase) return { state: "error" };
+  try {
+    // No `maybeSingle()`: it would turn an answer that is not a list into "no row".
+    const read = await supabase.from(TABLE).select(VIEW_COLUMNS).eq("offer_id", offerId);
+    if (read.error || !Array.isArray(read.data)) return { state: "error" };
+    const rows = read.data as unknown[];
+    if (rows.length === 0) return { state: "ok", attempt: { kind: "none" }, result: null };
+    const [row] = rows;
+    // The key is the offer, so a second row is an answer to another question.
+    if (rows.length !== 1 || typeof row !== "object" || row === null) return { state: "error" };
+
+    const columns = row as Record<string, unknown>;
+    const attempt = readAttempt(columns, now);
+    const result = readResult(columns);
+    if (attempt === null || result === undefined) return { state: "error" };
+    // `completed` is the state of a row that holds its result; one without it does not read.
+    if (columns.run_state === "completed" && result === null) return { state: "error" };
+
+    const starter = attempt.kind === "running" ? [attempt.startedBy] : [];
+    const auditor = result === null ? [] : [result.auditedBy];
+    // `resolveAuthors` answers in the order of its input: the starter, when asked for, comes first.
+    const people = await resolveAuthors(supabase, [...starter, ...auditor], viewerId);
+
+    return {
+      state: "ok",
+      attempt: attempt.kind === "running" ? { ...attempt, startedBy: people[0] } : attempt,
+      result: result === null ? null : { ...result, auditedBy: people[starter.length] },
+    };
+  } catch {
+    return { state: "error" };
+  }
+}
+
+/** What the card's `data-audit-state` says. */
+export type AuditDataState = "none" | "running" | "done" | "failed" | "error";
+
+/**
+ * One word for an offer's audit, for the card's `data-audit-state` — where `scripts/smoke.mjs`
+ * and the render tests read it. It describes the audit's data and nothing else: whether a
+ * provider key exists is `data-audit-available`, and never changes this value.
+ *
+ * The latest attempt speaks first, the stored result only when the attempt has nothing to say:
+ *
+ * - `error`   the read failed;
+ * - `running` an attempt is in progress — with or without an earlier result beside it;
+ * - `failed`  the latest attempt failed or was interrupted — with or without an earlier result
+ *             beside it, which the card still shows;
+ * - `done`    a stored result, and no attempt after it;
+ * - `none`    no result and no attempt: the offer was never audited.
+ */
+export function auditDataState(audit: OfferAudit): AuditDataState {
+  if (audit.state === "error") return "error";
+  switch (audit.attempt.kind) {
+    case "running":
+      return "running";
+    case "failed":
+    case "interrupted":
+      return "failed";
+    case "none":
+      return audit.result === null ? "none" : "done";
+    default: {
+      const unhandled: never = audit.attempt;
+      return unhandled;
+    }
+  }
+}
+
+/**
+ * Which offers have a stored audit result, or a failed read — which the board shows as "could not
+ * check", never as "not audited". An attempt alone (running, failed, interrupted) puts no offer in
+ * the set: the set answers whether there are findings to read.
+ */
+export type AuditIndex = { ok: true; audited: ReadonlySet<string> } | { ok: false };
+
+/**
+ * The ids of every offer whose row holds a result, read once per board. No client (the
+ * zero-config state), a failed query, an answer that is not a list of rows with an offer id, or
+ * an exception is `{ ok: false }` — never an empty set. Never throws.
+ */
+export async function loadAuditIndex(supabase: SupabaseClient | null): Promise<AuditIndex> {
+  if (!supabase) return { ok: false };
+  try {
+    const read = await supabase.from(TABLE).select("offer_id").not("findings", "is", null);
+    if (read.error || !Array.isArray(read.data)) return { ok: false };
+    const audited = new Set<string>();
+    for (const row of read.data as unknown[]) {
+      const id = typeof row === "object" && row !== null ? (row as Record<string, unknown>).offer_id : undefined;
+      if (typeof id !== "string" || id === "") return { ok: false };
+      audited.add(id);
+    }
+    return { ok: true, audited };
+  } catch {
+    return { ok: false };
+  }
 }

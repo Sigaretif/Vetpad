@@ -1,11 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { type BoardSort, type BoardSortKey, boardSortHref, parseBoardSort } from "@/lib/offer-board";
+import type { AuditIndex } from "@/lib/audit/store";
+import {
+  type AuditStatus,
+  type BoardSort,
+  type BoardSortKey,
+  auditStatus,
+  boardSortHref,
+  parseBoardSort,
+} from "@/lib/offer-board";
 
 // Expected values are written by hand from the board's contract — the shared-offer-board plan
 // (context/archive/2026-09-26-shared-offer-board/plan.md, "Logika tablicy") and the decision that
 // `sort` and `dir` are read strictly, in lower case — never copied from what the functions return.
 // That an offer without a price or an area stands last is a property of the SQL query in
 // src/pages/dashboard.astro, not of this module: scripts/smoke.mjs proves it on a real database.
+// For `auditStatus`: its contract in context/changes/grounded-listing-audit/plan.md (Phase 5 —
+// `audited` when the offer has a stored result, `unknown` when the index could not be read).
 
 /** The sort the board reads from a query string. */
 function parse(query: string): BoardSort {
@@ -115,5 +125,33 @@ describe("boardSortHref: the link of a sort control (#1, FR-006)", () => {
     [{ key: "area", dir: "asc" }, "price", "/dashboard?sort=price&dir=asc"],
   ])("starts another key in its own direction: %j, link for %j", (current, key, expected) => {
     expect(boardSortHref(current, key)).toBe(expected);
+  });
+});
+
+describe("auditStatus: what a board row says about the offer's audit (#3, FR-006)", () => {
+  const AUDITED = "0b9f0c2e-7d1a-4c55-9a53-0000000000f1";
+  const NOT_AUDITED = "0b9f0c2e-7d1a-4c55-9a53-0000000000f2";
+
+  /** The index as read: one offer has a stored result. */
+  const INDEX: AuditIndex = { ok: true, audited: new Set([AUDITED]) };
+  /** A read that succeeded and found no stored result at all. */
+  const EMPTY_INDEX: AuditIndex = { ok: true, audited: new Set() };
+  const FAILED_INDEX: AuditIndex = { ok: false };
+
+  it("says audited for an offer the index holds", () => {
+    expect(auditStatus({ id: AUDITED }, INDEX)).toBe("audited");
+  });
+
+  it("says not audited for an offer the index was read without", () => {
+    expect(auditStatus({ id: NOT_AUDITED }, INDEX)).toBe("not_audited");
+    expect(auditStatus({ id: AUDITED }, EMPTY_INDEX)).toBe("not_audited");
+  });
+
+  // A failed read knows nothing about any offer — the audited one included. It is never "not audited".
+  it.each([AUDITED, NOT_AUDITED])("says unknown for offer %s when the index could not be read", (id) => {
+    const status: AuditStatus = auditStatus({ id }, FAILED_INDEX);
+
+    expect(status).toBe("unknown");
+    expect(status).not.toBe("not_audited");
   });
 });

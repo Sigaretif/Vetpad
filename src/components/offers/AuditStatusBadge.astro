@@ -1,8 +1,11 @@
 ---
 /*
- * The one presentation of an offer's audit status: on the board now, on the card once S-04
- * (grounded-listing-audit) adds audits. A new status gets its label here and nowhere else.
+ * The one presentation of an offer's audit status on the board (FR-006). A new status gets its
+ * label here and nowhere else. The three read apart without colour: each has its own words, and
+ * the two that are not the plain "not audited" carry an icon. `unknown` is a failed read of the
+ * audits — it says the status could not be checked, never that the offer was not audited.
  */
+import { Check, CircleAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { AuditStatus } from "@/lib/offer-board";
 
@@ -12,9 +15,29 @@ interface Props {
 
 const LABEL: Record<AuditStatus, string> = {
   not_audited: "Nie audytowano",
+  audited: "Audytowano",
+  unknown: "Nie udało się sprawdzić audytu",
 };
 
 const { status } = Astro.props;
 ---
 
-<Badge variant="outline">{LABEL[status]}</Badge>
+{status === "audited" ? (
+  <Badge variant="secondary" data-audit-status={status}>
+    <Check />
+    {LABEL[status]}
+  </Badge>
+) : status === "unknown" ? (
+  <Badge
+    variant="outline"
+    data-audit-status={status}
+    className="border-destructive/40 text-destructive max-w-full shrink rounded-md whitespace-normal"
+  >
+    <CircleAlert />
+    {LABEL[status]}
+  </Badge>
+) : (
+  <Badge variant="outline" data-audit-status={status}>
+    {LABEL[status]}
+  </Badge>
+)}
