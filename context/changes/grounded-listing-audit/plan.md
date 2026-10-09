@@ -1351,7 +1351,7 @@ się raz.
 - [x] 5.7 Ponowienie z celowo błędnym kluczem pokazuje komunikat o niepowodzeniu, a poprzednie znaleziska zostają — ce1877f
 - [x] 5.8 Drugi członek otwierający kartę w trakcie audytu widzi „w toku" z osobą i godziną oraz wyłączony przycisk — ce1877f
 - [x] 5.9 Zrzuty pokazują każdy wiersz obu macierzy, cztery kategorie są rozróżnialne bez polegania na samym kolorze, kontrast co najmniej 4,5:1, widok mobilny bez poziomego przewijania — ce1877f
-- [x] 5.10 Bramka wizualna powtórzona po triage z `/10x-impl-review`, jeśli zmienił widok
+- [x] 5.10 Bramka wizualna powtórzona po triage z `/10x-impl-review`, jeśli zmienił widok — 05fd467
 
 ### Phase 6: Dokumentacja i reguły
 
@@ -1368,14 +1368,14 @@ się raz.
 
 #### Automated
 
-- [x] 7.1 `npx supabase db push --dry-run` wymienia dokładnie dwie migracje tej zmiany
-- [x] 7.2 Oba zadania CI przechodzą na zmianie zawierającej kod
-- [x] 7.3 Przebieg weryfikacji z runbooka daje oczekiwane wyniki, a `POST /api/audits` bez sesji przekierowuje na `/auth/signin`
+- [x] 7.1 `npx supabase db push --dry-run` wymienia dokładnie dwie migracje tej zmiany — e604a76
+- [x] 7.2 Oba zadania CI przechodzą na zmianie zawierającej kod — e604a76
+- [x] 7.3 Przebieg weryfikacji z runbooka daje oczekiwane wyniki, a `POST /api/audits` bez sesji przekierowuje na `/auth/signin` — e604a76
 
 #### Manual
 
-- [x] 7.4 Użytkownik ustawił `ANTHROPIC_API_KEY` w Workers Secrets i w sekretach repozytorium GitHub, a baner o braku klucza zniknął z produkcji
-- [x] 7.5 Użytkownik zgodził się na `db push` i migracje są na hostowanym projekcie
-- [x] 7.6 Użytkownik wybrał `/git-ship` albo `/git-land`, a nowa wersja obsługuje 100% ruchu
-- [x] 7.7 Jeden audyt najdłuższego ogłoszenia zakończył się na produkcji, etap i licznik były widoczne na żywo, a CPU, tokeny i czas zostały odczytane
-- [x] 7.8 Runbook, roadmapa i `research.md` niosą zmierzone wartości, a aktualizacja wyszła na `master`
+- [x] 7.4 Użytkownik ustawił `ANTHROPIC_API_KEY` w Workers Secrets i w sekretach repozytorium GitHub, a baner o braku klucza zniknął z produkcji — e604a76
+- [x] 7.5 Użytkownik zgodził się na `db push` i migracje są na hostowanym projekcie — e604a76
+- [x] 7.6 Użytkownik wybrał `/git-ship` albo `/git-land`, a nowa wersja obsługuje 100% ruchu — e604a76
+- [x] 7.7 Jeden audyt najdłuższego ogłoszenia zakończył się na produkcji, etap i licznik były widoczne na żywo, a CPU, tokeny i czas zostały odczytane — e604a76
+- [x] 7.8 Runbook, roadmapa i `research.md` niosą zmierzone wartości, a aktualizacja wyszła na `master` — e604a76
