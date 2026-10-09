@@ -3,7 +3,7 @@ change_id: grounded-listing-audit
 title: Grounded listing audit
 status: implementing
 created: 2026-10-06
-updated: 2026-10-07
+updated: 2026-10-08
 archived_at: null
 ---
 
@@ -94,3 +94,39 @@ not added to the list, because the code tells a missing attribute by an empty co
 none — a member writes them as additional requirements on `/criteria`, which the audit already asks
 about. A requirement contradicted only by a stated parameter is reported nowhere; that is
 `context/foundation/prd.md`, Open Questions, 2. The PRD's resolved block records the decisions above.
+
+Carried from phase 3 into phase 4 (2026-10-07), for whoever implements it:
+
+- `readAuditOffer` returns `null` for a row with a zero, a negative number or a blank text in a
+  whitelisted column. The route has no reason of its own for that; if it maps it to
+  `offer_read_failed`, that reason's message must stop saying "try again in a moment", which is
+  false for a cause that lasts until the row is fixed.
+- `groundFindings` trusts the shape of the model's answer. The route needs a runtime reader of that
+  answer before calling it, so a wrong shape ends as `provider_malformed`.
+- `AUDIT_OUTPUT_SCHEMA` is declared `as const`; whether the SDK's `jsonSchemaOutputFormat` accepts a
+  deeply readonly schema is unverified until the SDK is installed.
+
+Decision the user made on 2026-10-09, during `/10x-implement` phase 4, after the first real audit
+was rejected by the provider with `400 invalid_request_error` and nothing in the log said why:
+
+- **A rejected request's log entry carries what the provider said was wrong with it.** The plan had
+  the provider's message never leave `runAudit`, because it can quote the request. That rule now has
+  one exception, kept narrow: a `400 invalid_request_error` that is not a billing state, before the
+  stream. The text is cut to 300 characters and dropped whole when any 12 characters in a row also
+  stand in the message that carried the listing and the criteria (`rejectionMessage` in
+  `src/lib/audit/provider.ts`). It goes to the log field `provider_error_message` and never to the
+  member, who still reads the application's own sentence. Every other failure keeps the plan's rule.
+
+Found during phase 4's first real audit (2026-10-09), for phase 6 (README) and phase 7 (runbook):
+
+- **`npm run build` copies `.dev.vars` into `dist/server/.dev.vars`, and `npm run preview` reads the
+  copy.** A key changed in `.dev.vars` reaches the preview only after a rebuild; restarting the
+  preview is not enough. The symptom is `provider_auth` with status 401 when the old key was
+  revoked meanwhile, while the same key passes a direct request. `dist/` is git-ignored.
+- **A key that belongs to no workspace answers `400 invalid_request_error`** („This API key is not
+  scoped to a workspace…"), not 401. The provider module reads it as `provider_auth`; the fix is a
+  key created inside the workspace. A candidate for the runbook's "Symptoms that lie".
+- **Measured on one local audit** (`claude-opus-5-5`, `medium`, a listing of 1600 characters, one
+  requirement): 6033 input tokens, 771 output tokens, 10.5 s, 58 stream events, 5 findings, none
+  rejected. Replaying streams through `runAudit` in Node took about 0.6 ms for 58 events and about
+  5 ms for 1000 — an estimate of the stream's share of CPU, not a measurement on a Worker.

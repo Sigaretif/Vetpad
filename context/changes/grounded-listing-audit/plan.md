@@ -1310,30 +1310,30 @@ się raz.
 
 #### Automated
 
-- [x] 3.1 `npm test` przechodzi z testami wejścia, promptu, ugruntowania, schematu i odczytu kryteriów dla audytu
-- [x] 3.2 `npm run lint` przechodzi z regułą zakazującą importu `@/lib/notes` w module audytu
-- [x] 3.3 `npx astro sync && npx astro check` przechodzi
+- [x] 3.1 `npm test` przechodzi z testami wejścia, promptu, ugruntowania, schematu i odczytu kryteriów dla audytu — ca623e1
+- [x] 3.2 `npm run lint` przechodzi z regułą zakazującą importu `@/lib/notes` w module audytu — ca623e1
+- [x] 3.3 `npx astro sync && npx astro check` przechodzi — ca623e1
 
 #### Manual
 
-- [x] 3.4 Użytkownik przeczytał i zaakceptował treść instrukcji dla modelu
-- [x] 3.5 `npx stryker run --mutate "src/lib/audit/grounding.ts"` i to samo dla `src/lib/audit/input.ts`: każdy ocalały mutant oceniony według sekcji o Strykerze w `CLAUDE.md`
-- [x] 3.6 Celowe dodanie importu `@/lib/notes` w `src/lib/audit/` wywraca `npm run lint`, po czym import znika
+- [x] 3.4 Użytkownik przeczytał i zaakceptował treść instrukcji dla modelu — ca623e1
+- [x] 3.5 `npx stryker run --mutate "src/lib/audit/grounding.ts"` i to samo dla `src/lib/audit/input.ts`: każdy ocalały mutant oceniony według sekcji o Strykerze w `CLAUDE.md` — ca623e1
+- [x] 3.6 Celowe dodanie importu `@/lib/notes` w `src/lib/audit/` wywraca `npm run lint`, po czym import znika — ca623e1
 
 ### Phase 4: Dostawca i trasa
 
 #### Automated
 
-- [ ] 4.1 `npm test` przechodzi z testami trasy audytu, w tym z liczbą wywołań dostawcy w każdym scenariuszu tabeli
-- [ ] 4.2 `npm test` przechodzi z testem stanu zero-config trasy i z przypadkami nowych pól w `tests/lib/log.test.ts`
-- [ ] 4.3 `npm run lint`, `npx astro sync && npx astro check` i `npm run build` przechodzą z `@anthropic-ai/sdk`
-- [ ] 4.4 `npm run smoke` przechodzi z krokami `POST /api/audits`, bez klucza dostawcy w środowisku
+- [x] 4.1 `npm test` przechodzi z testami trasy audytu, w tym z liczbą wywołań dostawcy w każdym scenariuszu tabeli
+- [x] 4.2 `npm test` przechodzi z testem stanu zero-config trasy i z przypadkami nowych pól w `tests/lib/log.test.ts`
+- [x] 4.3 `npm run lint`, `npx astro sync && npx astro check` i `npm run build` przechodzą z `@anthropic-ai/sdk`
+- [x] 4.4 `npm run smoke` przechodzi z krokami `POST /api/audits`, bez klucza dostawcy w środowisku
 
 #### Manual
 
-- [ ] 4.5 Użytkownik potwierdził w konsoli wyłączony auto-reload i limit wydatków, utworzył klucz i wpisał `ANTHROPIC_API_KEY` do lokalnych `.env` i `.dev.vars`
-- [ ] 4.6 Jeden prawdziwy audyt pod `npm run preview` kończy się `done` na `claude-opus-5-5` i jeden na `claude-sonnet-5-5`, a wpisy logu niosą tokeny, czas i identyfikator żądania
-- [ ] 4.7 Dwa równoczesne żądania audytu tej samej oferty dają jedno żądanie widoczne w konsoli dostawcy, a drugie kończy się `busy`
+- [x] 4.5 Użytkownik potwierdził w konsoli wyłączony auto-reload i limit wydatków, utworzył klucz i wpisał `ANTHROPIC_API_KEY` do lokalnych `.env` i `.dev.vars`
+- [x] 4.6 Jeden prawdziwy audyt pod `npm run preview` kończy się `done` na `claude-opus-5-5` i jeden na `claude-sonnet-5-5`, a wpisy logu niosą tokeny, czas i identyfikator żądania
+- [x] 4.7 Dwa równoczesne żądania audytu tej samej oferty dają jedno żądanie widoczne w konsoli dostawcy, a drugie kończy się `busy`
 
 ### Phase 5: Karta i tablica
 

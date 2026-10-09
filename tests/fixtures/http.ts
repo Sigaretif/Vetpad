@@ -8,7 +8,8 @@ import { vi } from "vitest";
 // Every request goes through a handler. A request the handler does not answer is recorded as
 // unplanned and rejected; `restoreFetch` then fails the test, because supabase-js and the
 // otodom fetch both turn a rejected fetch into an ordinary error result that could otherwise
-// pass unnoticed. No test can reach the real network.
+// pass unnoticed. No test can reach the real network — the model provider included, whose
+// requests and answers are described in tests/fixtures/anthropic.ts.
 
 /** One request as the stub saw it. `body` is the raw string that would go on the wire. */
 export interface RecordedRequest {
@@ -17,8 +18,21 @@ export interface RecordedRequest {
   body: string | null;
 }
 
+/** What a handler may know about a request besides what is recorded. */
+export interface FetchContext {
+  /**
+   * The signal the caller passed to `fetch`, if any. A handler that plays a server which never
+   * answers, or a body that never ends, ends with this signal's reason once it aborts — which is
+   * what a real `fetch` does, and the only way such a request ever finishes.
+   */
+  signal?: AbortSignal;
+}
+
 /** Answers a request, or returns `undefined` for a request the test did not plan. */
-export type FetchHandler = (request: RecordedRequest) => Response | Promise<Response> | undefined;
+export type FetchHandler = (
+  request: RecordedRequest,
+  context: FetchContext,
+) => Response | Promise<Response> | undefined;
 
 export interface FetchStub {
   /** Every request, planned or not, in the order it was made. */
@@ -50,7 +64,7 @@ export function stubFetch(handler: FetchHandler): FetchStub {
     const signal = input instanceof Request ? input.signal : init?.signal;
     if (signal?.aborted) throw signal.reason;
 
-    const response = await handler(request);
+    const response = await handler(request, { signal: signal ?? undefined });
     if (response === undefined) {
       stub.unplanned.push(request);
       throw new Error(`fetch stub: unplanned request ${request.method} ${request.url}`);
@@ -271,6 +285,36 @@ export const CHALLENGE_PAGE =
 //   it cannot sign answers `403` with `{ "code": "42501", … }`, and a value outside the table's
 //   checks `400` with `{ "code": "23514", … }`.
 
+//
+// And as the audit route (src/pages/api/audits.ts) and its store (src/lib/audit/store.ts) talk
+// to it, read from the same file:
+//
+// - The offer to audit, `.from("offers").select("<the audit's columns>").eq("id", id)
+//   .maybeSingle()`: `GET <SUPABASE_URL>/rest/v1/offers?select=title,description,price,…
+//   &id=eq.<id>` — `select` is `AUDIT_OFFER_COLUMNS` joined with commas, nothing else. `200 []`
+//   becomes `data: null` with no error (no such offer), `[row]` becomes `row`.
+// - After it, the four requests of `loadAuditCriteria` and the one of `loadAuditSettings`
+//   described above, in that order. `offer_notes` is never asked.
+// - The claim, `.from("offer_audits").insert({ offer_id, run_state: "running" })
+//   .select("run_started_at")`: `POST <SUPABASE_URL>/rest/v1/offer_audits?select=run_started_at`
+//   with `Prefer: return=representation`; the body is the JSON of that object. Without
+//   `single()` PostgREST answers `201` with an array, `[{ "run_started_at": … }]`. An offer that
+//   already has a row answers `409` with `{ "code": "23505", … }`.
+// - The takeover after that `409`, `.update({ run_state: "running" }).eq("offer_id", id)
+//   .select("run_started_at")`: `PATCH <SUPABASE_URL>/rest/v1/offer_audits?offer_id=eq.<id>
+//   &select=run_started_at`. `200` with the one row, or `400` with `{ "code": "VP001", … }` —
+//   the table's own SQLSTATE — while an attempt younger than 175 seconds holds the row.
+// - The two writes that end an attempt, `.update(values).eq("offer_id", id).eq("run_state",
+//   "running").eq("run_started_at", startedAt).select("offer_id")`:
+//   `PATCH <SUPABASE_URL>/rest/v1/offer_audits?offer_id=eq.<id>&run_state=eq.running
+//   &run_started_at=eq.<startedAt>&select=offer_id` — the `+` of the timestamp's offset travels
+//   percent-encoded and `URLSearchParams` reads it back. The body's `run_state` tells them
+//   apart: `"completed"` with the result's eight columns, or `"failed"` with `run_failure`.
+//   `200 [{ "offer_id": … }]` is a write that reached the row; `200 []` is one that reached
+//   none, which is not an error. A `PATCH` is never retried by the client: `500` with
+//   `{ "code", "message", … }` and a rejected `fetch` (status `0`) both come back at once as a
+//   result with `error` set.
+
 /** Test values only — never a real project's. */
 export const SUPABASE_TEST_URL = "https://supabase.test";
 export const SUPABASE_TEST_KEY = "sb_publishable_test";
@@ -351,27 +395,54 @@ export const SESSION_USER = {
   created_at: "2026-09-20T10:00:00.000Z",
 };
 
+/** When the session in the cookie expires: an hour from now, an hour ago (`expired`), or `expiresIn` seconds from now. */
+export interface SessionCookieOptions {
+  expired?: boolean;
+  expiresIn?: number;
+}
+
 /**
  * The value of the session cookie for `SUPABASE_TEST_URL`, the way `@supabase/ssr` writes it. The
  * access token is an hour from expiry, or an hour past it with `expired` — which makes the
- * client refresh it before anything else.
+ * client refresh it before anything else. The client also refreshes a token within 90 seconds of
+ * its expiry, so `expiresIn` places the refresh at a moment of the test's choosing.
  */
-export function sessionCookieValue({ expired = false }: { expired?: boolean } = {}): string {
+export function sessionCookieValue({ expired = false, expiresIn }: SessionCookieOptions = {}): string {
   const now = Math.floor(Date.now() / 1000);
   const session = {
     access_token: SESSION_ACCESS_TOKEN,
     refresh_token: SESSION_REFRESH_TOKEN,
     token_type: "bearer",
     expires_in: 3600,
-    expires_at: expired ? now - 3600 : now + 3600,
+    expires_at: now + (expiresIn ?? (expired ? -3600 : 3600)),
     user: SESSION_USER,
   };
   return `base64-${Buffer.from(JSON.stringify(session), "utf8").toString("base64url")}`;
 }
 
 /** A `Cookie` header carrying that session. */
-export function sessionCookie(options: { expired?: boolean } = {}): string {
+export function sessionCookie(options: SessionCookieOptions = {}): string {
   return `sb-supabase-auth-token=${sessionCookieValue(options)}`;
+}
+
+/** The tokens Auth hands out when it accepts a refresh. Canaries, like the session's own. */
+export const REFRESHED_ACCESS_TOKEN = "KANAREK-ACCESS-TOKEN-ODSWIEZONY-2a4c";
+export const REFRESHED_REFRESH_TOKEN = "KANAREK-REFRESH-TOKEN-ODSWIEZONY-6e8f";
+
+/** A granted refresh, as `POST /auth/v1/token?grant_type=refresh_token` answers it: a session an hour from expiry. */
+export function refreshedSessionResponse(): Response {
+  const now = Math.floor(Date.now() / 1000);
+  return jsonResponse(
+    {
+      access_token: REFRESHED_ACCESS_TOKEN,
+      refresh_token: REFRESHED_REFRESH_TOKEN,
+      token_type: "bearer",
+      expires_in: 3600,
+      expires_at: now + 3600,
+      user: SESSION_USER,
+    },
+    200,
+  );
 }
 
 /** True for a request to the stubbed Supabase Auth: `GET /auth/v1/user` or `POST /auth/v1/token`. */

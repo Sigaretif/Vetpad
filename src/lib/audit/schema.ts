@@ -3,7 +3,9 @@
 //
 // The answer's shape is enforced by the provider from `AUDIT_OUTPUT_SCHEMA`; no validation
 // library is involved (CLAUDE.md, Conventions). The schema guarantees shape, never content: that
-// an excerpt really occurs in the listing is the grounding's job, not the schema's.
+// an excerpt really occurs in the listing is the grounding's job, not the schema's. The
+// provider's guarantee is still checked on arrival: `readAuditOutput` reads the answer before
+// the grounding walks it, so an answer of another shape is a failed audit, not an exception.
 //
 // No runtime import beyond the attribute list: the card reads `readFindings` from here.
 
@@ -92,6 +94,75 @@ export const AUDIT_OUTPUT_SCHEMA = {
   },
 } as const;
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isMissingAttribute(value: unknown): value is MissingAttribute {
+  return (MISSING_ATTRIBUTES as readonly unknown[]).includes(value);
+}
+
+/** Every item of a list through its reader, or `null` when the value is not a list or an item does not read. */
+function readList<Item>(value: unknown, read: (item: unknown) => Item | null): Item[] | null {
+  if (!Array.isArray(value)) return null;
+  const items: Item[] = [];
+  for (const entry of value as unknown[]) {
+    const item = read(entry);
+    if (item === null) return null;
+    items.push(item);
+  }
+  return items;
+}
+
+/** A `requirement_ref` as the schema types it: a text or `null`, and nothing else — a missing key included. */
+function isReference(value: unknown): value is string | null {
+  return value === null || typeof value === "string";
+}
+
+function readOutputMissing(item: unknown): OutputMissing | null {
+  if (!isRecord(item)) return null;
+  const { attribute, requirement_ref, question } = item;
+  if (!isMissingAttribute(attribute) || !isReference(requirement_ref) || typeof question !== "string") return null;
+  return { attribute, requirement_ref, question };
+}
+
+function readOutputExcerpted(item: unknown): OutputExcerpted | null {
+  if (!isRecord(item)) return null;
+  const { label, excerpt } = item;
+  if (typeof label !== "string" || typeof excerpt !== "string") return null;
+  return { label, excerpt };
+}
+
+function readOutputRedFlag(item: unknown): OutputRedFlag | null {
+  const excerpted = readOutputExcerpted(item);
+  if (excerpted === null || !isRecord(item)) return null;
+  const { requirement_ref } = item;
+  return isReference(requirement_ref) ? { ...excerpted, requirement_ref } : null;
+}
+
+/**
+ * The model's answer as `AUDIT_OUTPUT_SCHEMA` types it, or `null` when the value does not have
+ * that shape: it is not an object, one of the four lists is missing or is not a list, an item is
+ * not an object, an attribute is off the list, or a field holds another type than the schema
+ * gives it (a missing field included).
+ *
+ * Shape only, as the schema is: a blank question, an excerpt that is not in the listing or a
+ * `Wn` that names no requirement all read here, and are what `groundFindings` turns away one
+ * finding at a time. `null` is never "the model found nothing" — that is four empty lists — and
+ * it fails the whole audit: half an answer is not grounded as if it were one.
+ *
+ * The answer is rebuilt from the known fields alone, so whatever else it carries goes no further.
+ */
+export function readAuditOutput(value: unknown): AuditOutput | null {
+  if (!isRecord(value)) return null;
+  const missing = readList(value.missing, readOutputMissing);
+  const conditions = readList(value.conditions, readOutputExcerpted);
+  const costs = readList(value.costs, readOutputExcerpted);
+  const redFlags = readList(value.red_flags, readOutputRedFlag);
+  if (missing === null || conditions === null || costs === null || redFlags === null) return null;
+  return { missing, conditions, costs, red_flags: redFlags };
+}
+
 /** Which of the listing's two texts an excerpt was found in. */
 export const EXCERPT_SOURCES = ["title", "description"] as const;
 
@@ -131,32 +202,12 @@ export interface StoredFindings {
 
 export const FINDINGS_VERSION = 1;
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function isText(value: unknown): value is string {
   return typeof value === "string" && value.trim() !== "";
 }
 
-function isMissingAttribute(value: unknown): value is MissingAttribute {
-  return (MISSING_ATTRIBUTES as readonly unknown[]).includes(value);
-}
-
 function isExcerptSource(value: unknown): value is ExcerptSource {
   return (EXCERPT_SOURCES as readonly unknown[]).includes(value);
-}
-
-/** Every item of a stored list through its reader, or `null` when the value is not a list or an item does not read. */
-function readList<Item>(value: unknown, read: (item: unknown) => Item | null): Item[] | null {
-  if (!Array.isArray(value)) return null;
-  const items: Item[] = [];
-  for (const entry of value as unknown[]) {
-    const item = read(entry);
-    if (item === null) return null;
-    items.push(item);
-  }
-  return items;
 }
 
 /** A requirement snapshot is there exactly when the finding is about a requirement. */

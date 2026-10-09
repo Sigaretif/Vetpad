@@ -71,14 +71,22 @@
 // reported as changed, and is then read back holding both values, signed by the member. /criteria shows them under
 // data-audit-settings-state="ok", as data-audit-model and data-audit-effort on the same section, and saving the same
 // values again leaves the whole row - signature and date included - as it was.
+// The audit itself through the app (FR-010): POST /api/audits turns an anonymous caller away, and a forged session
+// too - a redirect to /auth/signin, the only one the route makes. Signed in, every other answer is 200 with an NDJSON
+// stream whose last line says how the audit ended: an id that is not a uuid ends as `invalid_offer`, an offer that
+// does not exist as `offer_not_found`. Both are decided before the route looks for a provider key, so they read
+// the same in CI, which has no key, and on a machine whose .env holds one. That is as far as smoke goes: it never
+// sends an audit request for an offer that exists, so no step can reach the model provider and none can cost
+// anything - the helper refuses the two fixture offers' ids outright. What a real audit does is covered against a
+// stubbed provider in tests/pages/api/audits.test.ts.
 // Cleanup runs whatever failed before it: the limits read at the start are written back (signed by the first
 // member, as any restore would be), the audit settings read at the start likewise, and both members' requirements
 // are deleted with the rows counted - none left of the first member's, which the route removed, and one of the
 // second member's, which must have lasted until then.
 // A session Auth refuses is a sign-out, never an outage (src/middleware.ts): before signing in, it sends a forged
 // session cookie - named after the SUPABASE_URL host, with a token that has not expired and a signature that is not
-// real - on GET /dashboard, on POST /api/offers and on POST /api/audit-settings, and each must redirect to
-// /auth/signin, not answer with the 503 page. The cookie goes instead of the cookie jar and nothing the server
+// real - on GET /dashboard, on POST /api/offers, on POST /api/audit-settings and on POST /api/audits, and each must
+// redirect to /auth/signin, not answer with the 503 page. The cookie goes instead of the cookie jar and nothing the server
 // answers is stored in it. An outage itself cannot be played against a live Auth; tests/middleware.test.ts covers
 // it. The error pages answer under their own addresses with their own status and marker: /503 with 503 and
 // data-error-page="503", /500 with 500 and data-error-page="500".
@@ -164,6 +172,8 @@ let auditSettingsBefore = null;
 // whose card the run opens - never gets an audit row, so a step that reads that card sees an offer nobody audited.
 const FIXTURE_AUDIT = `offer_audits?offer_id=eq.${FIXTURE_OFFER_ID}`;
 const FIXTURE_AUDIT_2 = `offer_audits?offer_id=eq.${FIXTURE_OFFER_ID_2}`;
+// What POST /api/audits answers with whenever it does not redirect: one JSON object per line.
+const AUDIT_STREAM_TYPE = "application/x-ndjson; charset=utf-8";
 
 function cookieHeader() {
   return [...jar.entries()].map(([k, v]) => `${k}=${v}`).join("; ");
@@ -197,6 +207,7 @@ async function request(path, { method = "GET", form, json, cookie } = {}) {
   return {
     status: response.status,
     location: response.headers.get("location") ?? "",
+    contentType: response.headers.get("content-type") ?? "",
     body: await response.text(),
   };
 }
@@ -781,6 +792,31 @@ function observedAudit() {
   return { as: MEMBER, order: "offer_id", path: FIXTURE_AUDIT_2 };
 }
 
+// A signed-in member asks for an audit of an offer that cannot be audited, and the answer's last line is read: how
+// the audit ended, as `auditEnded` - the reason of a `failed` line, or "done". Smoke never asks for an audit of an
+// offer that exists: such a request would go on to the model provider wherever a key is configured, and that call
+// is paid for. The two fixture offers are therefore refused here, before anything is sent. Throws when the answer
+// is a 200 that is not the stream the route promises, which fails the step that asked for it.
+async function requestAuditOfMissingOffer(offerId) {
+  if (offerId === FIXTURE_OFFER_ID || offerId === FIXTURE_OFFER_ID_2) {
+    throw new Error("smoke never requests an audit of an existing offer: it could reach the model provider");
+  }
+  const response = await request("/api/audits", { method: "POST", form: { offer_id: offerId } });
+  if (response.status !== 200) return response;
+  if (response.contentType !== AUDIT_STREAM_TYPE) {
+    throw new Error(`the audit answered 200 with ${response.contentType || "no content type"}, not NDJSON`);
+  }
+  const lines = response.body
+    .split("\n")
+    .filter((line) => line !== "")
+    .map((line) => JSON.parse(line));
+  const last = lines.at(-1);
+  if (last?.type !== "done" && last?.type !== "failed") {
+    throw new Error("the audit's answer does not end with a `done` or a `failed` line");
+  }
+  return { ...response, auditEnded: last.type === "failed" ? last.reason : "done" };
+}
+
 // The fixture offer's row on /dashboard: from its link to the link's end, so a mark on another offer (the local
 // database may hold real ones) cannot pass for the fixture's. No row is an empty body.
 async function fixtureBoardRow() {
@@ -911,6 +947,13 @@ const steps = [
       ),
     { status: 302, location: "/auth/signin", snapshot: "same" },
   ],
+  // The id is a well-formed one, so the redirect is the missing session and not a refused id. No session is the
+  // only case in which the audit route redirects at all.
+  [
+    "audit run redirects anonymous user",
+    () => request("/api/audits", { method: "POST", form: { offer_id: randomUUID() } }),
+    { status: 302, location: "/auth/signin" },
+  ],
   // A session Auth refuses reads as signed out, on a page and on a form route alike: the 503 page is for an Auth
   // that could not answer, never for one that said no.
   [
@@ -937,6 +980,11 @@ const steps = [
         }),
       ),
     { status: 302, location: "/auth/signin", snapshot: "same" },
+  ],
+  [
+    "audit run redirects a forged session to sign-in",
+    () => requestWithForgedSession("/api/audits", { method: "POST", form: { offer_id: randomUUID() } }),
+    { status: 302, location: "/auth/signin" },
   ],
   ["criteria page redirects anonymous user", () => request("/criteria"), { status: 302, location: "/auth/signin" }],
   [
@@ -992,6 +1040,18 @@ const steps = [
         form: { url: "https://www.otodom.pl/pl/wyniki/sprzedaz/mieszkanie/warszawa" },
       }),
     { status: 302, locationPrefix: "/dashboard?error=" },
+  ],
+  // The audit route, as far as it goes without an offer: both answers are decided before a provider key is looked
+  // for, and neither request names an offer that exists - the fixture offers are not even created yet.
+  [
+    "audit run refuses an id that is not a uuid",
+    () => requestAuditOfMissingOffer("not-a-uuid"),
+    { status: 200, auditEnded: "invalid_offer" },
+  ],
+  [
+    "audit run refuses an offer that does not exist",
+    () => requestAuditOfMissingOffer(randomUUID()),
+    { status: 200, auditEnded: "offer_not_found" },
   ],
   ["smoke fixture offer is created", () => createFixtureOffer(FIXTURE_OFFER_ID), { status: 201, rows: 1 }],
   ["second smoke fixture offer is created", () => createFixtureOffer(FIXTURE_OFFER_ID_2), { status: 201, rows: 1 }],
@@ -1736,6 +1796,11 @@ function boardOrder({ higher }) {
   return higher === undefined ? "" : `, ${higher} fixture offer higher`;
 }
 
+// How an audit request ended, for the report line; empty when the step sends none.
+function auditEnding({ auditEnded }) {
+  return auditEnded === undefined ? "" : `, audit ended: ${auditEnded}`;
+}
+
 function includesAll(body, expected) {
   return [expected].flat().every((text) => (body ?? "").includes(text));
 }
@@ -1759,16 +1824,17 @@ for (const [name, run, expected] of steps) {
     (expected.minRows === undefined || (actual.rows !== undefined && actual.rows >= expected.minRows)) &&
     (expected.revisionDelta === undefined || actual.revisionDelta === expected.revisionDelta) &&
     (expected.snapshot === undefined || actual.snapshot === expected.snapshot) &&
-    (expected.higher === undefined || actual.higher === expected.higher);
+    (expected.higher === undefined || actual.higher === expected.higher) &&
+    (expected.auditEnded === undefined || actual.auditEnded === expected.auditEnded);
   const rows = actual.rows === undefined ? undefined : `${actual.rows} row(s)`;
   const detail =
     actual.error ??
-    `${actual.status} ${actual.errorCode ?? rows ?? actual.location}${revisionMoved(actual)}${snapshotResult(actual)}${boardOrder(actual)}`;
+    `${actual.status} ${actual.errorCode ?? rows ?? actual.location}${revisionMoved(actual)}${snapshotResult(actual)}${boardOrder(actual)}${auditEnding(actual)}`;
   console.log(`${ok ? "PASS" : "FAIL"}  ${name}  -> ${detail}`);
   if (!ok) {
     failed++;
     console.log(
-      `      expected ${[expected.status].flat().join(" or ")} ${expected.errorCode ?? expected.location ?? expected.locationPrefix ?? expected.bodyIncludes ?? expectedRows(expected)}${expected.locationIncludes === undefined ? "" : ` with ${expected.locationIncludes}`}${revisionMoved(expected)}${snapshotResult(expected)}${boardOrder(expected)}`,
+      `      expected ${[expected.status].flat().join(" or ")} ${expected.errorCode ?? expected.location ?? expected.locationPrefix ?? expected.bodyIncludes ?? expectedRows(expected)}${expected.locationIncludes === undefined ? "" : ` with ${expected.locationIncludes}`}${revisionMoved(expected)}${snapshotResult(expected)}${boardOrder(expected)}${auditEnding(expected)}`,
     );
   }
 }

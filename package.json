@@ -17,6 +17,7 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.132.1",
     "@astrojs/check": "^0.9.10",
     "@astrojs/cloudflare": "^14.3.1",
     "@astrojs/react": "^6.0.5",

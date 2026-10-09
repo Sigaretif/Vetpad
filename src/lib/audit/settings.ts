@@ -36,6 +36,14 @@ export interface AuditSettings {
  */
 export const DEFAULT_AUDIT_SETTINGS: AuditSettings = { model: "claude-opus-5-5", effort: "medium" };
 
+/**
+ * The ceiling on one audit's answer, in output tokens — the model's reasoning included, which on
+ * these models cannot be switched off. An answer that reaches it is cut short and not stored
+ * (`provider_truncated`). Not a team setting: it bounds what one audit can cost, and raising it is
+ * a decision about spend.
+ */
+export const AUDIT_MAX_TOKENS = 16000;
+
 /** An option as a member reads it: its name, and what choosing it means for an audit. */
 export interface AuditOptionLabel {
   name: string;

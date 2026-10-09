@@ -7,6 +7,7 @@ import {
   type OutputMissing,
   type OutputRedFlag,
   type StoredFindings,
+  readAuditOutput,
   readFindings,
 } from "@/lib/audit/schema";
 
@@ -19,6 +20,10 @@ import {
 // `readFindings` answers `null` for a failed read and four empty lists for an audit that found
 // nothing. Those two must never be confused — „brak znalezisk" shown for a row that could not be
 // read would be a fact nobody established — so every refusal stands beside the read that succeeds.
+//
+// `readAuditOutput` is the same rule one step earlier, for the model's answer (Phase 4 of the same
+// plan: an answer of another shape ends the audit as `provider_malformed` and never reaches the
+// grounding). It reads what the schema types and nothing the schema does not say.
 
 /** A JSON value against a schema, for the keywords `AUDIT_OUTPUT_SCHEMA` uses. Written here, apart from src/. */
 function conforms(schema: unknown, value: unknown): boolean {
@@ -455,5 +460,168 @@ describe("readFindings: a stored result is read, never trusted (#4)", () => {
 
     expect(read?.conditions).toEqual([{ label: "Lokator", excerpt: "z lokatorem", source: "title" }]);
     expect(read?.costs).toEqual([{ label: "Lokator", excerpt: "z lokatorem", source: "title" }]);
+  });
+});
+
+describe("readAuditOutput: the model's answer is read before it is grounded (#4)", () => {
+  /** "The model found nothing": an answer, and what an unreadable one must never equal. */
+  const NOTHING_FOUND: AuditOutput = { missing: [], conditions: [], costs: [], red_flags: [] };
+
+  it("control: reads an answer the type accepts, field for field", () => {
+    expect(readAuditOutput(TYPED_ANSWER)).toEqual({
+      missing: [
+        { attribute: "floor", requirement_ref: null, question: "Na którym piętrze jest mieszkanie?" },
+        { attribute: "requirement", requirement_ref: "W1", question: "Czy jest balkon?" },
+      ],
+      conditions: [{ label: "Warunek", excerpt: "tylko za gotówkę" }],
+      costs: [{ label: "Koszt", excerpt: "prowizja 2% ceny" }],
+      red_flags: [
+        { label: "Flaga", excerpt: "mieszkanie z lokatorem", requirement_ref: null },
+        { label: "Flaga", excerpt: "bez windy w budynku", requirement_ref: "W1" },
+      ],
+    });
+  });
+
+  it("control: reads four empty lists as an answer that found nothing — not as an unreadable one", () => {
+    expect(readAuditOutput({ missing: [], conditions: [], costs: [], red_flags: [] })).toEqual({
+      missing: [],
+      conditions: [],
+      costs: [],
+      red_flags: [],
+    });
+  });
+
+  it.each<[string, unknown]>([
+    ["an empty object", {}],
+    ["a list", []],
+    ["a list holding an answer", [TYPED_ANSWER]],
+    ["null", null],
+    ["undefined", undefined],
+    ["a text", "brak znalezisk"],
+    ["an answer as JSON text", JSON.stringify(TYPED_ANSWER)],
+    ["a number", 0],
+    ["a boolean", false],
+    ["an answer wrapped in another object", { output: TYPED_ANSWER }],
+  ])("answers null for %s", (_what, value) => {
+    const read = readAuditOutput(value);
+
+    expect(read).toBeNull();
+    expect(read).not.toEqual(NOTHING_FOUND);
+  });
+
+  it.each(["missing", "conditions", "costs", "red_flags"])("answers null when the %s list is absent", (list) => {
+    const { [list]: _removed, ...rest } = TYPED_ANSWER as unknown as Record<string, unknown>;
+
+    expect(readAuditOutput(rest)).toBeNull();
+  });
+
+  it.each(["missing", "conditions", "costs", "red_flags"])("answers null when %s is not a list", (list) => {
+    for (const value of [null, {}, "tekst", 0, { 0: "a", length: 1 }]) {
+      expect(readAuditOutput({ ...TYPED_ANSWER, [list]: value })).toBeNull();
+    }
+  });
+
+  it.each(["missing", "conditions", "costs", "red_flags"])(
+    "answers null when %s holds something that is not an object",
+    (list) => {
+      for (const item of [null, "tekst", 5, ["tekst"]]) {
+        expect(readAuditOutput({ ...TYPED_ANSWER, [list]: [item] })).toBeNull();
+      }
+    },
+  );
+
+  // One item wrong at a time; beside each stands the control above, where the same item reads.
+  it.each<[string, Record<string, unknown>]>([
+    ["an attribute off the list", { attribute: "balcony", requirement_ref: null, question: "Czy jest balkon?" }],
+    ["a requirement's number as the attribute", { attribute: "W1", requirement_ref: null, question: "?" }],
+    ["an attribute that is null", { attribute: null, requirement_ref: null, question: "?" }],
+    ["no attribute", { requirement_ref: null, question: "?" }],
+    ["a question that is null", { attribute: "floor", requirement_ref: null, question: null }],
+    ["a question that is a number", { attribute: "floor", requirement_ref: null, question: 7 }],
+    ["no question", { attribute: "floor", requirement_ref: null }],
+    ["no reference field", { attribute: "floor", question: "Które piętro?" }],
+    ["a reference that is a number", { attribute: "requirement", requirement_ref: 1, question: "?" }],
+    ["a reference that is a list", { attribute: "requirement", requirement_ref: ["W1"], question: "?" }],
+  ])("answers null for a missing-information finding with %s", (_what, item) => {
+    expect(readAuditOutput({ ...TYPED_ANSWER, missing: [item] })).toBeNull();
+  });
+
+  it.each<[string, Record<string, unknown>]>([
+    ["no excerpt", { label: "Lokator", requirement_ref: null }],
+    ["an excerpt that is null", { label: "Lokator", excerpt: null, requirement_ref: null }],
+    ["an excerpt that is a number", { label: "Lokator", excerpt: 650, requirement_ref: null }],
+    ["an excerpt that is a list", { label: "Lokator", excerpt: ["z lokatorem"], requirement_ref: null }],
+    ["no label", { excerpt: "z lokatorem", requirement_ref: null }],
+    ["a label that is null", { label: null, excerpt: "z lokatorem", requirement_ref: null }],
+    ["a label that is a number", { label: 5, excerpt: "z lokatorem", requirement_ref: null }],
+  ])("answers null for a positive finding with %s, in every list", (_what, item) => {
+    for (const list of ["conditions", "costs", "red_flags"]) {
+      expect(readAuditOutput({ ...TYPED_ANSWER, [list]: [item] })).toBeNull();
+    }
+    // The control: the same item with a label and an excerpt reads in every list.
+    const readable = { label: "Lokator", excerpt: "z lokatorem", requirement_ref: null };
+    for (const list of ["conditions", "costs", "red_flags"]) {
+      expect(readAuditOutput({ ...TYPED_ANSWER, [list]: [readable] })).not.toBeNull();
+    }
+  });
+
+  it.each<[string, unknown]>([
+    ["a number", 1],
+    ["a list", ["W1"]],
+    ["a boolean", false],
+    ["nothing at all", undefined],
+  ])("answers null for a red flag whose reference is %s", (_what, reference) => {
+    const flag = { label: "Piętro", excerpt: "na 7. piętrze", requirement_ref: reference };
+
+    expect(readAuditOutput({ ...TYPED_ANSWER, red_flags: [flag] })).toBeNull();
+    // Beside it: the flag with a requirement's number, and with none.
+    expect(readAuditOutput({ ...TYPED_ANSWER, red_flags: [{ ...flag, requirement_ref: "W1" }] })).not.toBeNull();
+    expect(readAuditOutput({ ...TYPED_ANSWER, red_flags: [{ ...flag, requirement_ref: null }] })).not.toBeNull();
+  });
+
+  // One unreadable item makes the whole answer unreadable: half an answer is not grounded as one.
+  it("answers null when one item among readable ones does not read", () => {
+    const readable = { label: "Lokator", excerpt: "z lokatorem" };
+
+    expect(readAuditOutput({ ...TYPED_ANSWER, costs: [readable, { ...readable, excerpt: 5 }, readable] })).toBeNull();
+    expect(readAuditOutput({ ...TYPED_ANSWER, costs: [readable, readable, readable] })).not.toBeNull();
+  });
+
+  // Shape only, as the schema is. What a finding says is the grounding's to judge, one finding
+  // at a time: a blank question, an empty excerpt and a number no requirement has all read here.
+  it("reads what the schema types, whatever it says", () => {
+    const read = readAuditOutput({
+      missing: [{ attribute: "requirement", requirement_ref: "W9", question: "   " }],
+      conditions: [{ label: "", excerpt: "" }],
+      costs: [],
+      red_flags: [{ label: "Flaga", excerpt: "parafraza, której nie ma w ogłoszeniu", requirement_ref: "W9" }],
+    });
+
+    expect(read).toEqual({
+      missing: [{ attribute: "requirement", requirement_ref: "W9", question: "   " }],
+      conditions: [{ label: "", excerpt: "" }],
+      costs: [],
+      red_flags: [{ label: "Flaga", excerpt: "parafraza, której nie ma w ogłoszeniu", requirement_ref: "W9" }],
+    });
+  });
+
+  // The answer is rebuilt from the known fields: whatever else it carries goes no further.
+  it("passes on nothing but the fields it knows", () => {
+    const read = readAuditOutput({
+      ...TYPED_ANSWER,
+      notes: ["kanarek-notatka"],
+      missing: [{ attribute: "floor", requirement_ref: null, question: "Które piętro?", excerpt: "na 7. piętrze" }],
+      conditions: [{ label: "Warunek", excerpt: "tylko za gotówkę", requirement_ref: "W1", html: "<b>" }],
+    });
+
+    expect(read).toEqual({
+      missing: [{ attribute: "floor", requirement_ref: null, question: "Które piętro?" }],
+      conditions: [{ label: "Warunek", excerpt: "tylko za gotówkę" }],
+      costs: [{ label: "Koszt", excerpt: "prowizja 2% ceny" }],
+      red_flags: [
+        { label: "Flaga", excerpt: "mieszkanie z lokatorem", requirement_ref: null },
+        { label: "Flaga", excerpt: "bez windy w budynku", requirement_ref: "W1" },
+      ],
+    });
   });
 });

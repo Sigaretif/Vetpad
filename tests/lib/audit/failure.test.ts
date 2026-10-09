@@ -105,6 +105,19 @@ describe("auditFailureMessage: one reason, one distinguishable message", () => {
     );
   });
 
+  // Two causes share the reason: a read the database failed, which passes, and a stored row that
+  // does not read as an offer, which lasts until the row is fixed. The sentence is true for both.
+  it("names both causes of an offer that could not be read, and promises nothing about a moment", () => {
+    const message = auditFailureMessage("offer_read_failed");
+
+    expect(message).toBe(
+      "Nie udało się odczytać danych tej oferty — baza danych nie odpowiedziała albo zapisane dane oferty są nieczytelne. Audyt nie został uruchomiony; jeśli kolejna próba skończy się tak samo, dane tej oferty trzeba poprawić.",
+    );
+    expect(message).not.toContain("za chwilę");
+    // The control: a read that only fails for a while does say so.
+    expect(auditFailureMessage("criteria_read_failed")).toContain("za chwilę");
+  });
+
   it("says that an interrupted attempt can be run again", () => {
     expect(auditFailureMessage("interrupted")).toBe(
       "Poprzednia próba audytu została przerwana, zanim zapisała wynik. Możesz uruchomić audyt ponownie.",

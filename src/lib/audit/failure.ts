@@ -74,7 +74,9 @@ export function auditFailureMessage(reason: AuditFailureReason): string {
     case "offer_not_found":
       return "Ta oferta już nie istnieje — mogła zostać usunięta. Audyt nie został uruchomiony.";
     case "offer_read_failed":
-      return "Nie udało się odczytać danych tej oferty. Audyt nie został uruchomiony — spróbuj ponownie za chwilę.";
+      // Two causes share this reason: a read the database failed, which passes, and a stored row
+      // that does not read as an offer, which lasts until the row is fixed. So no "in a moment".
+      return "Nie udało się odczytać danych tej oferty — baza danych nie odpowiedziała albo zapisane dane oferty są nieczytelne. Audyt nie został uruchomiony; jeśli kolejna próba skończy się tak samo, dane tej oferty trzeba poprawić.";
     case "criteria_read_failed":
       return "Nie udało się odczytać kryteriów zespołu. Audyt nie został uruchomiony — spróbuj ponownie za chwilę.";
     case "settings_read_failed":

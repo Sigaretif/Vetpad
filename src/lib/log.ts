@@ -37,6 +37,21 @@ const FIELDS = [
   "error_message",
   "error_cause",
   "phase",
+  "model",
+  "effort",
+  "provider_request_id",
+  "provider_error_type",
+  "provider_error_message",
+  "stop_reason",
+  "input_tokens",
+  "output_tokens",
+  "duration_ms",
+  "findings_count",
+  "rejected_count",
+  "dropped_count",
+  "criteria_revision",
+  "listing_chars",
+  "stream_events",
 ] as const;
 
 const MAX_TEXT_LENGTH = 300;
