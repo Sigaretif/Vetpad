@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MIN_EXCERPT_LENGTH, groundFindings } from "@/lib/audit/grounding";
+import { MAX_LABEL_LENGTH, MAX_QUESTION_LENGTH, MIN_EXCERPT_LENGTH, groundFindings } from "@/lib/audit/grounding";
 import { type AuditInput, buildAuditInput, readAuditOffer } from "@/lib/audit/input";
 import { type AuditOutput, type OutputExcerpted, type OutputMissing, readFindings } from "@/lib/audit/schema";
 import { AUDIT_DESCRIPTION, AUDIT_TITLE, auditCriteria, auditOfferRow } from "../../fixtures/audit";
@@ -546,6 +546,86 @@ describe("groundFindings: a finding about a requirement points at one that exist
     );
 
     expect(result).toEqual({ findings: NOTHING, rejected: 1, dropped: 0 });
+  });
+});
+
+// The excerpt is checked against the listing; the label and the question are the model's own
+// words and are checked against nothing. A limit is all that stands between a listing that steers
+// the model and a paragraph of its choosing beside a genuine quotation (impl review, F5).
+describe("groundFindings: a label or a question that is blank or over its limit takes its finding with it (#4)", () => {
+  const TENANT = "Mieszkanie z lokatorem, umowa najmu";
+
+  it("states the limits: 200 characters for a label, 400 for a question", () => {
+    expect(MAX_LABEL_LENGTH).toBe(200);
+    expect(MAX_QUESTION_LENGTH).toBe(400);
+  });
+
+  it.each<[string, string]>([
+    ["a blank label", " \n "],
+    ["an empty label", ""],
+    ["a label of 201 characters", "ł".repeat(201)],
+  ])("drops a grounded finding with %s, as dropped and not as rejected", (_case, label) => {
+    const result = groundFindings(output({ conditions: [finding(TENANT, label)] }), input());
+
+    expect(result).toEqual({ findings: NOTHING, rejected: 0, dropped: 1 });
+  });
+
+  it.each<[string, string]>([
+    ["a label of 200 characters", "ł".repeat(200)],
+    // Counted in code points, as the excerpt is: a hundred houses are a hundred characters.
+    ["a label of 200 emoji", "🏠".repeat(200)],
+    ["a label of 200 characters between spaces", ` ${"ł".repeat(200)} `],
+  ])("control: keeps a grounded finding with %s, as the model wrote it", (_case, label) => {
+    const result = groundFindings(output({ conditions: [finding(TENANT, label)] }), input());
+
+    expect(result).toEqual({
+      findings: { ...NOTHING, conditions: [{ label, excerpt: TENANT, source: "description" }] },
+      rejected: 0,
+      dropped: 0,
+    });
+  });
+
+  it("applies the limit to costs and red flags alike", () => {
+    const long = "x".repeat(201);
+    const result = groundFindings(
+      output({
+        costs: [finding("Czynsz administracyjny 650 zł miesięcznie", long)],
+        red_flags: [{ label: long, excerpt: "do końca 2027 roku", requirement_ref: null }],
+      }),
+      input(),
+    );
+
+    expect(result).toEqual({ findings: NOTHING, rejected: 0, dropped: 2 });
+  });
+
+  // The excerpt is judged first: what the card counts as "no excerpt" does not depend on the label.
+  it("counts a finding with no excerpt as rejected, whatever its label", () => {
+    const result = groundFindings(output({ conditions: [finding("mieszkanie jest wynajęte", "")] }), input());
+
+    expect(result).toEqual({ findings: NOTHING, rejected: 1, dropped: 0 });
+  });
+
+  it("drops a missing-information finding whose question has 401 characters", () => {
+    const result = groundFindings(
+      output({ missing: [missing({ question: "c".repeat(401) })] }),
+      input({ unstatedAttributes: ["floor"] }),
+    );
+
+    expect(result).toEqual({ findings: NOTHING, rejected: 0, dropped: 1 });
+  });
+
+  it("control: keeps one whose question has 400 characters", () => {
+    const question = "c".repeat(400);
+    const result = groundFindings(
+      output({ missing: [missing({ question })] }),
+      input({ unstatedAttributes: ["floor"] }),
+    );
+
+    expect(result).toEqual({
+      findings: { ...NOTHING, missing: [{ attribute: "floor", requirement: null, question }] },
+      rejected: 0,
+      dropped: 0,
+    });
   });
 });
 

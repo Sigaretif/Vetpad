@@ -12,7 +12,7 @@ import { buildAuditPrompt } from "@/lib/audit/prompt";
 import { type AuditProvider, createAuditProvider } from "@/lib/audit/provider";
 import { loadAuditSettings } from "@/lib/audit/settings";
 import { type EndResult, type StoreFailure, claimAudit, completeAudit, failAudit } from "@/lib/audit/store";
-import { loadAuditCriteria } from "@/lib/criteria";
+import { loadAuditCriteria, type ReadFailure } from "@/lib/criteria";
 import { type LogFields, logEvent } from "@/lib/log";
 import { createClient } from "@/lib/supabase";
 import { isUuid } from "@/lib/uuid";
@@ -66,6 +66,16 @@ function storeFields(failure: StoreFailure): Fields {
   };
 }
 
+/** Why a read that stands before the claim failed: the step, and the database's code and status. */
+function readFields(failure: ReadFailure | undefined): Fields {
+  return {
+    detail: failure?.detail,
+    db_code: failure?.dbCode,
+    db_status: failure?.dbStatus,
+    error_name: failure?.errorName,
+  };
+}
+
 /**
  * What the entry says when the attempt could not be marked `failed`: the row then stays `running`
  * until it reads as interrupted, and the reason the member was told is in this entry alone.
@@ -112,7 +122,7 @@ async function audit({ supabase, userId, offerId, unprepared, send }: Attempt, k
   const refuse = (reason: AuditFailureReason, fields: Fields): Ending => ({ reason, fields });
 
   if (!supabase) return refuse("unconfigured_supabase", { stage: "config" });
-  if (unprepared !== undefined) return refuse("interrupted", { stage: "session", error_name: unprepared });
+  if (unprepared !== undefined) return refuse("unexpected", { stage: "session", error_name: unprepared });
   // The value itself stays out of the entry: it is whatever the request carried.
   if (!isUuid(offerId)) return refuse("invalid_offer", { stage: "offer_id" });
   known.offer_id = offerId;
@@ -137,10 +147,14 @@ async function audit({ supabase, userId, offerId, unprepared, send }: Attempt, k
   if (!provider) return refuse("unconfigured_provider", { stage: "config" });
 
   const criteria = await loadAuditCriteria(supabase);
-  if (criteria.state === "error") return refuse("criteria_read_failed", { stage: "criteria" });
+  if (criteria.state === "error") {
+    return refuse("criteria_read_failed", { stage: "criteria", ...readFields(criteria.failure) });
+  }
 
   const settings = await loadAuditSettings(supabase, userId);
-  if (settings.state === "error") return refuse("settings_read_failed", { stage: "settings" });
+  if (settings.state === "error") {
+    return refuse("settings_read_failed", { stage: "settings", ...readFields(settings.failure) });
+  }
   const { model, effort } = settings;
 
   // Built before the claim: a row that cannot be turned into a request must not hold the lock.
@@ -219,8 +233,8 @@ async function audit({ supabase, userId, offerId, unprepared, send }: Attempt, k
     return timed(refuse("save_failed", { ...counted, ...unmarked(marked), ...storeFields(saved), stage: "save" }));
   } catch (error) {
     // Nothing above is meant to throw. If something did, the attempt still must not stay `running`.
-    const marked = await failAudit(supabase, offerId, claim.startedAt, "interrupted");
-    return timed(refuse("interrupted", { ...unmarked(marked), stage: "unexpected", error_name: errorName(error) }));
+    const marked = await failAudit(supabase, offerId, claim.startedAt, "unexpected");
+    return timed(refuse("unexpected", { ...unmarked(marked), stage: "unexpected", error_name: errorName(error) }));
   }
 }
 
@@ -324,7 +338,7 @@ export const POST: APIRoute = async (context) => {
     .catch(
       // A throw before the claim: nothing was claimed and nothing was paid for.
       (error: unknown): Ending => ({
-        reason: "interrupted",
+        reason: "unexpected",
         fields: { stage: "unexpected", error_name: errorName(error) },
       }),
     )

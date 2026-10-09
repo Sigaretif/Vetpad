@@ -710,7 +710,7 @@ describe("loadAuditCriteria: a failed read is its own state, never an audit with
 
     const criteria = await loadAuditCriteria(null);
 
-    expect(criteria).toEqual({ state: "error" });
+    expect(criteria).toMatchObject({ state: "error" });
     expect(criteria).not.toEqual(NO_AUDIT_CRITERIA);
     expect(stub.requests).toHaveLength(0);
   });
@@ -728,7 +728,7 @@ describe("loadAuditCriteria: a failed read is its own state, never an audit with
 
     const criteria = await loadAuditCriteria(client());
 
-    expect(criteria).toEqual({ state: "error" });
+    expect(criteria).toMatchObject({ state: "error" });
     expect(criteria).not.toEqual(NO_AUDIT_CRITERIA);
     expect(tablesAsked(stub.requests)).toEqual(["criteria_revision"]);
   });
@@ -747,7 +747,7 @@ describe("loadAuditCriteria: a failed read is its own state, never an audit with
 
     const criteria = await loadAuditCriteria(client());
 
-    expect(criteria).toEqual({ state: "error" });
+    expect(criteria).toMatchObject({ state: "error" });
     expect(criteria).not.toEqual(NO_AUDIT_CRITERIA);
     expect(stub.requests).toHaveLength(4);
   });
@@ -779,7 +779,7 @@ describe("loadAuditCriteria: a failed read is its own state, never an audit with
 
     const criteria = await loadAuditCriteria(client());
 
-    expect(criteria).toEqual({ state: "error" });
+    expect(criteria).toMatchObject({ state: "error" });
     expect(criteria).not.toEqual(NO_AUDIT_CRITERIA);
     // The outcome came from the database's answers — both reads did go out, once each — and a
     // failed read is not read again.
@@ -797,7 +797,7 @@ describe("loadAuditCriteria: a failed read is its own state, never an audit with
 
     const criteria = await loadAuditCriteria(client());
 
-    expect(criteria).toEqual({ state: "error" });
+    expect(criteria).toMatchObject({ state: "error" });
     expect(criteria).not.toEqual(NO_AUDIT_CRITERIA);
   });
 
@@ -819,8 +819,60 @@ describe("loadAuditCriteria: a failed read is its own state, never an audit with
 
     const criteria = await loadAuditCriteria(client());
 
-    expect(criteria).toEqual({ state: "error" });
+    expect(criteria).toMatchObject({ state: "error" });
     expect(criteria).not.toEqual(NO_AUDIT_CRITERIA);
+  });
+});
+
+describe("loadAuditCriteria: a failed read says which step failed, for the audit route's log (impl review, F7)", () => {
+  it("names no client", async () => {
+    expect(await loadAuditCriteria(null)).toEqual({ state: "error", failure: { detail: "unconfigured" } });
+  });
+
+  it.each<[string, Parameters<typeof stubAuditCriteria>[0], Record<string, unknown>]>([
+    [
+      "the revision's failed query, with the database's code and status",
+      { revisions: [failedRead], criteria: [], requirements: [] },
+      { detail: "revision_query", dbCode: "XX000", dbStatus: 500 },
+    ],
+    [
+      "a missing revision row",
+      { revisions: [noRows], criteria: [], requirements: [] },
+      { detail: "revision_missing", dbStatus: 200 },
+    ],
+    [
+      "a revision that is not a number",
+      { revisions: [rows({ revision: "abc" })], criteria: [], requirements: [] },
+      { detail: "revision_unreadable" },
+    ],
+    [
+      "the limits' failed query",
+      { revisions: [revision(7)], criteria: [failedRead], requirements: [noRows] },
+      { detail: "limits_query", dbCode: "XX000", dbStatus: 500 },
+    ],
+    [
+      "the requirements' failed query",
+      { revisions: [revision(7)], criteria: [rows(UNSET_LIMITS)], requirements: [failedRead] },
+      { detail: "requirements_query", dbCode: "XX000", dbStatus: 500 },
+    ],
+    [
+      "a requirements row without a text",
+      { revisions: [revision(7)], criteria: [rows(UNSET_LIMITS)], requirements: [rows({ body: null })] },
+      { detail: "requirements_unreadable" },
+    ],
+    [
+      "a revision that moved twice",
+      {
+        revisions: [revision(7), revision(8), revision(8), revision(9)],
+        criteria: [rows(UNSET_LIMITS), rows(UNSET_LIMITS)],
+        requirements: [noRows, noRows],
+      },
+      { detail: "revision_moved" },
+    ],
+  ])("names %s", async (_case, network, failure) => {
+    stubAuditCriteria(network);
+
+    expect(await loadAuditCriteria(client())).toEqual({ state: "error", failure });
   });
 });
 
@@ -1010,7 +1062,7 @@ describe("loadAuditCriteria: the criteria and their revision come from one momen
 
     const criteria = await loadAuditCriteria(client());
 
-    expect(criteria).toEqual({ state: "error" });
+    expect(criteria).toMatchObject({ state: "error" });
     expect(criteria).not.toEqual(NO_AUDIT_CRITERIA);
     // Two whole reads and no more: a third would be unplanned and fail the test in `restoreFetch`.
     expect(stub.requests).toHaveLength(8);
@@ -1025,7 +1077,7 @@ describe("loadAuditCriteria: the criteria and their revision come from one momen
 
     const criteria = await loadAuditCriteria(client());
 
-    expect(criteria).toEqual({ state: "error" });
+    expect(criteria).toMatchObject({ state: "error" });
     expect(criteria).not.toEqual({ ...NO_AUDIT_CRITERIA, revision: 8 });
     // The repeated read stopped at its failed criteria read: no fourth read of the revision.
     expect(tablesAsked(stub.requests).filter((table) => table === "criteria_revision")).toHaveLength(3);

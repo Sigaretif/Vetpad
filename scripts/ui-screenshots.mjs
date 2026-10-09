@@ -109,11 +109,13 @@ const SETS = {
     { name: "gate-audit-unavailable", path: KITCHEN_SINK, clip: "[data-state=audit-unavailable]" },
     { name: "gate-audit-running", path: KITCHEN_SINK, clip: "[data-state=audit-running]" },
     // error: a failed attempt beside a kept result and with no result, an interrupted attempt, a
-    // failed read of the audit, and an answer that is not the audit's stream.
+    // failed read of the audit, a stored result that does not read, and an answer that is not the
+    // audit's stream.
     { name: "gate-audit-failed-kept", path: KITCHEN_SINK, clip: "[data-state=audit-failed-kept]" },
     { name: "gate-audit-failed", path: KITCHEN_SINK, clip: "[data-state=audit-failed]" },
     { name: "gate-audit-interrupted", path: KITCHEN_SINK, clip: "[data-state=audit-interrupted]" },
     { name: "gate-audit-read-error", path: KITCHEN_SINK, clip: "[data-state=audit-read-error]" },
+    { name: "gate-audit-result-broken", path: KITCHEN_SINK, clip: "[data-state=audit-result-broken]" },
     { name: "gate-audit-unreadable", path: KITCHEN_SINK, clip: "[data-state=audit-unreadable]" },
     // empty: no audit; a result whose categories are empty.
     { name: "gate-audit-none", path: KITCHEN_SINK, clip: "[data-state=audit-none]" },

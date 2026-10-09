@@ -554,6 +554,29 @@ describe("OfferAudit: a failed read is never an offer nobody audited (#3)", () =
   });
 });
 
+describe("OfferAudit: a stored result that does not read can be replaced (#3)", () => {
+  const BROKEN = "Zapisanego wyniku audytu tej oferty nie udało się odczytać, więc nie jest pokazywany.";
+  const REPLACE = "Uruchom audyt ponownie, aby go zastąpić.";
+
+  it("says the result does not read and offers the run that replaces it", async () => {
+    const html = await auditSection({ state: "broken", attempt: NO_ATTEMPT });
+
+    expect(html).toContain('data-audit-state="broken"');
+    expect(visibleText(html)).toContain(`${BROKEN} ${REPLACE}`);
+    expect(visibleText(html)).not.toContain(READ_ERROR);
+    expect(visibleText(html)).not.toContain("Ta oferta nie ma jeszcze wyniku audytu.");
+    expect(visibleText(html)).not.toContain("Wynik audytu");
+    expect(buttonsIn(html)).toEqual([{ label: "Uruchom ponownie", disabled: false }]);
+  });
+
+  it("control: a failed read of the same offer renders no button", async () => {
+    const html = await auditSection(READ_FAILED);
+
+    expect(visibleText(html)).not.toContain(BROKEN);
+    expect(buttonsIn(html)).toEqual([]);
+  });
+});
+
 describe("OfferAudit: the latest attempt is told beside the result it did not replace (#3)", () => {
   const timedOut: AuditAttempt = { kind: "failed", reason: "provider_timeout", message: TIMED_OUT };
 

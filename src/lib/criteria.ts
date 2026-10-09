@@ -292,7 +292,22 @@ export async function loadTeamLimits(supabase: SupabaseClient | null): Promise<T
  * email address, and only the criteria themselves may reach the model provider.
  */
 export type AuditCriteriaResult =
-  { state: "ok"; limits: TeamLimits; requirements: string[]; revision: number } | { state: "error" };
+  | { state: "ok"; limits: TeamLimits; requirements: string[]; revision: number }
+  | { state: "error"; failure: ReadFailure };
+
+/**
+ * Why a read for the audit failed, for the route's log entry: which step, and what the database
+ * said when it answered at all. Codes and a status only — Postgres' `message` and `details` can
+ * quote a row, and a requirement's text must not reach the log.
+ */
+export interface ReadFailure {
+  /** The step that failed, as a token. */
+  detail: string;
+  dbCode?: string;
+  dbStatus?: number;
+  /** The class of what the client threw, when it threw instead of answering. */
+  errorName?: string;
+}
 
 /** How many times the criteria are read before a revision that keeps moving is a failed read. */
 const AUDIT_CRITERIA_READS = 2;
@@ -304,11 +319,12 @@ function revisionNumber(value: unknown): number | null {
   return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
 }
 
-/** `criteria_revision.revision` as it stands now, or `null` for a failed query, a missing row or an unreadable value. */
-async function readRevision(supabase: SupabaseClient): Promise<number | null> {
+/** `criteria_revision.revision` as it stands now, or why it could not be read: a failed query, a missing row, an unreadable value. */
+async function readRevision(supabase: SupabaseClient): Promise<number | ReadFailure> {
   const result = await supabase.from("criteria_revision").select("revision").eq("id", true).maybeSingle();
-  if (result.error || !result.data) return null;
-  return revisionNumber((result.data as Record<string, unknown>).revision);
+  if (result.error) return { detail: "revision_query", dbCode: result.error.code, dbStatus: result.status };
+  if (!result.data) return { detail: "revision_missing", dbStatus: result.status };
+  return revisionNumber((result.data as Record<string, unknown>).revision) ?? { detail: "revision_unreadable" };
 }
 
 /**
@@ -339,14 +355,17 @@ function readRequirementBodies(rows: unknown): string[] | null {
  *
  * No client (the zero-config state), a failed query, a missing singleton row (limits or
  * revision), a limit that does not read as one (`readLimits`), a requirements row without a text,
- * a revision that is not a whole number, or an exception is `{ state: "error" }`. Never throws.
+ * a revision that is not a whole number, or an exception is `{ state: "error" }`, with the step
+ * that failed in `failure` — the route logs it, since the read stands before a paid call. Never
+ * throws.
  */
 export async function loadAuditCriteria(supabase: SupabaseClient | null): Promise<AuditCriteriaResult> {
-  if (!supabase) return { state: "error" };
+  const failed = (failure: ReadFailure): AuditCriteriaResult => ({ state: "error", failure });
+  if (!supabase) return failed({ detail: "unconfigured" });
   try {
     for (let read = 0; read < AUDIT_CRITERIA_READS; read += 1) {
       const before = await readRevision(supabase);
-      if (before === null) return { state: "error" };
+      if (typeof before !== "number") return failed(before);
 
       const [criteria, requirements] = await Promise.all([
         supabase.from("team_criteria").select(LIMIT_COLUMNS).eq("id", true).maybeSingle(),
@@ -356,18 +375,25 @@ export async function loadAuditCriteria(supabase: SupabaseClient | null): Promis
           .order("created_at", { ascending: true })
           .order("author_id", { ascending: true }),
       ]);
-      if (criteria.error || requirements.error || !criteria.data) return { state: "error" };
+      if (criteria.error) {
+        return failed({ detail: "limits_query", dbCode: criteria.error.code, dbStatus: criteria.status });
+      }
+      if (requirements.error) {
+        return failed({ detail: "requirements_query", dbCode: requirements.error.code, dbStatus: requirements.status });
+      }
+      if (!criteria.data) return failed({ detail: "limits_missing", dbStatus: criteria.status });
 
       const limits = readLimits(criteria.data);
+      if (limits === null) return failed({ detail: "limits_unreadable" });
       const bodies = readRequirementBodies(requirements.data);
-      if (limits === null || bodies === null) return { state: "error" };
+      if (bodies === null) return failed({ detail: "requirements_unreadable" });
 
       const after = await readRevision(supabase);
-      if (after === null) return { state: "error" };
+      if (typeof after !== "number") return failed(after);
       if (after === before) return { state: "ok", limits, requirements: bodies, revision: after };
     }
-    return { state: "error" };
-  } catch {
-    return { state: "error" };
+    return failed({ detail: "revision_moved" });
+  } catch (error) {
+    return failed({ detail: "threw", errorName: error instanceof Error ? error.name : "NonError" });
   }
 }

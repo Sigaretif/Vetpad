@@ -25,11 +25,30 @@ import {
  */
 export const MIN_EXCERPT_LENGTH = 10;
 
+/**
+ * The longest label and the longest question that are kept, in characters (code points) once the
+ * ends are trimmed. The excerpt is checked against the listing; the label and the question are the
+ * model's own words and are checked against nothing, so a listing that steers the model could put
+ * a paragraph of its choosing beside a genuine quotation. The instruction asks for about ten
+ * words and for one sentence; these are several times that (the user's choice, 2026-10-09).
+ */
+export const MAX_LABEL_LENGTH = 200;
+export const MAX_QUESTION_LENGTH = 400;
+
+/** Whether a label or a question says something and stays within its limit. */
+function fits(text: string, limit: number): boolean {
+  const length = Array.from(text.trim()).length;
+  return length > 0 && length <= limit;
+}
+
 export interface GroundingResult {
   findings: StoredFindings;
   /** Positive findings turned away because their excerpt is not the listing's text. The card shows this number. */
   rejected: number;
-  /** Every other finding turned away: missing-information findings that broke a rule. For the log, never the card. */
+  /**
+   * Every other finding turned away: missing-information findings that broke a rule, and findings
+   * of any kind whose label or question is blank or over its limit. For the log, never the card.
+   */
   dropped: number;
 }
 
@@ -98,18 +117,25 @@ function ground(excerpt: string, references: References): Grounded | null {
 interface Sorted<Finding> {
   kept: { finding: Finding; grounded: Grounded }[];
   rejected: number;
+  dropped: number;
 }
 
-/** The positive findings whose excerpt is the listing's text, each with that text, and how many were not. */
+/**
+ * The positive findings whose excerpt is the listing's text, each with that text, and how many
+ * were not. The excerpt is judged first: a finding without one counts as `rejected` whatever its
+ * label; one with an excerpt and a label that does not fit counts as `dropped`.
+ */
 function sortByExcerpt<Finding extends OutputExcerpted>(
   list: readonly Finding[],
   references: References,
 ): Sorted<Finding> {
-  const sorted: Sorted<Finding> = { kept: [], rejected: 0 };
+  const sorted: Sorted<Finding> = { kept: [], rejected: 0, dropped: 0 };
   for (const finding of list) {
     const grounded = ground(finding.excerpt, references);
     if (grounded === null) {
       sorted.rejected += 1;
+    } else if (!fits(finding.label, MAX_LABEL_LENGTH)) {
+      sorted.dropped += 1;
     } else {
       sorted.kept.push({ finding, grounded });
     }
@@ -125,20 +151,23 @@ function storeExcerpted({ finding, grounded }: Sorted<OutputExcerpted>["kept"][n
  * The model's answer with everything that cannot be shown taken out.
  *
  * A positive finding (a condition, a cost, a red flag) stays when its excerpt is at least
- * `MIN_EXCERPT_LENGTH` characters long and occurs in the title or the description; it is stored
- * with the listing's own text and with where that text was found. A red flag keeps its
+ * `MIN_EXCERPT_LENGTH` characters long and occurs in the title or the description, and its label
+ * is not blank and no longer than `MAX_LABEL_LENGTH`; it is stored with the listing's own text
+ * and with where that text was found. A red flag keeps its
  * requirement — as a snapshot of that requirement's text — only when `requirement_ref` names
  * one that exists; otherwise the flag stays and the reference alone goes.
  *
- * A missing-information finding stays when it asks a question and is either about one of the
+ * A missing-information finding stays when it asks a question no longer than
+ * `MAX_QUESTION_LENGTH` and is either about one of the
  * nine attributes whose column is empty, or about a requirement `requirement_ref` names. One of
  * the nine attributes stays once; its `requirement_ref`, if the model sent one, is not kept.
  * Findings about requirements are not counted against each other: one member's requirements may
  * leave several things unanswered.
  *
  * `rejected` counts positive findings turned away for their excerpt, and nothing else. `dropped`
- * counts every missing-information finding turned away: no question, a filled column, an
- * attribute named twice, a requirement that does not exist.
+ * counts every missing-information finding turned away — no question or one over its limit, a
+ * filled column, an attribute named twice, a requirement that does not exist — and every positive
+ * finding whose excerpt is the listing's but whose label is blank or over its limit.
  */
 export function groundFindings(output: AuditOutput, input: AuditInput): GroundingResult {
   const references: References = [
@@ -155,7 +184,7 @@ export function groundFindings(output: AuditOutput, input: AuditInput): Groundin
   let dropped = 0;
   for (const finding of output.missing) {
     const { attribute, question } = finding;
-    if (question.trim() === "") {
+    if (!fits(question, MAX_QUESTION_LENGTH)) {
       dropped += 1;
     } else if (attribute === REQUIREMENT_ATTRIBUTE) {
       const requirement = requirements.get(finding.requirement_ref);
@@ -188,6 +217,6 @@ export function groundFindings(output: AuditOutput, input: AuditInput): Groundin
       })),
     },
     rejected: conditions.rejected + costs.rejected + redFlags.rejected,
-    dropped,
+    dropped: dropped + conditions.dropped + costs.dropped + redFlags.dropped,
   };
 }

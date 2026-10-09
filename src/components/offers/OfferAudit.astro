@@ -17,13 +17,15 @@ import { cn } from "@/lib/utils";
  * that runs it (the `AuditRunner` island), and the last result that succeeded — rendered by the
  * server, as text. One component for the card page and the /dev/offer-card kitchen sink.
  *
- * `data-audit-state` carries what the audit's data says — `none`, `running`, `done`, `failed` or
- * `error`, as `auditDataState` maps it — into the markup, where scripts/smoke.mjs reads it: a 200
+ * `data-audit-state` carries what the audit's data says — `none`, `running`, `done`, `failed`,
+ * `broken` or `error`, as `auditDataState` maps it — into the markup, where scripts/smoke.mjs reads it: a 200
  * alone cannot tell a failed read from an offer nobody audited. `data-audit-available` says
  * whether the application holds a provider key, and never changes the other attribute.
  *
  * A failed read is never "not audited": the section then says so and renders no button, because
- * a run started from it could pay for an audit the offer already has.
+ * a run started from it could pay for an audit the offer already has. A stored result that does
+ * not read (`broken`) is the opposite case: the row was read, it holds nothing the card can show,
+ * and the section says so beside the button that replaces it.
  *
  * Nothing a finding carries is trusted (lessons.md): any member can write `offer_audits` through
  * the Data API. Every label, question, excerpt and requirement is an Astro text expression, which
@@ -48,8 +50,9 @@ interface Props {
 const { offerId, audit, available, anchorId = "audyt", runnerPreview } = Astro.props;
 
 const headingId = `${anchorId}-naglowek`;
-const attempt = audit.state === "ok" ? audit.attempt : null;
+const attempt = audit.state === "error" ? null : audit.attempt;
 const result = audit.state === "ok" ? audit.result : null;
+const broken = audit.state === "broken";
 
 // What the island opens with: an attempt in progress, or the reason the latest one failed.
 // „przez" takes the accusative `saverName` gives; a member who could not be established is not named.
@@ -170,12 +173,22 @@ const captionClass = "text-muted-foreground text-xs";
     </Alert>
   ) : (
     <>
-      {result === null && <p class:list={emptyClass}>Ta oferta nie ma jeszcze wyniku audytu.</p>}
+      {broken ? (
+        <Alert variant="destructive">
+          <CircleAlert />
+          <AlertDescription>
+            Zapisanego wyniku audytu tej oferty nie udało się odczytać, więc nie jest pokazywany.
+            {attempt?.kind !== "running" && " Uruchom audyt ponownie, aby go zastąpić."}
+          </AlertDescription>
+        </Alert>
+      ) : (
+        result === null && <p class:list={emptyClass}>Ta oferta nie ma jeszcze wyniku audytu.</p>
+      )}
 
       <AuditRunner
         client:load
         offerId={offerId}
-        hasResult={result !== null}
+        hasResult={result !== null || broken}
         available={available}
         running={running}
         failure={failure}

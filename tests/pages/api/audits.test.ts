@@ -162,6 +162,8 @@ interface Network {
   complete?: Answer[];
   /** The write that marks the attempt failed. */
   fail?: Answer;
+  /** The read of the row after a retried write reached none. Unplanned unless given. */
+  stored?: Answer;
   /** The model provider. Unplanned unless given: a request to it then fails the test. */
   provider?: ProviderAnswer;
   /** Supabase Auth's token endpoint. Unplanned unless given. */
@@ -188,6 +190,7 @@ function stubNetwork({
   takeover,
   complete = [rows({ offer_id: OFFER_ID })],
   fail = rows({ offer_id: OFFER_ID }),
+  stored,
   provider,
   refresh,
 }: Network = {}): FetchStub {
@@ -202,6 +205,7 @@ function stubNetwork({
     if (isTableRequest(request, "member_requirements", "GET")) return requirements();
     if (isTableRequest(request, "audit_settings", "GET")) return settings();
     if (isTableRequest(request, "offer_audits", "POST")) return claim();
+    if (isTableRequest(request, "offer_audits", "GET")) return stored?.();
     if (isTableRequest(request, "offer_audits", "PATCH")) {
       const state = runState(request);
       if (state === "running") return takeover?.();
@@ -663,23 +667,34 @@ describe("POST /api/audits: what can be checked for free is checked before the c
     expect(providerCalls(stub.requests)).toHaveLength(0);
   });
 
-  it.each<[string, Network, string[]]>([
+  // The entry names the step that failed, and the database's code and status when it answered:
+  // this read stands before a paid call, and "criteria" alone would not say what to look at.
+  it.each<[string, Network, string[], Record<string, unknown>]>([
     [
       "the revision cannot be read",
       { revisions: [dbError(500, "XX000", "internal error")] },
       ["GET criteria_revision"],
+      { detail: "revision_query", db_code: "XX000", db_status: 500 },
     ],
     [
       "the limits cannot be read",
       { limits: dbError(500, "XX000", "internal error") },
       ["GET criteria_revision", "GET team_criteria", "GET member_requirements"],
+      { detail: "limits_query", db_code: "XX000", db_status: 500 },
+    ],
+    [
+      "the requirements cannot be read",
+      { requirements: dbError(500, "XX000", "internal error") },
+      ["GET criteria_revision", "GET team_criteria", "GET member_requirements"],
+      { detail: "requirements_query", db_code: "XX000", db_status: 500 },
     ],
     [
       "a limit does not read as a limit",
       { limits: rows({ ...LIMITS_ROW, price_max: 0 }) },
       ["GET criteria_revision", "GET team_criteria", "GET member_requirements"],
+      { detail: "limits_unreadable" },
     ],
-  ])("reports criteria_read_failed when %s: 0 provider calls, no claim", async (_case, network, asked) => {
+  ])("reports criteria_read_failed when %s: 0 provider calls, no claim", async (_case, network, asked, cause) => {
     const { lines, stub, captured } = await audit(network);
 
     const { reason, message } = failure(lines);
@@ -695,16 +710,25 @@ describe("POST /api/audits: what can be checked for free is checked before the c
         reason: "criteria_read_failed",
         user_id: USER_ID,
         offer_id: OFFER_ID,
+        ...cause,
       }),
     ]);
   });
 
-  it.each<[string, Answer]>([
-    ["the settings cannot be read", dbError(500, "XX000", "internal error")],
-    ["the settings row is missing", rows()],
-    ["the stored model is off the list", rows({ ...DEFAULT_SETTINGS_ROW, model: "claude-haiku-4-5" })],
-    ["the stored effort is off the list", rows({ ...DEFAULT_SETTINGS_ROW, effort: "max" })],
-  ])("reports settings_read_failed when %s: 0 provider calls, no claim", async (_case, settings) => {
+  it.each<[string, Answer, Record<string, unknown>]>([
+    [
+      "the settings cannot be read",
+      dbError(500, "XX000", "internal error"),
+      { detail: "query", db_code: "XX000", db_status: 500 },
+    ],
+    ["the settings row is missing", rows(), { detail: "missing", db_status: 200 }],
+    [
+      "the stored model is off the list",
+      rows({ ...DEFAULT_SETTINGS_ROW, model: "claude-haiku-4-5" }),
+      { detail: "off_list" },
+    ],
+    ["the stored effort is off the list", rows({ ...DEFAULT_SETTINGS_ROW, effort: "max" }), { detail: "off_list" }],
+  ])("reports settings_read_failed when %s: 0 provider calls, no claim", async (_case, settings, cause) => {
     const { lines, stub, captured } = await audit({ settings });
 
     const { reason, message } = failure(lines);
@@ -719,6 +743,7 @@ describe("POST /api/audits: what can be checked for free is checked before the c
         reason: "settings_read_failed",
         user_id: USER_ID,
         offer_id: OFFER_ID,
+        ...cause,
       }),
     ]);
   });
@@ -1397,6 +1422,9 @@ describe("POST /api/audits: a failed model call is paid for at most once, and le
     ["the title in capitals", `messages.0.content: ${AUDIT_TITLE.toUpperCase()}`],
     ["a member's requirement", `messages.0.content: ${ANNA_REQUIREMENTS}`],
     ["twelve characters of the description", `x:${AUDIT_DESCRIPTION.slice(9, 21)}y`],
+    // Shorter than twelve characters, and nowhere in this listing: a run of digits is dropped for what it is.
+    ["a phone number", "messages.0.content: 600 700 800 is not valid"],
+    ["a phone number written with hyphens", "messages.0.content: 600-700-800"],
   ])("drops the provider's message whole when it quotes %s", async (_what, message) => {
     const { lines, captured } = await audit({
       provider: () => providerError(400, "invalid_request_error", { message }),
@@ -1414,6 +1442,16 @@ describe("POST /api/audits: a failed model call is paid for at most once, and le
       }),
     ]);
     expect(captured.text()).not.toContain("messages.0.content");
+  });
+
+  // Beside them: the numbers a provider does write about a request are short, and the message stays.
+  it("keeps a message that names a limit in figures", async () => {
+    const message = "max_tokens: 16000 > 8192, which is the maximum allowed";
+    const { captured } = await audit({
+      provider: () => providerError(400, "invalid_request_error", { message }),
+    });
+
+    expect(captured.entries().at(-1)?.args[0]).toMatchObject({ provider_error_message: message });
   });
 
   // Beside them: eleven characters shared with the listing are not a quotation, and the message stays.
@@ -1610,6 +1648,40 @@ describe("POST /api/audits: a paid result that cannot be stored is an explicit f
         duration_ms: 0,
       }),
     ]);
+  });
+
+  // The first write was stored and only its answer was lost: the second then reaches no row, because
+  // the row is no longer `running`. That is this attempt's own result, not another attempt's row.
+  it("is done when the retried write reached no row because the first was stored: 1 provider call", async () => {
+    const { lines, stub, captured } = await audit({
+      provider: answered,
+      complete: [noAnswer, rows()],
+      stored: rows({ run_state: "completed", run_started_at: STARTED_AT }),
+    });
+
+    expect(lines.at(-1)).toStrictEqual({ type: "done" });
+    expect(providerCalls(stub.requests)).toHaveLength(1);
+    expect(writes(stub, "completed")).toHaveLength(2);
+    expect(requestsTo(stub, "offer_audits", "GET")).toHaveLength(1);
+    expect(writes(stub, "failed")).toHaveLength(0);
+    expect(captured.entries()).toStrictEqual([STARTED, COMPLETED]);
+  });
+
+  it.each<[string, Answer]>([
+    ["another attempt runs on the row", rows({ run_state: "running", run_started_at: "2026-10-09T12:05:00+00:00" })],
+    [
+      "another attempt completed on the row",
+      rows({ run_state: "completed", run_started_at: "2026-10-09T12:05:00+00:00" }),
+    ],
+    ["this attempt was failed on the row", rows({ run_state: "failed", run_started_at: STARTED_AT })],
+    ["the row is gone", rows()],
+    ["the row cannot be read", failedWrite],
+  ])("reports claim_lost after a retried write reached no row and %s", async (_case, stored) => {
+    const { lines, stub } = await audit({ provider: answered, complete: [noAnswer, rows()], stored });
+
+    expect(failure(lines).reason).toBe("claim_lost");
+    expect(providerCalls(stub.requests)).toHaveLength(1);
+    expect(writes(stub, "failed")).toHaveLength(0);
   });
 
   it("control: a write that reached the row is done, with one write", async () => {

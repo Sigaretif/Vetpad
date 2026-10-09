@@ -18,7 +18,7 @@ import {
 
 describe("the reasons an audit can end without a result", () => {
   // Written out by hand, in the plan's order.
-  it("are the twenty-two the plan names", () => {
+  it("are the twenty-two the plan names, and `unexpected` after them", () => {
     expect([...AUDIT_FAILURE_REASONS]).toEqual([
       "unconfigured_supabase",
       "unconfigured_provider",
@@ -42,6 +42,7 @@ describe("the reasons an audit can end without a result", () => {
       "save_failed",
       "claim_lost",
       "interrupted",
+      "unexpected",
     ]);
   });
 
@@ -68,7 +69,7 @@ describe("auditFailureMessage: one reason, one distinguishable message", () => {
   const messages = AUDIT_FAILURE_REASONS.map((reason) => auditFailureMessage(reason));
 
   it("gives every reason a sentence of its own", () => {
-    expect(new Set(messages).size).toBe(22);
+    expect(new Set(messages).size).toBe(23);
     for (const message of messages) {
       expect(message.trim()).toBe(message);
       expect(message.length).toBeGreaterThan(20);
@@ -116,6 +117,15 @@ describe("auditFailureMessage: one reason, one distinguishable message", () => {
     expect(message).not.toContain("za chwilę");
     // The control: a read that only fails for a while does say so.
     expect(auditFailureMessage("criteria_read_failed")).toContain("za chwilę");
+  });
+
+  // `interrupted` is the card's word for an earlier attempt whose request is gone. The route's own
+  // unexpected end is about the attempt the member has just started, and must not read as that.
+  it("tells an unexpected end of this attempt from an interrupted earlier one", () => {
+    expect(auditFailureMessage("unexpected")).toBe(
+      "Audyt przerwał nieoczekiwany błąd aplikacji, zanim zapisał wynik. Możesz uruchomić audyt ponownie.",
+    );
+    expect(auditFailureMessage("unexpected")).not.toContain("Poprzednia");
   });
 
   it("says that an interrupted attempt can be run again", () => {
@@ -174,6 +184,7 @@ describe("AUDIT_OUTCOME: a refusal the product expects, or a failure somebody ha
       save_failed: "failed",
       claim_lost: "failed",
       interrupted: "failed",
+      unexpected: "failed",
     });
   });
 

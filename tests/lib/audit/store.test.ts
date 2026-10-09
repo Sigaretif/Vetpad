@@ -242,40 +242,6 @@ describe("loadOfferAudit: a row that does not read is an error, never an offer n
     ["a start that is not a date", { ...RUNNING_ROW, run_started_at: "wczoraj" }],
     ["no start", { ...RUNNING_ROW, run_started_at: null }],
     ["a starter that is not an id", { ...RUNNING_ROW, run_started_by: 7 }],
-    ["an auditor that is not an id", { ...COMPLETED_ROW, audited_by: 7 }],
-    ["findings of another version", { ...COMPLETED_ROW, findings: { ...FINDINGS, version: 2 } }],
-    ["findings without one of the four lists", { ...COMPLETED_ROW, findings: { version: 1, missing: [] } }],
-    [
-      "a finding without its question",
-      { ...COMPLETED_ROW, findings: { ...FINDINGS, missing: [{ attribute: "heating", requirement: null }] } },
-    ],
-    [
-      "a finding whose excerpt is blank",
-      {
-        ...COMPLETED_ROW,
-        findings: { ...FINDINGS, costs: [{ label: "Prowizja", excerpt: " ", source: "description" }] },
-      },
-    ],
-    ["findings that are a text", { ...COMPLETED_ROW, findings: "[]" }],
-    // Beside a later attempt the row is not `completed`, so only the findings say the result is
-    // broken: read as "no result", it would show a failed or running audit of an offer never audited.
-    [
-      "findings of another version beside a failed re-run",
-      { ...COMPLETED_ROW, run_state: "failed", run_failure: "provider_timeout", findings: { ...FINDINGS, version: 2 } },
-    ],
-    ["findings that are a text beside a running re-run", { ...RUNNING_ROW, ...RESULT, findings: "[]" }],
-    ["a result without its findings", { ...COMPLETED_ROW, findings: null }],
-    ["findings without the rest of the result", { ...COMPLETED_ROW, ...NO_RESULT, findings: FINDINGS }],
-    ["an auditor beside no result", { ...RUNNING_ROW, audited_by: ANNA }],
-    ["a completed attempt with no result", { ...COMPLETED_ROW, ...NO_RESULT }],
-    ["a negative count of rejected findings", { ...COMPLETED_ROW, rejected_count: -1 }],
-    ["a fractional count of rejected findings", { ...COMPLETED_ROW, rejected_count: 1.5 }],
-    ["a count of rejected findings sent as text", { ...COMPLETED_ROW, rejected_count: "2" }],
-    ["a negative count of requirements", { ...COMPLETED_ROW, requirements_count: -1 }],
-    ["an audit date that is not a date", { ...COMPLETED_ROW, audited_at: "niedawno" }],
-    ["limits recorded as a text", { ...COMPLETED_ROW, had_limits: "true" }],
-    ["a blank model", { ...COMPLETED_ROW, model: " " }],
-    ["no effort", { ...COMPLETED_ROW, effort: null }],
   ])("answers error for a row with %s", async (_case, row) => {
     const stub = stubAudits(rows(row));
 
@@ -284,6 +250,66 @@ describe("loadOfferAudit: a row that does not read is an error, never an offer n
     expect(audit).toEqual({ state: "error" });
     expect(audit).not.toEqual(NEVER_AUDITED);
     // Nobody is named for a row that does not read.
+    expect(requestsTo(stub.requests, "members")).toHaveLength(0);
+  });
+});
+
+// The row was read and its attempt reads; only the result does not. That is not a failed read: the
+// card must be able to offer the run that replaces the result, since nothing else removes it.
+describe("loadOfferAudit: a result that does not read is broken, never an error and never no result (#3)", () => {
+  it.each<[string, Record<string, unknown>, string]>([
+    ["an auditor that is not an id", { ...COMPLETED_ROW, audited_by: 7 }, "none"],
+    ["findings of another version", { ...COMPLETED_ROW, findings: { ...FINDINGS, version: 2 } }, "none"],
+    ["findings without one of the four lists", { ...COMPLETED_ROW, findings: { version: 1, missing: [] } }, "none"],
+    [
+      "a finding without its question",
+      { ...COMPLETED_ROW, findings: { ...FINDINGS, missing: [{ attribute: "heating", requirement: null }] } },
+      "none",
+    ],
+    [
+      "a finding whose excerpt is blank",
+      {
+        ...COMPLETED_ROW,
+        findings: { ...FINDINGS, costs: [{ label: "Prowizja", excerpt: " ", source: "description" }] },
+      },
+      "none",
+    ],
+    ["findings that are a text", { ...COMPLETED_ROW, findings: "[]" }, "none"],
+    // Beside a later attempt the row is not `completed`, so only the findings say the result is
+    // broken: read as "no result", it would show a failed or running audit of an offer never audited.
+    [
+      "findings of another version beside a failed re-run",
+      { ...COMPLETED_ROW, run_state: "failed", run_failure: "provider_timeout", findings: { ...FINDINGS, version: 2 } },
+      "failed",
+    ],
+    ["findings that are a text beside a running re-run", { ...RUNNING_ROW, ...RESULT, findings: "[]" }, "running"],
+    ["a result without its findings", { ...COMPLETED_ROW, findings: null }, "none"],
+    ["findings without the rest of the result", { ...COMPLETED_ROW, ...NO_RESULT, findings: FINDINGS }, "none"],
+    ["an auditor beside no result", { ...RUNNING_ROW, audited_by: ANNA }, "running"],
+    ["a completed attempt with no result", { ...COMPLETED_ROW, ...NO_RESULT }, "none"],
+    ["a negative count of rejected findings", { ...COMPLETED_ROW, rejected_count: -1 }, "none"],
+    ["a fractional count of rejected findings", { ...COMPLETED_ROW, rejected_count: 1.5 }, "none"],
+    ["a count of rejected findings sent as text", { ...COMPLETED_ROW, rejected_count: "2" }, "none"],
+    ["a negative count of requirements", { ...COMPLETED_ROW, requirements_count: -1 }, "none"],
+    ["an audit date that is not a date", { ...COMPLETED_ROW, audited_at: "niedawno" }, "none"],
+    ["limits recorded as a text", { ...COMPLETED_ROW, had_limits: "true" }, "none"],
+    ["a blank model", { ...COMPLETED_ROW, model: " " }, "none"],
+    ["no effort", { ...COMPLETED_ROW, effort: null }, "none"],
+  ])("answers broken for a row with %s", async (_case, row, attempt) => {
+    stubAudits(rows(row), bothMembers);
+
+    const audit = await loadOfferAudit(client(), OFFER, VIEWER, NOW);
+
+    expect(audit).toMatchObject({ state: "broken", attempt: { kind: attempt } });
+    expect(audit).not.toHaveProperty("result");
+    expect(audit).not.toEqual(NEVER_AUDITED);
+    expect(audit).not.toEqual(FAILED);
+  });
+
+  it("names nobody as the auditor of a result that does not read", async () => {
+    const stub = stubAudits(rows({ ...COMPLETED_ROW, findings: { ...FINDINGS, version: 2 } }));
+
+    expect(await loadOfferAudit(client(), OFFER, VIEWER, NOW)).toEqual({ state: "broken", attempt: { kind: "none" } });
     expect(requestsTo(stub.requests, "members")).toHaveLength(0);
   });
 
@@ -518,6 +544,9 @@ describe("auditDataState: one word for the card's data-audit-state (#3)", () => 
       "failed",
     ],
     ["an interrupted re-run beside a kept result", { state: "ok", attempt: { kind: "interrupted" }, result }, "failed"],
+    ["a result that does not read and no attempt after it", { state: "broken", attempt: { kind: "none" } }, "broken"],
+    ["a re-run in progress beside a result that does not read", { state: "broken", attempt: running }, "running"],
+    ["a failed re-run beside a result that does not read", { state: "broken", attempt: failed }, "failed"],
   ])("says %s is %j", (_case, audit, expected) => {
     expect(auditDataState(audit)).toBe(expected);
   });

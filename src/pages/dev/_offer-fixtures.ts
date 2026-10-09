@@ -592,6 +592,9 @@ export const auditFailedNoResult: OfferAudit = {
 /** An attempt left `running` past the threshold: its request is gone. */
 export const auditInterrupted: OfferAudit = { state: "ok", attempt: { kind: "interrupted" }, result: null };
 
+/** A stored result that does not read: nothing is shown, and the run that replaces it is offered. */
+export const auditResultBroken: OfferAudit = { state: "broken", attempt: { kind: "none" } };
+
 /** A failed read of the audit: the section renders no button. */
 export const auditReadFailed: OfferAudit = { state: "error" };
 

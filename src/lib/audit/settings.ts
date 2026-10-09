@@ -10,6 +10,7 @@
 // The settings are not criteria: changing them touches no `criteria_revision` and flags no
 // existing audit stale. An audit records the model and the effort it was made with.
 
+import type { ReadFailure } from "@/lib/criteria";
 import type { createClient } from "@/lib/supabase";
 import { resolveSaver, type Saver } from "@/lib/members";
 
@@ -102,7 +103,7 @@ export function parseAuditSettingsForm(values: AuditSettingsFormValues): ParsedA
  */
 export type AuditSettingsResult =
   | { state: "ok"; model: AuditModel; effort: AuditEffort; changedBy: Saver | null; changedAt: string | null }
-  | { state: "error" };
+  | { state: "error"; /** Why, for the audit route's log entry; a view has no use for it. */ failure?: ReadFailure };
 
 /**
  * The team's audit settings and their signature. A null `updated_by` with a date is a deleted
@@ -115,18 +116,21 @@ export async function loadAuditSettings(
   supabase: SupabaseClient | null,
   viewerId: string | undefined,
 ): Promise<AuditSettingsResult> {
-  if (!supabase) return { state: "error" };
+  if (!supabase) return { state: "error", failure: { detail: "unconfigured" } };
   try {
     const result = await supabase
       .from("audit_settings")
       .select("model, effort, updated_at, updated_by")
       .eq("id", true)
       .maybeSingle();
-    if (result.error || !result.data) return { state: "error" };
+    if (result.error) {
+      return { state: "error", failure: { detail: "query", dbCode: result.error.code, dbStatus: result.status } };
+    }
+    if (!result.data) return { state: "error", failure: { detail: "missing", dbStatus: result.status } };
 
     const row = result.data as Record<string, unknown>;
     const { model, effort } = row;
-    if (!isAuditModel(model) || !isAuditEffort(effort)) return { state: "error" };
+    if (!isAuditModel(model) || !isAuditEffort(effort)) return { state: "error", failure: { detail: "off_list" } };
 
     const changedAt = typeof row.updated_at === "string" ? row.updated_at : null;
     const signedBy = typeof row.updated_by === "string" ? row.updated_by : null;
@@ -134,7 +138,10 @@ export async function loadAuditSettings(
     const changedBy = changedAt === null ? null : await resolveSaver(supabase, signedBy, viewerId);
 
     return { state: "ok", model, effort, changedBy, changedAt };
-  } catch {
-    return { state: "error" };
+  } catch (error) {
+    return {
+      state: "error",
+      failure: { detail: "threw", errorName: error instanceof Error ? error.name : "NonError" },
+    };
   }
 }

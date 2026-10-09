@@ -53,6 +53,7 @@ export const AUDIT_FAILURE_REASONS = [
   "save_failed",
   "claim_lost",
   "interrupted",
+  "unexpected",
 ] as const;
 
 export type AuditFailureReason = (typeof AUDIT_FAILURE_REASONS)[number];
@@ -110,7 +111,11 @@ export function auditFailureMessage(reason: AuditFailureReason): string {
     case "claim_lost":
       return "Wynik tego audytu nie został zapisany, bo w tym czasie ofertę przejęła inna próba audytu. Odśwież kartę, aby zobaczyć jej stan.";
     case "interrupted":
+      // An attempt read back from its row, left `running` past the threshold: the card's word for
+      // a request that is gone. The route never reports it about the attempt it is running.
       return "Poprzednia próba audytu została przerwana, zanim zapisała wynik. Możesz uruchomić audyt ponownie.";
+    case "unexpected":
+      return "Audyt przerwał nieoczekiwany błąd aplikacji, zanim zapisał wynik. Możesz uruchomić audyt ponownie.";
     default: {
       const unhandled: never = reason;
       return unhandled;
@@ -151,4 +156,5 @@ export const AUDIT_OUTCOME: Record<AuditFailureReason, "refused" | "failed"> = {
   save_failed: "failed",
   claim_lost: "failed",
   interrupted: "failed",
+  unexpected: "failed",
 };

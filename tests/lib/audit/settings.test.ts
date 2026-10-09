@@ -202,7 +202,7 @@ describe("loadAuditSettings: a failed read is its own state, never the defaults"
 
     const settings = await loadAuditSettings(null, VIEWER);
 
-    expect(settings).toEqual({ state: "error" });
+    expect(settings).toMatchObject({ state: "error" });
     expect(settings).not.toEqual(DEFAULTS);
     expect(stub.requests).toHaveLength(0);
   });
@@ -221,7 +221,7 @@ describe("loadAuditSettings: a failed read is its own state, never the defaults"
 
     const settings = await loadAuditSettings(client(), VIEWER);
 
-    expect(settings).toEqual({ state: "error" });
+    expect(settings).toMatchObject({ state: "error" });
     expect(settings).not.toEqual(DEFAULTS);
     // The outcome came from the database's answer — the read did go out, once — and nobody was named.
     expect(requestsTo(stub.requests, "audit_settings")).toHaveLength(1);
@@ -254,7 +254,7 @@ describe("loadAuditSettings: a value outside the list is a failed read, never th
 
     const settings = await loadAuditSettings(client(), VIEWER);
 
-    expect(settings).toEqual({ state: "error" });
+    expect(settings).toMatchObject({ state: "error" });
     expect(settings).not.toEqual(DEFAULTS);
     expect(requestsTo(stub.requests, "audit_settings")).toHaveLength(1);
   });

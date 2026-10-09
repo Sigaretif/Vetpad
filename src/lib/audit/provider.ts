@@ -192,17 +192,24 @@ const REJECTION_MESSAGE_LENGTH = 300;
 const QUOTED_RUN = 12;
 
 /**
+ * Seven digits or more in a row, single spaces and hyphens between them aside: a phone number, the
+ * one thing an advertiser types into a listing that is shorter than `QUOTED_RUN` and still theirs.
+ */
+const DIGIT_RUN = /\d(?:[ -]?\d){6,}/;
+
+/**
  * What the provider said was wrong with a request it could not read, or `undefined` when that
  * cannot be kept. The provider describes a rejected request by its fields — but it is free to
  * quote one, and the message field holds the listing and the team's criteria. So the text is cut
  * to its first 300 characters and compared with `sent`, the message that carried them: if any 12
  * characters in a row stand in both, case aside, the whole text is dropped rather than trimmed.
+ * A text with a long run of digits is dropped as well, whatever it shares with the message.
  */
 function rejectionMessage(body: unknown, sent: string): string | undefined {
   const message = field(errorObject(body), "message");
   if (typeof message !== "string") return undefined;
   const text = message.slice(0, REJECTION_MESSAGE_LENGTH).trim();
-  if (text === "") return undefined;
+  if (text === "" || DIGIT_RUN.test(text)) return undefined;
   const said = text.toLowerCase();
   const listing = sent.toLowerCase();
   if (said.length < QUOTED_RUN) return listing.includes(said) ? undefined : text;

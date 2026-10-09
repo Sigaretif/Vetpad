@@ -19,6 +19,7 @@ import {
   auditLong,
   auditNone,
   auditReadFailed,
+  auditResultBroken,
   auditRerunning,
   auditRunning,
   deletedSaver,
@@ -200,6 +201,13 @@ const auditStates: AuditState[] = [
     matrix: "error",
     caption: "nieudany odczyt audytu — bez przycisku",
     audit: auditReadFailed,
+    available: true,
+  },
+  {
+    state: "audit-result-broken",
+    matrix: "error",
+    caption: "zapisany wynik, którego nie da się odczytać — z ponowieniem",
+    audit: auditResultBroken,
     available: true,
   },
   {

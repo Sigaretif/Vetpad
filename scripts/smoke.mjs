@@ -1709,6 +1709,44 @@ const steps = [
       ),
     { status: 400, errorCode: "VP001", snapshot: "same" },
   ],
+  // Ending the attempt is its starter's alone: the second member's failure and result pass the update policy and the
+  // trigger undoes them, so the row answers as written and is the same row. The control step below ends it for real.
+  [
+    "another member cannot fail the running audit attempt",
+    () =>
+      withSnapshot([observedAudit()], () =>
+        supabaseRest(FIXTURE_AUDIT_2, {
+          as: OTHER_MEMBER,
+          method: "PATCH",
+          prefer: "return=representation",
+          body: { run_state: "failed", run_failure: "smoke" },
+        }),
+      ),
+    { status: 200, rows: 1, snapshot: "same" },
+  ],
+  [
+    "another member cannot complete the running audit attempt",
+    () =>
+      withSnapshot([observedAudit()], () =>
+        supabaseRest(FIXTURE_AUDIT_2, {
+          as: OTHER_MEMBER,
+          method: "PATCH",
+          prefer: "return=representation",
+          body: {
+            run_state: "completed",
+            findings: { version: 1 },
+            rejected_count: 0,
+            model: "claude-opus-5-5",
+            effort: "medium",
+            criteria_revision: 1,
+            listing_fingerprint: "v1:smoke",
+            had_limits: false,
+            requirements_count: 0,
+          },
+        }),
+      ),
+    { status: 200, rows: 1, snapshot: "same" },
+  ],
   // Nobody has a delete policy on an audit, its starter included: it goes only with its offer (cleanup, below).
   [
     "member cannot delete their own audit attempt",

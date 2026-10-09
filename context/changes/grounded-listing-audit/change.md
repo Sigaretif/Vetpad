@@ -1,9 +1,9 @@
 ---
 change_id: grounded-listing-audit
 title: Grounded listing audit
-status: implementing
+status: impl_reviewed
 created: 2026-10-06
-updated: 2026-10-08
+updated: 2026-10-09
 archived_at: null
 ---
 
@@ -130,3 +130,60 @@ Found during phase 4's first real audit (2026-10-09), for phase 6 (README) and p
   requirement): 6033 input tokens, 771 output tokens, 10.5 s, 58 stream events, 5 findings, none
   rejected. Replaying streams through `runAudit` in Node took about 0.6 ms for 58 events and about
   5 ms for 1000 — an estimate of the stream's share of CPU, not a measurement on a Worker.
+
+State at the pause before phase 7 (2026-10-09), for the session that resumes it:
+
+- **Paid audits used: three of the four planned; both reserve audits untouched.** No. 1 — `claude-opus-5-5`,
+  two simultaneous requests, one provider call (sent by the agent on the user's word). No. 2 —
+  `claude-sonnet-5-5`, one request (the same). No. 3 — `claude-opus-5-5`, started by the user from the
+  card. No. 4 is the production audit of phase 7.
+- **Progress row 5.10 is open on purpose**: the user chose to commit phase 5 and close that row after
+  an implementation review. Whether to run `/10x-impl-review` before the deploy is still the user's
+  call — it was offered at the end of phase 6 and not yet answered.
+- **Phase 7 starts with the two production secrets**, which the user sets by hand (Workers Secrets and
+  the GitHub repository secret). The user asked to be told when the GitHub secret is due: it is due
+  then. Suggested, not decided: a separate key for production in the same Console workspace.
+- **Local data left by phase 5's free checks**: the first saved offer holds a failed attempt
+  (`provider_auth`, from the deliberate wrong-key run) beside its kept result; the next successful
+  audit of that offer clears it. `.env` and `.dev.vars` hold the real key; the preview is stopped.
+
+Recorded by `/10x-impl-review` on 2026-10-09 (report: `reviews/impl-review.md`, phases 1–6, ten findings, all
+triaged). What the triage changed, for the session that resumes phase 7:
+
+- **A third migration exists and is not on the hosted project yet**:
+  `supabase/migrations/20261009191000_offer_audits_ended_by_starter.sql` (finding F1). Only the member who
+  started an attempt can end it; before it, another member could store findings under the starter's name
+  through the Data API. It is applied to the local database (`supabase migration up`, no reset). Progress
+  rows 7.1 and 7.5 were closed for the first two migrations: the dry run now has to list exactly this one,
+  and the push needs the user's consent again, before the Worker deploys.
+- **The card has a state the plan did not list** (F2): a stored result that does not read is `broken`
+  (`loadOfferAudit`, `data-audit-state="broken"`), shown with the button that replaces it. A failed read
+  stays `error`, with no button. The board still reads such an offer as „Audytowano”.
+- **A twenty-third failure reason, `unexpected`** (F3), for an end of the attempt the route did not foresee;
+  `interrupted` is now only the card's word for an attempt left `running` past the threshold.
+- **`completeAudit` reads the row after a retried write reached none** (F4): the first write may have been
+  stored with its answer lost, and that is `saved`, not `claim_lost`.
+- **A label over 200 characters or a question over 400, or a blank label, takes its finding with it** (F5,
+  the user's limits): counted as `dropped`, for the log, never in the card's count of findings without an
+  excerpt. Whether a listing's text should be kept from imitating the message's blocks (`prompt.ts`) was
+  left alone — it would touch the approved instruction.
+- **`provider_error_message` is dropped when it holds seven digits or more in a row** (F6), on top of the
+  twelve-character rule: a phone number is shorter than twelve characters.
+- **A failed read of the criteria or of the settings says which step failed** (F7): `detail`, `db_code`,
+  `db_status`, `error_name` in the route's entry.
+
+Not in the plan and not recorded until this review (F10): `POST /api/audits` settles the session with
+`getSession()` before its response leaves and passes no cookie write on afterwards, because a cookie set
+once the response is on its way would fail the write of a paid result. A token the client refreshes during
+the audit therefore never reaches the browser. Checked against the local Supabase Auth on 2026-10-09
+(`enable_refresh_token_rotation = true`, `refresh_token_reuse_interval = 10`): the browser's old refresh
+token, replayed 13 and 26 seconds after the rotation it never saw, was answered with the current token,
+status 200 — the member is not signed out. Not checked: the hosted project's Auth settings, and a token
+rotated twice before the browser's next request, which one audit cannot cause (a fresh token lasts an
+hour).
+
+Phase 7, 2026-10-09, after the review: the third migration
+(`20261009191000_offer_audits_ended_by_starter.sql`) reached the hosted project with the user's consent — its
+dry run listed that one file alone, and the dry run after the push reports the remote database up to date.
+The note above that says it is not on the hosted project yet is superseded by this one. Progress row 5.10 was
+closed on the user's word that the re-taken gate screenshots were looked at.

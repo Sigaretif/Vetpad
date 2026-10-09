@@ -187,7 +187,50 @@ begin
   end if;
 end $$;
 
--- running -> completed. The write comes from the other member's session and claims a date, an auditor and a new
+-- An attempt is ended only by the member who started it: the other member's result, and the other member's
+-- failure, are accepted and change nothing (supabase/migrations/20261009191000_offer_audits_ended_by_starter.sql).
+-- Without this, findings a member wrote by hand would be stored under the starter's name.
+do $$
+declare
+  before_row jsonb := (select to_jsonb(a) from public.offer_audits a where a.offer_id = 'a0d17000-0000-4000-8000-000000000001');
+  touched integer;
+begin
+  if before_row ->> 'run_state' <> 'running' then
+    raise exception 'audit-state: [fixture: a running attempt] the row is %', before_row;
+  end if;
+
+  perform pg_temp.sign_in('sigaretif2@vetpad.local');
+  begin
+    update public.offer_audits
+    set run_state = 'completed', findings = '{"forged": true}'::jsonb, rejected_count = 0,
+        model = 'claude-opus-5-5', effort = 'medium', criteria_revision = 1, listing_fingerprint = 'v1:forged',
+        had_limits = false, requirements_count = 0
+    where offer_id = 'a0d17000-0000-4000-8000-000000000001';
+    get diagnostics touched = row_count;
+  exception when others then
+    raise exception 'audit-state: [another member''s result is accepted] the write was not undone, it failed with: % (%)', sqlerrm, sqlstate;
+  end;
+  if touched <> 1 then
+    raise exception 'audit-state: [another member''s result is accepted] the update touched % row(s), expected 1 - nothing was attempted', touched;
+  end if;
+  if (select to_jsonb(a) from public.offer_audits a where a.offer_id = 'a0d17000-0000-4000-8000-000000000001') is distinct from before_row then
+    raise exception 'audit-state: [another member cannot complete a running attempt] before: %, after: %',
+      before_row, (select to_jsonb(a) from public.offer_audits a where a.offer_id = 'a0d17000-0000-4000-8000-000000000001');
+  end if;
+
+  update public.offer_audits set run_state = 'failed', run_failure = 'forged'
+  where offer_id = 'a0d17000-0000-4000-8000-000000000001';
+  get diagnostics touched = row_count;
+  if touched <> 1 then
+    raise exception 'audit-state: [another member''s failure is accepted] the update touched % row(s), expected 1 - nothing was attempted', touched;
+  end if;
+  if (select to_jsonb(a) from public.offer_audits a where a.offer_id = 'a0d17000-0000-4000-8000-000000000001') is distinct from before_row then
+    raise exception 'audit-state: [another member cannot fail a running attempt] before: %, after: %',
+      before_row, (select to_jsonb(a) from public.offer_audits a where a.offer_id = 'a0d17000-0000-4000-8000-000000000001');
+  end if;
+end $$;
+
+-- running -> completed. The write comes from the starter's session and claims a date, another auditor and another
 -- starter: the result is stored as sent, dated by the database and signed by the member who started the attempt.
 do $$
 declare
@@ -195,7 +238,7 @@ declare
   other uuid := (select id from auth.users where email = 'sigaretif2@vetpad.local');
   stored public.offer_audits;
 begin
-  perform pg_temp.sign_in('sigaretif2@vetpad.local');
+  perform pg_temp.sign_in('sigaretif1@vetpad.local');
   update public.offer_audits
   set run_state = 'completed', findings = '{"version": 1, "fixture": "first result"}'::jsonb, rejected_count = 2,
       model = 'claude-opus-5-5', effort = 'medium', criteria_revision = 7, listing_fingerprint = 'v1:fixture',

@@ -163,6 +163,24 @@ async function endAttempt(
   }
 }
 
+/**
+ * Whether the row already holds the result of the attempt that started at `claimedAt`: it is
+ * `completed`, and its start is that attempt's. Asked only after a write that failed, when the
+ * next one reached no row — the first may have been stored with its answer lost on the way back.
+ * A read that fails, or finds anything else, is `false`: the claim is then lost as far as anyone
+ * can tell.
+ */
+async function storedAlready(supabase: SupabaseClient, offerId: string, claimedAt: string): Promise<boolean> {
+  try {
+    const read = await supabase.from(TABLE).select("run_state, run_started_at").eq("offer_id", offerId);
+    if (read.error || !Array.isArray(read.data) || read.data.length !== 1) return false;
+    const row = read.data[0] as Record<string, unknown>;
+    return row.run_state === "completed" && row.run_started_at === claimedAt;
+  } catch {
+    return false;
+  }
+}
+
 /** How many times the result is written before the save is given up: the model has been paid for by then. */
 const SAVE_ATTEMPTS = 2;
 
@@ -172,8 +190,9 @@ const SAVE_ATTEMPTS = 2;
  *
  * A write that fails — an error from the database, or no answer — is tried once more: by now the
  * model has answered and been paid for, and the result exists nowhere else. A write that reached
- * no row is `claim_lost` at once. After the second failure the answer is `error`, carrying what
- * the last write said.
+ * no row is `claim_lost` at once — unless it follows a write that failed: that one may have been
+ * stored and only its answer lost, so the row is read, and a row that holds this attempt's result
+ * is `saved`. After the second failure the answer is `error`, carrying what the last write said.
  */
 export async function completeAudit(
   supabase: SupabaseClient,
@@ -195,6 +214,9 @@ export async function completeAudit(
   let last: StoreFailure = {};
   for (let attempt = 1; attempt <= SAVE_ATTEMPTS; attempt += 1) {
     const { state, ...failure } = await endAttempt(supabase, offerId, claimedAt, values);
+    if (state === "claim_lost" && attempt > 1 && (await storedAlready(supabase, offerId, claimedAt))) {
+      return { state: "saved" };
+    }
     if (state !== "failed") return { state };
     last = failure;
   }
@@ -265,8 +287,17 @@ export interface StoredAudit {
  * An offer's audit, or a failed read — which is never shown as "not audited". With `ok`, the
  * attempt and the result are independent: a failed or interrupted re-run stands beside the result
  * it did not replace, and so does one that is still running.
+ *
+ * `broken` is neither: the row was read and its attempt reads, but the result it holds does not —
+ * findings of a version this code does not know, a count that is not one, a `completed` row with
+ * nothing in it. There is nothing to show, and nothing a new audit could pay for twice, so the
+ * card says so and offers the run that replaces it; an audit has no delete, and a card with no
+ * button would leave the offer unauditable for good.
  */
-export type OfferAudit = { state: "error" } | { state: "ok"; attempt: AuditAttempt; result: StoredAudit | null };
+export type OfferAudit =
+  | { state: "error" }
+  | { state: "broken"; attempt: AuditAttempt }
+  | { state: "ok"; attempt: AuditAttempt; result: StoredAudit | null };
 
 /** Everything the card reads. `criteria_revision` and `listing_fingerprint` are S-09's, and are not shown. */
 const VIEW_COLUMNS =
@@ -355,8 +386,10 @@ function readResult(row: Record<string, unknown>): RowResult | null | undefined 
  * An offer without a row is `attempt: none, result: null`: never audited, and never tried. That
  * answer is given for a read that succeeded and found no row, and for nothing else. No client (the
  * zero-config state), a failed query, an answer that is not the offer's one row, an unknown
- * `run_state`, an unreadable date, a person column that is not an id, findings that do not read
- * or half a result is `{ state: "error" }` — never "not audited".
+ * `run_state`, an attempt's date that is not one or a starter that is not an id is
+ * `{ state: "error" }` — never "not audited". A row whose attempt reads and whose result does not —
+ * findings `readFindings` turns away, half a result, a `completed` row without one — is `broken`,
+ * with the attempt as read.
  *
  * The people are read with one `resolveAuthors` query, and only those the card will name: who
  * started an attempt that is still running, and who made the stored result. A failed read of
@@ -381,19 +414,21 @@ export async function loadOfferAudit(
 
     const columns = row as Record<string, unknown>;
     const attempt = readAttempt(columns, now);
+    if (attempt === null) return { state: "error" };
     const result = readResult(columns);
-    if (attempt === null || result === undefined) return { state: "error" };
-    // `completed` is the state of a row that holds its result; one without it does not read.
-    if (columns.run_state === "completed" && result === null) return { state: "error" };
+    // `completed` is the state of a row that holds its result; one without it does not read either.
+    const broken = result === undefined || (columns.run_state === "completed" && result === null);
 
     const starter = attempt.kind === "running" ? [attempt.startedBy] : [];
-    const auditor = result === null ? [] : [result.auditedBy];
+    const auditor = broken || result === null ? [] : [result.auditedBy];
     // `resolveAuthors` answers in the order of its input: the starter, when asked for, comes first.
     const people = await resolveAuthors(supabase, [...starter, ...auditor], viewerId);
+    const named = attempt.kind === "running" ? { ...attempt, startedBy: people[0] } : attempt;
 
+    if (broken) return { state: "broken", attempt: named };
     return {
       state: "ok",
-      attempt: attempt.kind === "running" ? { ...attempt, startedBy: people[0] } : attempt,
+      attempt: named,
       result: result === null ? null : { ...result, auditedBy: people[starter.length] },
     };
   } catch {
@@ -402,7 +437,7 @@ export async function loadOfferAudit(
 }
 
 /** What the card's `data-audit-state` says. */
-export type AuditDataState = "none" | "running" | "done" | "failed" | "error";
+export type AuditDataState = "none" | "running" | "done" | "failed" | "broken" | "error";
 
 /**
  * One word for an offer's audit, for the card's `data-audit-state` — where `scripts/smoke.mjs`
@@ -415,6 +450,7 @@ export type AuditDataState = "none" | "running" | "done" | "failed" | "error";
  * - `running` an attempt is in progress — with or without an earlier result beside it;
  * - `failed`  the latest attempt failed or was interrupted — with or without an earlier result
  *             beside it, which the card still shows;
+ * - `broken`  a stored result that does not read, and no attempt after it;
  * - `done`    a stored result, and no attempt after it;
  * - `none`    no result and no attempt: the offer was never audited.
  */
@@ -427,6 +463,7 @@ export function auditDataState(audit: OfferAudit): AuditDataState {
     case "interrupted":
       return "failed";
     case "none":
+      if (audit.state === "broken") return "broken";
       return audit.result === null ? "none" : "done";
     default: {
       const unhandled: never = audit.attempt;
