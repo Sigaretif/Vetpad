@@ -6,7 +6,7 @@
 >
 > Refresh: re-run `/10x-test-plan --refresh` when stale (see §8).
 >
-> Last updated: 2026-10-02
+> Last updated: 2026-10-09
 
 ## 1. Strategy
 
@@ -131,8 +131,13 @@ Tag each `describe` with the §2 risk it protects, as the reference tests do:
 `(#1)` for an invented or incomplete fact (unknown-not-zero, the flat-sale
 gate, no blank row, an unknown shown as a value in a view, a failed read
 shown as an empty state, and a team limit broken by a fact the listing does
-not state), `(#5)` for a write that must leave other rows alone, `(#6)` for
-seller data, `(#7)` for a stored URL in `href`/`src`.
+not state), `(#2)` for a paid call that must not be made or made twice,
+`(#3)` for a paid result that must not be lost or misread (a failed read of
+an audit shown as "not audited" among them), `(#4)` for a finding without
+the listing's own words, `(#5)` for a write that must leave other rows
+alone, `(#6)` for seller data and for anything but the listing and the
+criteria reaching the model provider, `(#7)` for a stored URL in
+`href`/`src`.
 
 ### 6.1 Adding a unit test for an ingestion rule (unknown-not-zero on every mapped fact, flat-sale gate, seller-data whitelist)
 
@@ -491,11 +496,259 @@ auth.users` for `sigaretif3@vetpad.local`, then one `DO` block per check
 
 ### 6.4 Adding a test for a paid external call (billed-call count, lost result, timeout)
 
-- TBD — see §3 Phase 3.
+Written with the code it protects, in S-04 (`grounded-listing-audit`,
+2026-10-09) — see §6.6. A paid call is proved by counting: what the test
+asserts is how many requests reached the provider, never that the route
+answered `200`, which a refusal, a failure and a finished audit all share.
+
+- **No test reaches the provider.** `tests/setup.ts` leaves
+  `ANTHROPIC_API_KEY` unset for every test, a test that needs a key mocks
+  `ANTHROPIC_TEST_KEY` — a value that is worth nothing — and the provider is
+  the `fetch` stub. A real audit is never part of a test, a script or a smoke
+  step (CLAUDE.md `## Testing`).
+- **Where — pick the layer by what can lie:**
+  - The order of the route — what is checked before the row is claimed, the
+    claim before the call, what becomes of a paid answer that cannot be
+    stored: a hermetic route test under `tests/pages/api/`, stubbed at the
+    HTTP edge for the database and for the provider alike.
+  - The lock and the clock — one attempt per offer at a time, the takeover of
+    an attempt whose request died, a failed re-run leaving the previous
+    result, nobody writing a result or a date by hand: a check in
+    `scripts/audit-state.sql` (`npm run test:db`). They live in triggers, so
+    a stub cannot answer for them, and the publishable key can neither age an
+    attempt nor wait three minutes for one, so smoke cannot either.
+  - The policies of the audit's tables, and the route's refusals on a real
+    server: steps in `scripts/smoke.mjs` (§6.3) — never a request for an
+    audit of an offer that exists.
+  - What a view makes of the stored row — a failed read is never "not
+    audited", an attempt past the threshold reads as interrupted: a test of
+    the read (§6.7), with the clock passed in as an argument;
+    `tests/lib/audit/store.test.ts` is the reference.
+  - What the browser makes of the answer — only a redirect is a sign-out, a
+    body without its last line is not a failure to retry: pure functions
+    (§6.8); `tests/lib/audit/stream.test.ts` is the reference.
+- **Reference test:** `tests/pages/api/audits.test.ts`, with
+  `tests/fixtures/anthropic.ts` for the provider. The exit that only the
+  zero-config state reaches has its own file,
+  `tests/pages/api/audits.unconfigured.test.ts`, for the reason in §6.9.
+- **The provider at the HTTP edge:** `isProviderRequest(request)` tells its
+  one request from the database's. The answers: `providerAnswer({ text,
+stopReason, inputTokens, outputTokens, events })` is a whole streamed
+  answer; `providerStream(events, { stall, signal })` with `answerEvents(…)`
+  and `streamErrorEvent(type)` builds a stream event by event — an error
+  after `200`, a body that goes quiet; `providerError(status, type, {
+message, details })` is a request refused before any stream; and
+  `providerSilence` never answers until the caller's signal aborts. The
+  header comment of the fixture says what the SDK sends and how each answer
+  becomes an error, read from the SDK's sources — update it when the SDK is
+  upgraded. Nothing in it was recorded from the live API.
+- **One stub for the whole network, every table on its own.** `stubNetwork`
+  in the reference test answers each table and the provider separately, with
+  a working default for all of them except the provider — which is unplanned
+  unless the case plans it, so a call that should not have gone out fails the
+  test in `restoreFetch`. The same holds for `offer_notes`: no case ever
+  answers it.
+- **State the count in every scenario,** in the test's name and as an
+  assertion: `providerCalls(stub.requests)` has length 0 or 1, never more.
+  `providerCalls` counts every request to the provider's host, whatever its
+  path. Each "0" stands beside the control — the same request with a session,
+  an existing offer or a free row does reach the provider, once.
+- **Risk #2, the calls that must not be made:** no session (a redirect, and
+  no request at all — the body is not even read), an id that is not a uuid,
+  an offer that is not there, a row that does not read, no provider key, a
+  failed read of the criteria or of the settings, and a row another attempt
+  holds (`VP001` → `busy`). For each: zero provider calls, no claim, and the
+  reason in the last line of the answer. A failed call — `429`, `5xx`, a
+  refused key, a deadline — is one call, never two: the SDK's default is to
+  retry, and the count is the proof that the audit switched that off.
+- **Risk #3, the result that must not be lost:** a save that fails is tried
+  once more and then reported as `save_failed`, with the attempt marked
+  failed; a save that reached no row is `claim_lost`, not written again; a
+  failed model call leaves the attempt `failed` with its reason and writes no
+  result; the audit is handed to the platform's `waitUntil` and finishes
+  after the member's connection is gone; a session refreshed while the audit
+  runs does not cost the result. Assert the writes themselves — their bodies
+  from a hand-written list, and their filter (`expectOwnAttemptOnly`: the
+  offer, `run_state=eq.running`, the attempt's own start, and a `select`,
+  without which a write that reached no row answers like a save).
+- **Time is fake, and moved by hand.** The file runs under
+  `vi.useFakeTimers` with `setTimeout`, `setInterval` and `Date` faked, so a
+  duration in a log entry is exact. A deadline case waits with
+  `providerCalled(stub)` — real turns of the event loop, until the request to
+  the provider is out — and only then advances the clock: to one second short
+  of the limit, where nothing has been decided, and then past it. It ends
+  with `vi.getTimerCount()` at 0, so no timer outlives the request.
+- **The answer is read as the browser reads it:** the body to its end, split
+  into lines, the last one `done` or `failed` with exactly the keys `type`,
+  `reason` and `message`.
+- **The log entry belongs to the same scenario** (§6.9): the `started` entry
+  before the call and the one entry of the way out, written whole by hand
+  with `toStrictEqual`; and one table of scenarios, one per stage, searched
+  for what no entry may carry — the listing, the criteria, the model's words,
+  the provider's message (`PROVIDER_MESSAGE_CANARY` sits in every error the
+  stubbed provider writes), a member's address.
+- **Oracle:** the PRD (FR-010; Non-Functional Requirements for the
+  three-minute limit and what may leave the system), §2 risks #2 and #3, the
+  route's contract in the plan of the change that built it, and the header of
+  `supabase/migrations/20261007073300_create_offer_audits.sql` for what the
+  database answers a claim and a write that ends an attempt. Messages are
+  matched by a hand-written fragment of the Polish copy, never imported.
+- **Tag:** `(#2)`, `(#3)` on the `describe`.
+- **Run:** `npm test -- tests/pages/api/audits.test.ts`, then
+  `npx stryker run --mutate "src/pages/api/audits.ts,src/lib/audit/provider.ts"`.
+  The SQL checks: `npm run test:db`. The smoke steps: as in §6.3.
+- **Adding a check to `scripts/audit-state.sql`:** one `DO` block that raises
+  `audit-state: [<check name>] …`, inside the file's one transaction. The
+  checks build on one another — each starts from the row the one before it
+  left — so a new one goes where the row is in the state it needs. A session
+  is `pg_temp.sign_in(<account>)`; a write as a member counts its rows with
+  `get diagnostics`. `run_started_at` is the database's and no member's write
+  moves it back, so the script ages an attempt by switching the update
+  trigger off as the table's owner, for one statement; test both sides of the
+  threshold, one second short of it and one second past.
+- **Pitfalls:**
+  - A stream that is cut by an abort does not throw in the SDK: the iteration
+    just ends. A provider that never answers and a stream that goes quiet are
+    two cases, `providerSilence` and `providerStream(…, { stall: true })`.
+  - The SDK keeps the `fetch` that was the global when its client was built.
+    A client built before `stubFetch` would go around the stub — one reason
+    the audit builds its client per request.
+  - `RecordedRequest` records no headers, so the key the SDK sends is not
+    asserted; what is asserted is the address — the provider's own, whatever
+    the process environment says — and the body.
+  - A provider error is classified by its status and, for a `400`, by its
+    message. A new case takes the message the provider really sent, with the
+    date it was seen, as the unscoped-key case does.
+  - Smoke must stay unable to pay: `requestAuditOfMissingOffer` in
+    `scripts/smoke.mjs` throws on a fixture offer's id. A new smoke step on
+    the audit route goes through it.
+  - The local numbers of 2026-10-09 (one audit: 58 stream events, about 10
+    seconds) are not a test and not a budget. The per-request CPU on Workers
+    is read from the first production audit.
 
 ### 6.5 Adding a grounding or prompt-privacy test for the audit
 
-- TBD — see §3 Phase 4.
+Written with the code it protects, in S-04 — see §6.6. Two rules are proved
+here, and both by absence: nothing the listing does not say reaches the team
+(#4), and nothing but the listing and the criteria reaches the provider (#6).
+An absence check passes on an empty result, so each one stands beside a
+presence.
+
+- **Where:** `tests/lib/audit/`, mirroring `src/lib/audit/`, one test file
+  per module. The read of the criteria is in `tests/lib/criteria.test.ts`
+  (`loadAuditCriteria`), and the request that really goes out is asserted in
+  the route test (§6.4).
+- **Fixtures:** `tests/fixtures/audit.ts`, hand-written, never a recorded
+  row. `auditOfferRow(overrides)` is a `public.offers` row that carries, on
+  purpose, everything that must not leave: seller data in `raw`, the offer's
+  id and source URL, image URLs, coordinates, members' ids — and
+  `auditCriteria()` carries the requirements with their authors and
+  addresses. Together with the three fields of a note they are
+  `FORBIDDEN_IN_AUDIT`. The description also holds a phone number and a name
+  the advertiser typed in (`TYPED_PHONE`, `TYPED_NAME`), spelled differently
+  from the canaries in `raw`, so a test can tell the two apart.
+- **Grounding (#4) — reference `tests/lib/audit/grounding.test.ts`:**
+  - `groundFindings` is pure: build the input and the model's answer with the
+    small helpers (`input()`, `output()`, `finding(excerpt)`, `missing()`),
+    so a case states only the finding it is about.
+  - **Every finding turned away stands beside one that is kept.** A
+    paraphrase is rejected — and the listing's own words, in the same field,
+    stay. Alone, the first half passes on a function that keeps nothing.
+  - **The whole stored value, written by hand** — and it is the listing's
+    text that is stored, not the model's: an excerpt the model wrote with a
+    plain space where the listing has a no-break space, or across a line
+    break, is kept with the listing's characters.
+  - **The cases an excerpt can fail in:** a paraphrase, two fragments glued
+    into one, an ellipsis, a changed letter case, an empty text, one shorter
+    than `MIN_EXCERPT_LENGTH` — with the length on the bound and just under
+    it, side by side. Whitespace is the one thing an excerpt may differ in.
+    The title is listing text too.
+  - **Missing-information findings carry no excerpt, and are still checked:**
+    an attribute whose column is stated, a question that is blank, a
+    requirement reference that points at no requirement, the same attribute
+    twice. Each beside the finding that stays. An attribute off the
+    decision-critical list never gets this far: the reader of the answer
+    turns the whole answer away (below).
+  - **Two counts, never one.** `rejected` grows only with a positive finding
+    whose excerpt is not the listing's — the card shows it. Everything else
+    turned away is `dropped`, which goes to the log. Assert both in every
+    case: a rule moved from one count to the other changes what a member
+    reads.
+  - **The readers:** `tests/lib/audit/schema.test.ts` is the reference for
+    `readAuditOutput` (the model's answer) and `readFindings` (the stored
+    row). A value that does not read is `null` — a failed audit, or a failed
+    read — and never four empty lists, which is a successful audit that found
+    nothing; every refusal stands beside the read that succeeds. The same
+    file keeps `AUDIT_OUTPUT_SCHEMA` and its TypeScript type in step.
+  - **The view:** a finding is rendered as text whatever it carries — any
+    member can write the stored row through the Data API. That check is a
+    render test (§6.2), `tests/components/offers/render.test.ts`.
+- **Prompt privacy (#6) — references `tests/lib/audit/input.test.ts` and
+  `tests/lib/audit/prompt.test.ts`:**
+  - **Search what leaves, at every step it could be added:** the serialised
+    `buildAuditInput(…)`, both parts of `buildAuditPrompt(…)`, and in the
+    route test the body of the request recorded at the provider's address.
+    None may contain an entry of `FORBIDDEN_IN_AUDIT`.
+  - **The control is in the same test:** the serialised sources — the offer
+    row and the criteria — do contain every one of them. Without it the
+    search passes on a fixture that lost its canaries.
+  - **The other half, always:** what the advertiser typed into the
+    description is there verbatim, once, and in the message only — never in
+    the instruction. A canary hit is fixed in the whitelist
+    (`AUDIT_OFFER_COLUMNS`), never by redacting the listing's text, which
+    would break the excerpts (FR-011).
+  - **Key sets, written out by hand:** the keys of the input, of a
+    requirement (`body` and `ref`, never an author) and of the prompt
+    (`system`, `user`). The columns the route asks the database for are
+    asserted the same way, from the `select` parameter of the recorded
+    request.
+  - **The instruction is the same for every audit:** build the prompt from
+    two different listings and compare `system`; it holds no listing, no
+    criteria, and no example a model could hand back as an excerpt.
+  - **Notes have no way in,** and two things say so: no case of the route
+    test ever answers `offer_notes`, so a read of it fails the test, and
+    `npm run lint` fails an import of the notes module under
+    `src/lib/audit/` (`auditNoNotesConfig` in `eslint.config.js`). The lint
+    rule is confirmed by adding the import once and watching it go red.
+  - **Unknown stays unknown (#1):** a `null` column goes out as „nie podano w
+    ogłoszeniu”, never as zero — with `rent: "0"` sitting in the fixture's
+    `raw` to prove `raw` is not read — and a value that does not read as what
+    its column holds refuses the audit; it is never downgraded to "not
+    stated".
+- **The listing's fingerprint:** asserted in
+  `tests/lib/audit/input.test.ts` against a hash computed in the test from
+  JSON written out by hand — the raw column values, under their column
+  names, in the whitelist's order, behind the `v1:` prefix. A changed
+  description or parameter changes it; the key order of the row and a
+  reworded label do not.
+- **Oracle:** the PRD — Guardrails (the AI never asserts without evidence;
+  missing data reads "unknown"), FR-010, FR-011 with its list of
+  decision-critical attributes, the Non-Functional Requirements (what may
+  leave the system; the listing's own words are stored as written) and the
+  resolved block of Open Questions for what the instruction counts as a
+  finding. The instruction's wording is the user's: a test of it quotes the
+  approved sentences, so a rewording turns it red on purpose — change the
+  instruction with the user, then the test.
+- **Tag:** `(#4)` for grounding and the readers, `(#6)` for what leaves the
+  system, `(#1)` for an unknown that must stay one.
+- **Run:** `npm test -- tests/lib/audit`, then Stryker narrowed to the gate —
+  `npx stryker run --mutate "src/lib/audit/grounding.ts"`, and the same for
+  `src/lib/audit/input.ts`.
+- **Pitfalls:**
+  - Never use a model to judge whether an excerpt is grounded: the check is a
+    deterministic comparison, and so is its test (§2, risk #4).
+  - Amounts in the input carry the no-break spaces `Intl` puts in them.
+    Write expected lines with ` `, or the comparison fails on a
+    character that looks like a space.
+  - The grounding never adds: a column that is empty does not prove the
+    listing is silent, because the text may state what the parameter omits.
+    Do not write a test that expects a missing-information finding the model
+    did not give.
+  - A requirement is stored with the finding as its text, not as `Wn`: the
+    numbering is the prompt's, and the requirements may change after the
+    audit.
+  - The optional golden set (§4) stays manual and outside CI. It costs a paid
+    audit per listing, so it is run only when the user asks for it.
 
 ### 6.6 Per-rollout-phase notes
 
@@ -717,6 +970,101 @@ key constraint "offer_notes_author_id_fkey" (23503)`; restored with a
     error marker.
   - The retry branches of postgrest-js (`503`, `520`, a rejected `fetch`).
 
+**Outside the rollout — `grounded-listing-audit` (S-04)**
+(2026-10-09)
+
+- Not a §3 phase, and it leaves §3 as it stands. Phases 3 and 4 were to start
+  "only after S-04 ships"; the protections they describe were written in
+  S-04 itself, with the code, because the plan of S-04 named them as §3 asked.
+  The tests for risks #2, #3, #4 and #6 (prompt) exist, run under `npm test`
+  in the CI `ci` job, and §6.4 and §6.5 are their cookbook. Whether phases 3
+  and 4 are closed as covered or opened to look for what is missing is the
+  orchestrator's call (`/10x-test-plan`), not this entry's.
+- Delivered, by risk:
+  - **#2 (Denial of Wallet)** — `tests/pages/api/audits.test.ts`: every
+    scenario states the number of requests that reached the provider. No
+    session, a bad id, a missing offer, a row that does not read, no key, a
+    failed read of the criteria or the settings and a row held by another
+    attempt are zero calls; a failed call is one and is never retried. The
+    lock itself is the database's: `scripts/audit-state.sql` proves that a
+    running attempt cannot be taken over — by another member or by its own
+    starter's second request — and `scripts/smoke.mjs` that the takeover is
+    refused through the Data API (`VP001`).
+  - **#3 (a paid result lost)** — the same route test: the save is tried
+    twice and then reported, a write that reached no row is `claim_lost`, a
+    failed call leaves the attempt failed, the audit outlives the member's
+    connection and a session refreshed meanwhile.
+    `scripts/audit-state.sql`: an attempt 174 seconds old cannot be taken
+    over and one 176 seconds old can, and a failed or a new attempt leaves
+    the previous result as it was. `tests/lib/audit/store.test.ts`,
+    `tests/lib/offer-board.test.ts` and the audit cases of
+    `tests/components/offers/render.test.ts` and
+    `tests/components/offers/offer-board-item.test.ts`: a failed read is
+    never "not audited". `tests/lib/audit/stream.test.ts`: a body that ends
+    without its last line is not a failure to retry.
+  - **#4 (an ungrounded finding)** — `tests/lib/audit/grounding.test.ts` and
+    `tests/lib/audit/schema.test.ts`, and in the route test a paraphrased
+    finding that is left out, counted, and not stored.
+  - **#6 (prompt)** — `tests/lib/audit/input.test.ts`,
+    `tests/lib/audit/prompt.test.ts`, the `loadAuditCriteria` cases of
+    `tests/lib/criteria.test.ts`, the route test's search of the recorded
+    request and of every log entry, and the lint rule that keeps the notes
+    module out of the audit (`auditNoNotesConfig` in `eslint.config.js`).
+  - Beside them: `tests/lib/audit/settings.test.ts`,
+    `tests/lib/audit/failure.test.ts`,
+    `tests/pages/api/audit-settings.test.ts` with its zero-config file,
+    `tests/pages/api/audits.unconfigured.test.ts`,
+    `tests/components/criteria/CriteriaView.test.ts`, three new cases in
+    `scripts/account-deletion.sql` (the audit's two person columns and the
+    settings' signature), and the smoke steps for the policies of
+    `public.audit_settings` and `public.offer_audits` and for the markers
+    `data-audit-state`, `data-audits-state` and
+    `data-audit-settings-state`.
+- New layers and fixtures: `scripts/audit-state.sql`, the second script
+  `npm run test:db` runs, for rules that live in triggers and depend on time;
+  `tests/fixtures/anthropic.ts`, the model provider behind the `fetch` stub;
+  `tests/fixtures/audit.ts`, the privacy fixture.
+- No automated step reaches the model provider, and none may (CLAUDE.md
+  `## Testing`). The real audits of this change were deliberate and paid, one
+  at a time: run by the user, or sent by the agent when the user told it to
+  for that one call. They are not a test surface: they showed
+  that the provider accepts the request on both models of the list, and one
+  of them gave the only numbers there are so far — one local audit on
+  `claude-opus-5-5` at `medium`, a listing of about 1600 characters: 6033
+  input and 771 output tokens, 10.5 seconds, 58 stream events. Nothing has
+  been measured on a Worker.
+- Found by the first real audit, which no stub could have shown: a key that
+  belongs to no workspace answers `400 invalid_request_error`, not `401` —
+  the provider module reads that message as a rejected key; and a rejected
+  request left nothing in the log that said why, which is why an entry may
+  now carry the provider's message for that one case (CLAUDE.md
+  `## Conventions`). Both have their cases in the route test now. A stub
+  proves what the code does with an answer, never what the provider answers.
+- Stryker was run narrowed to `src/lib/audit/grounding.ts` and
+  `src/lib/audit/input.ts` during S-04, with every survivor judged (the
+  plan's Progress records the step); the change folder holds no mutant log,
+  so no scores are quoted here.
+- Phase 1's deferred item on `raw.images` did not come due: the audit reads
+  neither `raw` nor `images`. Its whitelist is `AUDIT_OFFER_COLUMNS`, and
+  `tests/lib/audit/input.test.ts` asserts it. The deferral stands for
+  whichever change first reads `raw`.
+- Open:
+  - No test drives the audit in a browser. A Playwright spec would press a
+    button that pays; the island's logic is covered as pure functions and by
+    the render tests of its states, and the live flow by hand.
+  - The quality of the findings — whether the model points at what matters —
+    is not tested at all. The optional golden set (§4) is the only tool for
+    it and was not run; no reasoning effort has been compared on real
+    listings.
+  - Smoke checks `data-audit-state` for `none`, `running` and `failed`. It
+    never sees `done`, because it never runs an audit.
+  - A member can still overwrite a stored result through the Data API by
+    starting an attempt and completing it by hand; the triggers stop an
+    accidental write, not a deliberate one. The plan of S-04 accepted that
+    under the PRD's trusted team with flat roles.
+  - What a stale audit is — S-09 compares the stored revision and
+    fingerprint — has no test yet, because nothing reads them.
+
 ### 6.7 Adding a unit test for a read function (a failed read is its own state)
 
 A read function takes the Supabase client as an argument and answers a union
@@ -890,8 +1238,9 @@ A pure rule has no executable imports: no stub, no `vi.mock`, no client.
   - A column map or a column list is data for the query, not a rule. An
     assertion on its literal mirrors the code; smoke guards it on the real
     database. Record its mutants as „świadomie pominięty”.
-  - A swap point with one constant (`auditStatus`) has no rule to prove
-    until the slice that fills it.
+  - A swap point with one constant has no rule to prove until the slice
+    that fills it. `auditStatus` was one until S-04 gave it a rule, and its
+    three answers their cases in `tests/lib/offer-board.test.ts`.
   - "Never throws" includes the names every object inherits — a lookup in a
     map must not accept `toString`.
 
@@ -1045,7 +1394,7 @@ sign-out. Its test plays Auth, not `@/lib/supabase`.
 ## 8. Freshness Ledger
 
 - Strategy (§1–§5) last reviewed: 2026-09-30; §2 (#5), §3 row 2, §4 and §5 amended for the write-isolation phase: 2026-10-01
-- Cookbook (§6) last changed: 2026-10-06 — §6.9, the two layers of the forbidden list, outside the rollout (`otodom-fetch-sub-reasons`), and §6.10, outside the rollout (`auth-outage-not-signed-out`); before that 2026-10-05 — §6.9, outside the rollout (`offers-outcome-logging`), and 2026-10-02 — the tags paragraph, §6.7, §6.8 and a §6.6 entry (`testing-read-failure-states`)
+- Cookbook (§6) last changed: 2026-10-09 — §6.4 and §6.5 filled in, the tags paragraph, a §6.8 pitfall and a §6.6 entry, outside the rollout (`grounded-listing-audit`, S-04); before that 2026-10-06 — §6.9, the two layers of the forbidden list, outside the rollout (`otodom-fetch-sub-reasons`), and §6.10, outside the rollout (`auth-outage-not-signed-out`); before that 2026-10-05 — §6.9, outside the rollout (`offers-outcome-logging`), and 2026-10-02 — the tags paragraph, §6.7, §6.8 and a §6.6 entry (`testing-read-failure-states`)
 - Stack versions last verified: 2026-09-30
 - AI-native tool references last verified: 2026-09-30
 

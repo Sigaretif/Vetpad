@@ -1339,30 +1339,30 @@ się raz.
 
 #### Automated
 
-- [x] 5.1 `npm test` przechodzi z testami odczytu audytu, `auditStatus` i renderowania sekcji audytu
-- [x] 5.2 `npm run lint`, `npx astro sync && npx astro check` i `npm run build` przechodzą
-- [x] 5.3 `npm run smoke` przechodzi ze sprawdzeniem `data-audit-state` i `data-audits-state`
-- [x] 5.4 `node scripts/ui-screenshots.mjs gate context/changes/grounded-listing-audit/screenshots` i zestaw `board` tworzą zrzuty nowych stanów
+- [x] 5.1 `npm test` przechodzi z testami odczytu audytu, `auditStatus` i renderowania sekcji audytu — ce1877f
+- [x] 5.2 `npm run lint`, `npx astro sync && npx astro check` i `npm run build` przechodzą — ce1877f
+- [x] 5.3 `npm run smoke` przechodzi ze sprawdzeniem `data-audit-state` i `data-audits-state` — ce1877f
+- [x] 5.4 `node scripts/ui-screenshots.mjs gate context/changes/grounded-listing-audit/screenshots` i zestaw `board` tworzą zrzuty nowych stanów — ce1877f
 
 #### Manual
 
-- [x] 5.5 Audyt uruchomiony z karty pokazuje etap i płynący czas, po zakończeniu karta pokazuje znaleziska z cytatami, a tablica „Audytowano"
-- [x] 5.6 Każdy pokazany cytat da się znaleźć w opisie albo tytule oferty na tej samej karcie
-- [x] 5.7 Ponowienie z celowo błędnym kluczem pokazuje komunikat o niepowodzeniu, a poprzednie znaleziska zostają
-- [x] 5.8 Drugi członek otwierający kartę w trakcie audytu widzi „w toku" z osobą i godziną oraz wyłączony przycisk
-- [x] 5.9 Zrzuty pokazują każdy wiersz obu macierzy, cztery kategorie są rozróżnialne bez polegania na samym kolorze, kontrast co najmniej 4,5:1, widok mobilny bez poziomego przewijania
+- [x] 5.5 Audyt uruchomiony z karty pokazuje etap i płynący czas, po zakończeniu karta pokazuje znaleziska z cytatami, a tablica „Audytowano" — ce1877f
+- [x] 5.6 Każdy pokazany cytat da się znaleźć w opisie albo tytule oferty na tej samej karcie — ce1877f
+- [x] 5.7 Ponowienie z celowo błędnym kluczem pokazuje komunikat o niepowodzeniu, a poprzednie znaleziska zostają — ce1877f
+- [x] 5.8 Drugi członek otwierający kartę w trakcie audytu widzi „w toku" z osobą i godziną oraz wyłączony przycisk — ce1877f
+- [x] 5.9 Zrzuty pokazują każdy wiersz obu macierzy, cztery kategorie są rozróżnialne bez polegania na samym kolorze, kontrast co najmniej 4,5:1, widok mobilny bez poziomego przewijania — ce1877f
 - [ ] 5.10 Bramka wizualna powtórzona po triage z `/10x-impl-review`, jeśli zmienił widok
 
 ### Phase 6: Dokumentacja i reguły
 
 #### Automated
 
-- [ ] 6.1 `npm run lint`, `npx astro sync && npx astro check` i `npm test` przechodzą po zmianach w dokumentach
-- [ ] 6.2 Każda ścieżka pliku nazwana w nowych wpisach `CLAUDE.md` istnieje w repozytorium
+- [x] 6.1 `npm run lint`, `npx astro sync && npx astro check` i `npm test` przechodzą po zmianach w dokumentach
+- [x] 6.2 Każda ścieżka pliku nazwana w nowych wpisach `CLAUDE.md` istnieje w repozytorium
 
 #### Manual
 
-- [ ] 6.3 Użytkownik przeczytał i zaakceptował zmiany w `context/foundation/prd.md`
+- [x] 6.3 Użytkownik przeczytał i zaakceptował zmiany w `context/foundation/prd.md`
 
 ### Phase 7: Wdrożenie i weryfikacja na produkcji
 
