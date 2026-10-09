@@ -7,6 +7,7 @@ import OfferParameters from "@/components/offers/OfferParameters.astro";
 import Unstated from "@/components/offers/Unstated.astro";
 import { saverName, type Saver } from "@/lib/members";
 import { formatTimestamp } from "@/lib/format";
+import { mapSearchUrl } from "@/lib/map-link";
 import { formatMoney } from "@/lib/otodom/labels";
 import type { OfferRow } from "@/lib/otodom/types";
 import { safeHttpsUrl } from "@/lib/safe-url";
@@ -32,6 +33,9 @@ const images = Array.isArray(offer.images) ? offer.images : [];
 const price = money(offer.price, offer.price_currency);
 const pricePerM = money(offer.price_per_m, offer.price_currency, "/m²");
 const sourceUrl = safeHttpsUrl(offer.source_url);
+// `null` when the offer states no location: the card then renders no map link.
+const mapUrl = mapSearchUrl(offer);
+const linkClass = cn(buttonVariants({ variant: "link" }), "h-auto p-0");
 ---
 
 <header>
@@ -54,15 +58,19 @@ const sourceUrl = safeHttpsUrl(offer.source_url);
           </>
         )}
       </p>
-      {sourceUrl && (
-        <a
-          href={sourceUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          class:list={cn(buttonVariants({ variant: "link" }), "mt-4 h-auto p-0")}
-        >
-          Otwórz oryginał na otodom.pl ↗
-        </a>
+      {(sourceUrl ?? mapUrl) && (
+        <div class="mt-4 flex flex-wrap gap-x-6 gap-y-2">
+          {sourceUrl && (
+            <a href={sourceUrl} target="_blank" rel="noopener noreferrer" class:list={linkClass}>
+              Otwórz oryginał na otodom.pl ↗
+            </a>
+          )}
+          {mapUrl && (
+            <a href={mapUrl} target="_blank" rel="noopener noreferrer" class:list={linkClass}>
+              Pokaż na mapie Google ↗
+            </a>
+          )}
+        </div>
       )}
     </CardContent>
   </Card>

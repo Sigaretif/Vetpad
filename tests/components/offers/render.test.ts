@@ -19,6 +19,9 @@ import {
   noAudits,
   noLimits,
   noNotes,
+  outsideCityOffer,
+  streetOnlyOffer,
+  unknownOffer,
 } from "@/pages/dev/_offer-fixtures";
 
 // The stored row, not the ingest, is the attack surface (lessons.md): any member can PATCH any
@@ -133,6 +136,91 @@ describe("OfferCard: the source link (#7)", () => {
     expect(countTags(html, "img")).toBe(0);
     expectOnlySafeUrls(html);
   });
+});
+
+describe("OfferCard: the map link", () => {
+  const MAP_LINK = "Pokaż na mapie Google";
+  const MAPS = "https://www.google.com/maps/search/";
+
+  /** Every map-search `href` in the markup, with the attribute's entities decoded back to the URL. */
+  function mapHrefsIn(html: string): string[] {
+    return hrefsIn(html)
+      .filter((href) => href.startsWith(MAPS))
+      .map((href) => href.replace(/&amp;/g, "&"));
+  }
+
+  /** The decoded `query` of the card's one map link: the row's content may stand nowhere else in it. */
+  function mapQuery(html: string): string | null {
+    const hrefs = mapHrefsIn(html);
+    expect(hrefs).toHaveLength(1);
+    const url = new URL(hrefs[0]);
+    expect(url.origin + url.pathname).toBe(MAPS);
+    expect(Array.from(url.searchParams.keys())).toEqual(["api", "query"]);
+    expect(url.searchParams.get("api")).toBe("1");
+    return url.searchParams.get("query");
+  }
+
+  it("links the full offer's street and location label, in a new tab", async () => {
+    const html = await card(fullOffer);
+
+    expect(html).toContain(MAP_LINK);
+    expect(mapQuery(html)).toBe("ul. Przykładowa, Warszawa, Mokotów, Stary Mokotów");
+
+    const tags = (html.match(/<a\b[^>]*>/g) ?? []).filter((tag) => tag.includes(`href="${MAPS}`));
+    expect(tags).toHaveLength(1);
+    expect(tags[0]).toContain('target="_blank"');
+    expect(tags[0]).toContain('rel="noopener noreferrer"');
+    expectOnlySafeUrls(html);
+  });
+
+  it("links the label alone when the offer states no street", async () => {
+    const html = await card(outsideCityOffer);
+
+    expect(html).toContain(MAP_LINK);
+    expect(mapQuery(html)).toBe("Ząbki, wołomiński, mazowieckie");
+    expectOnlySafeUrls(html);
+  });
+
+  it.each<[string, OfferRow]>([
+    ["states no location at all", unknownOffer],
+    ["states only a street", streetOnlyOffer],
+  ])("renders no map link for an offer that %s", async (_case, offer) => {
+    const html = await card(offer);
+
+    expect(html).not.toContain(MAP_LINK);
+    expect(mapHrefsIn(html)).toEqual([]);
+    expectOnlySafeUrls(html);
+  });
+
+  it("renders the map link without the source link when the stored source_url is refused", async () => {
+    const html = await card({ ...fullOffer, source_url: JS });
+
+    expect(html).toContain(MAP_LINK);
+    expect(mapHrefsIn(html)).toHaveLength(1);
+    expect(html).not.toContain(SOURCE_LINK);
+    expectOnlySafeUrls(html);
+  });
+
+  it("renders the source link without the map link when the offer states no location", async () => {
+    const html = await card(streetOnlyOffer);
+
+    expect(html).toContain(SOURCE_LINK);
+    expect(hrefsIn(html)).toContain("https://example.com/oferta/tylko-ulica");
+    expect(html).not.toContain(MAP_LINK);
+    expect(mapHrefsIn(html)).toEqual([]);
+  });
+
+  it.each(['"><script>alert(1)</script>', JS])(
+    "keeps the stored location label %j inside the query, as text",
+    async (label) => {
+      const html = await card({ ...fullOffer, location_label: label });
+
+      expectOnlySafeUrls(html);
+      expect(html).not.toContain("<script");
+      expect(html).toContain(MAP_LINK);
+      expect(mapQuery(html)).toBe(`ul. Przykładowa, ${label}`);
+    },
+  );
 });
 
 describe("OfferGallery: a photo renders only when both its URLs are https (#7)", () => {

@@ -33,8 +33,10 @@ import {
   memberSaver,
   noNotes,
   othersOnlyNotes,
+  outsideCityOffer,
   selfSaver,
   singleImageOffer,
+  streetOnlyOffer,
   unknownOffer,
   unknownSaver,
   unsafeImagesOffer,
@@ -67,7 +69,7 @@ interface State {
 const states: State[] = [
   {
     caption:
-      "Pełna oferta · autor: członek zespołu · audyt: wynik z czterema kategoriami · notatki: własna w podglądzie, członka, usuniętego konta",
+      "Pełna oferta (link do mapy z ulicy i etykiety lokalizacji) · autor: członek zespołu · audyt: wynik z czterema kategoriami · notatki: własna w podglądzie, członka, usuniętego konta",
     offer: fullOffer,
     saver: memberSaver,
     notes: fullNotes,
@@ -76,7 +78,7 @@ const states: State[] = [
   },
   {
     caption:
-      "Wszystko nieznane (brak linku do oryginału) · autor: osoba z usuniętym kontem · audyt: same braki, trzy kategorie puste · notatki: brak (pusty formularz)",
+      "Wszystko nieznane (brak linku do oryginału, brak linku do mapy) · autor: osoba z usuniętym kontem · audyt: same braki, trzy kategorie puste · notatki: brak (pusty formularz)",
     offer: unknownOffer,
     saver: deletedSaver,
     notes: noNotes,
@@ -121,6 +123,24 @@ const states: State[] = [
     notes: noNotes,
     audit: auditNone,
     auditAvailable: false,
+  },
+  {
+    caption:
+      "Sama etykieta lokalizacji, bez ulicy (link do mapy z samej etykiety) · autor: członek zespołu · audyt: brak · notatki: brak (pusty formularz)",
+    offer: outsideCityOffer,
+    saver: memberSaver,
+    notes: noNotes,
+    audit: auditNone,
+    auditAvailable: true,
+  },
+  {
+    caption:
+      "Sama ulica, bez etykiety lokalizacji (brak linku do mapy, jest link do oryginału) · autor: członek zespołu · audyt: brak · notatki: brak (pusty formularz)",
+    offer: streetOnlyOffer,
+    saver: memberSaver,
+    notes: noNotes,
+    audit: auditNone,
+    auditAvailable: true,
   },
 ];
 

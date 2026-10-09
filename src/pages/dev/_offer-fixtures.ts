@@ -196,7 +196,7 @@ export const longTitleOffer: OfferRow = {
   images: [image("vetpad-long-1"), image("vetpad-long-2")],
 };
 
-/** Only the street stated, no location label: the board row shows the street alone. */
+/** Only the street stated, no location label: the board row shows the street alone, and the card renders no map link. */
 export const streetOnlyOffer: OfferRow = {
   ...fullOffer,
   id: "00000000-0000-4000-8000-000000000006",
@@ -243,7 +243,7 @@ export const longCityLimits: TeamLimitsResult = {
 /** A failed limits read: the board says so above the list and no row carries a mark. */
 export const failedLimits: TeamLimitsResult = { ok: false };
 
-/** Inside every `boardLimits` limit except the city. */
+/** Inside every `boardLimits` limit except the city. A label and no street: the card's map link is built from the label alone. */
 export const outsideCityOffer: OfferRow = {
   ...fullOffer,
   id: "00000000-0000-4000-8000-000000000007",

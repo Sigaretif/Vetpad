@@ -275,22 +275,22 @@ Brak migracji. Oferty zapisane wcześniej dostają link od razu, bo kolumny są 
 
 #### Automated
 
-- [x] 1.1 Test reguły przechodzi: `npx vitest run tests/lib/map-link.test.ts`
-- [x] 1.2 Cały zestaw przechodzi: `npm test`
-- [x] 1.3 Typy i lint przechodzą: `npx astro sync && npx astro check && npm run lint`
-- [x] 1.4 Mutacje modułu ocenione: `npx stryker run --mutate "src/lib/map-link.ts"`
+- [x] 1.1 Test reguły przechodzi: `npx vitest run tests/lib/map-link.test.ts` — bf76b75
+- [x] 1.2 Cały zestaw przechodzi: `npm test` — bf76b75
+- [x] 1.3 Typy i lint przechodzą: `npx astro sync && npx astro check && npm run lint` — bf76b75
+- [x] 1.4 Mutacje modułu ocenione: `npx stryker run --mutate "src/lib/map-link.ts"` — bf76b75
 
 ### Phase 2: Link na karcie oferty
 
 #### Automated
 
-- [ ] 2.1 Test renderowania przechodzi: `npx vitest run tests/components/offers/render.test.ts`
-- [ ] 2.2 Cały zestaw przechodzi: `npm test`
-- [ ] 2.3 Typy i lint przechodzą: `npx astro sync && npx astro check && npm run lint`
-- [ ] 2.4 Build przechodzi bez konfiguracji: `npm run build`
+- [x] 2.1 Test renderowania przechodzi: `npx vitest run tests/components/offers/render.test.ts`
+- [x] 2.2 Cały zestaw przechodzi: `npm test`
+- [x] 2.3 Typy i lint przechodzą: `npx astro sync && npx astro check && npm run lint`
+- [x] 2.4 Build przechodzi bez konfiguracji: `npm run build`
 
 #### Manual
 
-- [ ] 2.5 `/dev/offer-card`: link widoczny dla pełnej oferty i samej etykiety, nieobecny dla „wszystko nieznane" i samej ulicy
-- [ ] 2.6 Kliknięcie na prawdziwej ofercie otwiera Google Maps w nowej karcie z właściwym wyszukiwaniem
-- [ ] 2.7 Na 375 px oba linki zawijają się bez poziomego przewijania, fokus widoczny na obu
+- [x] 2.5 `/dev/offer-card`: link widoczny dla pełnej oferty i samej etykiety, nieobecny dla „wszystko nieznane" i samej ulicy
+- [x] 2.6 Kliknięcie na prawdziwej ofercie otwiera Google Maps w nowej karcie z właściwym wyszukiwaniem
+- [x] 2.7 Na 375 px oba linki zawijają się bez poziomego przewijania, fokus widoczny na obu
