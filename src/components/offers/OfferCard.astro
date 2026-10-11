@@ -1,13 +1,17 @@
 ---
+import { TriangleAlert } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import OfferDescription from "@/components/offers/OfferDescription.astro";
 import OfferGallery from "@/components/offers/OfferGallery.astro";
 import OfferParameters from "@/components/offers/OfferParameters.astro";
+import RefetchForm from "@/components/offers/RefetchForm";
 import Unstated from "@/components/offers/Unstated.astro";
 import { saverName, type Saver } from "@/lib/members";
-import { formatTimestamp } from "@/lib/format";
+import { formatClock, formatTimestamp } from "@/lib/format";
 import { mapSearchUrl } from "@/lib/map-link";
+import { LOST_FACT_LABELS, readLostTokens } from "@/lib/offer-refetch";
 import { formatMoney } from "@/lib/otodom/labels";
 import type { OfferRow } from "@/lib/otodom/types";
 import { safeHttpsUrl } from "@/lib/safe-url";
@@ -17,9 +21,24 @@ interface Props {
   offer: OfferRow;
   /** Who saved the offer, resolved once per view (`resolveSaver` in `@/lib/members`). */
   saver: Saver;
+  /** A failed re-fetch, from the card's `?error=…&form=refetch` — shown in the re-fetch block, as text. */
+  refetchError?: string | null;
+  /**
+   * The card's `?lost=` as the address carries it: the columns a re-fetch stopped on. Anyone can
+   * type it by hand, so it is read here through `readLostTokens` and only the columns it names
+   * that the audit reads are shown, by their names from code — never the value itself.
+   */
+  lost?: string | null;
+  /** The re-fetch block's id: the route redirects to `#pobranie`; the kitchen sink passes unique values. */
+  refetchAnchorId?: string;
 }
 
-const { offer, saver } = Astro.props;
+const { offer, saver, refetchError = null, lost = null, refetchAnchorId = "pobranie" } = Astro.props;
+
+// A re-fetch that stopped on facts the stored listing states and the fetched one does not
+// (`@/lib/offer-refetch`). Empty — no `lost`, or nothing in it that names a column — is a plain
+// re-fetch block with no warning.
+const lostColumns = lost === null ? [] : readLostTokens(lost);
 
 const who = saverName(saver);
 const savedOn = formatTimestamp(offer.created_at);
@@ -72,6 +91,38 @@ const linkClass = cn(buttonVariants({ variant: "link" }), "h-auto p-0");
           )}
         </div>
       )}
+      <div
+        id={refetchAnchorId}
+        data-refetch-state={lostColumns.length > 0 ? "lost" : "default"}
+        class="border-border mt-4 flex scroll-mt-4 flex-col gap-3 border-t pt-4"
+      >
+        <p class="text-muted-foreground text-sm">
+          Dane ogłoszenia pobrano z otodom.pl:{" "}
+          <time datetime={offer.fetched_at} class="text-foreground wrap-anywhere">
+            {formatTimestamp(offer.fetched_at)}, {formatClock(offer.fetched_at)}
+          </time>
+        </p>
+        {lostColumns.length > 0 && (
+          <Alert role="status" className="border-warning-foreground/30 bg-warning text-warning-foreground">
+            <TriangleAlert />
+            <AlertDescription className="text-warning-foreground">
+              <p>
+                Nic nie zostało zapisane. Ogłoszenie pobrane teraz z otodom.pl nie podaje pól, które zapisane ogłoszenie
+                podaje:
+              </p>
+              <ul class="list-disc pl-5">
+                {lostColumns.map((column) => (
+                  <li>{LOST_FACT_LABELS[column]}</li>
+                ))}
+              </ul>
+              <p>
+                Jeśli nadpiszesz zapisane dane, te informacje znikną z karty. Ogłoszenie zostanie pobrane jeszcze raz.
+              </p>
+            </AlertDescription>
+          </Alert>
+        )}
+        <RefetchForm client:load offerId={offer.id} serverError={refetchError} acceptLost={lostColumns.join(",")} />
+      </div>
     </CardContent>
   </Card>
 </header>

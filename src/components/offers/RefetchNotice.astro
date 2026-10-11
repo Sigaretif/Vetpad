@@ -1,0 +1,35 @@
+---
+import Banner from "@/components/Banner.astro";
+
+/*
+ * What a re-fetch that saved its data ended with (FR-009), from the card's `?refetched=`, which
+ * `POST /api/offer-refetch` sets and anyone can type by hand. The value only picks one of the
+ * sentences below; it is never rendered itself, and a value that is not one of the three renders
+ * nothing. The parent places the notice in AppLayout's `notice` slot.
+ *
+ * „Zmieniły się" and „bez zmian" speak of what the audit reads — the title, the description and
+ * the parameters — because that is what the route compares; photos are replaced either way.
+ */
+interface Props {
+  refetched: string | null;
+}
+
+const { refetched } = Astro.props;
+
+const SENTENCES = {
+  changed:
+    "Ogłoszenie pobrano ponownie. Jego tytuł, opis lub parametry zmieniły się od poprzedniego pobrania — jeśli oferta ma audyt, jest teraz oznaczony jako nieaktualny.",
+  unchanged: "Ogłoszenie pobrano ponownie. Jego tytuł, opis i parametry są bez zmian od poprzedniego pobrania.",
+  saved:
+    "Ogłoszenie pobrano ponownie i zapisano jego dane. Nie udało się ustalić, czy różnią się od poprzednio zapisanych.",
+};
+
+const sentence =
+  refetched !== null && Object.hasOwn(SENTENCES, refetched) ? SENTENCES[refetched as keyof typeof SENTENCES] : null;
+---
+
+{sentence !== null && (
+  <Banner variant="info">
+    <span data-refetch-result={refetched}>{sentence}</span>
+  </Banner>
+)}

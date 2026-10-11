@@ -6,9 +6,11 @@ import type { AuditRunnerPreview } from "@/components/offers/AuditRunner";
 import OfferAudit from "@/components/offers/OfferAudit.astro";
 import OfferNotFound from "@/components/offers/OfferNotFound.astro";
 import OfferView from "@/components/offers/OfferView.astro";
+import type { AuditFreshness } from "@/lib/audit/freshness";
 import type { OfferAudit as OfferAuditData } from "@/lib/audit/store";
 import type { Saver } from "@/lib/members";
 import type { OfferNotes } from "@/lib/notes";
+import { ingestFailureMessage } from "@/lib/otodom/failure";
 import type { OfferRow } from "@/lib/otodom/types";
 import {
   auditDone,
@@ -24,6 +26,8 @@ import {
   auditRunning,
   deletedSaver,
   failedNotes,
+  freshAudit,
+  freshnessUnknown,
   fullNotes,
   fullOffer,
   longEmailSaver,
@@ -36,6 +40,9 @@ import {
   outsideCityOffer,
   selfSaver,
   singleImageOffer,
+  staleBoth,
+  staleCriteria,
+  staleListing,
   streetOnlyOffer,
   unknownOffer,
   unknownSaver,
@@ -58,14 +65,30 @@ interface State {
   notes: OfferNotes;
   audit: OfferAuditData;
   auditAvailable: boolean;
+  /** What the page would have worked out for the audit's result; left out, a result reads as fresh. */
+  freshness?: AuditFreshness;
   noteError?: string;
+  refetchError?: string;
+  /** The card's `?lost=`, as the address would carry it. */
+  lost?: string;
   startEditing?: boolean;
 }
 
-// Each state renders the whole view (card + team column); `notatki-<n>` and `audyt-<n>` keep the
-// sections' ids unique on one page. The editor islands post to /api/notes, and the audit buttons
+/** The freshness a state passes down: its own, or `fresh` for a stored result and `null` without one. */
+function freshnessOf(audit: OfferAuditData, freshness: AuditFreshness | undefined): AuditFreshness | null {
+  if (audit.state !== "ok" || audit.result === null) return null;
+  return freshness ?? freshAudit;
+}
+
+// Each state renders the whole view (card + team column); `notatki-<n>`, `audyt-<n>` and
+// `pobranie-<n>` keep the sections' ids unique on one page. Every card carries the re-fetch block,
+// and the duplicate notices above carry the same button: it posts to /api/offer-refetch for a
+// fixture offer that does not exist, and the route answers `offer_missing` before it fetches
+// anything, so a click here cannot reach otodom.pl. Nothing is sent without a click. The editor islands post to /api/notes, and the audit buttons
 // to /api/audits, for fixture offers that do not exist: the audit route answers `offer_not_found`
 // before it looks for a provider key, so a click here cannot reach the model provider.
+// A failed re-fetch in the route's own words (`@/lib/otodom/failure`).
+const REFETCH_TIMED_OUT = ingestFailureMessage("timeout", undefined, "refetch");
 const states: State[] = [
   {
     caption:
@@ -142,6 +165,27 @@ const states: State[] = [
     audit: auditNone,
     auditAvailable: true,
   },
+  {
+    caption:
+      "Nieudane ponowne pobranie (komunikat w bloku pobrania, nie przy notatkach) · audyt: nieaktualny z powodu kryteriów · notatki: własna w podglądzie",
+    offer: fullOffer,
+    saver: memberSaver,
+    notes: fullNotes,
+    audit: auditDone,
+    auditAvailable: true,
+    freshness: staleCriteria,
+    refetchError: REFETCH_TIMED_OUT,
+  },
+  {
+    caption:
+      "Pobranie zatrzymane na utraconych polach (ostrzeżenie z listą pól i przycisk świadomego nadpisania; nieznany token z adresu pominięty) · audyt: brak · notatki: brak",
+    offer: fullOffer,
+    saver: memberSaver,
+    notes: noNotes,
+    audit: auditNone,
+    auditAvailable: true,
+    lost: "rent,price,nieznane-pole,features",
+  },
 ];
 
 interface AuditState {
@@ -152,6 +196,8 @@ interface AuditState {
   caption: string;
   audit: OfferAuditData;
   available: boolean;
+  /** Left out, a stored result reads as fresh. */
+  freshness?: AuditFreshness;
   runnerPreview?: AuditRunnerPreview;
 }
 
@@ -253,6 +299,62 @@ const auditStates: AuditState[] = [
     audit: auditLong,
     available: true,
   },
+  {
+    state: "audit-stale-listing",
+    matrix: "default",
+    caption: "wynik nieaktualny — zmieniły się dane ogłoszenia",
+    audit: auditDone,
+    available: true,
+    freshness: staleListing,
+  },
+  {
+    state: "audit-stale-criteria",
+    matrix: "default",
+    caption: "wynik nieaktualny — zmieniły się kryteria zespołu",
+    audit: auditDone,
+    available: true,
+    freshness: staleCriteria,
+  },
+  {
+    state: "audit-stale-both",
+    matrix: "default",
+    caption: "wynik nieaktualny — zmieniły się dane ogłoszenia i kryteria zespołu",
+    audit: auditDone,
+    available: true,
+    freshness: staleBoth,
+  },
+  {
+    state: "audit-freshness-unknown",
+    matrix: "default",
+    caption: "aktualności wyniku nie udało się ustalić",
+    audit: auditDone,
+    available: true,
+    freshness: freshnessUnknown,
+  },
+  {
+    state: "audit-stale-running",
+    matrix: "disabled",
+    caption: "wynik nieaktualny obok trwającej próby — bez zachęty do ponownego uruchomienia",
+    audit: auditRerunning,
+    available: true,
+    freshness: staleListing,
+  },
+  {
+    state: "audit-stale-failed",
+    matrix: "error",
+    caption: "wynik nieaktualny obok nieudanej próby — znacznik przy „Wynik poprzedniego audytu”",
+    audit: auditFailedKept,
+    available: true,
+    freshness: staleCriteria,
+  },
+  {
+    state: "audit-stale-unavailable",
+    matrix: "disabled",
+    caption: "wynik nieaktualny bez klucza dostawcy modelu — przycisk mówi, dlaczego jest wyłączony",
+    audit: auditDone,
+    available: false,
+    freshness: staleBoth,
+  },
 ];
 
 const stateClass = "border-border flex flex-col gap-6 border-t pt-6";
@@ -261,11 +363,11 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
 
 {isDev ? (
   <AppLayout wide title="Karta oferty — stany — Vetpad">
-    <DuplicateNotice slot="notice" saver={memberSaver} />
-    <DuplicateNotice slot="notice" saver={longEmailSaver} />
-    <DuplicateNotice slot="notice" saver={selfSaver} />
-    <DuplicateNotice slot="notice" saver={deletedSaver} />
-    <DuplicateNotice slot="notice" saver={unknownSaver} />
+    <DuplicateNotice slot="notice" saver={memberSaver} offerId={fullOffer.id} />
+    <DuplicateNotice slot="notice" saver={longEmailSaver} offerId={fullOffer.id} />
+    <DuplicateNotice slot="notice" saver={selfSaver} offerId={fullOffer.id} />
+    <DuplicateNotice slot="notice" saver={deletedSaver} offerId={fullOffer.id} />
+    <DuplicateNotice slot="notice" saver={unknownSaver} offerId={fullOffer.id} />
     <Banner slot="notice" variant="warning">
       <strong>Uwaga:</strong> Supabase nie jest skonfigurowany — funkcje uwierzytelniania są wyłączone.{" "}
       <a href="https://github.com/Sigaretif/Vetpad#supabase-configuration" target="_blank" rel="noopener noreferrer">
@@ -296,10 +398,14 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
           notes={state.notes}
           audit={state.audit}
           auditAvailable={state.auditAvailable}
+          freshness={freshnessOf(state.audit, state.freshness)}
           noteError={state.noteError}
+          refetchError={state.refetchError}
+          lost={state.lost}
           startEditing={state.startEditing}
           notesAnchorId={`notatki-${index + 1}`}
           auditAnchorId={`audyt-${index + 1}`}
+          refetchAnchorId={`pobranie-${index + 1}`}
         />
       </div>
     ))}
@@ -314,6 +420,7 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
             offerId={fullOffer.id}
             audit={state.audit}
             available={state.available}
+            freshness={freshnessOf(state.audit, state.freshness)}
             anchorId={`audyt-${state.state}`}
             runnerPreview={state.runnerPreview}
           />

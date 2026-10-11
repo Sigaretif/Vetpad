@@ -1,9 +1,11 @@
 ---
-import { CircleAlert, CircleHelp, Coins, Flag, ListChecks } from "lucide-react";
+import { CircleAlert, CircleHelp, Coins, Flag, History, ListChecks } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import AuditRunner, { type AuditRunnerPreview } from "@/components/offers/AuditRunner";
 import { auditFailureMessage } from "@/lib/audit/failure";
+import type { AuditFreshness } from "@/lib/audit/freshness";
 import { DECISION_CRITICAL } from "@/lib/audit/input";
 import { REQUIREMENT_ATTRIBUTE, type ExcerptSource, type StoredMissing } from "@/lib/audit/schema";
 import { AUDIT_EFFORT_LABELS, AUDIT_MODEL_LABELS, type AuditOptionLabel } from "@/lib/audit/settings";
@@ -21,6 +23,14 @@ import { cn } from "@/lib/utils";
  * `broken` or `error`, as `auditDataState` maps it — into the markup, where scripts/smoke.mjs reads it: a 200
  * alone cannot tell a failed read from an offer nobody audited. `data-audit-available` says
  * whether the application holds a provider key, and never changes the other attribute.
+ * `data-audit-freshness` says whether the stored result still describes the listing and the
+ * criteria (FR-003, FR-009): `fresh`, `stale`, `unknown`, or `none` when there is no result to
+ * judge — an offer nobody audited, a failed read (`error`) and a result that does not read
+ * (`broken`) alike. It changes neither of the other two.
+ *
+ * A stale result is marked, with the reason and a prompt to run the audit again; it is never
+ * removed and nothing here runs one. The mark's words come from this file, never from the row.
+ * A freshness nobody passed is `unknown`, never `fresh`.
  *
  * A failed read is never "not audited": the section then says so and renders no button, because
  * a run started from it could pay for an audit the offer already has. A stored result that does
@@ -41,18 +51,36 @@ interface Props {
   audit: OfferAudit;
   /** Whether the application holds a model-provider key (`isAuditAvailable` in `@/lib/config-status`). */
   available: boolean;
+  /**
+   * `auditFreshness` of the stored result against what stands now (`@/lib/audit/freshness`), worked
+   * out by the page; `null` when there is no result to judge.
+   */
+  freshness: AuditFreshness | null;
   /** The section's id: the island reloads the card at `#audyt`; the kitchen sink passes unique values. */
   anchorId?: string;
   /** A state the island opens in — for the kitchen sink only. */
   runnerPreview?: AuditRunnerPreview;
 }
 
-const { offerId, audit, available, anchorId = "audyt", runnerPreview } = Astro.props;
+const { offerId, audit, available, freshness, anchorId = "audyt", runnerPreview } = Astro.props;
 
 const headingId = `${anchorId}-naglowek`;
 const attempt = audit.state === "error" ? null : audit.attempt;
 const result = audit.state === "ok" ? audit.result : null;
 const broken = audit.state === "broken";
+
+// The freshness of the result the section shows. Without a result there is nothing to judge,
+// whatever was passed; with one, a missing answer is `unknown` — never `fresh` by default.
+// `Astro.props` is not checked at run time, hence the cast before the fallback.
+const judged = freshness as AuditFreshness | null | undefined;
+const mark: "none" | AuditFreshness["state"] = result === null ? "none" : (judged?.state ?? "unknown");
+const staleReasons = result !== null && judged?.state === "stale" ? judged.reasons : [];
+const staleSentence =
+  staleReasons.includes("listing") && staleReasons.includes("criteria")
+    ? "Ten wynik jest nieaktualny: od wykonania audytu zmieniły się dane ogłoszenia i kryteria zespołu."
+    : staleReasons.includes("criteria")
+      ? "Ten wynik jest nieaktualny: od wykonania audytu zmieniły się kryteria zespołu."
+      : "Ten wynik jest nieaktualny: od wykonania audytu zmieniły się dane ogłoszenia.";
 
 // What the island opens with: an attempt in progress, or the reason the latest one failed.
 // „przez" takes the accusative `saverName` gives; a member who could not be established is not named.
@@ -151,6 +179,7 @@ const captionClass = "text-muted-foreground text-xs";
   aria-labelledby={headingId}
   data-audit-state={auditDataState(audit)}
   data-audit-available={available ? "true" : "false"}
+  data-audit-freshness={mark}
   class="flex scroll-mt-4 flex-col gap-4"
 >
   <div class="flex flex-col gap-1">
@@ -185,6 +214,23 @@ const captionClass = "text-muted-foreground text-xs";
         result === null && <p class:list={emptyClass}>Ta oferta nie ma jeszcze wyniku audytu.</p>
       )}
 
+      {mark === "stale" && (
+        <Alert role="status" className="border-warning-foreground/30 bg-warning text-warning-foreground">
+          <History />
+          <AlertDescription className="text-warning-foreground">
+            <p>{staleSentence}</p>
+            {/* No prompt while an attempt runs: a second one cannot be started beside it. */}
+            {attempt?.kind !== "running" && <p>Uruchom audyt ponownie, aby wynik odpowiadał temu, co jest teraz.</p>}
+          </AlertDescription>
+        </Alert>
+      )}
+      {mark === "unknown" && (
+        <p class:list={emptyClass}>
+          Aktualności tego wyniku nie udało się ustalić — dane ogłoszenia albo kryteria zespołu mogły się zmienić od
+          wykonania audytu.
+        </p>
+      )}
+
       <AuditRunner
         client:load
         offerId={offerId}
@@ -199,9 +245,17 @@ const captionClass = "text-muted-foreground text-xs";
       {result !== null && (
         <Card className="gap-4">
           <CardHeader>
-            <h3 class="leading-snug font-semibold">
-              {attempt?.kind === "none" ? "Wynik audytu" : "Wynik poprzedniego audytu"}
-            </h3>
+            <div class="flex flex-wrap items-center gap-2">
+              <h3 class="leading-snug font-semibold">
+                {attempt?.kind === "none" ? "Wynik audytu" : "Wynik poprzedniego audytu"}
+              </h3>
+              {mark === "stale" && (
+                <Badge variant="warning">
+                  <History />
+                  Nieaktualny
+                </Badge>
+              )}
+            </div>
             <dl class="text-muted-foreground flex flex-col gap-1 text-sm">
               <div>
                 <dt class="inline">Wykonano:</dt>{" "}

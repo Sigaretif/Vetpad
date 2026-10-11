@@ -2,11 +2,14 @@ import { getContainerRenderer } from "@astrojs/react/container-renderer";
 import { loadRenderers } from "astro:container";
 import { experimental_AstroContainer as AstroContainer } from "astro/container";
 import { beforeAll, describe, expect, it } from "vitest";
+import DuplicateNotice from "@/components/offers/DuplicateNotice.astro";
 import OfferAudit from "@/components/offers/OfferAudit.astro";
 import OfferBoardItem from "@/components/offers/OfferBoardItem.astro";
 import OfferCard from "@/components/offers/OfferCard.astro";
 import OfferGallery from "@/components/offers/OfferGallery.astro";
 import OfferView from "@/components/offers/OfferView.astro";
+import RefetchNotice from "@/components/offers/RefetchNotice.astro";
+import type { AuditFreshness } from "@/lib/audit/freshness";
 import type { StoredFindings } from "@/lib/audit/schema";
 import type { AuditAttempt, OfferAudit as OfferAuditData, StoredAudit } from "@/lib/audit/store";
 import type { Saver } from "@/lib/members";
@@ -76,6 +79,14 @@ function expectOnlySafeUrls(html: string): void {
   for (const url of urlsIn(html)) {
     expect(url).toMatch(/^(?:https:\/\/|\/(?![/\\]))/);
   }
+}
+
+/**
+ * The markup without the two inline scripts Astro emits before a page's first island — its
+ * hydration runtime, each an immediately invoked arrow function. A script of any other shape stays.
+ */
+function withoutIslandRuntime(html: string): string {
+  return html.replace(/<script>\(\(\)=>\{[\s\S]*?<\/script>/g, "");
 }
 
 function card(offer: OfferRow): Promise<string> {
@@ -216,7 +227,9 @@ describe("OfferCard: the map link", () => {
       const html = await card({ ...fullOffer, location_label: label });
 
       expectOnlySafeUrls(html);
-      expect(html).not.toContain("<script");
+      // The card mounts the re-fetch island, so Astro's own hydration runtime is on the page;
+      // no other script may be.
+      expect(withoutIslandRuntime(html)).not.toContain("<script");
       expect(html).toContain(MAP_LINK);
       expect(mapQuery(html)).toBe(`ul. Przykładowa, ${label}`);
     },
@@ -357,6 +370,9 @@ function audited(overrides: Partial<StoredAudit> = {}, attempt: AuditAttempt = N
   return { state: "ok", attempt, result: stored(overrides) };
 }
 
+/** What the page passes for a result that still describes the listing and the criteria. */
+const FRESH: AuditFreshness = { state: "fresh" };
+
 const NEVER_AUDITED: OfferAuditData = { state: "ok", attempt: NO_ATTEMPT, result: null };
 const READ_FAILED: OfferAuditData = { state: "error" };
 
@@ -384,10 +400,14 @@ const EMPTY_SENTENCES = {
  */
 async function auditSection(
   audit: OfferAuditData,
-  { available = true, ...props }: { available?: boolean; runnerPreview?: unknown } = {},
+  {
+    available = true,
+    freshness = FRESH,
+    ...props
+  }: { available?: boolean; freshness?: AuditFreshness | null; runnerPreview?: unknown } = {},
 ): Promise<string> {
   const html = await container.renderToString(OfferAudit, {
-    props: { offerId: fullOffer.id, audit, available, ...props },
+    props: { offerId: fullOffer.id, audit, available, freshness, ...props },
   });
   const start = html.indexOf('<section id="audyt"');
   if (start === -1) throw new Error("expected the audit section to render");
@@ -788,7 +808,7 @@ describe("AuditRunner: the states a run goes through, as the kitchen sink opens 
 describe("OfferView: the audit stands above the notes, whatever the notes' read did (#3)", () => {
   function view(props: Record<string, unknown>): Promise<string> {
     return container.renderToString(OfferView, {
-      props: { offer: fullOffer, saver: memberSaver, auditAvailable: true, ...props },
+      props: { offer: fullOffer, saver: memberSaver, auditAvailable: true, freshness: FRESH, ...props },
     });
   }
 
@@ -812,5 +832,383 @@ describe("OfferView: the audit stands above the notes, whatever the notes' read 
 
     expect(html).toContain('data-audit-state="error"');
     expect(html).toContain('data-notes-state="ok"');
+  });
+});
+
+// The freshness mark of the audit section (FR-003, FR-009). Expected outcomes are written by hand
+// from the contract in context/changes/refetch-and-stale-audit/plan.md (Phase 3):
+// `data-audit-freshness` is `none` without a result to judge — `error` and `broken` included —
+// and otherwise what the page worked out; a stale result is marked with its reason and a prompt
+// to run the audit again, which goes while an attempt runs; `unknown` says so quietly; `fresh`
+// says nothing. Neither of the section's two other attributes changes with it.
+
+const STALE = {
+  listing: "Ten wynik jest nieaktualny: od wykonania audytu zmieniły się dane ogłoszenia.",
+  criteria: "Ten wynik jest nieaktualny: od wykonania audytu zmieniły się kryteria zespołu.",
+  both: "Ten wynik jest nieaktualny: od wykonania audytu zmieniły się dane ogłoszenia i kryteria zespołu.",
+};
+const STALE_WORD = "nieaktualny";
+const RERUN_PROMPT = "Uruchom audyt ponownie, aby wynik odpowiadał temu, co jest teraz.";
+const FRESHNESS_UNKNOWN = "Aktualności tego wyniku nie udało się ustalić";
+
+const STALE_LISTING: AuditFreshness = { state: "stale", reasons: ["listing"] };
+const STALE_CRITERIA: AuditFreshness = { state: "stale", reasons: ["criteria"] };
+const STALE_BOTH: AuditFreshness = { state: "stale", reasons: ["listing", "criteria"] };
+const UNKNOWN: AuditFreshness = { state: "unknown" };
+
+describe("OfferAudit: a stored result made on older data or criteria is marked, never removed (#3)", () => {
+  const timedOut: AuditAttempt = { kind: "failed", reason: "provider_timeout", message: TIMED_OUT };
+  const running: AuditAttempt = { kind: "running", startedAt: "2026-10-09T12:31:00Z", startedBy: memberSaver };
+
+  it("control: a fresh result carries no mark and no prompt", async () => {
+    const html = await auditSection(audited(), { freshness: FRESH });
+    const text = visibleText(html);
+
+    expect(html).toContain('data-audit-freshness="fresh"');
+    expect(text.toLowerCase()).not.toContain(STALE_WORD);
+    expect(text).not.toContain(RERUN_PROMPT);
+    expect(text).not.toContain(FRESHNESS_UNKNOWN);
+  });
+
+  it.each<[string, AuditFreshness, string]>([
+    ["the listing changed", STALE_LISTING, STALE.listing],
+    ["the criteria changed", STALE_CRITERIA, STALE.criteria],
+    ["both changed", STALE_BOTH, STALE.both],
+  ])("marks the result stale when %s, with that reason and the prompt to re-run", async (_case, freshness, reason) => {
+    const html = await auditSection(audited(), { freshness });
+    const text = visibleText(html);
+
+    expect(html).toContain('data-audit-freshness="stale"');
+    expect(text).toContain(reason);
+    for (const other of Object.values(STALE)) {
+      if (other !== reason) expect(text).not.toContain(other);
+    }
+    expect(text).toContain(RERUN_PROMPT);
+    // The mark stands above the button, and the result stays in view below it.
+    expect(html.indexOf(reason)).toBeLessThan(html.indexOf("<button"));
+    expect(text).toContain("prowizję biura w wysokości 2% ceny");
+    // Marked, never re-run or removed: the section's other attributes say what they said.
+    expect(html).toContain('data-audit-state="done"');
+    expect(html).toContain('data-audit-available="true"');
+    expect(buttonsIn(html)).toEqual([{ label: RERUN, disabled: false }]);
+  });
+
+  it("says quietly that the freshness could not be established, and never calls the result stale", async () => {
+    const html = await auditSection(audited(), { freshness: UNKNOWN });
+    const text = visibleText(html);
+
+    expect(html).toContain('data-audit-freshness="unknown"');
+    expect(text).toContain(FRESHNESS_UNKNOWN);
+    expect(text.toLowerCase()).not.toContain(STALE_WORD);
+    expect(text).not.toContain(RERUN_PROMPT);
+    expect(html).not.toContain('role="alert"');
+    expect(html).toContain('data-audit-state="done"');
+    expect(buttonsIn(html)).toEqual([{ label: RERUN, disabled: false }]);
+  });
+
+  it("reads a result whose freshness nobody passed as unknown, never as fresh", async () => {
+    const html = await container.renderToString(OfferAudit, {
+      props: { offerId: fullOffer.id, audit: audited(), available: true },
+    });
+
+    expect(html).toContain('data-audit-freshness="unknown"');
+    expect(html).not.toContain('data-audit-freshness="fresh"');
+  });
+
+  it.each<[string, OfferAuditData, string]>([
+    ["an offer nobody audited", NEVER_AUDITED, "none"],
+    ["a first attempt that failed", { state: "ok", attempt: timedOut, result: null }, "failed"],
+    ["a failed read", READ_FAILED, "error"],
+    ["a stored result that does not read", { state: "broken", attempt: NO_ATTEMPT }, "broken"],
+  ])("has nothing to judge for %s, whatever freshness is passed", async (_case, audit, state) => {
+    for (const freshness of [null, FRESH, STALE_BOTH, UNKNOWN]) {
+      const html = await auditSection(audit, { freshness });
+      const text = visibleText(html);
+
+      expect(html).toContain('data-audit-freshness="none"');
+      expect(html).toContain(`data-audit-state="${state}"`);
+      expect(text.toLowerCase()).not.toContain(STALE_WORD);
+      expect(text).not.toContain(FRESHNESS_UNKNOWN);
+    }
+  });
+
+  it("keeps the mark and drops the prompt while an attempt is running", async () => {
+    const html = await auditSection(audited({}, running), { freshness: STALE_LISTING });
+    const text = visibleText(html);
+
+    expect(html).toContain('data-audit-freshness="stale"');
+    expect(html).toContain('data-audit-state="running"');
+    expect(text).toContain(STALE.listing);
+    expect(text).not.toContain(RERUN_PROMPT);
+    expect(buttonsIn(html)[0]).toEqual({ label: RERUN, disabled: true });
+  });
+
+  it("keeps the mark beside the earlier result after a re-run that failed", async () => {
+    const html = await auditSection(audited({}, timedOut), { freshness: STALE_CRITERIA });
+    const text = visibleText(html);
+
+    expect(html).toContain('data-audit-freshness="stale"');
+    expect(html).toContain('data-audit-state="failed"');
+    expect(text).toContain(STALE.criteria);
+    expect(text).toContain(RERUN_PROMPT);
+    expect(text).toContain(TIMED_OUT);
+    // The result's own heading carries the mark too.
+    expect(html).toMatch(/Wynik poprzedniego audytu\s*<\/h3>\s*<span\b[^>]*data-slot="badge"[^>]*>[\s\S]*?Nieaktualny/);
+    expect(buttonsIn(html)).toEqual([{ label: RERUN, disabled: false }]);
+  });
+
+  it("control: a fresh earlier result carries no mark beside a re-run that failed", async () => {
+    const text = visibleText(await auditSection(audited({}, timedOut), { freshness: FRESH }));
+
+    expect(text).toContain("Wynik poprzedniego audytu");
+    expect(text.toLowerCase()).not.toContain(STALE_WORD);
+  });
+
+  it("marks a stale result without a provider key, and lets the button say why it is disabled", async () => {
+    const html = await auditSection(audited(), { available: false, freshness: STALE_BOTH });
+    const text = visibleText(html);
+
+    expect(html).toContain('data-audit-freshness="stale"');
+    expect(html).toContain('data-audit-available="false"');
+    expect(text).toContain(STALE.both);
+    expect(text).toContain(NO_KEY);
+    expect(buttonsIn(html)).toEqual([{ label: RERUN, disabled: true }]);
+  });
+
+  it("passes the freshness from the view down to the section", async () => {
+    const html = await container.renderToString(OfferView, {
+      props: {
+        offer: fullOffer,
+        saver: memberSaver,
+        notes: noNotes,
+        audit: audited(),
+        auditAvailable: true,
+        freshness: STALE_CRITERIA,
+      },
+    });
+
+    expect(html).toContain('data-audit-freshness="stale"');
+    expect(visibleText(html)).toContain(STALE.criteria);
+  });
+});
+
+// The re-fetch block of the offer card, the notice after a re-fetch and the duplicate notice
+// (FR-005, FR-009). Everything the address carries is typed by whoever wants to: `lost` is read
+// through the whitelist of the audit's columns and shown by names from code, `refetched` only
+// picks one of three sentences, and an error message is text. Expected outcomes are written by
+// hand from the plan's contract (Phase 3), never copied from the rendered output.
+
+const REFETCH = "Pobierz ponownie z otodom.pl";
+const OVERWRITE = "Nadpisz mimo utraty tych pól";
+const LOST_WARNING = "nie podaje pól, które zapisane ogłoszenie podaje";
+
+/** The markup with every island's serialised props dropped: what the browser shows before any script runs. */
+function withoutIslandProps(html: string): string {
+  return html.replace(/<astro-island\b[^>]*>/g, "<astro-island>");
+}
+
+/** The `value` of every hidden field called `name`. */
+function hiddenValues(html: string, name: string): string[] {
+  return Array.from(
+    html.matchAll(new RegExp(`<input\\b[^>]*\\bname="${name}"[^>]*>`, "g")),
+    (match) => /\bvalue="([^"]*)"/.exec(match[0])?.[1] ?? "",
+  );
+}
+
+/** The card's re-fetch block: from its id to the end of the card's header. */
+function refetchBlock(html: string): string {
+  const start = html.indexOf('id="pobranie"');
+  if (start === -1) throw new Error("expected the re-fetch block to render");
+  const end = html.indexOf("</header>", start);
+  if (end === -1) throw new Error("expected the card's header to be closed");
+  return withoutIslandProps(html.slice(start, end));
+}
+
+function cardWith(props: Record<string, unknown>): Promise<string> {
+  return container.renderToString(OfferCard, { props: { offer: fullOffer, saver: memberSaver, ...props } });
+}
+
+describe("OfferCard: the re-fetch block", () => {
+  it("says when the data was fetched and offers a re-fetch of this offer", async () => {
+    // 21:05 UTC on 3 October is 23:05 in Poland.
+    const block = refetchBlock(await cardWith({ offer: { ...fullOffer, fetched_at: "2026-10-03T21:05:00Z" } }));
+    const text = visibleText(block);
+
+    expect(block).toContain('data-refetch-state="default"');
+    expect(text).toContain("3 października 2026, 23:05");
+    expect(block).toContain('action="/api/offer-refetch"');
+    expect(block).toMatch(/<form\b[^>]*method="POST"/i);
+    expect(hiddenValues(block, "offer_id")).toEqual([fullOffer.id]);
+    expect(hiddenValues(block, "accept_lost")).toEqual([""]);
+    expect(buttonsIn(block)).toEqual([{ label: REFETCH, disabled: false }]);
+    expect(text).not.toContain(LOST_WARNING);
+    expect(block).not.toContain('role="alert"');
+  });
+
+  it("carries nothing in the submit button but its type", async () => {
+    const block = refetchBlock(await cardWith({ lost: "price" }));
+    const button = /<button\b[^>]*>/.exec(block)?.[0] ?? "";
+
+    expect(button).toContain('type="submit"');
+    expect(button).not.toMatch(/\sname=/);
+    expect(button).not.toMatch(/\svalue=/);
+  });
+
+  it("names the lost fields in the card's order and asks for a deliberate overwrite of exactly those", async () => {
+    const block = refetchBlock(await cardWith({ lost: "features,rent,price" }));
+    const text = visibleText(block);
+
+    expect(block).toContain('data-refetch-state="lost"');
+    expect(text).toContain(LOST_WARNING);
+    expect(text).toContain("Nic nie zostało zapisane.");
+    expect(Array.from(block.matchAll(/<li\b[^>]*>([^<]*)<\/li>/g), (match) => match[1])).toEqual([
+      "Cena",
+      "Czynsz",
+      "Udogodnienia",
+    ]);
+    expect(hiddenValues(block, "accept_lost")).toEqual(["price,rent,features"]);
+    expect(buttonsIn(block)).toEqual([{ label: OVERWRITE, disabled: false }]);
+  });
+
+  it.each([
+    ["an empty value", ""],
+    ["unknown tokens", "nope,PRICE, price ,id,created_by"],
+    ["markup", '<script>alert(1)</script>,"><img src=x onerror=alert(1)>'],
+  ])("shows no warning for a `lost` that names no column: %s", async (_case, lost) => {
+    const html = await cardWith({ lost });
+    const block = refetchBlock(html);
+
+    expect(block).toContain('data-refetch-state="default"');
+    expect(visibleText(block)).not.toContain(LOST_WARNING);
+    expect(hiddenValues(block, "accept_lost")).toEqual([""]);
+    expect(buttonsIn(block)).toEqual([{ label: REFETCH, disabled: false }]);
+    expect(html).not.toContain("<script>alert");
+    expect(html).not.toContain("<img src=x");
+    expect(html).not.toContain("onerror");
+  });
+
+  it("keeps only the known columns of a hostile `lost`, and renders none of the rest", async () => {
+    const html = await cardWith({ lost: '<script>alert(1)</script>,rent,"><img src=x onerror=alert(1)>,nope,rent' });
+    const block = refetchBlock(html);
+
+    expect(Array.from(block.matchAll(/<li\b[^>]*>([^<]*)<\/li>/g), (match) => match[1])).toEqual(["Czynsz"]);
+    expect(hiddenValues(block, "accept_lost")).toEqual(["rent"]);
+    // Dropped, not escaped: the value never reaches the page, not even as an island's prop.
+    expect(html).not.toContain("alert(1)");
+    expect(html).not.toContain("onerror");
+    expect(html).not.toContain("nope");
+  });
+
+  it("shows a failed re-fetch in the block, as the text it is", async () => {
+    const message = 'Nie udało się <b>pobrać</b> <script>alert("x")</script>';
+    const html = await cardWith({ refetchError: message });
+    const block = refetchBlock(html);
+
+    expect(visibleText(block)).toContain(message);
+    expect(block).toContain('role="alert"');
+    expect(html).not.toContain("<b>");
+    expect(html).not.toContain("<script>alert");
+    expect(buttonsIn(block)).toEqual([{ label: REFETCH, disabled: false }]);
+  });
+});
+
+describe("OfferView: a re-fetch error and a note error each land in their own place", () => {
+  const MESSAGE = "Komunikat testowy o nieudanej akcji.";
+
+  function view(props: Record<string, unknown>): Promise<string> {
+    return container.renderToString(OfferView, {
+      props: {
+        offer: fullOffer,
+        saver: memberSaver,
+        notes: noNotes,
+        audit: NEVER_AUDITED,
+        auditAvailable: true,
+        freshness: null,
+        ...props,
+      },
+    });
+  }
+
+  function notesSection(html: string): string {
+    const start = html.indexOf('<section id="notatki"');
+    if (start === -1) throw new Error("expected the notes section to render");
+    return withoutIslandProps(html.slice(start));
+  }
+
+  it("shows a re-fetch error in the re-fetch block and not beside the notes", async () => {
+    const html = await view({ refetchError: MESSAGE });
+
+    expect(visibleText(refetchBlock(html))).toContain(MESSAGE);
+    expect(visibleText(notesSection(html))).not.toContain(MESSAGE);
+  });
+
+  it("shows a note error beside the notes and not in the re-fetch block", async () => {
+    const html = await view({ noteError: MESSAGE });
+
+    expect(visibleText(notesSection(html))).toContain(MESSAGE);
+    expect(visibleText(refetchBlock(html))).not.toContain(MESSAGE);
+  });
+});
+
+describe("RefetchNotice: the address only picks one of three sentences", () => {
+  function notice(refetched: string | null): Promise<string> {
+    return container.renderToString(RefetchNotice, { props: { refetched } });
+  }
+
+  it("says something different for each of the three results", async () => {
+    const changed = visibleText(await notice("changed"));
+    const unchanged = visibleText(await notice("unchanged"));
+    const saved = visibleText(await notice("saved"));
+
+    expect(changed).toContain("zmieniły się");
+    expect(unchanged).toContain("bez zmian");
+    expect(saved).toContain("Nie udało się ustalić, czy różnią się");
+    expect(new Set([changed, unchanged, saved]).size).toBe(3);
+    for (const text of [changed, unchanged, saved]) expect(text).toContain("Ogłoszenie pobrano ponownie");
+    expect(unchanged).not.toContain("zmieniły się");
+    expect(changed).not.toContain("bez zmian");
+  });
+
+  it.each<[string, string | null]>([
+    ["no value", null],
+    ["an empty value", ""],
+    ["an unknown value", "deleted"],
+    ["another case", "CHANGED"],
+    ["an inherited key", "constructor"],
+    ["markup", "<script>alert(1)</script>"],
+    ["markup around a known value", 'changed"><img src=x onerror=alert(1)>'],
+  ])("renders nothing for %s", async (_case, refetched) => {
+    const html = await notice(refetched);
+
+    expect(visibleText(html)).toBe("");
+    expect(html).not.toContain("alert(1)");
+    expect(html).not.toContain("<img");
+    expect(html).not.toContain("data-refetch-result");
+  });
+});
+
+describe("DuplicateNotice: the notice offers a manual re-fetch (FR-005)", () => {
+  function notice(saver: Saver): Promise<string> {
+    return container.renderToString(DuplicateNotice, { props: { saver, offerId: fullOffer.id } });
+  }
+
+  it("keeps the sentence about who saved the offer and adds the re-fetch form for that offer", async () => {
+    const html = withoutIslandProps(await notice(memberSaver));
+
+    expect(visibleText(html)).toContain(
+      "Ta oferta była już zapisana przez czlonek-zespolu@example.com — otwieramy istniejącą kartę.",
+    );
+    expect(html).toContain('action="/api/offer-refetch"');
+    expect(hiddenValues(html, "offer_id")).toEqual([fullOffer.id]);
+    expect(hiddenValues(html, "accept_lost")).toEqual([""]);
+    expect(buttonsIn(html)).toEqual([{ label: REFETCH, disabled: false }]);
+  });
+
+  it("offers the same form when the saver cannot be named", async () => {
+    const html = withoutIslandProps(await notice({ kind: "unknown" }));
+
+    expect(visibleText(html)).toContain("Ta oferta była już zapisana — otwieramy istniejącą kartę.");
+    expect(visibleText(html)).not.toContain("usuniętym kontem");
+    expect(buttonsIn(html)).toEqual([{ label: REFETCH, disabled: false }]);
   });
 });

@@ -701,30 +701,30 @@ od pierwszego wyświetlenia. Wdrożenie nie wymaga `supabase db push`.
 
 #### Automated
 
-- [x] 2.1 Testy jednostkowe i testy trasy przechodzą: `npm test`
-- [x] 2.2 Typy przechodzą: `npx astro sync && npx astro check`
-- [x] 2.3 Lint przechodzi, a import `@/lib/notes` dodany na próbę w trasie go wywraca: `npm run lint`
-- [x] 2.4 Budowanie przechodzi bez sekretów: `npm run build`
+- [x] 2.1 Testy jednostkowe i testy trasy przechodzą: `npm test` — c06a498
+- [x] 2.2 Typy przechodzą: `npx astro sync && npx astro check` — c06a498
+- [x] 2.3 Lint przechodzi, a import `@/lib/notes` dodany na próbę w trasie go wywraca: `npm run lint` — c06a498
+- [x] 2.4 Budowanie przechodzi bez sekretów: `npm run build` — c06a498
 
 #### Manual
 
-- [x] 2.5 Żądanie `POST /api/offer-refetch` bez sesji przekierowuje na `/auth/signin`, a z sesją i nieistniejącym `offer_id` wraca na `/dashboard` z komunikatem
+- [x] 2.5 Żądanie `POST /api/offer-refetch` bez sesji przekierowuje na `/auth/signin`, a z sesją i nieistniejącym `offer_id` wraca na `/dashboard` z komunikatem — c06a498
 
 ### Phase 3: Karta oferty
 
 #### Automated
 
-- [ ] 3.1 Testy jednostkowe i testy renderu przechodzą: `npm test`
-- [ ] 3.2 Typy przechodzą: `npx astro sync && npx astro check`
-- [ ] 3.3 Lint przechodzi, w tym `tokensOnlyConfig`: `npm run lint`
-- [ ] 3.4 Budowanie przechodzi bez sekretów: `npm run build`
+- [x] 3.1 Testy jednostkowe i testy renderu przechodzą: `npm test`
+- [x] 3.2 Typy przechodzą: `npx astro sync && npx astro check`
+- [x] 3.3 Lint przechodzi, w tym `tokensOnlyConfig`: `npm run lint`
+- [x] 3.4 Budowanie przechodzi bez sekretów: `npm run build`
 
 #### Manual
 
-- [ ] 3.5 `/dev/offer-card` pokazuje wszystkie nowe stany sekcji audytu, karty i powiadomienia o duplikacie, czytelne w ciemnym motywie
-- [ ] 3.6 `/dev/forms` pokazuje `RefetchForm` w czterech stanach
-- [ ] 3.7 Na lokalnej ofercie zmiana tytułu przez Data API oznacza audyt jako nieaktualny z powodu ogłoszenia, a zmiana limitu na `/criteria` — z powodu kryteriów
-- [ ] 3.8 Błąd edytora notatek nadal pojawia się przy edytorze, a nie w bloku pobrania
+- [x] 3.5 `/dev/offer-card` pokazuje wszystkie nowe stany sekcji audytu, karty i powiadomienia o duplikacie, czytelne w ciemnym motywie
+- [x] 3.6 `/dev/forms` pokazuje `RefetchForm` w czterech stanach
+- [x] 3.7 Na lokalnej ofercie zmiana tytułu przez Data API oznacza audyt jako nieaktualny z powodu ogłoszenia, a zmiana limitu na `/criteria` — z powodu kryteriów
+- [x] 3.8 Błąd edytora notatek nadal pojawia się przy edytorze, a nie w bloku pobrania
 
 ### Phase 4: Tablica
 

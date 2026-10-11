@@ -7,6 +7,7 @@
 // by hand as well — no finding here was produced by a model or taken from a real listing.
 
 import { auditFailureMessage } from "@/lib/audit/failure";
+import type { AuditFreshness } from "@/lib/audit/freshness";
 import type { StoredFindings } from "@/lib/audit/schema";
 import type { AuditIndex, OfferAudit, StoredAudit } from "@/lib/audit/store";
 import type { TeamLimitsResult } from "@/lib/criteria";
@@ -606,6 +607,24 @@ export const auditResultBroken: OfferAudit = { state: "broken", attempt: { kind:
 
 /** A failed read of the audit: the section renders no button. */
 export const auditReadFailed: OfferAudit = { state: "error" };
+
+// The freshness of a stored result, as `auditFreshness` answers it: the kitchen sink passes one
+// beside an audit fixture instead of comparing anything.
+
+/** The result still describes the listing and the criteria: the section carries no mark. */
+export const freshAudit: AuditFreshness = { state: "fresh" };
+
+/** The listing's data changed after the audit. */
+export const staleListing: AuditFreshness = { state: "stale", reasons: ["listing"] };
+
+/** The team's criteria changed after the audit. */
+export const staleCriteria: AuditFreshness = { state: "stale", reasons: ["criteria"] };
+
+/** Both changed after the audit. */
+export const staleBoth: AuditFreshness = { state: "stale", reasons: ["listing", "criteria"] };
+
+/** Nothing is known to have changed, and at least one side could not be compared. */
+export const freshnessUnknown: AuditFreshness = { state: "unknown" };
 
 // The audit index for the /dev/board kitchen sink.
 

@@ -3,6 +3,7 @@ import type { AuditRunnerPreview } from "@/components/offers/AuditRunner";
 import OfferAudit from "@/components/offers/OfferAudit.astro";
 import OfferCard from "@/components/offers/OfferCard.astro";
 import OfferNotes from "@/components/offers/OfferNotes.astro";
+import type { AuditFreshness } from "@/lib/audit/freshness";
 import type { OfferAudit as OfferAuditData } from "@/lib/audit/store";
 import type { Saver } from "@/lib/members";
 import type { OfferNotes as OfferNotesData } from "@/lib/notes";
@@ -23,12 +24,23 @@ interface Props {
   audit: OfferAuditData;
   /** Whether the application holds a model-provider key (`isAuditAvailable`). */
   auditAvailable: boolean;
+  /**
+   * Whether the audit's stored result still describes the listing and the criteria
+   * (`auditFreshness`); `null` when there is no result to judge.
+   */
+  freshness: AuditFreshness | null;
   noteError?: string | null;
+  /** Passed to OfferCard: a failed re-fetch from the card's `?error=…&form=refetch`. */
+  refetchError?: string | null;
+  /** Passed to OfferCard: the card's `?lost=`, as the address carries it. */
+  lost?: string | null;
   startEditing?: boolean;
   /** Passed to OfferNotes as `anchorId`; unique per instance on the kitchen sink. */
   notesAnchorId?: string;
   /** Passed to OfferAudit as `anchorId`; unique per instance on the kitchen sink. */
   auditAnchorId?: string;
+  /** Passed to OfferCard as `refetchAnchorId`; unique per instance on the kitchen sink. */
+  refetchAnchorId?: string;
   /** A state the audit island opens in — for the kitchen sink only. */
   auditRunnerPreview?: AuditRunnerPreview;
 }
@@ -39,23 +51,28 @@ const {
   notes,
   audit,
   auditAvailable,
+  freshness,
   noteError = null,
+  refetchError = null,
+  lost = null,
   startEditing = false,
   notesAnchorId,
   auditAnchorId,
+  refetchAnchorId,
   auditRunnerPreview,
 } = Astro.props;
 ---
 
 <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] lg:items-start">
   <div class="flex min-w-0 flex-col gap-6">
-    <OfferCard offer={offer} saver={saver} />
+    <OfferCard offer={offer} saver={saver} refetchError={refetchError} lost={lost} refetchAnchorId={refetchAnchorId} />
   </div>
   <div class="flex min-w-0 flex-col gap-8">
     <OfferAudit
       offerId={offer.id}
       audit={audit}
       available={auditAvailable}
+      freshness={freshness}
       anchorId={auditAnchorId}
       runnerPreview={auditRunnerPreview}
     />

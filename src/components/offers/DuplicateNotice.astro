@@ -1,28 +1,39 @@
 ---
 import Banner from "@/components/Banner.astro";
+import RefetchForm from "@/components/offers/RefetchForm";
 import { saverName, type Saver } from "@/lib/members";
 
 /*
- * The duplicate-offer notice (FR-005): the offer was already saved, and by whom. One component,
- * so the card page and the /dev/offer-card kitchen sink render the same production text. The
- * parent places it in AppLayout's `notice` slot. `unknown` names nobody — a failed read is
- * never reported as a deleted account.
+ * The duplicate-offer notice (FR-005): the offer was already saved, and by whom — and the offer of
+ * a manual re-fetch of its data. One component, so the card page and the /dev/offer-card kitchen
+ * sink render the same production text. The parent places it in AppLayout's `notice` slot.
+ * `unknown` names nobody — a failed read is never reported as a deleted account.
+ *
+ * The notice fetches nothing on its own: the button is the member's deliberate action.
  */
 interface Props {
   saver: Saver;
+  /** The saved offer the button re-fetches. */
+  offerId: string;
 }
 
-const { saver } = Astro.props;
+const { saver, offerId } = Astro.props;
 
 const who = saverName(saver);
 ---
 
 <Banner variant="info">
-  {who === null ? (
-    "Ta oferta była już zapisana — otwieramy istniejącą kartę."
-  ) : (
-    <>
-      Ta oferta była już zapisana przez <span class="wrap-anywhere">{who}</span> — otwieramy istniejącą kartę.
-    </>
-  )}
+  <div class="flex flex-col gap-3">
+    <p>
+      {who === null ? (
+        "Ta oferta była już zapisana — otwieramy istniejącą kartę."
+      ) : (
+        <>
+          Ta oferta była już zapisana przez <span class="wrap-anywhere">{who}</span> — otwieramy istniejącą kartę.
+        </>
+      )}
+    </p>
+    <p>Jeśli ogłoszenie mogło się zmienić od zapisania, możesz pobrać jego dane ponownie.</p>
+    <RefetchForm client:load offerId={offerId} compact />
+  </div>
 </Banner>
