@@ -114,9 +114,9 @@ const consoleConfig = defineConfig(
 // the code holds it — the audit, the only code that talks to the model provider, cannot import the
 // notes module. The regex takes the module by any path: the alias (@/lib/notes), a relative one
 // (../notes, ../../lib/notes) and either with a file extension. src/pages/api/audits.ts is named
-// before it exists, so the rule binds the moment the file is created. refetchNoNotesConfig and
-// archiveNoNotesConfig below are the only other blocks that set no-restricted-imports, for files
-// this one does not cover; a block whose files overlap any of them must merge the patterns, since flat config replaces a rule's
+// before it exists, so the rule binds the moment the file is created. refetchNoNotesConfig,
+// archiveNoNotesConfig and deleteNoNotesConfig below are the only other blocks that set
+// no-restricted-imports, for files this one does not cover; a block whose files overlap any of them must merge the patterns, since flat config replaces a rule's
 // options rather than adding to them.
 const auditNoNotesConfig = defineConfig({
   files: ["src/lib/audit/**", "src/pages/api/audits.ts"],
@@ -178,6 +178,27 @@ const archiveNoNotesConfig = defineConfig({
   },
 });
 
+// Deleting an offer takes every member's notes on it — through `on delete cascade` in the database
+// and through nothing else (prd.md, FR-015). The route gets the same structural guard: it cannot
+// import the notes module, by any path, so it never reads or deletes a note by itself.
+const deleteNoNotesConfig = defineConfig({
+  files: ["src/pages/api/offer-delete.ts"],
+  rules: {
+    "no-restricted-imports": [
+      "error",
+      {
+        patterns: [
+          {
+            regex: "(?:^|/)notes(?:\\.[cm]?[jt]sx?)?$",
+            message:
+              "The offer deletion must not import the notes module: notes go with their offer only through the cascade in the database (prd.md, FR-015).",
+          },
+        ],
+      },
+    ],
+  },
+});
+
 const scriptsConfig = defineConfig({
   files: ["scripts/**/*.mjs"],
   extends: [tseslint.configs.disableTypeChecked],
@@ -199,6 +220,7 @@ export default defineConfig(
   auditNoNotesConfig,
   refetchNoNotesConfig,
   archiveNoNotesConfig,
+  deleteNoNotesConfig,
   scriptsConfig,
   eslintPluginPrettier,
 );
