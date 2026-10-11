@@ -1,10 +1,10 @@
 ---
 change_id: delete-offer-and-notes
 title: Delete a listing and own notes
-status: implemented
+status: archived
 created: 2026-10-11
 updated: 2026-10-11
-archived_at: null
+archived_at: 2026-10-11T21:21:23Z
 ---
 
 ## Notes

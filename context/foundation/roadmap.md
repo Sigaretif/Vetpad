@@ -39,19 +39,19 @@ A small group searching for an apartment together keeps blind links in spreadshe
 
 ## At a glance
 
-| ID   | Change ID                | Outcome (user can …)                                                                | Prerequisites | PRD refs                      | Status      |
-| ---- | ------------------------ | ----------------------------------------------------------------------------------- | ------------- | ----------------------------- | ----------- |
-| S-01 | closed-team-sign-in      | sign in only with a pre-seeded account; nobody can register                         | —             | FR-001                        | done        |
-| S-02 | paste-listing-to-card    | paste an otodom.pl URL and read the saved listing's text, parameters and photos     | S-01          | US-01, FR-004, FR-005, FR-007 | done        |
-| S-03 | team-search-criteria     | define and edit the team's shared hard limits and their own additional requirements | S-01          | FR-002, FR-003                | done        |
-| S-04 | grounded-listing-audit   | run an AI audit on a saved listing and read findings, each quoted from the listing  | S-02, S-03    | US-01, FR-010, FR-011         | done        |
-| S-05 | member-notes             | write their own Pros / Cons / Observations note and read everyone's, attributed     | S-02          | US-01, FR-012, FR-013         | done        |
-| S-06 | shared-offer-board       | browse every saved listing on one board with its audit status                       | S-02          | FR-006                        | done        |
-| S-07 | duplicate-listing-notice | paste an already-saved URL and land on the existing card, told who saved it         | S-02          | FR-005                        | done        |
-| S-08 | location-map-link        | open a Google Maps search for a listing's location in one click                     | S-02          | FR-008                        | done        |
-| S-09 | refetch-and-stale-audit  | re-fetch a listing on demand, keep every note, and see when an audit has gone stale | S-04, S-05    | FR-009, FR-003                | done        |
-| S-10 | archive-and-restore      | archive a listing off the board, see who archived it, and restore it                | S-06          | FR-014                        | done        |
-| S-11 | delete-offer-and-notes   | delete a mistaken listing, and delete their own notes                               | S-05          | FR-015                        | in-progress |
+| ID   | Change ID                | Outcome (user can …)                                                                | Prerequisites | PRD refs                      | Status |
+| ---- | ------------------------ | ----------------------------------------------------------------------------------- | ------------- | ----------------------------- | ------ |
+| S-01 | closed-team-sign-in      | sign in only with a pre-seeded account; nobody can register                         | —             | FR-001                        | done   |
+| S-02 | paste-listing-to-card    | paste an otodom.pl URL and read the saved listing's text, parameters and photos     | S-01          | US-01, FR-004, FR-005, FR-007 | done   |
+| S-03 | team-search-criteria     | define and edit the team's shared hard limits and their own additional requirements | S-01          | FR-002, FR-003                | done   |
+| S-04 | grounded-listing-audit   | run an AI audit on a saved listing and read findings, each quoted from the listing  | S-02, S-03    | US-01, FR-010, FR-011         | done   |
+| S-05 | member-notes             | write their own Pros / Cons / Observations note and read everyone's, attributed     | S-02          | US-01, FR-012, FR-013         | done   |
+| S-06 | shared-offer-board       | browse every saved listing on one board with its audit status                       | S-02          | FR-006                        | done   |
+| S-07 | duplicate-listing-notice | paste an already-saved URL and land on the existing card, told who saved it         | S-02          | FR-005                        | done   |
+| S-08 | location-map-link        | open a Google Maps search for a listing's location in one click                     | S-02          | FR-008                        | done   |
+| S-09 | refetch-and-stale-audit  | re-fetch a listing on demand, keep every note, and see when an audit has gone stale | S-04, S-05    | FR-009, FR-003                | done   |
+| S-10 | archive-and-restore      | archive a listing off the board, see who archived it, and restore it                | S-06          | FR-014                        | done   |
+| S-11 | delete-offer-and-notes   | delete a mistaken listing, and delete their own notes                               | S-05          | FR-015                        | done   |
 
 ## Streams
 
@@ -220,7 +220,7 @@ None. Every absent or partial layer in the Baseline is first needed by a user-fa
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** The cascade to other members' notes is a trade the PRD accepted; deleting another member's note on its own is not, so the delete rule for notes stays authorship-scoped.
-- **Status:** in-progress
+- **Status:** done
 
 ## Backlog Handoff
 
@@ -278,3 +278,4 @@ None. Every absent or partial layer in the Baseline is first needed by a user-fa
 - **S-08: user can open a Google Maps search for a listing's location, generated from its scraped location text, in one click.** — Archived 2026-10-09 → `context/archive/2026-10-09-location-map-link/`. Lesson: —.
 - **S-09: user can re-fetch a listing's data on demand, finds every note exactly as its author left it, and sees an existing audit marked stale — and is prompted to re-run it — when the listing's data or the team's criteria changed.** — Archived 2026-10-11 → `context/archive/2026-10-09-refetch-and-stale-audit/`. Lesson: —.
 - **S-10: user can archive a listing to hide it from the board, sees who archived it and a visible "recently archived" section or counter, and can view and restore archived listings.** — Archived 2026-10-11 → `context/archive/2026-10-11-archive-and-restore/`. Lesson: —.
+- **S-11: user can delete a saved listing — taking every member's notes on it with it — and can delete their own notes. An archived listing can be deleted as well as a live one (user's decision, 2026-10-11, in S-10's plan).** — Archived 2026-10-11 → `context/archive/2026-10-11-delete-offer-and-notes/`. Lesson: —.
