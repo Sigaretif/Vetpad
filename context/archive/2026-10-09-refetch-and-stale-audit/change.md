@@ -1,10 +1,10 @@
 ---
 change_id: refetch-and-stale-audit
 title: Manual re-fetch that preserves notes and flags stale audits
-status: implemented
+status: archived
 created: 2026-10-09
 updated: 2026-10-11
-archived_at: null
+archived_at: 2026-10-11T15:32:40Z
 ---
 
 ## Notes
