@@ -674,7 +674,7 @@ Smoke dowodzi na żywej lokalnej bazie, że archiwizacja nie rusza notatek i że
 
 - [x] 3.5 Na lokalnej bazie: „Zarchiwizuj” na karcie pokazuje komunikat, stan z własnym podpisem („przez Ciebie”) i przycisk „Przywróć”; „Przywróć” wraca do stanu wyjściowego — b67f9f9
 - [x] 3.6 Karta zarchiwizowana przez inne konto z `supabase/seed.sql` pokazuje jego adres email — b67f9f9
-- [ ] 3.7 Na zarchiwizowanej ofercie sekcja audytu nie ma przycisku, a notatka i ponowne pobranie dają się wysłać
+- [x] 3.7 Na zarchiwizowanej ofercie sekcja audytu nie ma przycisku, a notatka i ponowne pobranie dają się wysłać — b67f9f9
 - [x] 3.8 Wklejenie adresu zarchiwizowanej oferty w formularzu na `/dashboard` otwiera kartę z komunikatem o archiwum i przyciskiem przywrócenia — b67f9f9
 - [x] 3.9 `/dev/offer-card` i `/dev/forms` renderują nowe stany pod `npm run dev` — b67f9f9
 
