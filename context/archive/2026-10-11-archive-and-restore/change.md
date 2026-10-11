@@ -1,10 +1,10 @@
 ---
 change_id: archive-and-restore
 title: Archive, restore and show who archived a listing
-status: implemented
+status: archived
 created: 2026-10-11
 updated: 2026-10-11
-archived_at: null
+archived_at: 2026-10-11T20:11:05Z
 ---
 
 ## Notes
