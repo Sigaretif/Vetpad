@@ -637,29 +637,29 @@ Smoke dowodzi na żywej lokalnej bazie, że archiwizacja nie rusza notatek i że
 
 #### Automated
 
-- [x] 1.1 Migracja nakłada się na czystą lokalną bazę: `npx supabase db reset`
-- [x] 1.2 Testy jednostkowe przechodzą: `npm test`
-- [x] 1.3 Kontrola typów przechodzi: `npx astro sync && npx astro check`
-- [x] 1.4 Lint przechodzi: `npm run lint`
-- [x] 1.5 Skrypty bazy przechodzą: `npm run test:db`
+- [x] 1.1 Migracja nakłada się na czystą lokalną bazę: `npx supabase db reset` — af88d2a
+- [x] 1.2 Testy jednostkowe przechodzą: `npm test` — af88d2a
+- [x] 1.3 Kontrola typów przechodzi: `npx astro sync && npx astro check` — af88d2a
+- [x] 1.4 Lint przechodzi: `npm run lint` — af88d2a
+- [x] 1.5 Skrypty bazy przechodzą: `npm run test:db` — af88d2a
 
 #### Manual
 
-- [x] 1.6 Przez lokalne Data API jako członek: zapis `archived_at` z datą z przeszłości i cudzym `archived_by` zostawia w wierszu czas bazy i id wywołującego
-- [x] 1.7 PRD czyta się spójnie: FR-014, FR-005, FR-010 i akapit o usuniętym koncie mówią to samo, co tabela decyzji w `plan-brief.md`
+- [x] 1.6 Przez lokalne Data API jako członek: zapis `archived_at` z datą z przeszłości i cudzym `archived_by` zostawia w wierszu czas bazy i id wywołującego — af88d2a
+- [x] 1.7 PRD czyta się spójnie: FR-014, FR-005, FR-010 i akapit o usuniętym koncie mówią to samo, co tabela decyzji w `plan-brief.md` — af88d2a
 
 ### Phase 2: Trasa archiwizacji i odmowa audytu
 
 #### Automated
 
-- [ ] 2.1 Testy tras przechodzą: `npm test`
-- [ ] 2.2 Kontrola typów przechodzi: `npx astro sync && npx astro check`
-- [ ] 2.3 Lint przechodzi, w tym zakaz importu notatek: `npm run lint`
-- [ ] 2.4 Build przechodzi bez sekretów: `npm run build`
+- [x] 2.1 Testy tras przechodzą: `npm test`
+- [x] 2.2 Kontrola typów przechodzi: `npx astro sync && npx astro check`
+- [x] 2.3 Lint przechodzi, w tym zakaz importu notatek: `npm run lint`
+- [x] 2.4 Build przechodzi bez sekretów: `npm run build`
 
 #### Manual
 
-- [ ] 2.5 `curl` z sesją na lokalnej bazie: `POST /api/offer-archive` z `intent=archive` ustawia w wierszu czas bazy i id zalogowanego, a `intent=restore` czyści obie kolumny
+- [x] 2.5 `curl` z sesją na lokalnej bazie: `POST /api/offer-archive` z `intent=archive` ustawia w wierszu czas bazy i id zalogowanego, a `intent=restore` czyści obie kolumny
 
 ### Phase 3: Karta oferty
 

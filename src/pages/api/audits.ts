@@ -41,6 +41,12 @@ function report(outcome: Outcome, fields: Fields): void {
   logEvent(outcome === "failed" ? "error" : "info", { event: "offer_audit", outcome, ...fields });
 }
 
+/**
+ * What the route asks of the offer's row: the audit's whitelist, and `archived_at` — read only to
+ * refuse an archived offer, and never part of the audit's input or of the listing's fingerprint.
+ */
+const OFFER_COLUMNS = [...AUDIT_OFFER_COLUMNS, "archived_at"].join(", ");
+
 /** How an audit ended: stored (`reason: null`), or not, and why. `fields` is what the exit's log entry adds. */
 interface Ending {
   reason: AuditFailureReason | null;
@@ -105,11 +111,13 @@ interface Attempt {
  * One audit, start to finish (FR-010, FR-011). Everything that can be checked for free is checked
  * before the offer's audit row is claimed, and the row is claimed before anything is paid for:
  *
- *   Supabase configured → offer id → offer → provider key → criteria → settings → claim →
- *   model call → grounding → save.
+ *   Supabase configured → offer id → offer → not archived → provider key → criteria → settings →
+ *   claim → model call → grounding → save.
  *
- * The provider key stands after the offer, so an unknown offer gets the same answer whether or
- * not the environment has a key. Only the listing and the criteria reach the provider: the
+ * The provider key stands after the offer, so an unknown offer and an archived one get the same
+ * answer whether or not the environment has a key. An archived offer is refused until it is
+ * restored (FR-010): the team has set it aside, and an audit is a paid call. That check is not a
+ * lock — an offer archived between it and the claim is still audited once. Only the listing and the criteria reach the provider: the
  * request is `buildAuditPrompt(buildAuditInput(…))` and nothing else, and this route never reads
  * a member's note.
  *
@@ -129,7 +137,11 @@ async function audit({ supabase, userId, offerId, unprepared, send }: Attempt, k
 
   send({ type: "stage", stage: "reading" });
 
-  const read = await supabase.from("offers").select(AUDIT_OFFER_COLUMNS.join(", ")).eq("id", offerId).maybeSingle();
+  const read = await supabase
+    .from("offers")
+    .select(OFFER_COLUMNS)
+    .eq("id", offerId)
+    .maybeSingle<Record<string, unknown>>();
   if (read.error) {
     return refuse("offer_read_failed", {
       stage: "offer",
@@ -139,7 +151,11 @@ async function audit({ supabase, userId, offerId, unprepared, send }: Attempt, k
   }
   // Deleted meanwhile, or never there: RLS lets every member read every offer, so no row is no offer.
   if (read.data === null) return refuse("offer_not_found", { stage: "offer" });
-  const offer = readAuditOffer(read.data);
+  const archivedAt = read.data.archived_at;
+  if (typeof archivedAt === "string" && archivedAt !== "") return refuse("offer_archived", { stage: "offer" });
+  // A live offer holds null there. Anything else does not say which it is, and is never read as
+  // live. `readAuditOffer` takes the whitelisted keys of the row and looks at no other.
+  const offer = archivedAt === null ? readAuditOffer(read.data) : null;
   // The row is there and does not read as an offer: this lasts until the row is fixed.
   if (offer === null) return refuse("offer_read_failed", { stage: "offer", detail: "row_unreadable" });
 

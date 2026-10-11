@@ -35,6 +35,7 @@ export const AUDIT_FAILURE_REASONS = [
   "unconfigured_provider",
   "invalid_offer",
   "offer_not_found",
+  "offer_archived",
   "offer_read_failed",
   "criteria_read_failed",
   "settings_read_failed",
@@ -74,6 +75,8 @@ export function auditFailureMessage(reason: AuditFailureReason): string {
       return "Nie rozpoznano oferty, której ma dotyczyć audyt. Odśwież kartę i spróbuj ponownie.";
     case "offer_not_found":
       return "Ta oferta już nie istnieje — mogła zostać usunięta. Audyt nie został uruchomiony.";
+    case "offer_archived":
+      return "Ta oferta jest w archiwum, więc audyt nie został uruchomiony. Przywróć ofertę, żeby uruchomić audyt.";
     case "offer_read_failed":
       // Two causes share this reason: a read the database failed, which passes, and a stored row
       // that does not read as an offer, which lasts until the row is fixed. So no "in a moment".
@@ -129,8 +132,8 @@ export function auditFailureMessage(reason: AuditFailureReason): string {
  * without an entry here fails `npx astro check`.
  *
  * Refused: the audit was turned away before anything was spent, for a reason the product
- * provides for — missing configuration (the zero-config state), an offer that is not there, an
- * audit already running. Everything else is a failure, a billing state at the provider
+ * provides for — missing configuration (the zero-config state), an offer that is not there or is
+ * in the archive, an audit already running. Everything else is a failure, a billing state at the provider
  * included: nothing is broken, but nobody gets an audit until somebody acts on it.
  */
 export const AUDIT_OUTCOME: Record<AuditFailureReason, "refused" | "failed"> = {
@@ -138,6 +141,7 @@ export const AUDIT_OUTCOME: Record<AuditFailureReason, "refused" | "failed"> = {
   unconfigured_provider: "refused",
   invalid_offer: "refused",
   offer_not_found: "refused",
+  offer_archived: "refused",
   offer_read_failed: "failed",
   criteria_read_failed: "failed",
   settings_read_failed: "failed",

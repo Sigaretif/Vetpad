@@ -291,8 +291,9 @@ export const CHALLENGE_PAGE =
 //
 // - The offer to audit, `.from("offers").select("<the audit's columns>").eq("id", id)
 //   .maybeSingle()`: `GET <SUPABASE_URL>/rest/v1/offers?select=title,description,price,…
-//   &id=eq.<id>` — `select` is `AUDIT_OFFER_COLUMNS` joined with commas, nothing else. `200 []`
-//   becomes `data: null` with no error (no such offer), `[row]` becomes `row`.
+//   &id=eq.<id>` — `select` is `AUDIT_OFFER_COLUMNS` joined with commas, then `archived_at`, and
+//   nothing else. `200 []` becomes `data: null` with no error (no such offer), `[row]` becomes
+//   `row`.
 // - After it, the four requests of `loadAuditCriteria` and the one of `loadAuditSettings`
 //   described above, in that order. `offer_notes` is never asked.
 // - The claim, `.from("offer_audits").insert({ offer_id, run_state: "running" })

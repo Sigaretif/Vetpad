@@ -101,6 +101,9 @@ export function auditOfferRow(overrides: Record<string, unknown> = {}): Record<s
     fetched_at: "2026-10-01T09:00:00+00:00",
     listed_at: "2026-09-01T10:00:00+00:00",
     listing_modified_at: "2026-09-10T12:30:00+00:00",
+    // A live offer. The audit route reads this column to refuse an archived one, and nothing else does.
+    archived_at: null,
+    archived_by: null,
 
     title: AUDIT_TITLE,
     description: AUDIT_DESCRIPTION,

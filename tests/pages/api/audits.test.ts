@@ -592,13 +592,95 @@ describe("POST /api/audits: what can be checked for free is checked before the c
 
     const params = new URL(requestsTo(stub, "offers")[0]?.url ?? "").searchParams;
     expect(params.get("id")).toBe(`eq.${OFFER_ID}`);
-    // Written out by hand: the listing's words, the facts it states and its amenities. Never
-    // `raw`, `images`, `source_url`, `id` or `created_by` — and no embedded notes.
+    // Written out by hand: the listing's words, the facts it states and its amenities, and
+    // `archived_at`, which the route reads to refuse an archived offer. Never `raw`, `images`,
+    // `source_url`, `id`, `created_by` or `archived_by` — and no embedded notes.
     expect(params.get("select")).toBe(
       "title,description,price,price_currency,price_per_m,area_m2,rooms,floors_total,build_year,rent,rent_currency," +
         "floor,market,building_type,construction_status,building_ownership,heating,windows_type,building_material," +
-        "energy_certificate,advert_type,free_from,location_label,street_name,features",
+        "energy_certificate,advert_type,free_from,location_label,street_name,features,archived_at",
     );
+  });
+
+  // prd.md FR-010: an archived offer cannot be audited until it is restored — the team has set it
+  // aside, and an audit is a paid call. The refusal stands where `offer_not_found` does: after
+  // the offer's read, before the provider key, the criteria and the claim.
+  const ARCHIVED_AT = "2026-10-07T18:30:00.123456+00:00";
+  const ARCHIVER_ID_CANARY = "7a2b9c1d-3e4f-4a5b-8c6d-0000000a4c11";
+  const archivedOffer = rows(auditOfferRow({ archived_at: ARCHIVED_AT, archived_by: ARCHIVER_ID_CANARY }));
+
+  it("refuses an archived offer as offer_archived: 0 provider calls, no claim, no write to offer_audits", async () => {
+    const { lines, stub, captured } = await audit({ offer: archivedOffer, provider: answered });
+
+    const { reason, message } = failure(lines);
+    expect(reason).toBe("offer_archived");
+    expect(message).toContain("jest w archiwum");
+    expect(message).toContain("Przywróć");
+    expect(providerCalls(stub.requests)).toHaveLength(0);
+    // The offer was read, and nothing after it: no criteria, no settings, no claim, no write.
+    expect(tablesAsked(stub)).toEqual(["GET offers"]);
+    expect(requestsTo(stub, "offer_audits")).toHaveLength(0);
+    expect(lines).toStrictEqual([{ type: "stage", stage: "reading" }, lines.at(-1)]);
+    // What the product expects of an archived offer: info, not an error.
+    expect(captured.entries()).toStrictEqual([
+      entry("info", {
+        outcome: "refused",
+        stage: "offer",
+        reason: "offer_archived",
+        user_id: USER_ID,
+        offer_id: OFFER_ID,
+      }),
+    ]);
+    // Neither when the offer was archived nor by whom is in the entry.
+    expect(captured.text()).not.toContain(ARCHIVER_ID_CANARY);
+    expect(captured.text()).not.toContain("2026-10-07");
+  });
+
+  it("control: the same offer, live, reaches the provider once and is claimed", async () => {
+    const { lines, stub } = await audit({ offer: rows(auditOfferRow({ archived_at: null })), provider: answered });
+
+    expect(lines.at(-1)).toStrictEqual({ type: "done" });
+    expect(providerCalls(stub.requests)).toHaveLength(1);
+    expect(requestsTo(stub, "offer_audits", "POST")).toHaveLength(1);
+    expect(writes(stub, "completed")).toHaveLength(1);
+  });
+
+  // The archive stands before the provider key, so an archived offer gets one answer with a key and without.
+  it("answers an archived offer the same way without a provider key", async () => {
+    env.providerKey = false;
+
+    const { lines, stub } = await audit({ offer: archivedOffer });
+
+    expect(failure(lines).reason).toBe("offer_archived");
+    expect(providerCalls(stub.requests)).toHaveLength(0);
+    expect(tablesAsked(stub)).toEqual(["GET offers"]);
+  });
+
+  // The archive's columns are read for the refusal alone: they change neither what the provider
+  // is sent nor the listing's fingerprint, so archiving and restoring flag no audit stale.
+  it("sends the provider nothing about the archive", async () => {
+    const { stub } = await audit({ provider: answered });
+
+    const sent = providerCalls(stub.requests)[0]?.body ?? "";
+    expect(sent).not.toContain("archived");
+    expect(sent).not.toContain("archiw");
+  });
+
+  // A row that does not say whether the offer is archived is never read as a live one.
+  it.each<[string, unknown]>([
+    ["no archive column at all", undefined],
+    ["an empty text where the date stands", ""],
+    ["a number where the date stands", 0],
+  ])("reports a row with %s as offer_read_failed: 0 provider calls, no claim", async (_case, archivedAt) => {
+    const { lines, stub, captured } = await audit({
+      offer: rows(auditOfferRow({ archived_at: archivedAt })),
+      provider: answered,
+    });
+
+    expect(failure(lines).reason).toBe("offer_read_failed");
+    expect(providerCalls(stub.requests)).toHaveLength(0);
+    expect(tablesAsked(stub)).toEqual(["GET offers"]);
+    expect(captured.entries().at(-1)?.args[0]).toMatchObject({ reason: "offer_read_failed", detail: "row_unreadable" });
   });
 
   // Two causes, one reason: the member reads the same sentence, the entry tells them apart.
@@ -1865,6 +1947,7 @@ describe("POST /api/audits: no log entry carries the listing, the criteria, the 
     ["auth", "a signed-out visitor", {}, { user: null }],
     ["offer_id", "an id that is not a uuid", {}, { fields: { offer_id: "Praga-Południe" } }],
     ["offer", "an offer that is not there", { offer: rows() }],
+    ["offer", "an archived offer", { offer: rows(auditOfferRow({ archived_at: "2026-10-07T18:30:00+00:00" })) }],
     ["offer", "a failed offer read", { offer: dbError(500, "XX000", "internal error") }],
     ["criteria", "a failed criteria read", { limits: dbError(500, "XX000", "internal error") }],
     ["settings", "a failed settings read", { settings: dbError(500, "XX000", "internal error") }],

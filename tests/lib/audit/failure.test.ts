@@ -14,16 +14,19 @@ import {
 // context/changes/grounded-listing-audit/plan.md („Powody niepowodzenia": the twenty-two reasons,
 // one distinguishable message each, the four time constants) and its „Critical Implementation
 // Details" (provider deadline < stale threshold < browser limit), and from CLAUDE.md, Conventions
-// (a refusal the product expects is `info`, a failure is `error`).
+// (a refusal the product expects is `info`, a failure is `error`). `offer_archived` comes from
+// context/changes/archive-and-restore/plan.md (Phase 2) and prd.md FR-010: an archived offer
+// cannot be audited until it is restored.
 
 describe("the reasons an audit can end without a result", () => {
   // Written out by hand, in the plan's order.
-  it("are the twenty-two the plan names, and `unexpected` after them", () => {
+  it("are the twenty-two the plan names, `offer_archived` of the archive, and `unexpected` after them", () => {
     expect([...AUDIT_FAILURE_REASONS]).toEqual([
       "unconfigured_supabase",
       "unconfigured_provider",
       "invalid_offer",
       "offer_not_found",
+      "offer_archived",
       "offer_read_failed",
       "criteria_read_failed",
       "settings_read_failed",
@@ -69,7 +72,7 @@ describe("auditFailureMessage: one reason, one distinguishable message", () => {
   const messages = AUDIT_FAILURE_REASONS.map((reason) => auditFailureMessage(reason));
 
   it("gives every reason a sentence of its own", () => {
-    expect(new Set(messages).size).toBe(23);
+    expect(new Set(messages).size).toBe(24);
     for (const message of messages) {
       expect(message.trim()).toBe(message);
       expect(message.length).toBeGreaterThan(20);
@@ -147,6 +150,13 @@ describe("auditFailureMessage: one reason, one distinguishable message", () => {
     );
   });
 
+  // FR-010: the member reads why no audit started, and what makes one possible again.
+  it("says that an archived offer has to be restored before it can be audited", () => {
+    expect(auditFailureMessage("offer_archived")).toBe(
+      "Ta oferta jest w archiwum, więc audyt nie został uruchomiony. Przywróć ofertę, żeby uruchomić audyt.",
+    );
+  });
+
   it("tells the two missing configurations apart", () => {
     expect(auditFailureMessage("unconfigured_supabase")).toBe(
       "Supabase nie jest skonfigurowany — nie można uruchomić audytu.",
@@ -166,6 +176,7 @@ describe("AUDIT_OUTCOME: a refusal the product expects, or a failure somebody ha
       unconfigured_provider: "refused",
       invalid_offer: "refused",
       offer_not_found: "refused",
+      offer_archived: "refused",
       offer_read_failed: "failed",
       criteria_read_failed: "failed",
       settings_read_failed: "failed",

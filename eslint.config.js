@@ -114,9 +114,9 @@ const consoleConfig = defineConfig(
 // the code holds it — the audit, the only code that talks to the model provider, cannot import the
 // notes module. The regex takes the module by any path: the alias (@/lib/notes), a relative one
 // (../notes, ../../lib/notes) and either with a file extension. src/pages/api/audits.ts is named
-// before it exists, so the rule binds the moment the file is created. refetchNoNotesConfig below
-// is the only other block that sets no-restricted-imports, for files this one does not cover; a
-// block whose files overlap either must merge the patterns, since flat config replaces a rule's
+// before it exists, so the rule binds the moment the file is created. refetchNoNotesConfig and
+// archiveNoNotesConfig below are the only other blocks that set no-restricted-imports, for files
+// this one does not cover; a block whose files overlap any of them must merge the patterns, since flat config replaces a rule's
 // options rather than adding to them.
 const auditNoNotesConfig = defineConfig({
   files: ["src/lib/audit/**", "src/pages/api/audits.ts"],
@@ -157,6 +157,27 @@ const refetchNoNotesConfig = defineConfig({
   },
 });
 
+// Archiving and restoring an offer touch neither its notes nor its audit (prd.md, FR-014): the
+// route and the archive's read get the same structural guard — they cannot import the notes
+// module, by any path.
+const archiveNoNotesConfig = defineConfig({
+  files: ["src/pages/api/offer-archive.ts", "src/lib/offer-archive.ts"],
+  rules: {
+    "no-restricted-imports": [
+      "error",
+      {
+        patterns: [
+          {
+            regex: "(?:^|/)notes(?:\\.[cm]?[jt]sx?)?$",
+            message:
+              "The archive must not import the notes module: archiving and restoring an offer never touch a member's note (prd.md, FR-014).",
+          },
+        ],
+      },
+    ],
+  },
+});
+
 const scriptsConfig = defineConfig({
   files: ["scripts/**/*.mjs"],
   extends: [tseslint.configs.disableTypeChecked],
@@ -177,6 +198,7 @@ export default defineConfig(
   consoleConfig,
   auditNoNotesConfig,
   refetchNoNotesConfig,
+  archiveNoNotesConfig,
   scriptsConfig,
   eslintPluginPrettier,
 );

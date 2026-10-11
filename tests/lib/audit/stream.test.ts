@@ -11,6 +11,9 @@ import { classifyAuditAnswer, followAuditStream, readAuditStreamLine } from "@/l
 
 const NDJSON = "application/x-ndjson; charset=utf-8";
 const BUSY = "Audyt tej oferty już trwa. Drugi nie został uruchomiony — poczekaj na wynik i odśwież kartę.";
+// prd.md FR-010 and context/changes/archive-and-restore/plan.md (Phase 2): an archived offer is
+// refused with a reason and a sentence of its own.
+const ARCHIVED = "Ta oferta jest w archiwum, więc audyt nie został uruchomiony. Przywróć ofertę, żeby uruchomić audyt.";
 
 describe("classifyAuditAnswer: only a redirected answer is a sign-out (F4)", () => {
   it("reads 200 with the NDJSON type as the audit's stream", () => {
@@ -55,6 +58,10 @@ describe("readAuditStreamLine: a line is read as the route types it, or not at a
     [
       JSON.stringify({ type: "failed", reason: "busy", message: BUSY }),
       { type: "failed", reason: "busy", message: BUSY },
+    ],
+    [
+      JSON.stringify({ type: "failed", reason: "offer_archived", message: ARCHIVED }),
+      { type: "failed", reason: "offer_archived", message: ARCHIVED },
     ],
   ])("reads %s", (text, expected) => {
     expect(readAuditStreamLine(text)).toEqual(expected);
@@ -123,6 +130,19 @@ describe("followAuditStream: the body is read to its final line", () => {
     const result = await follow(bodyOf([STAGE_READING, FAILED]));
 
     expect(result).toEqual({ final: { type: "failed", reason: "busy", message: BUSY }, stages: ["reading"] });
+  });
+
+  // The refusal of an archived offer ends the stream like any other: a failure with its sentence,
+  // which the island shows — not a body without a final line, which it would answer by reloading.
+  it("answers the refusal of an archived offer with its reason and sentence", async () => {
+    const refused = `${JSON.stringify({ type: "failed", reason: "offer_archived", message: ARCHIVED })}\n`;
+
+    const result = await follow(bodyOf([STAGE_READING, refused]));
+
+    expect(result).toEqual({
+      final: { type: "failed", reason: "offer_archived", message: ARCHIVED },
+      stages: ["reading"],
+    });
   });
 
   it("reads several lines that arrive in one chunk", async () => {
