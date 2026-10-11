@@ -1,9 +1,10 @@
 ---
 /*
  * One archived offer on /offers/archive (FR-014): what the offer is, who archived it and when, and
- * the button that restores it without opening the card. Unlike a board row, the row is not one
- * link: the title is the link to the card, and the restore form stands beside it as an element of
- * its own — a button is never nested in an `<a>`.
+ * the button that restores it without opening the card. Like a board row, the whole row opens the
+ * card — but the row is not one link, because a button is never nested in an `<a>`: the title is
+ * the link, stretched over the row by its `::after`, and the restore form stands beside it as an
+ * element of its own, above that layer.
  *
  * The thumbnail is decorative (alt="") because the title names the offer. A fact the listing does
  * not state reads as unstated, never as 0 or an empty value (prd.md, Guardrails). The row shows no
@@ -42,7 +43,10 @@ const location = [offer.location_label, offer.street_name]
   .join(", ");
 ---
 
-<Card data-archived-offer={offer.id} className="flex-col gap-4 p-3 sm:flex-row sm:items-start sm:p-4">
+<Card
+  data-archived-offer={offer.id}
+  className="hover:bg-accent has-[h3_a:focus-visible]:ring-ring/50 relative flex-col gap-4 p-3 transition-colors has-[h3_a:focus-visible]:ring-[3px] sm:flex-row sm:items-start sm:p-4"
+>
   <div class="flex min-w-0 flex-1 items-start gap-4">
     {thumbnail === null ? (
       <div class="bg-muted h-20 w-28 shrink-0 rounded-lg" aria-hidden="true"></div>
@@ -62,7 +66,7 @@ const location = [offer.location_label, offer.street_name]
           href={`/offers/${offer.id}`}
           class:list={cn(
             buttonVariants({ variant: "link" }),
-            "text-foreground line-clamp-2 inline h-auto p-0 text-base font-semibold whitespace-normal wrap-anywhere",
+            "text-foreground line-clamp-2 inline h-auto p-0 text-base font-semibold whitespace-normal wrap-anywhere after:absolute after:inset-0 after:rounded-xl focus-visible:ring-0",
           )}
         >
           {offer.title}
@@ -86,7 +90,7 @@ const location = [offer.location_label, offer.street_name]
       <ArchiveSignature archivedAt={entry.archivedAt} archiver={entry.archiver} />
     </div>
   </div>
-  <div class="sm:w-40 sm:shrink-0">
+  <div class="relative z-10 sm:w-40 sm:shrink-0">
     <ArchiveForm client:load offerId={offer.id} intent="restore" returnTo="archive" />
   </div>
 </Card>

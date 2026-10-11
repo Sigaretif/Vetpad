@@ -286,6 +286,12 @@ describe("OfferArchiveItem: what the offer is, who archived it, and the restore 
     expect(links[0]).not.toContain("<form");
     expect(links[0]).not.toContain("<input");
     expect(buttons).toEqual([RESTORE]);
+    // The whole row opens the card: the title's link is stretched over the positioned row, and the
+    // restore form stands above that layer, so a click on the button never lands on the link.
+    expect(links[0]).toContain("after:absolute after:inset-0");
+    const row = /<[^>]*data-archived-offer="[^"]*"[^>]*>/.exec(html)?.[0] ?? "";
+    expect(row).toMatch(/class="[^"]*\brelative\b/);
+    expect(html).toMatch(/<div class="relative z-10[^"]*">\s*(<style>[\s\S]*?<\/script>)?\s*<astro-island/);
     expect(html).toContain('action="/api/offer-archive"');
     expect(hiddenValues(html, "offer_id")).toEqual([RECENT_1.offer.id]);
     expect(hiddenValues(html, "intent")).toEqual(["restore"]);

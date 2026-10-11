@@ -122,12 +122,10 @@ const archiveResult = offer ? Astro.url.searchParams.get("archive") : null;
   {refetched !== null && <RefetchNotice slot="notice" refetched={refetched} />}
   {archiveResult !== null && <ArchiveNotice slot="notice" result={archiveResult} archive={archive} />}
 
-  {/* An archived offer is not on the board: its card leads back to the archive. */}
-  <a
-    href={archive === null ? "/dashboard" : "/offers/archive"}
-    class:list={cn(buttonVariants({ variant: "link" }), "h-auto self-start p-0")}
-  >
-    {archive === null ? "← Wróć do ofert" : "← Wróć do archiwum"}
+  {/* The same for an archived offer: the archive is one click away on the Topbar, and a link that
+      changed with the click on „Zarchiwizuj” would read as the page having moved. */}
+  <a href="/dashboard" class:list={cn(buttonVariants({ variant: "link" }), "h-auto self-start p-0")}>
+    ← Wróć do ofert
   </a>
 
   {offer === null || notes === null || audit === null ? (

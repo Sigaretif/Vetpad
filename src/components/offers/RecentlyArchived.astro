@@ -10,7 +10,8 @@
  * board's markers say nothing about it. A failed read is an error message and a link without a
  * number — never „nothing was archived”.
  *
- * No buttons: an offer is restored from its card or from the archive page.
+ * No buttons: an offer is restored from its card or from the archive page. The whole row opens
+ * the card, as a board row does: the title's link is stretched over it by its `::after`.
  */
 import ArchiveSignature from "@/components/offers/ArchiveSignature.astro";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -49,15 +50,18 @@ const linkClass = cn(buttonVariants({ variant: "link" }), "h-auto p-0");
   ) : result.recent.length === 0 ? (
     <p class="text-muted-foreground">W ostatnich 7 dniach nic nie zarchiwizowano.</p>
   ) : (
-    <ul class="flex flex-col gap-3">
+    <ul class="flex flex-col">
       {result.recent.map((entry) => (
         <li
           data-archived-offer={entry.offer.id}
-          class="border-border flex flex-col gap-1 border-b pb-3 last:border-b-0"
+          class="border-border hover:bg-accent relative flex flex-col gap-1 rounded-md border-b px-2 py-3 transition-colors last:border-b-0"
         >
           <a
             href={`/offers/${entry.offer.id}`}
-            class:list={cn(linkClass, "justify-start self-start text-left whitespace-normal wrap-anywhere")}
+            class:list={cn(
+              linkClass,
+              "justify-start self-start text-left whitespace-normal wrap-anywhere after:absolute after:inset-0",
+            )}
           >
             {entry.offer.title}
           </a>
