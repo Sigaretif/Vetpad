@@ -117,6 +117,10 @@ export interface OfferRow extends OfferInsert {
   created_by: string | null;
   created_at: string;
   fetched_at: string;
+  /** `null` for a live offer; the database's time of archiving otherwise (FR-014). Set by a trigger, never by a route. */
+  archived_at: string | null;
+  /** Who archived it. `null` beside a non-null `archived_at` only when that member's account was deleted. */
+  archived_by: string | null;
 }
 
 export type MapOfferResult =

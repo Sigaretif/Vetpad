@@ -1,5 +1,6 @@
 -- Account deletion: what is left of a member once their account is gone (PRD, Non-Functional Requirements).
--- A saved offer and a note outlive the account, with no author, and nobody edits the note any more; the member's
+-- A saved offer and a note outlive the account, with no author, and nobody edits the note any more; an offer the
+-- member archived stays in the archive with the same date, archived by nobody (FR-014); the member's
 -- additional requirements go with the account; the team's limits and audit settings stay as they were, signed by
 -- nobody; an audit the member ran stays with its findings, dates and state, started and audited by nobody; every
 -- other member's rows are untouched. These are the `on delete` actions hanging off auth.users, which the publishable
@@ -31,8 +32,9 @@ end $$;
 -- Fixtures. "Leaving" is sigaretif3, the account deleted below; "staying" is sigaretif1. Two offers, one saved by
 -- each; the leaving member has a note on both, the staying member has a note beside it on the leaving member's
 -- offer; both have requirements (an upsert, because a local database may already hold some typed by hand). The
--- leaving member changed the limits and the audit settings last and audited both offers; the staying member is
--- re-running the audit of their own.
+-- leaving member changed the limits and the audit settings last, audited both offers and archived the offer they
+-- saved themselves, so that one row holds the deleted account in `created_by` and in `archived_by`; the staying
+-- member is re-running the audit of their own.
 do $$
 declare
   leaving uuid := (select id from auth.users where email = 'sigaretif3@vetpad.local');
@@ -71,6 +73,12 @@ begin
   update public.audit_settings
   set model = case when model is distinct from 'claude-sonnet-5-5' then 'claude-sonnet-5-5' else 'claude-opus-5-5' end
   where id;
+  -- The archive is signed the same way: the write states the intent with any non-null date, and the trigger puts
+  -- the database's time and auth.uid() in its place. The offer is the one the leaving member saved, so the deletion
+  -- clears two columns of this row, each with an UPDATE of its own.
+  update public.offers
+  set archived_at = '2000-01-01T00:00:00Z'
+  where id = 'acc0de1e-0000-4000-8000-000000000003';
 
   -- An audit's people are set by triggers too: the starter is auth.uid() when the attempt starts, and the result is
   -- signed by that starter when the attempt completes. The leaving member starts and completes one on each offer.
@@ -102,6 +110,24 @@ begin
   end if;
   if not exists (
     select 1
+    from public.offers
+    where id = 'acc0de1e-0000-4000-8000-000000000003'
+      and created_by = leaving and archived_by = leaving
+      and archived_at is not null and archived_at <> '2000-01-01T00:00:00Z'
+  ) then
+    raise exception 'account-deletion: [fixture: offer saved and archived by the leaving member] created_by is %, archived_by is %, archived_at is %, expected % twice and the database''s time',
+      (select created_by from public.offers where id = 'acc0de1e-0000-4000-8000-000000000003'),
+      (select archived_by from public.offers where id = 'acc0de1e-0000-4000-8000-000000000003'),
+      (select archived_at from public.offers where id = 'acc0de1e-0000-4000-8000-000000000003'),
+      leaving;
+  end if;
+  if exists (
+    select 1 from public.offers where id = 'acc0de1e-0000-4000-8000-000000000001' and archived_at is not null
+  ) then
+    raise exception 'account-deletion: [fixture: the staying member''s offer is live] archived_at is set';
+  end if;
+  if not exists (
+    select 1
     from public.offer_audits
     where offer_id = 'acc0de1e-0000-4000-8000-000000000003'
       and run_state = 'completed' and run_started_by = leaving and audited_by = leaving
@@ -122,13 +148,14 @@ end $$;
 
 -- Snapshot before the deletion. The leaving member's rows are kept without the columns the PRD lets change or says
 -- nothing about: the author, and a note's `updated_at` (`on delete set null` is an UPDATE, and the PRD does not
--- say what an orphaned note's date is). The audits and the audit settings are kept without the person columns the
+-- say what an orphaned note's date is). The leaving member's offer is kept without the two person columns the
+-- deletion is expected to clear - who saved it and who archived it - and with `archived_at`. The audits and the audit settings are kept without the person columns the
 -- deletion is expected to clear and with everything else, dates and state included. The staying member's rows are
 -- kept whole.
 create temporary table account_deletion_before (name text primary key, doc jsonb not null) on commit drop;
 
 insert into account_deletion_before (name, doc)
-select 'leaving offer', to_jsonb(o) - 'created_by'
+select 'leaving offer', to_jsonb(o) - 'created_by' - 'archived_by'
 from public.offers o
 where o.id = 'acc0de1e-0000-4000-8000-000000000003'
 union all
@@ -205,10 +232,15 @@ begin
   end if;
 end $$;
 
--- The offer the deleted member saved belongs to the team: it stays, with no author and nothing else changed.
+-- The offer the deleted member saved belongs to the team: it stays, with no author and nothing else changed. They
+-- had archived it as well, and it stays in the archive: archived by nobody, at the same moment as before. The row
+-- held the deleted account in two columns, and Postgres clears each with an UPDATE of its own - the one that clears
+-- `created_by` still carries the deleted id in `archived_by`, and a trigger that mishandled either would have failed
+-- the deletion above or dropped the offer out of the archive.
 do $$
 declare
   after_row jsonb;
+  before_row jsonb := (select doc from account_deletion_before where name = 'leaving offer');
 begin
   select to_jsonb(o) into after_row from public.offers o where o.id = 'acc0de1e-0000-4000-8000-000000000003';
 
@@ -218,9 +250,17 @@ begin
   if after_row ->> 'created_by' is not null then
     raise exception 'account-deletion: [deleted member''s offer has no author] created_by is %', after_row ->> 'created_by';
   end if;
-  if after_row - 'created_by' is distinct from (select doc from account_deletion_before where name = 'leaving offer') then
+  if after_row ->> 'archived_by' is not null then
+    raise exception 'account-deletion: [deleted member''s archived offer is archived by nobody] archived_by is %', after_row ->> 'archived_by';
+  end if;
+  if after_row ->> 'archived_at' is null
+    or after_row -> 'archived_at' is distinct from before_row -> 'archived_at' then
+    raise exception 'account-deletion: [deleted member''s archived offer stays in the archive with its date] archived_at before: %, after: %',
+      before_row ->> 'archived_at', after_row ->> 'archived_at';
+  end if;
+  if after_row - 'created_by' - 'archived_by' is distinct from before_row then
     raise exception 'account-deletion: [deleted member''s offer is otherwise unchanged] before: %, after: %',
-      (select doc from account_deletion_before where name = 'leaving offer'), after_row - 'created_by';
+      before_row, after_row - 'created_by' - 'archived_by';
   end if;
 end $$;
 

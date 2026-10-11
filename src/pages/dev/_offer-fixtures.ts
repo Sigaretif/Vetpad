@@ -48,6 +48,8 @@ export const fullOffer: OfferRow = {
   created_by: "00000000-0000-4000-8000-0000000000aa",
   created_at: "2026-09-20T10:00:00Z",
   fetched_at: "2026-09-20T10:00:00Z",
+  archived_at: null,
+  archived_by: null,
   listed_at: "2026-09-18T08:30:00Z",
   listing_modified_at: "2026-09-19T12:00:00Z",
 
@@ -95,6 +97,8 @@ export const unknownOffer: OfferRow = {
   created_by: null,
   created_at: "2026-09-20T10:00:00Z",
   fetched_at: "2026-09-20T10:00:00Z",
+  archived_at: null,
+  archived_by: null,
   listed_at: null,
   listing_modified_at: null,
 
