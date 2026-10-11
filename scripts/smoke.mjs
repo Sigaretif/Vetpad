@@ -62,7 +62,7 @@
 // member reads it but cannot take it over while it runs (400 with the table's own SQLSTATE, VP001), and its starter
 // cannot delete it (200 with no rows) - the row is the same after each, and failing the attempt is the control step
 // for that comparison. The first fixture offer is left without an attempt for the whole run: it is the offer whose
-// card must read as never audited. Deleting the second fixture offer takes the attempt with it.
+// card must read as never audited. Deleting the second fixture offer takes its audit row with it.
 // The audit settings through the app (FR-010): /api/audit-settings turns an anonymous caller away, and a forged
 // session too. Signed in, it refuses a body that is not a form, a model outside the list and an effort outside the
 // list - each lands back on /criteria naming its form (`&form=audit#audyt`), and the settings row is the same
@@ -85,13 +85,30 @@
 // control step has failed it, so a card that said "none" about every offer cannot pass. /dashboard carries
 // data-audits-state="ok", because a failed read of the audits renders with 200 too, and the first fixture offer's row
 // reads „Nie audytowano" - a running or failed attempt on another offer audits nothing.
+// Re-fetch (FR-009): POST /api/offer-refetch gets only requests the route ends before it fetches anything - an
+// anonymous one and one with a forged session (both to /auth/signin), an id that is not a uuid and an offer that does
+// not exist (both to /dashboard?error=). The helper refuses the two fixture offers' ids outright: a re-fetch of an
+// offer that exists goes on to the stored address, and smoke never reaches otodom.pl. What a real re-fetch does is
+// covered against a stubbed portal in tests/pages/api/offer-refetch.test.ts.
+// Audit freshness (FR-003, FR-009), written through the Data API and read from the pages: once the control step has
+// failed the second fixture offer's attempt, the first member takes the row over and completes it - a result with no
+// findings, the criteria revision as it stands at that moment, and a listing fingerprint this script computes with
+// its own few lines of the `v1` format, from the offer's row as the Data API answers it. A fingerprint that did not
+// match the application's would read as a changed listing, so the card's data-audit-freshness="fresh" is the proof
+// that the two agree, and the board's row for that offer carries data-audit-status="audited" under
+// data-audit-freshness-state="ok". The member then changes that offer's title, as a re-fetch that found a new one
+// would - every note on both offers is the same row afterwards - and the same card says "stale", the same board row
+// data-audit-status="stale". The first fixture offer's card carries data-audit-freshness="none" before and after:
+// there is no result to judge. Nothing here runs an audit, and these steps stand after every step that changes the
+// criteria and before cleanup restores the limits, which moves the revision again.
 // Cleanup runs whatever failed before it: the limits read at the start are written back (signed by the first
 // member, as any restore would be), the audit settings read at the start likewise, and both members' requirements
 // are deleted with the rows counted - none left of the first member's, which the route removed, and one of the
 // second member's, which must have lasted until then.
 // A session Auth refuses is a sign-out, never an outage (src/middleware.ts): before signing in, it sends a forged
 // session cookie - named after the SUPABASE_URL host, with a token that has not expired and a signature that is not
-// real - on GET /dashboard, on POST /api/offers, on POST /api/audit-settings and on POST /api/audits, and each must
+// real - on GET /dashboard, on POST /api/offers, on POST /api/audit-settings, on POST /api/audits and on
+// POST /api/offer-refetch, and each must
 // redirect to /auth/signin, not answer with the 503 page. The cookie goes instead of the cookie jar and nothing the server
 // answers is stored in it. An outage itself cannot be played against a live Auth; tests/middleware.test.ts covers
 // it. The error pages answer under their own addresses with their own status and marker: /503 with 503 and
@@ -101,7 +118,7 @@
 // Zero dependencies on purpose. Run against a live server: BASE_URL=http://localhost:4321 npm run smoke
 
 import { Buffer } from "node:buffer";
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { URL } from "node:url";
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:4321";
@@ -187,6 +204,48 @@ const AUDIT_RUNNING = 'data-audit-state="running"';
 const AUDIT_FAILED = 'data-audit-state="failed"';
 // The board's marker for a successful read of the audits; a failed read renders data-audits-state="error".
 const AUDITS_OK = 'data-audits-state="ok"';
+// What the same section says about whether the stored result still describes the listing and the criteria
+// (src/lib/audit/freshness.ts): "none" when there is no result to judge.
+const AUDIT_DONE = 'data-audit-state="done"';
+const FRESHNESS_NONE = 'data-audit-freshness="none"';
+const FRESHNESS_FRESH = 'data-audit-freshness="fresh"';
+const FRESHNESS_STALE = 'data-audit-freshness="stale"';
+// The board's marker for a successful read of the audits' freshness; a failed read renders "error", and every
+// audited row then reads as "freshness_unknown".
+const BOARD_FRESHNESS_OK = 'data-audit-freshness-state="ok"';
+// The columns a listing fingerprint is taken from, in its order, and which of them hold numbers - this script's own
+// copy of the `v1` format, kept apart from src/lib/audit/input.ts on purpose: a change of the format there without a
+// new version turns the "fresh" step red.
+const FINGERPRINT_COLUMNS = [
+  "title",
+  "description",
+  "price",
+  "price_currency",
+  "price_per_m",
+  "area_m2",
+  "rooms",
+  "floors_total",
+  "build_year",
+  "rent",
+  "rent_currency",
+  "floor",
+  "market",
+  "building_type",
+  "construction_status",
+  "building_ownership",
+  "heating",
+  "windows_type",
+  "building_material",
+  "energy_certificate",
+  "advert_type",
+  "free_from",
+  "location_label",
+  "street_name",
+  "features",
+];
+const FINGERPRINT_NUMBERS = ["price", "price_per_m", "area_m2", "rooms", "floors_total", "build_year", "rent"];
+// The title the second fixture offer gets once its audit is stored: a change of the listing the audit read.
+const TITLE_AFTER_AUDIT = "Smoke: oferta testowa ze zmienionym tytułem";
 // What POST /api/audits answers with whenever it does not redirect: one JSON object per line.
 const AUDIT_STREAM_TYPE = "application/x-ndjson; charset=utf-8";
 
@@ -410,7 +469,8 @@ function patchOfferAsOther(body) {
 }
 
 // The second member rewrites the columns a re-fetch (FR-009) would, and claims the offer while at it. Stands in for
-// S-09's route, which does not exist yet: it guards the schema, not that route.
+// POST /api/offer-refetch, which smoke cannot send for an offer that exists - it would fetch from otodom.pl: this
+// guards the schema, not that route.
 async function rewriteListingAsOther() {
   const other = await memberId(OTHER_MEMBER);
   if (other.error) return { status: 0, location: "", error: other.error };
@@ -832,13 +892,79 @@ async function requestAuditOfMissingOffer(offerId) {
   return { ...response, auditEnded: last.type === "failed" ? last.reason : "done" };
 }
 
-// The fixture offer's row on /dashboard: from its link to the link's end, so a mark on another offer (the local
+// A signed-in member - or, with `send`, a forged session - asks for a re-fetch of an offer that cannot be
+// re-fetched. Smoke never asks for a re-fetch of an offer that exists: the route would go on to fetch the stored
+// address, and no step may reach otodom.pl. The two fixture offers are therefore refused here, before anything is
+// sent.
+function requestRefetchOfMissingOffer(offerId, send = request) {
+  if (offerId === FIXTURE_OFFER_ID || offerId === FIXTURE_OFFER_ID_2) {
+    throw new Error("smoke never requests a re-fetch of an existing offer: it would reach otodom.pl");
+  }
+  return send("/api/offer-refetch", { method: "POST", form: { offer_id: offerId } });
+}
+
+// The listing fingerprint of the second fixture offer as it stands now, in the `v1` format: `v1:` and the SHA-256,
+// in hex, of the JSON of the fingerprint's columns in their order - each as the Data API answers it, a number sent
+// as text read as that number. Throws when the row cannot be read, which fails the step that asked for it.
+async function fixtureListingFingerprint() {
+  const response = await supabaseRest(`${FIXTURE_OFFER_2}&select=${FINGERPRINT_COLUMNS.join(",")}`, { as: MEMBER });
+  if (response.error) throw new Error(response.error);
+  if (response.status !== 200 || response.rows !== 1) {
+    throw new Error(`second fixture offer unreadable (${response.status}, ${response.rows ?? 0} row(s))`);
+  }
+  const [row] = JSON.parse(response.body);
+  const values = {};
+  for (const column of FINGERPRINT_COLUMNS) {
+    const value = row[column];
+    values[column] = FINGERPRINT_NUMBERS.includes(column) && typeof value === "string" ? Number(value) : value;
+  }
+  return `v1:${createHash("sha256").update(JSON.stringify(values), "utf8").digest("hex")}`;
+}
+
+// The first member completes the attempt they started on the second fixture offer: a whole result with no findings,
+// made - as far as the row says - under the criteria and the listing as they stand at this moment. The model and
+// the effort are ones the settings admit; no model was asked anything.
+async function completeAuditAttempt() {
+  const [criteriaRevision, listingFingerprint] = [await readRevision(), await fixtureListingFingerprint()];
+  return supabaseRest(FIXTURE_AUDIT_2, {
+    as: MEMBER,
+    method: "PATCH",
+    prefer: "return=representation",
+    body: {
+      run_state: "completed",
+      findings: { version: 1, missing: [], conditions: [], costs: [], red_flags: [] },
+      rejected_count: 0,
+      model: AUDIT_MODELS[0],
+      effort: "medium",
+      criteria_revision: criteriaRevision,
+      listing_fingerprint: listingFingerprint,
+      had_limits: false,
+      requirements_count: 0,
+    },
+  });
+}
+
+// A fixture offer's row in a /dashboard page: from its link to the link's end, so a mark on another offer (the local
 // database may hold real ones) cannot pass for the fixture's. No row is an empty body.
+function boardRow(page, card) {
+  const start = page.body.indexOf(`href="${card}"`);
+  const end = start === -1 ? -1 : page.body.indexOf("</a>", start);
+  return { ...page, body: end === -1 ? "" : page.body.slice(start, end) };
+}
+
+// The first fixture offer's row on /dashboard.
 async function fixtureBoardRow() {
-  const response = await request("/dashboard");
-  const start = response.body.indexOf(`href="${FIXTURE_CARD}"`);
-  const end = start === -1 ? -1 : response.body.indexOf("</a>", start);
-  return { ...response, body: end === -1 ? "" : response.body.slice(start, end) };
+  return boardRow(await request("/dashboard"), FIXTURE_CARD);
+}
+
+// The second fixture offer's row on a board whose read of the audits' freshness succeeded. Throws when the page
+// does not carry that marker, which fails the step that asked for it: after a failed read no row says "stale".
+async function auditedBoardRow() {
+  const page = await request("/dashboard");
+  if (!page.body.includes(BOARD_FRESHNESS_OK)) {
+    throw new Error(`/dashboard does not carry ${BOARD_FRESHNESS_OK} (${page.status})`);
+  }
+  return boardRow(page, FIXTURE_CARD_2);
 }
 
 // Which of the two fixture offers stands higher on /dashboard under one sort: "first" or "second", by where each
@@ -969,6 +1095,12 @@ const steps = [
     () => request("/api/audits", { method: "POST", form: { offer_id: randomUUID() } }),
     { status: 302, location: "/auth/signin" },
   ],
+  // The same for a re-fetch: a well-formed id of no offer, so the redirect is the missing session.
+  [
+    "offer re-fetch redirects anonymous user",
+    () => requestRefetchOfMissingOffer(randomUUID()),
+    { status: 302, location: "/auth/signin" },
+  ],
   // A session Auth refuses reads as signed out, on a page and on a form route alike: the 503 page is for an Auth
   // that could not answer, never for one that said no.
   [
@@ -999,6 +1131,11 @@ const steps = [
   [
     "audit run redirects a forged session to sign-in",
     () => requestWithForgedSession("/api/audits", { method: "POST", form: { offer_id: randomUUID() } }),
+    { status: 302, location: "/auth/signin" },
+  ],
+  [
+    "offer re-fetch redirects a forged session to sign-in",
+    () => requestRefetchOfMissingOffer(randomUUID(), requestWithForgedSession),
     { status: 302, location: "/auth/signin" },
   ],
   ["criteria page redirects anonymous user", () => request("/criteria"), { status: 302, location: "/auth/signin" }],
@@ -1067,6 +1204,18 @@ const steps = [
     "audit run refuses an offer that does not exist",
     () => requestAuditOfMissingOffer(randomUUID()),
     { status: 200, auditEnded: "offer_not_found" },
+  ],
+  // The re-fetch route, as far as it goes without an offer: both answers are decided before anything is fetched,
+  // and neither request names an offer that exists.
+  [
+    "offer re-fetch refuses an id that is not a uuid",
+    () => requestRefetchOfMissingOffer("not-a-uuid"),
+    { status: 302, locationPrefix: "/dashboard?error=" },
+  ],
+  [
+    "offer re-fetch refuses an offer that does not exist",
+    () => requestRefetchOfMissingOffer(randomUUID()),
+    { status: 302, locationPrefix: "/dashboard?error=" },
   ],
   ["smoke fixture offer is created", () => createFixtureOffer(FIXTURE_OFFER_ID), { status: 201, rows: 1 }],
   ["second smoke fixture offer is created", () => createFixtureOffer(FIXTURE_OFFER_ID_2), { status: 201, rows: 1 }],
@@ -1781,6 +1930,70 @@ const steps = [
     "offer card of an offer nobody audited still says so",
     () => request(FIXTURE_CARD),
     { status: 200, bodyIncludes: AUDIT_NONE },
+  ],
+  // Audit freshness. A failed attempt may be taken over at once, and its starter completes it: the row then holds a
+  // result made, as far as it says, under the criteria revision and the listing as they stand now. Every step that
+  // changes the criteria ran before this point, and cleanup - which moves the revision again - runs after it.
+  [
+    "member takes the failed audit attempt over for a new one",
+    () =>
+      supabaseRest(FIXTURE_AUDIT_2, {
+        as: MEMBER,
+        method: "PATCH",
+        prefer: "return=representation",
+        body: { run_state: "running" },
+      }),
+    { status: 200, rows: 1 },
+  ],
+  ["member completes the audit attempt with a result", () => completeAuditAttempt(), { status: 200, rows: 1 }],
+  // The fingerprint in that result is this script's own; "fresh" says the application computes the same one.
+  [
+    "offer card of the audited offer says its audit is up to date",
+    () => request(FIXTURE_CARD_2),
+    { status: 200, bodyIncludes: [AUDIT_DONE, FRESHNESS_FRESH] },
+  ],
+  [
+    "offer card of an offer nobody audited has no audit to judge",
+    () => request(FIXTURE_CARD),
+    { status: 200, bodyIncludes: [AUDIT_NONE, FRESHNESS_NONE] },
+  ],
+  // The control for the board's mark: the row reads as audited before the listing changes, so a board that said
+  // "stale" about every audited offer cannot pass the step after the change.
+  [
+    "control: board row of the audited offer says audited",
+    () => auditedBoardRow(),
+    { status: 200, bodyIncludes: 'data-audit-status="audited"' },
+  ],
+  // A change of a column the audit read, as a re-fetch that found a new title would write it. One more offer write
+  // the notes must not feel: both members' on the first offer and the first member's on the second.
+  [
+    "a changed title of the audited offer leaves every note as it was",
+    () =>
+      withSnapshot([observedNotes(ALL_FIXTURE_NOTES)], () =>
+        supabaseRest(FIXTURE_OFFER_2, {
+          as: MEMBER,
+          method: "PATCH",
+          prefer: "return=representation",
+          body: { title: TITLE_AFTER_AUDIT, fetched_at: new Date().toISOString() },
+        }),
+      ),
+    { status: 200, rows: 1, snapshot: "same" },
+  ],
+  // Nothing was written to the audit: the result is the same one, and it is flagged because the listing moved on.
+  [
+    "offer card of the audited offer says its audit is stale after the listing changed",
+    () => request(FIXTURE_CARD_2),
+    { status: 200, bodyIncludes: [AUDIT_DONE, FRESHNESS_STALE] },
+  ],
+  [
+    "board row of the audited offer says stale after the listing changed",
+    () => auditedBoardRow(),
+    { status: 200, bodyIncludes: 'data-audit-status="stale"' },
+  ],
+  [
+    "offer card of an offer nobody audited still has no audit to judge",
+    () => request(FIXTURE_CARD),
+    { status: 200, bodyIncludes: [AUDIT_NONE, FRESHNESS_NONE] },
   ],
   // Cleanup: runs even when a step above failed, because every step runs. The limits are written back even when
   // the second member's requirements are no longer there to observe.

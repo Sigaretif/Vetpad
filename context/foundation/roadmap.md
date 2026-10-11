@@ -3,7 +3,7 @@ project: Vetpad
 version: 1
 status: draft
 created: 2026-09-21
-updated: 2026-10-09
+updated: 2026-10-11
 prd_version: 1
 main_goal: market-feedback
 top_blocker: time
@@ -39,19 +39,19 @@ A small group searching for an apartment together keeps blind links in spreadshe
 
 ## At a glance
 
-| ID   | Change ID                | Outcome (user can …)                                                                | Prerequisites | PRD refs                      | Status   |
-| ---- | ------------------------ | ----------------------------------------------------------------------------------- | ------------- | ----------------------------- | -------- |
-| S-01 | closed-team-sign-in      | sign in only with a pre-seeded account; nobody can register                         | —             | FR-001                        | done     |
-| S-02 | paste-listing-to-card    | paste an otodom.pl URL and read the saved listing's text, parameters and photos     | S-01          | US-01, FR-004, FR-005, FR-007 | done     |
-| S-03 | team-search-criteria     | define and edit the team's shared hard limits and their own additional requirements | S-01          | FR-002, FR-003                | done     |
-| S-04 | grounded-listing-audit   | run an AI audit on a saved listing and read findings, each quoted from the listing  | S-02, S-03    | US-01, FR-010, FR-011         | done     |
-| S-05 | member-notes             | write their own Pros / Cons / Observations note and read everyone's, attributed     | S-02          | US-01, FR-012, FR-013         | done     |
-| S-06 | shared-offer-board       | browse every saved listing on one board with its audit status                       | S-02          | FR-006                        | done     |
-| S-07 | duplicate-listing-notice | paste an already-saved URL and land on the existing card, told who saved it         | S-02          | FR-005                        | done     |
-| S-08 | location-map-link        | open a Google Maps search for a listing's location in one click                     | S-02          | FR-008                        | done     |
-| S-09 | refetch-and-stale-audit  | re-fetch a listing on demand, keep every note, and see when an audit has gone stale | S-04, S-05    | FR-009, FR-003                | proposed |
-| S-10 | archive-and-restore      | archive a listing off the board, see who archived it, and restore it                | S-06          | FR-014                        | proposed |
-| S-11 | delete-offer-and-notes   | delete a mistaken listing, and delete their own notes                               | S-05          | FR-015                        | proposed |
+| ID   | Change ID                | Outcome (user can …)                                                                | Prerequisites | PRD refs                      | Status      |
+| ---- | ------------------------ | ----------------------------------------------------------------------------------- | ------------- | ----------------------------- | ----------- |
+| S-01 | closed-team-sign-in      | sign in only with a pre-seeded account; nobody can register                         | —             | FR-001                        | done        |
+| S-02 | paste-listing-to-card    | paste an otodom.pl URL and read the saved listing's text, parameters and photos     | S-01          | US-01, FR-004, FR-005, FR-007 | done        |
+| S-03 | team-search-criteria     | define and edit the team's shared hard limits and their own additional requirements | S-01          | FR-002, FR-003                | done        |
+| S-04 | grounded-listing-audit   | run an AI audit on a saved listing and read findings, each quoted from the listing  | S-02, S-03    | US-01, FR-010, FR-011         | done        |
+| S-05 | member-notes             | write their own Pros / Cons / Observations note and read everyone's, attributed     | S-02          | US-01, FR-012, FR-013         | done        |
+| S-06 | shared-offer-board       | browse every saved listing on one board with its audit status                       | S-02          | FR-006                        | done        |
+| S-07 | duplicate-listing-notice | paste an already-saved URL and land on the existing card, told who saved it         | S-02          | FR-005                        | done        |
+| S-08 | location-map-link        | open a Google Maps search for a listing's location in one click                     | S-02          | FR-008                        | done        |
+| S-09 | refetch-and-stale-audit  | re-fetch a listing on demand, keep every note, and see when an audit has gone stale | S-04, S-05    | FR-009, FR-003                | in-progress |
+| S-10 | archive-and-restore      | archive a listing off the board, see who archived it, and restore it                | S-06          | FR-014                        | proposed    |
+| S-11 | delete-offer-and-notes   | delete a mistaken listing, and delete their own notes                               | S-05          | FR-015                        | proposed    |
 
 ## Streams
 
@@ -196,7 +196,7 @@ None. Every absent or partial layer in the Baseline is first needed by a user-fa
 - **Unknowns:**
   - How is a broken scrape told apart from a real listing change (PRD Open Question 1)? False staleness trains the team to ignore the flag. — Owner: user. Block: no.
 - **Risk:** Sequenced after both audits and notes exist, because its two invariants — notes survive a re-fetch, audits are flagged and never silently re-run or removed — can only be verified once there is something to preserve. A re-fetch that fails must leave the stored listing untouched.
-- **Status:** proposed
+- **Status:** in-progress
 
 ### S-10: Archive and restore listings
 
@@ -240,7 +240,7 @@ None. Every absent or partial layer in the Baseline is first needed by a user-fa
 
 ## Open Roadmap Questions
 
-1. **How is a parser failure told apart from a real listing change?** A broken scrape returns different data and would mark an audit stale for the wrong reason; repeated false staleness trains the team to ignore the flag. Surfaced during the Socratic round on FR-009 and left unresolved. — Owner: user. Block: no (affects S-09).
+1. ~~**How is a parser failure told apart from a real listing change?**~~ Resolved 2026-10-09 in S-09 (decided in its plan): a field the saved listing states and the re-fetched one no longer does halts the save until the member overwrites deliberately; a wrongly changed value is not detected. Recorded in the PRD's resolved block under Open Questions. — Owner: user.
 2. ~~**What does "unknown" look like in the interface?**~~ Resolved 2026-09-22 in S-02: an unstated attribute reads „nie podano w ogłoszeniu", and every parameter on the card always has its row. Recorded in the PRD's resolved block under Open Questions. — Owner: user.
 3. ~~**Is a validation library acceptable for checking the audit's structured output, or does validation stay hand-rolled?**~~ Resolved in S-04 (decided in its plan, 2026-10-06): validation stays hand-rolled and no library is added. The model provider enforces the answer's shape from a JSON Schema, hand-written readers check that shape on arrival and on every read from the database (`src/lib/audit/schema.ts`), and the one check no library could make — that an excerpt really stands in the listing — is `src/lib/audit/grounding.ts`. Narrowed before that on 2026-09-22, when S-02 settled URL normalisation hand-rolled (`src/lib/otodom/url.ts`). The project rules still require the user's go-ahead before a library is added. — Owner: user.
 4. ~~**If otodom.pl starts refusing the hosting platform's requests, is the documented extraction-service fallback adopted?**~~ Resolved 2026-09-22: not adopted now; parked with its trigger condition — see "Extraction-service fallback for ingestion (Apify)" under Parked. — Owner: user.
