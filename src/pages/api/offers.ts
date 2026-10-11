@@ -1,7 +1,8 @@
 import type { APIRoute } from "astro";
 import { type LogFields, logEvent } from "@/lib/log";
 import { createClient } from "@/lib/supabase";
-import { ingestOffer, normalizeOfferUrl, type FetchEvidence, type IngestFailureReason } from "@/lib/otodom";
+import { ingestOffer, normalizeOfferUrl } from "@/lib/otodom";
+import { INGEST_OUTCOME, fetchFields, ingestFailureMessage } from "@/lib/otodom/failure";
 
 const NOT_CONFIGURED = "Supabase nie jest skonfigurowany — nie można zapisać oferty.";
 const SAVE_FAILED = "Nie udało się zapisać oferty. Nic nie zostało zapisane.";
@@ -12,71 +13,7 @@ const TWIN_NOT_OPENED =
   "To ogłoszenie jest już zapisane, ale nie udało się otworzyć jego karty. Poszukaj go na liście ofert.";
 const UNIQUE_VIOLATION = "23505";
 
-/** One reason, one distinguishable message. A new reason fails the exhaustiveness check below. */
-function failureMessage(reason: IngestFailureReason, status?: number): string {
-  switch (reason) {
-    case "empty":
-    case "malformed":
-      return "To nie wygląda na poprawny adres URL.";
-    case "foreign_host":
-      return "Vetpad obsługuje wyłącznie ogłoszenia z otodom.pl.";
-    case "not_an_offer":
-      return "Ten adres nie prowadzi do ogłoszenia otodom.pl.";
-    case "not_for_sale":
-      return "Vetpad służy do kupowania mieszkań — to ogłoszenie dotyczy wynajmu.";
-    case "not_a_flat":
-      return "Vetpad obsługuje wyłącznie mieszkania — to ogłoszenie dotyczy innego rodzaju nieruchomości.";
-    case "not_found":
-    case "expired":
-    case "unexpected_landing":
-      return "Ogłoszenie nie istnieje lub wygasło. Nic nie zostało zapisane.";
-    case "challenged":
-      return "otodom.pl zablokował pobranie ogłoszenia — odpowiedział stroną zabezpieczającą przed automatami. Nic nie zostało zapisane — spróbuj ponownie później.";
-    case "http_denied":
-      // A refusal can come with 200 — a redirect off otodom — and that status explains nothing.
-      return `otodom.pl odmówił pobrania ogłoszenia${status === undefined || status < 400 ? "" : ` (HTTP ${status})`}. Nic nie zostało zapisane — spróbuj ponownie za chwilę.`;
-    case "upstream_error":
-      return `otodom.pl jest chwilowo niedostępny (HTTP ${status ?? "?"}). Nic nie zostało zapisane — spróbuj ponownie za chwilę.`;
-    case "data_missing":
-      return "otodom.pl przysłał stronę bez danych ogłoszenia — mógł zablokować pobranie albo zmienić format strony. Nic nie zostało zapisane.";
-    case "shape_changed":
-      return "Nie udało się odczytać treści ogłoszenia — strona otodom.pl mogła zmienić format. Nic nie zostało zapisane.";
-    case "timeout":
-      return "Pobieranie ogłoszenia trwało dłużej niż 45 sekund. Nic nie zostało zapisane — spróbuj ponownie.";
-    case "network":
-      return "Nie udało się połączyć z otodom.pl. Nic nie zostało zapisane.";
-    default: {
-      const unhandled: never = reason;
-      return unhandled;
-    }
-  }
-}
-
 type Outcome = "started" | "saved" | "duplicate" | "refused" | "failed";
-
-/**
- * A refusal the product expects, or a failure somebody has to look at. Stands beside
- * `failureMessage` and is exhaustive the same way: a new reason without an entry here fails
- * `npx astro check`.
- */
-const INGEST_OUTCOME: Record<IngestFailureReason, "refused" | "failed"> = {
-  empty: "refused",
-  malformed: "refused",
-  foreign_host: "refused",
-  not_an_offer: "refused",
-  not_for_sale: "refused",
-  not_a_flat: "refused",
-  not_found: "refused",
-  expired: "refused",
-  challenged: "failed",
-  http_denied: "failed",
-  upstream_error: "failed",
-  unexpected_landing: "failed",
-  data_missing: "failed",
-  shape_changed: "failed",
-  timeout: "failed",
-  network: "failed",
-};
 
 /** The client is untyped; the reads below select `id` alone. */
 interface OfferId {
@@ -101,27 +38,6 @@ function dbFields(error: { code: string; message: string; hint: string }, status
   return { db_code: error.code, db_message: error.message, db_hint: error.hint, db_status: status };
 }
 
-/**
- * What a failed fetch learned about the answer it got, key by key. Ingestion hands it over for the
- * `fetch` stage alone; a refusal from the URL or the mapper has none, and adds nothing.
- */
-function fetchFields(evidence: FetchEvidence = {}) {
-  return {
-    landed_host: evidence.landedHost,
-    landed_path: evidence.landedPath,
-    landed_listing: evidence.landedListing,
-    content_type: evidence.contentType,
-    body_length: evidence.bodyLength,
-    marker_present: evidence.markerPresent,
-    cf_mitigated: evidence.cfMitigated,
-    retry_after: evidence.retryAfter,
-    error_name: evidence.errorName,
-    error_message: evidence.errorMessage,
-    error_cause: evidence.errorCause,
-    phase: evidence.phase,
-  };
-}
-
 export const POST: APIRoute = async (context) => {
   const fail = (message: string) => context.redirect(`/dashboard?error=${encodeURIComponent(message)}`);
 
@@ -143,13 +59,13 @@ export const POST: APIRoute = async (context) => {
   } catch {
     // A body that is not a form (a hand-crafted request) reads as an empty field, never a 500.
     report("refused", { stage: "body", reason: "unreadable_body", user_id: user.id });
-    return fail(failureMessage("empty"));
+    return fail(ingestFailureMessage("empty", undefined, "add"));
   }
   const rawUrl = form.get("url");
   const normalized = normalizeOfferUrl(typeof rawUrl === "string" ? rawUrl : "");
   if (!normalized.ok) {
     report("refused", { stage: "url", reason: normalized.reason, user_id: user.id });
-    return fail(failureMessage(normalized.reason));
+    return fail(ingestFailureMessage(normalized.reason, undefined, "add"));
   }
 
   const ids = { user_id: user.id, listing: listingToken(normalized.url) };
@@ -182,7 +98,7 @@ export const POST: APIRoute = async (context) => {
       detail: result.detail,
       ...fetchFields(result.evidence),
     });
-    return fail(failureMessage(result.reason, result.status));
+    return fail(ingestFailureMessage(result.reason, result.status, "add"));
   }
 
   const saving = { ...ids, otodom_id: result.offer.otodom_id };

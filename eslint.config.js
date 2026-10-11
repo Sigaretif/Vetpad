@@ -114,9 +114,10 @@ const consoleConfig = defineConfig(
 // the code holds it — the audit, the only code that talks to the model provider, cannot import the
 // notes module. The regex takes the module by any path: the alias (@/lib/notes), a relative one
 // (../notes, ../../lib/notes) and either with a file extension. src/pages/api/audits.ts is named
-// before it exists, so the rule binds the moment the file is created. No other block sets
-// no-restricted-imports; one that starts to must merge with this pattern, since flat config
-// replaces a rule's options rather than adding to them.
+// before it exists, so the rule binds the moment the file is created. refetchNoNotesConfig below
+// is the only other block that sets no-restricted-imports, for files this one does not cover; a
+// block whose files overlap either must merge the patterns, since flat config replaces a rule's
+// options rather than adding to them.
 const auditNoNotesConfig = defineConfig({
   files: ["src/lib/audit/**", "src/pages/api/audits.ts"],
   rules: {
@@ -128,6 +129,27 @@ const auditNoNotesConfig = defineConfig({
             regex: "(?:^|/)notes(?:\\.[cm]?[jt]sx?)?$",
             message:
               "The audit must not import the notes module: members' notes never reach the model provider (CLAUDE.md, Secrets and data access).",
+          },
+        ],
+      },
+    ],
+  },
+});
+
+// Human-authored notes are never overwritten by machine action (CLAUDE.md, Product invariants): a
+// re-fetch replaces scraped listing data only. The re-fetch route and its rules get the same
+// structural guard as the audit — they cannot import the notes module, by any path.
+const refetchNoNotesConfig = defineConfig({
+  files: ["src/pages/api/offer-refetch.ts", "src/lib/offer-refetch.ts"],
+  rules: {
+    "no-restricted-imports": [
+      "error",
+      {
+        patterns: [
+          {
+            regex: "(?:^|/)notes(?:\\.[cm]?[jt]sx?)?$",
+            message:
+              "A re-fetch must not import the notes module: human-authored notes are never overwritten by machine action (CLAUDE.md, Product invariants).",
           },
         ],
       },
@@ -154,6 +176,7 @@ export default defineConfig(
   tokensOnlyConfig,
   consoleConfig,
   auditNoNotesConfig,
+  refetchNoNotesConfig,
   scriptsConfig,
   eslintPluginPrettier,
 );

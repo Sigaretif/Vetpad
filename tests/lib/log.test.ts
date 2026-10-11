@@ -174,6 +174,67 @@ describe("logEvent", () => {
     ]);
   });
 
+  it("writes the fields of a re-fetch's entry and keeps a false `changed`", () => {
+    const captured = captureConsole();
+    logEvent("info", {
+      event: "offer_refetch",
+      outcome: "saved",
+      stage: "update",
+      user_id: USER_ID,
+      offer_id: "0b9f0c2e-7d1a-4c55-9a53-0000000f37c4",
+      changed: false,
+    });
+    logEvent("info", {
+      event: "offer_refetch",
+      outcome: "held",
+      stage: "lost_facts",
+      lost_columns: "rent,rent_currency",
+    });
+
+    // A re-fetch that found the same listing says so: `false` is an answer, not an absence. The
+    // columns a re-fetch would lose are named, never quoted.
+    expect(captured.entries()).toStrictEqual([
+      {
+        method: "info",
+        args: [
+          {
+            level: "info",
+            event: "offer_refetch",
+            outcome: "saved",
+            stage: "update",
+            user_id: USER_ID,
+            offer_id: "0b9f0c2e-7d1a-4c55-9a53-0000000f37c4",
+            changed: false,
+          },
+        ],
+      },
+      {
+        method: "info",
+        args: [
+          {
+            level: "info",
+            event: "offer_refetch",
+            outcome: "held",
+            stage: "lost_facts",
+            lost_columns: "rent,rent_currency",
+          },
+        ],
+      },
+    ]);
+  });
+
+  // What a re-fetch compares never has a key of its own: the values a column held, before or
+  // after, cannot reach an entry.
+  it("leaves out what a lost column held, whatever the caller passes", () => {
+    const captured = captureConsole();
+    logEvent(
+      "info",
+      untyped({ event: "offer_refetch", lost_values: "650 PLN", rent: 650, source_url: "https://www.otodom.pl/x" }),
+    );
+
+    expect(captured.entries()).toStrictEqual([{ method: "info", args: [{ level: "info", event: "offer_refetch" }] }]);
+  });
+
   it("writes the provider's name for its error on a failed audit's entry", () => {
     const captured = captureConsole();
     logEvent("error", {

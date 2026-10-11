@@ -52,6 +52,8 @@ const FIELDS = [
   "criteria_revision",
   "listing_chars",
   "stream_events",
+  "changed",
+  "lost_columns",
 ] as const;
 
 const MAX_TEXT_LENGTH = 300;

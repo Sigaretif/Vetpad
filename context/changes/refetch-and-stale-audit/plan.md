@@ -687,28 +687,28 @@ od pierwszego wyświetlenia. Wdrożenie nie wymaga `supabase db push`.
 
 #### Automated
 
-- [x] 1.1 Testy jednostkowe przechodzą: `npm test`
-- [x] 1.2 Typy przechodzą: `npx astro sync && npx astro check`
-- [x] 1.3 Lint przechodzi: `npm run lint`
-- [x] 1.4 Stryker na regule aktualności nie zostawia nieocenionego ocalałego mutanta: `npx stryker run --mutate "src/lib/audit/freshness.ts"`
-- [x] 1.5 Stryker na regule utraconych pól nie zostawia nieocenionego ocalałego mutanta: `npx stryker run --mutate "src/lib/offer-refetch.ts"`
+- [x] 1.1 Testy jednostkowe przechodzą: `npm test` — 0f57179
+- [x] 1.2 Typy przechodzą: `npx astro sync && npx astro check` — 0f57179
+- [x] 1.3 Lint przechodzi: `npm run lint` — 0f57179
+- [x] 1.4 Stryker na regule aktualności nie zostawia nieocenionego ocalałego mutanta: `npx stryker run --mutate "src/lib/audit/freshness.ts"` — 0f57179
+- [x] 1.5 Stryker na regule utraconych pól nie zostawia nieocenionego ocalałego mutanta: `npx stryker run --mutate "src/lib/offer-refetch.ts"` — 0f57179
 
 #### Manual
 
-- [x] 1.6 Karta oferty z audytem i tablica renderują się jak przed fazą (brak regresji po zmianie kształtu `AuditIndex`)
+- [x] 1.6 Karta oferty z audytem i tablica renderują się jak przed fazą (brak regresji po zmianie kształtu `AuditIndex`) — 0f57179
 
 ### Phase 2: Trasa ponownego pobrania
 
 #### Automated
 
-- [ ] 2.1 Testy jednostkowe i testy trasy przechodzą: `npm test`
-- [ ] 2.2 Typy przechodzą: `npx astro sync && npx astro check`
-- [ ] 2.3 Lint przechodzi, a import `@/lib/notes` dodany na próbę w trasie go wywraca: `npm run lint`
-- [ ] 2.4 Budowanie przechodzi bez sekretów: `npm run build`
+- [x] 2.1 Testy jednostkowe i testy trasy przechodzą: `npm test`
+- [x] 2.2 Typy przechodzą: `npx astro sync && npx astro check`
+- [x] 2.3 Lint przechodzi, a import `@/lib/notes` dodany na próbę w trasie go wywraca: `npm run lint`
+- [x] 2.4 Budowanie przechodzi bez sekretów: `npm run build`
 
 #### Manual
 
-- [ ] 2.5 Żądanie `POST /api/offer-refetch` bez sesji przekierowuje na `/auth/signin`, a z sesją i nieistniejącym `offer_id` wraca na `/dashboard` z komunikatem
+- [x] 2.5 Żądanie `POST /api/offer-refetch` bez sesji przekierowuje na `/auth/signin`, a z sesją i nieistniejącym `offer_id` wraca na `/dashboard` z komunikatem
 
 ### Phase 3: Karta oferty
 
