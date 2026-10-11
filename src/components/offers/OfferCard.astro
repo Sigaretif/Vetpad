@@ -2,6 +2,7 @@
 import { TriangleAlert } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { buttonVariants } from "@/components/ui/button";
+import ArchiveForm from "@/components/offers/ArchiveForm";
 import { Card, CardContent } from "@/components/ui/card";
 import OfferDescription from "@/components/offers/OfferDescription.astro";
 import OfferGallery from "@/components/offers/OfferGallery.astro";
@@ -11,6 +12,7 @@ import Unstated from "@/components/offers/Unstated.astro";
 import { saverName, type Saver } from "@/lib/members";
 import { formatClock, formatTimestamp } from "@/lib/format";
 import { mapSearchUrl } from "@/lib/map-link";
+import { archiveOf, type OfferArchiveState } from "@/lib/offer-archive";
 import { LOST_FACT_LABELS, readLostTokens } from "@/lib/offer-refetch";
 import { formatMoney } from "@/lib/otodom/labels";
 import type { OfferRow } from "@/lib/otodom/types";
@@ -31,9 +33,34 @@ interface Props {
   lost?: string | null;
   /** The re-fetch block's id: the route redirects to `#pobranie`; the kitchen sink passes unique values. */
   refetchAnchorId?: string;
+  /**
+   * The offer's archive state with its archiver named (`archiveOf` in `@/lib/offer-archive`).
+   * Left out, the state is still the row's: an archived offer then names nobody.
+   */
+  archive?: OfferArchiveState | null;
+  /** A failed archiving or restore, from the card's `?error=…&form=archive` — shown in the archive block, as text. */
+  archiveError?: string | null;
+  /** The archive block's id: the route redirects to `#archiwum`; the kitchen sink passes unique values. */
+  archiveAnchorId?: string;
 }
 
-const { offer, saver, refetchError = null, lost = null, refetchAnchorId = "pobranie" } = Astro.props;
+const {
+  offer,
+  saver,
+  refetchError = null,
+  lost = null,
+  refetchAnchorId = "pobranie",
+  archive,
+  archiveError = null,
+  archiveAnchorId = "archiwum",
+} = Astro.props;
+
+// Whether the offer is archived is the row's fact alone (FR-014); the prop only adds who archived
+// it. `unknown` names nobody — and is never read as a deleted account.
+const archived = archive ?? archiveOf(offer, { kind: "unknown" });
+// „przez" takes the accusative `saverName` gives. Rendered as text only: never `set:html`, never
+// an attribute, never a prop of the island beside it.
+const archivedBy = archived === null ? null : saverName(archived.archiver);
 
 // A re-fetch that stopped on facts the stored listing states and the fetched one does not
 // (`@/lib/offer-refetch`). Empty — no `lost`, or nothing in it that names a column — is a plain
@@ -91,6 +118,38 @@ const linkClass = cn(buttonVariants({ variant: "link" }), "h-auto p-0");
           )}
         </div>
       )}
+      <div
+        id={archiveAnchorId}
+        data-offer-archive={archived === null ? "live" : "archived"}
+        class="border-border mt-4 flex scroll-mt-4 flex-col gap-3 border-t pt-4"
+      >
+        {archived === null ? (
+          <p class="text-muted-foreground text-sm">
+            Zarchiwizowana oferta znika z tablicy. Jej notatki i wynik audytu zostają, a przywrócić ją może każdy
+            członek zespołu.
+          </p>
+        ) : (
+          <p class="text-sm">
+            <span class="font-semibold">W archiwum</span> od{" "}
+            <time datetime={archived.archivedAt} class="wrap-anywhere">
+              {formatTimestamp(archived.archivedAt)}
+            </time>
+            {archivedBy !== null && (
+              <>
+                {" "}
+                — zarchiwizowana przez <span class="wrap-anywhere">{archivedBy}</span>
+              </>
+            )}
+            <span class="text-muted-foreground">. Oferty nie ma na tablicy, dopóki ktoś jej nie przywróci.</span>
+          </p>
+        )}
+        <ArchiveForm
+          client:load
+          offerId={offer.id}
+          intent={archived === null ? "archive" : "restore"}
+          serverError={archiveError}
+        />
+      </div>
       <div
         id={refetchAnchorId}
         data-refetch-state={lostColumns.length > 0 ? "lost" : "default"}

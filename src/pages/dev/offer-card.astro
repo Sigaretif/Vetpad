@@ -1,6 +1,7 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import Banner from "@/components/Banner.astro";
+import ArchiveNotice from "@/components/offers/ArchiveNotice.astro";
 import DuplicateNotice from "@/components/offers/DuplicateNotice.astro";
 import type { AuditRunnerPreview } from "@/components/offers/AuditRunner";
 import OfferAudit from "@/components/offers/OfferAudit.astro";
@@ -10,9 +11,17 @@ import type { AuditFreshness } from "@/lib/audit/freshness";
 import type { OfferAudit as OfferAuditData } from "@/lib/audit/store";
 import type { Saver } from "@/lib/members";
 import type { OfferNotes } from "@/lib/notes";
+import type { OfferArchiveState } from "@/lib/offer-archive";
 import { ingestFailureMessage } from "@/lib/otodom/failure";
 import type { OfferRow } from "@/lib/otodom/types";
 import {
+  archivedByDeleted,
+  archivedByDeletedOffer,
+  archivedByLongEmail,
+  archivedByMember,
+  archivedBySelf,
+  archivedByUnknown,
+  archivedOffer,
   auditDone,
   auditEmptyCategories,
   auditFailedKept,
@@ -72,6 +81,9 @@ interface State {
   /** The card's `?lost=`, as the address would carry it. */
   lost?: string;
   startEditing?: boolean;
+  /** Who archived the offer, as the page would have named them; the state itself is the row's. */
+  archive?: OfferArchiveState;
+  archiveError?: string;
 }
 
 /** The freshness a state passes down: its own, or `fresh` for a stored result and `null` without one. */
@@ -80,8 +92,11 @@ function freshnessOf(audit: OfferAuditData, freshness: AuditFreshness | undefine
   return freshness ?? freshAudit;
 }
 
-// Each state renders the whole view (card + team column); `notatki-<n>`, `audyt-<n>` and
-// `pobranie-<n>` keep the sections' ids unique on one page. Every card carries the re-fetch block,
+// Each state renders the whole view (card + team column); `notatki-<n>`, `audyt-<n>`,
+// `pobranie-<n>` and `archiwum-<n>` keep the sections' ids unique on one page. Every card carries
+// the archive block too, and the notices above carry its restore button: it posts to
+// /api/offer-archive for a fixture offer that does not exist, and the route answers
+// `offer_missing` without writing anything. Every card carries the re-fetch block,
 // and the duplicate notices above carry the same button: it posts to /api/offer-refetch for a
 // fixture offer that does not exist, and the route answers `offer_missing` before it fetches
 // anything, so a click here cannot reach otodom.pl. Nothing is sent without a click. The editor islands post to /api/notes, and the audit buttons
@@ -89,6 +104,9 @@ function freshnessOf(audit: OfferAuditData, freshness: AuditFreshness | undefine
 // before it looks for a provider key, so a click here cannot reach the model provider.
 // A failed re-fetch in the route's own words (`@/lib/otodom/failure`).
 const REFETCH_TIMED_OUT = ingestFailureMessage("timeout", undefined, "refetch");
+// A failed archiving and a failed restore, in the words of POST /api/offer-archive.
+const ARCHIVE_FAILED = "Nie udało się zarchiwizować oferty. Oferta pozostała na tablicy — spróbuj ponownie.";
+const RESTORE_FAILED = "Nie udało się przywrócić oferty. Oferta pozostała w archiwum — spróbuj ponownie.";
 const states: State[] = [
   {
     caption:
@@ -186,6 +204,67 @@ const states: State[] = [
     auditAvailable: true,
     lost: "rent,price,nieznane-pole,features",
   },
+  {
+    caption:
+      "Nieudana archiwizacja żywej oferty (komunikat w bloku archiwum, nie przy pobraniu ani notatkach) · audyt: brak · notatki: brak",
+    offer: fullOffer,
+    saver: memberSaver,
+    notes: noNotes,
+    audit: auditNone,
+    auditAvailable: true,
+    archiveError: ARCHIVE_FAILED,
+  },
+  {
+    caption:
+      "W archiwum · zarchiwizowana przez członka zespołu · audyt: brak wyniku, bez przycisku · notatki: własna w podglądzie (działają w archiwum)",
+    offer: archivedOffer,
+    saver: memberSaver,
+    notes: fullNotes,
+    audit: auditNone,
+    auditAvailable: true,
+    archive: archivedByMember,
+  },
+  {
+    caption:
+      "W archiwum · zarchiwizowana przez oglądającego (Ciebie) · audyt: wynik aktualny, bez przycisku · notatki: brak",
+    offer: archivedOffer,
+    saver: selfSaver,
+    notes: noNotes,
+    audit: auditDone,
+    auditAvailable: true,
+    archive: archivedBySelf,
+  },
+  {
+    caption:
+      "W archiwum · zarchiwizowana przez osobę z usuniętym kontem · audyt: wynik nieaktualny, bez zachęty do ponowienia · notatki: brak",
+    offer: archivedByDeletedOffer,
+    saver: memberSaver,
+    notes: noNotes,
+    audit: auditDone,
+    auditAvailable: true,
+    freshness: staleListing,
+    archive: archivedByDeleted,
+  },
+  {
+    caption:
+      "W archiwum · archiwizujący nieustalony (sama data, nigdy „usunięte konto”) · nieudane przywrócenie · audyt: próba w toku przy zachowanym wyniku · notatki: brak",
+    offer: archivedOffer,
+    saver: memberSaver,
+    notes: noNotes,
+    audit: auditRerunning,
+    auditAvailable: true,
+    archive: archivedByUnknown,
+    archiveError: RESTORE_FAILED,
+  },
+  {
+    caption: "W archiwum · zarchiwizowana przez członka z długim adresem (zawijanie w bloku archiwum)",
+    offer: archivedOffer,
+    saver: memberSaver,
+    notes: noNotes,
+    audit: auditNone,
+    auditAvailable: false,
+    archive: archivedByLongEmail,
+  },
 ];
 
 interface AuditState {
@@ -199,6 +278,8 @@ interface AuditState {
   /** Left out, a stored result reads as fresh. */
   freshness?: AuditFreshness;
   runnerPreview?: AuditRunnerPreview;
+  /** The offer is in the archive: the section renders no island, whatever the audit's data says. */
+  archived?: boolean;
 }
 
 // The audit section on its own, in a column as wide as the team column (24rem): one entry per
@@ -355,6 +436,55 @@ const auditStates: AuditState[] = [
     available: false,
     freshness: staleBoth,
   },
+  {
+    state: "audit-archived-none",
+    matrix: "disabled",
+    caption: "oferta w archiwum, bez wyniku — zdanie zamiast przycisku",
+    audit: auditNone,
+    available: true,
+    archived: true,
+  },
+  {
+    state: "audit-archived-done",
+    matrix: "disabled",
+    caption: "oferta w archiwum, wynik aktualny — wynik czytelny, bez przycisku",
+    audit: auditDone,
+    available: true,
+    archived: true,
+  },
+  {
+    state: "audit-archived-stale",
+    matrix: "disabled",
+    caption: "oferta w archiwum, wynik nieaktualny — oznaczenie zostaje, zachęta ustępuje zdaniu o archiwum",
+    audit: auditDone,
+    available: true,
+    freshness: staleBoth,
+    archived: true,
+  },
+  {
+    state: "audit-archived-running",
+    matrix: "disabled",
+    caption: "oferta w archiwum, próba w toku — próba dobiega końca, drugiej nie da się uruchomić",
+    audit: auditRunning,
+    available: true,
+    archived: true,
+  },
+  {
+    state: "audit-archived-failed",
+    matrix: "error",
+    caption: "oferta w archiwum, nieudana próba przy zachowanym wyniku — powód jako tekst, bez przycisku",
+    audit: auditFailedKept,
+    available: true,
+    archived: true,
+  },
+  {
+    state: "audit-archived-broken",
+    matrix: "error",
+    caption: "oferta w archiwum, zapisany wynik, którego nie da się odczytać — bez zachęty do zastąpienia",
+    audit: auditResultBroken,
+    available: true,
+    archived: true,
+  },
 ];
 
 const stateClass = "border-border flex flex-col gap-6 border-t pt-6";
@@ -368,6 +498,19 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
     <DuplicateNotice slot="notice" saver={selfSaver} offerId={fullOffer.id} />
     <DuplicateNotice slot="notice" saver={deletedSaver} offerId={fullOffer.id} />
     <DuplicateNotice slot="notice" saver={unknownSaver} offerId={fullOffer.id} />
+    <DuplicateNotice slot="notice" saver={memberSaver} offerId={archivedOffer.id} archive={archivedByMember} />
+    <DuplicateNotice slot="notice" saver={unknownSaver} offerId={archivedOffer.id} archive={archivedByUnknown} />
+    <DuplicateNotice
+      slot="notice"
+      saver={longEmailSaver}
+      offerId={archivedByDeletedOffer.id}
+      archive={archivedByDeleted}
+    />
+    <ArchiveNotice slot="notice" result="archived" archive={archivedBySelf} />
+    <ArchiveNotice slot="notice" result="restored" archive={null} />
+    <ArchiveNotice slot="notice" result="already-archived" archive={archivedByMember} />
+    <ArchiveNotice slot="notice" result="already-archived" archive={archivedByUnknown} />
+    <ArchiveNotice slot="notice" result="already-live" archive={null} />
     <Banner slot="notice" variant="warning">
       <strong>Uwaga:</strong> Supabase nie jest skonfigurowany — funkcje uwierzytelniania są wyłączone.{" "}
       <a href="https://github.com/Sigaretif/Vetpad#supabase-configuration" target="_blank" rel="noopener noreferrer">
@@ -386,7 +529,10 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
     <p class="text-muted-foreground text-sm">
       Strona testowa (tylko <code>astro dev</code>): karta oferty w każdym stanie, z danych testowych. Zmiana wyglądu
       karty przechodzi przez zrzut tej strony. Każdy stan pokazuje też kolumnę zespołu — sekcję „Audyt AI” i „Notatki
-      zespołu” — w innym wariancie. Pod kartami sekcja audytu stoi osobno w każdym stanie swojej macierzy.
+      zespołu” — w innym wariancie. Pod kartami sekcja audytu stoi osobno w każdym stanie swojej macierzy. Stany
+      archiwum: karta zarchiwizowana przez członka, oglądającego, usunięte konto i archiwizującego nieustalonego, sekcja
+      audytu w archiwum (<code>audit-archived-*</code>), a u góry powiadomienie o duplikacie zarchiwizowanej oferty i
+      komunikaty po archiwizacji i przywróceniu.
     </p>
 
     {states.map((state, index) => (
@@ -406,6 +552,9 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
           notesAnchorId={`notatki-${index + 1}`}
           auditAnchorId={`audyt-${index + 1}`}
           refetchAnchorId={`pobranie-${index + 1}`}
+          archive={state.archive}
+          archiveError={state.archiveError}
+          archiveAnchorId={`archiwum-${index + 1}`}
         />
       </div>
     ))}
@@ -423,6 +572,7 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
             freshness={freshnessOf(state.audit, state.freshness)}
             anchorId={`audyt-${state.state}`}
             runnerPreview={state.runnerPreview}
+            archived={state.archived}
           />
         </div>
       </div>

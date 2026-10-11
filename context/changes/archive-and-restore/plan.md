@@ -652,31 +652,31 @@ Smoke dowodzi na żywej lokalnej bazie, że archiwizacja nie rusza notatek i że
 
 #### Automated
 
-- [x] 2.1 Testy tras przechodzą: `npm test`
-- [x] 2.2 Kontrola typów przechodzi: `npx astro sync && npx astro check`
-- [x] 2.3 Lint przechodzi, w tym zakaz importu notatek: `npm run lint`
-- [x] 2.4 Build przechodzi bez sekretów: `npm run build`
+- [x] 2.1 Testy tras przechodzą: `npm test` — 6284cf3
+- [x] 2.2 Kontrola typów przechodzi: `npx astro sync && npx astro check` — 6284cf3
+- [x] 2.3 Lint przechodzi, w tym zakaz importu notatek: `npm run lint` — 6284cf3
+- [x] 2.4 Build przechodzi bez sekretów: `npm run build` — 6284cf3
 
 #### Manual
 
-- [x] 2.5 `curl` z sesją na lokalnej bazie: `POST /api/offer-archive` z `intent=archive` ustawia w wierszu czas bazy i id zalogowanego, a `intent=restore` czyści obie kolumny
+- [x] 2.5 `curl` z sesją na lokalnej bazie: `POST /api/offer-archive` z `intent=archive` ustawia w wierszu czas bazy i id zalogowanego, a `intent=restore` czyści obie kolumny — 6284cf3
 
 ### Phase 3: Karta oferty
 
 #### Automated
 
-- [ ] 3.1 Testy renderowania przechodzą: `npm test`
-- [ ] 3.2 Kontrola typów przechodzi: `npx astro sync && npx astro check`
-- [ ] 3.3 Lint przechodzi, w tym `tokensOnlyConfig`: `npm run lint`
-- [ ] 3.4 Build przechodzi: `npm run build`
+- [x] 3.1 Testy renderowania przechodzą: `npm test`
+- [x] 3.2 Kontrola typów przechodzi: `npx astro sync && npx astro check`
+- [x] 3.3 Lint przechodzi, w tym `tokensOnlyConfig`: `npm run lint`
+- [x] 3.4 Build przechodzi: `npm run build`
 
 #### Manual
 
-- [ ] 3.5 Na lokalnej bazie: „Zarchiwizuj” na karcie pokazuje komunikat, stan z własnym podpisem („przez Ciebie”) i przycisk „Przywróć”; „Przywróć” wraca do stanu wyjściowego
-- [ ] 3.6 Karta zarchiwizowana przez inne konto z `supabase/seed.sql` pokazuje jego adres email
+- [x] 3.5 Na lokalnej bazie: „Zarchiwizuj” na karcie pokazuje komunikat, stan z własnym podpisem („przez Ciebie”) i przycisk „Przywróć”; „Przywróć” wraca do stanu wyjściowego
+- [x] 3.6 Karta zarchiwizowana przez inne konto z `supabase/seed.sql` pokazuje jego adres email
 - [ ] 3.7 Na zarchiwizowanej ofercie sekcja audytu nie ma przycisku, a notatka i ponowne pobranie dają się wysłać
-- [ ] 3.8 Wklejenie adresu zarchiwizowanej oferty w formularzu na `/dashboard` otwiera kartę z komunikatem o archiwum i przyciskiem przywrócenia
-- [ ] 3.9 `/dev/offer-card` i `/dev/forms` renderują nowe stany pod `npm run dev`
+- [x] 3.8 Wklejenie adresu zarchiwizowanej oferty w formularzu na `/dashboard` otwiera kartę z komunikatem o archiwum i przyciskiem przywrócenia
+- [x] 3.9 `/dev/offer-card` i `/dev/forms` renderują nowe stany pod `npm run dev`
 
 ### Phase 4: Tablica i strona archiwum
 

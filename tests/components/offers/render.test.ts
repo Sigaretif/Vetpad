@@ -2,6 +2,7 @@ import { getContainerRenderer } from "@astrojs/react/container-renderer";
 import { loadRenderers } from "astro:container";
 import { experimental_AstroContainer as AstroContainer } from "astro/container";
 import { beforeAll, describe, expect, it } from "vitest";
+import ArchiveNotice from "@/components/offers/ArchiveNotice.astro";
 import DuplicateNotice from "@/components/offers/DuplicateNotice.astro";
 import OfferAudit from "@/components/offers/OfferAudit.astro";
 import OfferBoardItem from "@/components/offers/OfferBoardItem.astro";
@@ -13,8 +14,11 @@ import type { AuditFreshness } from "@/lib/audit/freshness";
 import type { StoredFindings } from "@/lib/audit/schema";
 import type { AuditAttempt, OfferAudit as OfferAuditData, StoredAudit } from "@/lib/audit/store";
 import type { Saver } from "@/lib/members";
+import type { OfferArchiveState } from "@/lib/offer-archive";
 import type { OfferImage, OfferRow } from "@/lib/otodom/types";
 import {
+  archivedByDeletedOffer,
+  archivedOffer,
   failedNotes,
   fullOffer,
   malformedImagesOffer,
@@ -1210,5 +1214,440 @@ describe("DuplicateNotice: the notice offers a manual re-fetch (FR-005)", () => 
     expect(visibleText(html)).toContain("Ta oferta była już zapisana — otwieramy istniejącą kartę.");
     expect(visibleText(html)).not.toContain("usuniętym kontem");
     expect(buttonsIn(html)).toEqual([{ label: REFETCH, disabled: false }]);
+  });
+});
+
+// The archive on the offer card (FR-014, FR-005, FR-010). Expected outcomes are written by hand
+// from the contract in context/changes/archive-and-restore/plan.md (Phase 3): whether an offer is
+// archived is the row's `archived_at` and stands in `data-offer-archived`; the card says since
+// when and by whom, as text, and holds the form that changes the state; in the archive the audit
+// section renders no island in any state of the audit's data while the stored result and its mark
+// stay; `?archive=` only picks one of four sentences; the duplicate notice of an archived offer
+// offers the restore. `archivedOffer` was archived at 16:20 UTC on 10 October 2026 — 18:20 in Poland.
+
+const ARCHIVE = "Zarchiwizuj";
+const RESTORE = "Przywróć";
+const ARCHIVED_ON = "10 października 2026";
+const AUDIT_AFTER_RESTORE = "Ta oferta jest w archiwum — audyt będzie można uruchomić po jej przywróceniu.";
+const DELETED_ACCOUNT = "usuniętym kontem";
+
+function archivedBy(archiver: Saver): OfferArchiveState {
+  return { archivedAt: "2026-10-10T16:20:00Z", archiver };
+}
+
+/** The card's archive block: from its id to the re-fetch block that follows it. */
+function archiveBlock(html: string): string {
+  const start = html.indexOf('id="archiwum"');
+  if (start === -1) throw new Error("expected the archive block to render");
+  const end = html.indexOf('id="pobranie"', start);
+  if (end === -1) throw new Error("expected the re-fetch block to follow the archive block");
+  return withoutIslandProps(html.slice(start, end));
+}
+
+function offerView(props: Record<string, unknown>): Promise<string> {
+  return container.renderToString(OfferView, {
+    props: {
+      offer: fullOffer,
+      saver: memberSaver,
+      notes: noNotes,
+      audit: NEVER_AUDITED,
+      auditAvailable: true,
+      freshness: null,
+      ...props,
+    },
+  });
+}
+
+describe("OfferView: the archive state is the row's, with the form that changes it (FR-014)", () => {
+  it("control: a live offer says it is not archived and offers to archive it", async () => {
+    const html = await offerView({});
+    const block = archiveBlock(html);
+
+    expect(html).toContain('data-offer-archived="false"');
+    expect(html).not.toContain('data-offer-archived="true"');
+    expect(visibleText(block)).not.toContain("W archiwum");
+    expect(block).toContain('action="/api/offer-archive"');
+    expect(block).toMatch(/<form\b[^>]*method="POST"/i);
+    expect(hiddenValues(block, "offer_id")).toEqual([fullOffer.id]);
+    expect(hiddenValues(block, "intent")).toEqual(["archive"]);
+    expect(hiddenValues(block, "return")).toEqual(["card"]);
+    expect(buttonsIn(block)).toEqual([{ label: ARCHIVE, disabled: false }]);
+  });
+
+  it("says since when and by whom an archived offer is archived, and offers to restore it", async () => {
+    const html = await offerView({ offer: archivedOffer, archive: archivedBy(memberSaver) });
+    const block = archiveBlock(html);
+
+    expect(html).toContain('data-offer-archived="true"');
+    expect(html).not.toContain('data-offer-archived="false"');
+    expect(visibleText(block)).toContain(
+      `W archiwum od ${ARCHIVED_ON} — zarchiwizowana przez czlonek-zespolu@example.com.`,
+    );
+    expect(hiddenValues(block, "offer_id")).toEqual([archivedOffer.id]);
+    expect(hiddenValues(block, "intent")).toEqual(["restore"]);
+    expect(hiddenValues(block, "return")).toEqual(["card"]);
+    expect(buttonsIn(block)).toEqual([{ label: RESTORE, disabled: false }]);
+  });
+
+  it("carries nothing in the submit button but its type", async () => {
+    const block = archiveBlock(await offerView({ offer: archivedOffer, archive: archivedBy(memberSaver) }));
+    const button = /<button\b[^>]*>/.exec(block)?.[0] ?? "";
+
+    expect(button).toContain('type="submit"');
+    expect(button).not.toMatch(/\sname=/);
+    expect(button).not.toMatch(/\svalue=/);
+  });
+
+  it.each<[string, Saver, string]>([
+    ["the viewer", { kind: "self" }, `W archiwum od ${ARCHIVED_ON} — zarchiwizowana przez Ciebie.`],
+    [
+      "a deleted account",
+      { kind: "deleted" },
+      `W archiwum od ${ARCHIVED_ON} — zarchiwizowana przez osobę z usuniętym kontem.`,
+    ],
+  ])("names %s as the archiver", async (_case, archiver, expected) => {
+    const html = await offerView({ offer: archivedByDeletedOffer, archive: archivedBy(archiver) });
+
+    expect(visibleText(archiveBlock(html))).toContain(expected);
+  });
+
+  it("names nobody when the archiver could not be established — never a deleted account", async () => {
+    const html = await offerView({ offer: archivedOffer, archive: archivedBy({ kind: "unknown" }) });
+    const text = visibleText(archiveBlock(html));
+
+    expect(html).toContain('data-offer-archived="true"');
+    expect(text).toContain(`W archiwum od ${ARCHIVED_ON}.`);
+    expect(text).not.toContain("przez");
+    expect(text).not.toContain(DELETED_ACCOUNT);
+    expect(buttonsIn(archiveBlock(html))).toEqual([{ label: RESTORE, disabled: false }]);
+  });
+
+  it("reads the state from the row when nobody named the archiver, and names nobody", async () => {
+    const html = await offerView({ offer: archivedOffer });
+    const text = visibleText(archiveBlock(html));
+
+    expect(html).toContain('data-offer-archived="true"');
+    expect(text).toContain(`W archiwum od ${ARCHIVED_ON}.`);
+    expect(text).not.toContain(DELETED_ACCOUNT);
+    expect(hiddenValues(archiveBlock(html), "intent")).toEqual(["restore"]);
+  });
+
+  it("renders an archiver's address that holds HTML as the text it is", async () => {
+    const email = '<img src=x onerror="alert(1)">@example.com';
+    const html = await offerView({ offer: archivedOffer, archive: archivedBy({ kind: "member", email }) });
+
+    // Were it markup, dropping the tags would have taken it out of the text.
+    expect(visibleText(archiveBlock(html))).toContain(`zarchiwizowana przez ${email}.`);
+    expect(html).not.toContain("<img src=x");
+    expect(html).not.toContain('onerror="');
+    // Text in one place: not an attribute's value and not a prop of the island beside it.
+    expect(html.split("onerror")).toHaveLength(2);
+  });
+
+  it("shows a failed archiving in the archive block, as text, and nowhere else", async () => {
+    const message = 'Nie udało się <b>zarchiwizować</b> <script>alert("x")</script>';
+    const html = await offerView({ archiveError: message });
+
+    expect(visibleText(archiveBlock(html))).toContain(message);
+    expect(archiveBlock(html)).toContain('role="alert"');
+    expect(visibleText(refetchBlock(html))).not.toContain(message);
+    expect(visibleText(withoutIslandProps(html.slice(html.indexOf('<section id="notatki"'))))).not.toContain(message);
+    expect(html).not.toContain("<b>");
+    expect(html).not.toContain("<script>alert");
+    expect(buttonsIn(archiveBlock(html))).toEqual([{ label: ARCHIVE, disabled: false }]);
+  });
+
+  it("keeps the notes and the re-fetch working on an archived offer", async () => {
+    const html = await offerView({ offer: archivedOffer, archive: archivedBy(memberSaver) });
+
+    expect(html).toContain('data-notes-state="ok"');
+    expect(html).toContain('action="/api/notes"');
+    expect(buttonsIn(refetchBlock(html))).toEqual([{ label: REFETCH, disabled: false }]);
+  });
+});
+
+describe("OfferAudit: in the archive nothing can start an audit, and the stored result stays (FR-010)", () => {
+  const timedOut: AuditAttempt = { kind: "failed", reason: "provider_timeout", message: TIMED_OUT };
+  const running: AuditAttempt = { kind: "running", startedAt: "2026-10-09T12:31:00Z", startedBy: memberSaver };
+
+  function archivedSection(
+    audit: OfferAuditData,
+    options: { available?: boolean; freshness?: AuditFreshness | null } = {},
+  ): Promise<string> {
+    return auditSection(audit, { ...options, archived: true } as Parameters<typeof auditSection>[1]);
+  }
+
+  const DATA_STATES: [string, OfferAuditData, string][] = [
+    ["an offer nobody audited", NEVER_AUDITED, "none"],
+    ["an audited offer", audited(), "done"],
+    ["a re-run in progress", audited({}, running), "running"],
+    ["a first attempt in progress", { state: "ok", attempt: running, result: null }, "running"],
+    ["a re-run that failed", audited({}, timedOut), "failed"],
+    ["an interrupted attempt", { state: "ok", attempt: { kind: "interrupted" }, result: null }, "failed"],
+    ["a stored result that does not read", { state: "broken", attempt: NO_ATTEMPT }, "broken"],
+    ["a failed read", READ_FAILED, "error"],
+  ];
+
+  it.each(DATA_STATES)("renders no island and no button for %s", async (_case, audit, state) => {
+    const html = await archivedSection(audit);
+
+    expect(html).not.toContain("<astro-island");
+    expect(html).not.toContain("data-audit-runner");
+    expect(buttonsIn(html)).toEqual([]);
+    // The audit's own attributes say what they said for a live offer.
+    expect(html).toContain(`data-audit-state="${state}"`);
+    expect(html).toContain('data-audit-available="true"');
+  });
+
+  it.each(DATA_STATES.filter(([, , state]) => state !== "error"))(
+    "control: the same section of a live offer holds the island for %s",
+    async (_case, audit, state) => {
+      const html = await auditSection(audit);
+
+      expect(html).toContain("<astro-island");
+      expect(html).toContain("data-audit-runner");
+      expect(buttonsIn(html).length).toBeGreaterThan(0);
+      expect(html).toContain(`data-audit-state="${state}"`);
+      expect(visibleText(html)).not.toContain(AUDIT_AFTER_RESTORE);
+    },
+  );
+
+  it("says in the island's place that the audit can run once the offer is restored", async () => {
+    const text = visibleText(await archivedSection(NEVER_AUDITED));
+
+    expect(text).toContain("Ta oferta nie ma jeszcze wyniku audytu.");
+    expect(text).toContain(AUDIT_AFTER_RESTORE);
+    expect(text).not.toContain(RUN);
+  });
+
+  it("keeps the stored result readable", async () => {
+    const html = await archivedSection(audited());
+    const text = visibleText(html);
+
+    expect(html).toContain('data-audit-freshness="fresh"');
+    expect(text).toContain("Wynik audytu");
+    expect(text).toContain("prowizję biura w wysokości 2% ceny");
+    expect(text).toContain("umowa najmu obowiązuje do końca 2027 roku");
+    expect(metaValue(html, "Wykonano")).toBe("8 października 2026, 14:32 przez czlonek-zespolu@example.com");
+    expect(text).toContain(AUDIT_AFTER_RESTORE);
+    expect(text).not.toContain(RERUN);
+  });
+
+  it("keeps the stale mark and lets the prompt to re-run give way to the archive sentence", async () => {
+    const html = await archivedSection(audited(), { freshness: STALE_CRITERIA });
+    const text = visibleText(html);
+
+    expect(html).toContain('data-audit-freshness="stale"');
+    expect(html).toContain('data-audit-state="done"');
+    expect(text).toContain(STALE.criteria);
+    expect(html).toMatch(/Wynik audytu\s*<\/h3>\s*<span\b[^>]*data-slot="badge"[^>]*>[\s\S]*?Nieaktualny/);
+    expect(text).not.toContain(RERUN_PROMPT);
+    expect(text.split(AUDIT_AFTER_RESTORE)).toHaveLength(2);
+    expect(text).toContain("prowizję biura w wysokości 2% ceny");
+  });
+
+  it("control: the same stale result of a live offer carries the prompt and not the archive sentence", async () => {
+    const text = visibleText(await auditSection(audited(), { freshness: STALE_CRITERIA }));
+
+    expect(text).toContain(RERUN_PROMPT);
+    expect(text).not.toContain(AUDIT_AFTER_RESTORE);
+  });
+
+  it("still says that an attempt is running, who started it and when", async () => {
+    const html = await archivedSection(audited({}, running), { freshness: STALE_LISTING });
+    const text = visibleText(html);
+
+    // 12:31 UTC is 14:31 in Poland.
+    expect(text).toContain("Audyt tej oferty jest w toku — uruchomiony przez czlonek-zespolu@example.com o 14:31.");
+    expect(text).toContain(STALE.listing);
+    expect(text).toContain("prowizję biura w wysokości 2% ceny");
+    expect(text).toContain(AUDIT_AFTER_RESTORE);
+  });
+
+  it("names nobody as the starter of a running attempt who could not be established", async () => {
+    const attempt: AuditAttempt = {
+      kind: "running",
+      startedAt: "2026-10-09T12:31:00Z",
+      startedBy: { kind: "unknown" },
+    };
+    const text = visibleText(await archivedSection({ state: "ok", attempt, result: null }));
+
+    expect(text).toContain("Audyt tej oferty jest w toku — uruchomiony o 14:31.");
+    expect(text).not.toContain(DELETED_ACCOUNT);
+  });
+
+  it("still says why the latest attempt failed, beside the result it did not replace", async () => {
+    const html = await archivedSection(audited({}, timedOut));
+    const text = visibleText(html);
+
+    expect(text).toContain(TIMED_OUT);
+    expect(text).toContain("Wynik poprzedniego audytu");
+    expect(text).toContain("prowizję biura w wysokości 2% ceny");
+    expect(text).toContain(AUDIT_AFTER_RESTORE);
+  });
+
+  it("does not offer to replace a stored result that does not read", async () => {
+    const text = visibleText(await archivedSection({ state: "broken", attempt: NO_ATTEMPT }));
+
+    expect(text).toContain("Zapisanego wyniku audytu tej oferty nie udało się odczytać");
+    expect(text).not.toContain("Uruchom audyt ponownie");
+    expect(text).toContain(AUDIT_AFTER_RESTORE);
+  });
+
+  it("says nothing about the provider key, which is not why the audit cannot run", async () => {
+    const html = await archivedSection(audited(), { available: false });
+
+    expect(html).toContain('data-audit-available="false"');
+    expect(visibleText(html)).not.toContain(NO_KEY);
+    expect(visibleText(html)).toContain(AUDIT_AFTER_RESTORE);
+  });
+
+  it("gets the state from the view: an archived row's audit section holds no island", async () => {
+    const section = (html: string) =>
+      html.slice(html.indexOf('<section id="audyt"'), html.indexOf('<section id="notatki"'));
+    const archived = section(await offerView({ offer: archivedOffer, audit: audited(), freshness: FRESH }));
+    const live = section(await offerView({ audit: audited(), freshness: FRESH }));
+
+    expect(archived).not.toContain("<astro-island");
+    expect(visibleText(archived)).toContain(AUDIT_AFTER_RESTORE);
+    expect(visibleText(archived)).toContain("prowizję biura w wysokości 2% ceny");
+    expect(live).toContain("<astro-island");
+    expect(live).toContain("data-audit-runner");
+    expect(visibleText(live)).not.toContain(AUDIT_AFTER_RESTORE);
+  });
+});
+
+describe("ArchiveNotice: the address only picks one of four sentences, and never the state", () => {
+  function notice(result: string | null, archive: OfferArchiveState | null): Promise<string> {
+    return container.renderToString(ArchiveNotice, { props: { result, archive } });
+  }
+
+  it("says something different for each of the four results", async () => {
+    const archived = visibleText(await notice("archived", archivedBy({ kind: "self" })));
+    const restored = visibleText(await notice("restored", null));
+    const alreadyArchived = visibleText(await notice("already-archived", archivedBy(memberSaver)));
+    const alreadyLive = visibleText(await notice("already-live", null));
+
+    expect(archived).toContain("Oferta trafiła do archiwum.");
+    expect(restored).toContain("Oferta została przywrócona z archiwum.");
+    expect(alreadyArchived).toBe(
+      `Ta oferta była już w archiwum od ${ARCHIVED_ON} — zarchiwizowana przez czlonek-zespolu@example.com. Nic się nie zmieniło.`,
+    );
+    expect(alreadyLive).toContain("Ta oferta nie była w archiwum");
+    expect(new Set([archived, restored, alreadyArchived, alreadyLive]).size).toBe(4);
+  });
+
+  it.each<[string, Saver, string]>([
+    ["the viewer", { kind: "self" }, "zarchiwizowana przez Ciebie. Nic się nie zmieniło."],
+    ["a deleted account", { kind: "deleted" }, "zarchiwizowana przez osobę z usuniętym kontem. Nic się nie zmieniło."],
+  ])("names %s as the one who archived the offer earlier", async (_case, archiver, expected) => {
+    expect(visibleText(await notice("already-archived", archivedBy(archiver)))).toContain(expected);
+  });
+
+  it("names nobody when the earlier archiver could not be established — never a deleted account", async () => {
+    const text = visibleText(await notice("already-archived", archivedBy({ kind: "unknown" })));
+
+    expect(text).toBe(`Ta oferta była już w archiwum od ${ARCHIVED_ON}. Nic się nie zmieniło.`);
+    expect(text).not.toContain(DELETED_ACCOUNT);
+  });
+
+  it("renders the earlier archiver's address that holds HTML as text", async () => {
+    const email = '<img src=x onerror="alert(1)">@example.com';
+    const html = await notice("already-archived", archivedBy({ kind: "member", email }));
+
+    expect(visibleText(html)).toContain(`zarchiwizowana przez ${email}.`);
+    expect(html).not.toContain("<img");
+    expect(html).not.toContain('onerror="');
+  });
+
+  it.each<[string, string | null]>([
+    ["no value", null],
+    ["an empty value", ""],
+    ["an unknown value", "deleted"],
+    ["another case", "ARCHIVED"],
+    ["an inherited key", "constructor"],
+    ["markup", "<script>alert(1)</script>"],
+    ["markup around a known value", 'archived"><img src=x onerror=alert(1)>'],
+  ])("renders nothing for %s, whatever the row says", async (_case, result) => {
+    for (const archive of [null, archivedBy(memberSaver)]) {
+      const html = await notice(result, archive);
+
+      expect(visibleText(html)).toBe("");
+      expect(html).not.toContain("alert(1)");
+      expect(html).not.toContain("<img");
+      expect(html).not.toContain("data-archive-result");
+    }
+  });
+
+  it.each<[string, OfferArchiveState | null]>([
+    ["archived", null],
+    ["already-archived", null],
+    ["restored", archivedBy(memberSaver)],
+    ["already-live", archivedBy(memberSaver)],
+  ])("renders nothing for „%s” when the row says otherwise", async (result, archive) => {
+    expect(visibleText(await notice(result, archive))).toBe("");
+  });
+});
+
+describe("DuplicateNotice: an archived offer's notice says so and offers the restore (FR-005)", () => {
+  function notice(props: Record<string, unknown>): Promise<string> {
+    return container.renderToString(DuplicateNotice, {
+      props: { saver: memberSaver, offerId: fullOffer.id, ...props },
+    });
+  }
+
+  /** Every form's `action` in the markup, in order. */
+  function actionsIn(html: string): string[] {
+    return Array.from(html.matchAll(/<form\b[^>]*\baction="([^"]*)"/g), (match) => match[1]);
+  }
+
+  it("control: a live offer's notice holds the re-fetch form and no restore form", async () => {
+    for (const props of [{}, { archive: null }]) {
+      const html = withoutIslandProps(await notice(props));
+
+      expect(actionsIn(html)).toEqual(["/api/offer-refetch"]);
+      expect(html).not.toContain("/api/offer-archive");
+      expect(hiddenValues(html, "intent")).toEqual([]);
+      expect(visibleText(html)).not.toContain("archiwum");
+      expect(buttonsIn(html)).toEqual([{ label: REFETCH, disabled: false }]);
+    }
+  });
+
+  it("says the offer is archived, since when and by whom, with the restore form and the re-fetch form", async () => {
+    const html = withoutIslandProps(await notice({ offerId: archivedOffer.id, archive: archivedBy({ kind: "self" }) }));
+    const text = visibleText(html);
+
+    expect(text).toContain(
+      "Ta oferta była już zapisana przez czlonek-zespolu@example.com i jest w archiwum — otwieramy istniejącą kartę.",
+    );
+    expect(text).toContain(`W archiwum od ${ARCHIVED_ON} — zarchiwizowana przez Ciebie.`);
+    expect(actionsIn(html)).toEqual(["/api/offer-archive", "/api/offer-refetch"]);
+    expect(hiddenValues(html, "offer_id")).toEqual([archivedOffer.id, archivedOffer.id]);
+    expect(hiddenValues(html, "intent")).toEqual(["restore"]);
+    expect(hiddenValues(html, "return")).toEqual(["card"]);
+    expect(buttonsIn(html)).toEqual([
+      { label: RESTORE, disabled: false },
+      { label: REFETCH, disabled: false },
+    ]);
+  });
+
+  it("names a deleted account as the archiver, and nobody when the archiver could not be established", async () => {
+    const deleted = visibleText(await notice({ archive: archivedBy({ kind: "deleted" }) }));
+    const unknown = visibleText(await notice({ saver: { kind: "unknown" }, archive: archivedBy({ kind: "unknown" }) }));
+
+    expect(deleted).toContain(`W archiwum od ${ARCHIVED_ON} — zarchiwizowana przez osobę z usuniętym kontem.`);
+    expect(unknown).toContain("Ta oferta była już zapisana i jest w archiwum — otwieramy istniejącą kartę.");
+    expect(unknown).toContain(`W archiwum od ${ARCHIVED_ON}.`);
+    expect(unknown).not.toContain("przez");
+    expect(unknown).not.toContain(DELETED_ACCOUNT);
+  });
+
+  it("renders an archiver's address that holds HTML as text", async () => {
+    const email = '<img src=x onerror="alert(1)">@example.com';
+    const html = await notice({ archive: archivedBy({ kind: "member", email }) });
+
+    expect(visibleText(withoutIslandProps(html))).toContain(`zarchiwizowana przez ${email}.`);
+    expect(html).not.toContain("<img src=x");
+    expect(html.split("onerror")).toHaveLength(2);
   });
 });

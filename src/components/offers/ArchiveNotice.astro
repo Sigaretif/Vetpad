@@ -1,0 +1,66 @@
+---
+import Banner from "@/components/Banner.astro";
+import { formatTimestamp } from "@/lib/format";
+import { saverName } from "@/lib/members";
+import type { OfferArchiveState } from "@/lib/offer-archive";
+
+/*
+ * What an archiving or a restore ended with (FR-014), from the card's `?archive=`, which
+ * `POST /api/offer-archive` sets and anyone can type by hand. The value only picks one of the four
+ * sentences below; it is never rendered itself, and a value that is not one of the four renders
+ * nothing. The parent places the notice in AppLayout's `notice` slot.
+ *
+ * Whether the offer is archived is never taken from the address: `archive` is the state read from
+ * the row (`archiveOf` in `@/lib/offer-archive`), and a sentence the row contradicts — „archived"
+ * over a live offer, „restored" over an archived one — is not rendered at all. The card below
+ * says what the state is either way.
+ *
+ * `already-archived` names who archived the offer earlier, from the row and as text. `unknown`
+ * names nobody — a failed read is never reported as a deleted account.
+ */
+interface Props {
+  /** The card's `?archive=`, as the address carries it. */
+  result: string | null;
+  /** The offer's archive state as the row gives it: `null` for a live offer. */
+  archive: OfferArchiveState | null;
+}
+
+const { result, archive } = Astro.props;
+
+/** Each result with the state of the row it speaks of. */
+const RESULTS = {
+  archived: { archived: true, sentence: "Oferta trafiła do archiwum. W każdej chwili możesz ją przywrócić." },
+  restored: { archived: false, sentence: "Oferta została przywrócona z archiwum." },
+  "already-archived": { archived: true, sentence: "Ta oferta była już w archiwum" },
+  "already-live": {
+    archived: false,
+    sentence: "Ta oferta nie była w archiwum — ktoś mógł ją już przywrócić. Nic się nie zmieniło.",
+  },
+};
+
+const key = result !== null && Object.hasOwn(RESULTS, result) ? (result as keyof typeof RESULTS) : null;
+// Shown only when the row agrees with it.
+const shown = key !== null && RESULTS[key].archived === (archive !== null) ? key : null;
+const who = archive === null ? null : saverName(archive.archiver);
+---
+
+{shown !== null && (
+  <Banner variant="info">
+    <span data-archive-result={shown}>
+      {shown === "already-archived" && archive !== null ? (
+        <>
+          {RESULTS[shown].sentence} od {formatTimestamp(archive.archivedAt)}
+          {who !== null && (
+            <>
+              {" "}
+              — zarchiwizowana przez <span class="wrap-anywhere">{who}</span>
+            </>
+          )}
+          . Nic się nie zmieniło.
+        </>
+      ) : (
+        RESULTS[shown].sentence
+      )}
+    </span>
+  </Banner>
+)}

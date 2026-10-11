@@ -1,7 +1,10 @@
 ---
 import Banner from "@/components/Banner.astro";
+import ArchiveForm from "@/components/offers/ArchiveForm";
 import RefetchForm from "@/components/offers/RefetchForm";
+import { formatTimestamp } from "@/lib/format";
 import { saverName, type Saver } from "@/lib/members";
+import type { OfferArchiveState } from "@/lib/offer-archive";
 
 /*
  * The duplicate-offer notice (FR-005): the offer was already saved, and by whom — and the offer of
@@ -9,30 +12,65 @@ import { saverName, type Saver } from "@/lib/members";
  * sink render the same production text. The parent places it in AppLayout's `notice` slot.
  * `unknown` names nobody — a failed read is never reported as a deleted account.
  *
- * The notice fetches nothing on its own: the button is the member's deliberate action.
+ * When the saved offer is in the archive, the notice says so, since when and who archived it —
+ * the team put it aside, and whoever pastes its address should learn that before anything else —
+ * and offers to restore it. `archive` is the state read from the row, never from the address.
+ *
+ * The notice fetches nothing and restores nothing on its own: each button is the member's
+ * deliberate action.
  */
 interface Props {
   saver: Saver;
-  /** The saved offer the button re-fetches. */
+  /** The saved offer the buttons act on. */
   offerId: string;
+  /** The offer's archive state as the row gives it (`archiveOf`); `null` or left out for a live offer. */
+  archive?: OfferArchiveState | null;
 }
 
-const { saver, offerId } = Astro.props;
+const { saver, offerId, archive = null } = Astro.props;
 
 const who = saverName(saver);
+// Rendered as text only, like the saver: never `set:html`, an attribute or an island's prop.
+const archivedBy = archive === null ? null : saverName(archive.archiver);
 ---
 
 <Banner variant="info">
   <div class="flex flex-col gap-3">
-    <p>
-      {who === null ? (
-        "Ta oferta była już zapisana — otwieramy istniejącą kartę."
-      ) : (
-        <>
-          Ta oferta była już zapisana przez <span class="wrap-anywhere">{who}</span> — otwieramy istniejącą kartę.
-        </>
-      )}
-    </p>
+    {archive === null ? (
+      <p>
+        {who === null ? (
+          "Ta oferta była już zapisana — otwieramy istniejącą kartę."
+        ) : (
+          <>
+            Ta oferta była już zapisana przez <span class="wrap-anywhere">{who}</span> — otwieramy istniejącą kartę.
+          </>
+        )}
+      </p>
+    ) : (
+      <>
+        <p>
+          {who === null ? (
+            "Ta oferta była już zapisana i jest w archiwum — otwieramy istniejącą kartę."
+          ) : (
+            <>
+              Ta oferta była już zapisana przez <span class="wrap-anywhere">{who}</span> i jest w archiwum — otwieramy
+              istniejącą kartę.
+            </>
+          )}
+        </p>
+        <p>
+          W archiwum od {formatTimestamp(archive.archivedAt)}
+          {archivedBy !== null && (
+            <>
+              {" "}
+              — zarchiwizowana przez <span class="wrap-anywhere">{archivedBy}</span>
+            </>
+          )}
+          . Nie wróci na tablicę sama — możesz ją przywrócić.
+        </p>
+        <ArchiveForm client:load offerId={offerId} intent="restore" compact />
+      </>
+    )}
     <p>Jeśli ogłoszenie mogło się zmienić od zapisania, możesz pobrać jego dane ponownie.</p>
     <RefetchForm client:load offerId={offerId} compact />
   </div>

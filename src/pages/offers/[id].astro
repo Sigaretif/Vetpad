@@ -1,5 +1,6 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
+import ArchiveNotice from "@/components/offers/ArchiveNotice.astro";
 import DuplicateNotice from "@/components/offers/DuplicateNotice.astro";
 import OfferNotFound from "@/components/offers/OfferNotFound.astro";
 import OfferView from "@/components/offers/OfferView.astro";
@@ -11,6 +12,7 @@ import { isAuditAvailable } from "@/lib/config-status";
 import { loadCriteriaRevision, type CriteriaRevisionResult } from "@/lib/criteria";
 import { resolveSaver, type Saver } from "@/lib/members";
 import { loadNotes, type OfferNotes } from "@/lib/notes";
+import { archiveOf } from "@/lib/offer-archive";
 import { createClient } from "@/lib/supabase";
 import type { OfferRow } from "@/lib/otodom/types";
 import { cn } from "@/lib/utils";
@@ -53,8 +55,12 @@ if (!offer) {
 // The criteria revision is read beside them, for the audit's freshness: loadCriteriaRevision never
 // throws either, and a failed read is `{ ok: false }` — never a revision. The listing's current
 // fingerprint is taken from the offer row this view already holds.
+// Who archived the offer is named the same way as who saved it, and only for an archived offer:
+// `archived_by` comes from the row, and a `null` there is a deleted account. A live offer has
+// nobody to name and costs no read.
 // The reads are independent and never throw, so they run side by side.
-const [saver, notes, audit, revision, fingerprint]: [
+const [saver, archiver, notes, audit, revision, fingerprint]: [
+  Saver,
   Saver,
   OfferNotes | null,
   OfferAudit | null,
@@ -63,12 +69,18 @@ const [saver, notes, audit, revision, fingerprint]: [
 ] = offer
   ? await Promise.all([
       resolveSaver(supabase, offer.created_by, Astro.locals.user?.id),
+      offer.archived_at === null
+        ? Promise.resolve<Saver>({ kind: "unknown" })
+        : resolveSaver(supabase, offer.archived_by, Astro.locals.user?.id),
       loadNotes(supabase, offer.id, Astro.locals.user?.id),
       loadOfferAudit(supabase, offer.id, Astro.locals.user?.id, new Date()),
       loadCriteriaRevision(supabase),
       currentListingFingerprint(offer),
     ])
-  : [{ kind: "unknown" }, null, null, { ok: false }, null];
+  : [{ kind: "unknown" }, { kind: "unknown" }, null, null, { ok: false }, null];
+// Whether the offer is in the archive is the row's fact (FR-014): `null` for a live offer. Nothing
+// in the address makes an offer archived or restores one.
+const archive = offer ? archiveOf(offer, archiver) : null;
 const duplicate = offer !== null && Astro.url.searchParams.get("duplicate") === "1";
 
 // Whether the stored result still describes what the team sees (FR-003, FR-009). `null` when
@@ -83,29 +95,39 @@ const freshness: AuditFreshness | null =
       )
     : null;
 
-// Two routes redirect back to the card with `?error=`: POST /api/offer-refetch, which adds
-// `&form=refetch` (`/offers/<id>?error=…&form=refetch#pobranie`), and POST /api/notes
+// Three routes redirect back to the card with `?error=`: POST /api/offer-refetch, which adds
+// `&form=refetch` (`/offers/<id>?error=…&form=refetch#pobranie`), POST /api/offer-archive, which
+// adds `&form=archive` (`/offers/<id>?error=…&form=archive#archiwum`), and POST /api/notes
 // (`/offers/<id>?error=…#notatki`). The page cannot read the `#` fragment, so `form` tells them
-// apart: with `form=refetch` the message belongs to the re-fetch block, in every other case to the
-// note editor. Rendered as text, never as HTML.
+// apart: with `form=refetch` the message belongs to the re-fetch block, with `form=archive` to the
+// archive block, and in every other case to the note editor. Rendered as text, never as HTML.
 const error = offer ? Astro.url.searchParams.get("error") : null;
-const errorIsRefetch = Astro.url.searchParams.get("form") === "refetch";
-const refetchError = errorIsRefetch ? error : null;
-const noteError = errorIsRefetch ? null : error;
+const errorForm = Astro.url.searchParams.get("form");
+const refetchError = errorForm === "refetch" ? error : null;
+const archiveError = errorForm === "archive" ? error : null;
+const noteError = errorForm === "refetch" || errorForm === "archive" ? null : error;
 
 // What POST /api/offer-refetch leaves in the address after a fetch that went through: `lost` when
 // it stopped on facts that would disappear, `refetched` when it saved. Anyone can type either by
 // hand; the components that take them read them through a whitelist and render no value as it came.
 const lost = offer ? Astro.url.searchParams.get("lost") : null;
 const refetched = offer ? Astro.url.searchParams.get("refetched") : null;
+// What POST /api/offer-archive leaves after an archiving or a restore. ArchiveNotice reads it
+// through a whitelist, renders no value as it came, and shows nothing the row contradicts.
+const archiveResult = offer ? Astro.url.searchParams.get("archive") : null;
 ---
 
 <AppLayout wide={offer !== null} title={offer ? `${offer.title} — Vetpad` : "Nie znaleziono oferty — Vetpad"}>
-  {duplicate && <DuplicateNotice slot="notice" saver={saver} offerId={offer.id} />}
+  {duplicate && <DuplicateNotice slot="notice" saver={saver} offerId={offer.id} archive={archive} />}
   {refetched !== null && <RefetchNotice slot="notice" refetched={refetched} />}
+  {archiveResult !== null && <ArchiveNotice slot="notice" result={archiveResult} archive={archive} />}
 
-  <a href="/dashboard" class:list={cn(buttonVariants({ variant: "link" }), "h-auto self-start p-0")}>
-    ← Wróć do ofert
+  {/* An archived offer is not on the board: its card leads back to the archive. */}
+  <a
+    href={archive === null ? "/dashboard" : "/offers/archive"}
+    class:list={cn(buttonVariants({ variant: "link" }), "h-auto self-start p-0")}
+  >
+    {archive === null ? "← Wróć do ofert" : "← Wróć do archiwum"}
   </a>
 
   {offer === null || notes === null || audit === null ? (
@@ -121,6 +143,8 @@ const refetched = offer ? Astro.url.searchParams.get("refetched") : null;
       noteError={noteError}
       refetchError={refetchError}
       lost={lost}
+      archive={archive}
+      archiveError={archiveError}
     />
   )}
 </AppLayout>

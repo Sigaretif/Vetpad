@@ -13,6 +13,7 @@ import type { AuditIndex, OfferAudit, StoredAudit } from "@/lib/audit/store";
 import type { TeamLimitsResult } from "@/lib/criteria";
 import type { Saver } from "@/lib/members";
 import type { NoteView, OfferNotes } from "@/lib/notes";
+import type { OfferArchiveState } from "@/lib/offer-archive";
 import type { OfferImage, OfferRow } from "@/lib/otodom/types";
 
 /** Saved by another member: the banner and the card name them by email. */
@@ -212,6 +213,49 @@ export const streetOnlyOffer: OfferRow = {
   street_name: "ul. Przykładowa",
   images: [image("vetpad-street")],
 };
+
+// Archived offers (FR-014) for the /dev/offer-card kitchen sink: the state is the row's
+// `archived_at`, and who archived it stands beside the row as an `OfferArchiveState`, the way the
+// card page builds it with `archiveOf`.
+
+const ARCHIVED_AT = "2026-10-10T16:20:00Z";
+
+/** In the archive, with `archived_by` pointing at an account: the archiver is named beside it. */
+export const archivedOffer: OfferRow = {
+  ...fullOffer,
+  id: "00000000-0000-4000-8000-000000000021",
+  otodom_id: 1000021,
+  source_url: "https://example.com/oferta/w-archiwum",
+  title: "Dwa pokoje z loggią, odłożone do archiwum",
+  archived_at: ARCHIVED_AT,
+  archived_by: "00000000-0000-4000-8000-0000000000bb",
+  images: [image("vetpad-archived")],
+};
+
+/** In the archive, with `archived_by` null: the archiver's account was deleted, and the date stays. */
+export const archivedByDeletedOffer: OfferRow = {
+  ...archivedOffer,
+  id: "00000000-0000-4000-8000-000000000022",
+  otodom_id: 1000022,
+  source_url: "https://example.com/oferta/w-archiwum-usuniete-konto",
+  title: "Kawalerka na poddaszu, zarchiwizowana przez usunięte konto",
+  archived_by: null,
+};
+
+/** Archived by another member: named by email. */
+export const archivedByMember: OfferArchiveState = { archivedAt: ARCHIVED_AT, archiver: memberSaver };
+
+/** Archived by the viewing member: „przez Ciebie". */
+export const archivedBySelf: OfferArchiveState = { archivedAt: ARCHIVED_AT, archiver: selfSaver };
+
+/** Archived by a member whose account was deleted: „przez osobę z usuniętym kontem". */
+export const archivedByDeleted: OfferArchiveState = { archivedAt: ARCHIVED_AT, archiver: deletedSaver };
+
+/** The archiver could not be established: the date alone, and never a deleted account. */
+export const archivedByUnknown: OfferArchiveState = { archivedAt: ARCHIVED_AT, archiver: unknownSaver };
+
+/** Archived by a member with a very long address: it must wrap on the card and in the notices. */
+export const archivedByLongEmail: OfferArchiveState = { archivedAt: ARCHIVED_AT, archiver: longEmailSaver };
 
 // Team limits for the /dev/board kitchen sink, and offers that break them one way each. Against
 // `boardLimits` (Warszawa, 600 000–850 000 zł, from 60 m²) `fullOffer` breaks two limits at once.

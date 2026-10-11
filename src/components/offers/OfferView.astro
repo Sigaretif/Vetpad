@@ -6,6 +6,7 @@ import OfferNotes from "@/components/offers/OfferNotes.astro";
 import type { AuditFreshness } from "@/lib/audit/freshness";
 import type { OfferAudit as OfferAuditData } from "@/lib/audit/store";
 import type { Saver } from "@/lib/members";
+import { archiveOf, type OfferArchiveState } from "@/lib/offer-archive";
 import type { OfferNotes as OfferNotesData } from "@/lib/notes";
 import type { OfferRow } from "@/lib/otodom/types";
 
@@ -15,6 +16,12 @@ import type { OfferRow } from "@/lib/otodom/types";
  * reads of their own, so the audit renders whatever the notes' read did, and the other way round.
  * One component for the card page and the /dev/offer-card kitchen sink; the page renders it inside
  * `<AppLayout wide>`.
+ *
+ * `data-offer-archived` carries whether the offer is in the archive (FR-014) into the markup, where
+ * scripts/smoke.mjs reads it. It is the row's fact — `archived_at` — and never anything the address
+ * said; the `archive` prop only adds who archived the offer. The card shows the state and holds the
+ * form that changes it, and the audit section gets it as `archived`, because an archived offer's
+ * audit cannot be started.
  */
 interface Props {
   offer: OfferRow;
@@ -43,6 +50,12 @@ interface Props {
   refetchAnchorId?: string;
   /** A state the audit island opens in — for the kitchen sink only. */
   auditRunnerPreview?: AuditRunnerPreview;
+  /** The offer's archive state with its archiver named; left out, an archived offer names nobody. */
+  archive?: OfferArchiveState | null;
+  /** Passed to OfferCard: a failed archiving or restore from the card's `?error=…&form=archive`. */
+  archiveError?: string | null;
+  /** Passed to OfferCard as `archiveAnchorId`; unique per instance on the kitchen sink. */
+  archiveAnchorId?: string;
 }
 
 const {
@@ -60,12 +73,29 @@ const {
   auditAnchorId,
   refetchAnchorId,
   auditRunnerPreview,
+  archive,
+  archiveError = null,
+  archiveAnchorId,
 } = Astro.props;
+
+const archived = archive ?? archiveOf(offer, { kind: "unknown" });
 ---
 
-<div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] lg:items-start">
+<div
+  data-offer-archived={archived === null ? "false" : "true"}
+  class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] lg:items-start"
+>
   <div class="flex min-w-0 flex-col gap-6">
-    <OfferCard offer={offer} saver={saver} refetchError={refetchError} lost={lost} refetchAnchorId={refetchAnchorId} />
+    <OfferCard
+      offer={offer}
+      saver={saver}
+      refetchError={refetchError}
+      lost={lost}
+      refetchAnchorId={refetchAnchorId}
+      archive={archived}
+      archiveError={archiveError}
+      archiveAnchorId={archiveAnchorId}
+    />
   </div>
   <div class="flex min-w-0 flex-col gap-8">
     <OfferAudit
@@ -73,6 +103,7 @@ const {
       audit={audit}
       available={auditAvailable}
       freshness={freshness}
+      archived={archived !== null}
       anchorId={auditAnchorId}
       runnerPreview={auditRunnerPreview}
     />

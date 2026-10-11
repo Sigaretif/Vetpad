@@ -4,6 +4,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import AuditRunner, { type AuditRunnerPreview } from "@/components/offers/AuditRunner";
+import { ServerError } from "@/components/form/ServerError";
 import { auditFailureMessage } from "@/lib/audit/failure";
 import type { AuditFreshness } from "@/lib/audit/freshness";
 import { DECISION_CRITICAL } from "@/lib/audit/input";
@@ -42,6 +43,14 @@ import { cn } from "@/lib/utils";
  * escapes it — never `set:html`, never an attribute, never an island. An excerpt is the listing's
  * own words and stands in a `<blockquote>`.
  *
+ * An archived offer's audit cannot be started (FR-010, FR-014): with `archived` the island is not
+ * rendered in any state of the audit's data, and one sentence stands in its place — the audit can
+ * be run once the offer is restored. Everything the server renders stays: the stored result, its
+ * stale mark, and what the island would have said about the latest attempt — one in progress, or
+ * why the last one failed — here as text. The prompts to run the audit again give way to that one
+ * sentence. None of the three `data-audit-*` attributes changes with it, and none of them says
+ * whether the offer is archived: that is `data-offer-archived` on the view.
+ *
  * The four categories are told apart by their heading and icon; the colour role only repeats it.
  * A category with nothing in it says so in a sentence of its own: the model pointed at nothing,
  * which is not the listing stating there is nothing (prd.md, Guardrails).
@@ -60,9 +69,13 @@ interface Props {
   anchorId?: string;
   /** A state the island opens in — for the kitchen sink only. */
   runnerPreview?: AuditRunnerPreview;
+  /** Whether the offer is in the archive: then nothing here can start an audit. */
+  archived?: boolean;
 }
 
-const { offerId, audit, available, freshness, anchorId = "audyt", runnerPreview } = Astro.props;
+const { offerId, audit, available, freshness, anchorId = "audyt", runnerPreview, archived = false } = Astro.props;
+
+const ARCHIVED = "Ta oferta jest w archiwum — audyt będzie można uruchomić po jej przywróceniu.";
 
 const headingId = `${anchorId}-naglowek`;
 const attempt = audit.state === "error" ? null : audit.attempt;
@@ -207,7 +220,7 @@ const captionClass = "text-muted-foreground text-xs";
           <CircleAlert />
           <AlertDescription>
             Zapisanego wyniku audytu tej oferty nie udało się odczytać, więc nie jest pokazywany.
-            {attempt?.kind !== "running" && " Uruchom audyt ponownie, aby go zastąpić."}
+            {!archived && attempt?.kind !== "running" && " Uruchom audyt ponownie, aby go zastąpić."}
           </AlertDescription>
         </Alert>
       ) : (
@@ -219,8 +232,11 @@ const captionClass = "text-muted-foreground text-xs";
           <History />
           <AlertDescription className="text-warning-foreground">
             <p>{staleSentence}</p>
-            {/* No prompt while an attempt runs: a second one cannot be started beside it. */}
-            {attempt?.kind !== "running" && <p>Uruchom audyt ponownie, aby wynik odpowiadał temu, co jest teraz.</p>}
+            {/* No prompt while an attempt runs: a second one cannot be started beside it. None in
+                the archive either, where the sentence below the mark says when an audit can run. */}
+            {!archived && attempt?.kind !== "running" && (
+              <p>Uruchom audyt ponownie, aby wynik odpowiadał temu, co jest teraz.</p>
+            )}
           </AlertDescription>
         </Alert>
       )}
@@ -231,16 +247,29 @@ const captionClass = "text-muted-foreground text-xs";
         </p>
       )}
 
-      <AuditRunner
-        client:load
-        offerId={offerId}
-        hasResult={result !== null || broken}
-        available={available}
-        running={running}
-        failure={failure}
-        anchorId={anchorId}
-        preview={runnerPreview}
-      />
+      {archived ? (
+        <div data-audit-archived class="flex flex-col gap-3">
+          <ServerError message={failure} />
+          {running !== null && (
+            <p class="text-muted-foreground text-sm wrap-anywhere">
+              Audyt tej oferty jest w toku — uruchomiony {running.by !== null && <>przez {running.by} </>}o{" "}
+              <time datetime={running.at}>{formatClock(running.at)}</time>.
+            </p>
+          )}
+          <p class="bg-muted rounded-md px-3 py-2 text-sm">{ARCHIVED}</p>
+        </div>
+      ) : (
+        <AuditRunner
+          client:load
+          offerId={offerId}
+          hasResult={result !== null || broken}
+          available={available}
+          running={running}
+          failure={failure}
+          anchorId={anchorId}
+          preview={runnerPreview}
+        />
+      )}
 
       {result !== null && (
         <Card className="gap-4">
