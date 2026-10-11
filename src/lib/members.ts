@@ -1,7 +1,8 @@
-// Naming a member of the team: turns an author column (`offers.created_by` through
-// `resolveSaver`, `offer_notes.author_id` through `resolveAuthors`, and later the archive author
-// of S-10) into what the viewing member sees. The name is the email address from
-// `public.members` (supabase/migrations/20260926185936_create_members.sql).
+// Naming a member of the team: turns an author column (`offers.created_by` and
+// `offers.archived_by` on a card through `resolveSaver`, `offer_notes.author_id` and the
+// archivers of a whole archive through `resolveAuthors`) into what the viewing member sees. The
+// name is the email address from `public.members`
+// (supabase/migrations/20260926185936_create_members.sql).
 //
 // Two outcomes must never be confused. `deleted` is a fact read from the row — the author
 // column is `null` only when the author's account was deleted — and is rendered „osoba z

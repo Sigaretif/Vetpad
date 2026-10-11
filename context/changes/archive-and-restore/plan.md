@@ -682,31 +682,31 @@ Smoke dowodzi na żywej lokalnej bazie, że archiwizacja nie rusza notatek i że
 
 #### Automated
 
-- [x] 4.1 Testy widoków przechodzą: `npm test`
-- [x] 4.2 Kontrola typów przechodzi: `npx astro sync && npx astro check`
-- [x] 4.3 Lint przechodzi: `npm run lint`
-- [x] 4.4 Build przechodzi: `npm run build`
+- [x] 4.1 Testy widoków przechodzą: `npm test` — 684f78c
+- [x] 4.2 Kontrola typów przechodzi: `npx astro sync && npx astro check` — 684f78c
+- [x] 4.3 Lint przechodzi: `npm run lint` — 684f78c
+- [x] 4.4 Build przechodzi: `npm run build` — 684f78c
 
 #### Manual
 
-- [x] 4.5 Na lokalnej bazie: zarchiwizowana oferta znika z `/dashboard`, licznik w nagłówku tablicy maleje, a sekcja pod tablicą wymienia ją z nazwiskiem i datą; „Archiwum (N)” rośnie o jeden
-- [x] 4.6 `/offers/archive` pokazuje ofertę; „Przywróć” w wierszu wraca na stronę archiwum z komunikatem, a oferta wraca na `/dashboard`
-- [x] 4.7 Oferta z `archived_at` cofniętym w lokalnej bazie o ponad 7 dni znika z sekcji, a licznik nadal ją liczy
-- [x] 4.8 `/offers/archive` bez sesji przekierowuje do `/auth/signin`
-- [x] 4.9 `/dev/board` renderuje nowe sekcje pod `npm run dev`
+- [x] 4.5 Na lokalnej bazie: zarchiwizowana oferta znika z `/dashboard`, licznik w nagłówku tablicy maleje, a sekcja pod tablicą wymienia ją z nazwiskiem i datą; „Archiwum (N)” rośnie o jeden — 684f78c
+- [x] 4.6 `/offers/archive` pokazuje ofertę; „Przywróć” w wierszu wraca na stronę archiwum z komunikatem, a oferta wraca na `/dashboard` — 684f78c
+- [x] 4.7 Oferta z `archived_at` cofniętym w lokalnej bazie o ponad 7 dni znika z sekcji, a licznik nadal ją liczy — 684f78c
+- [x] 4.8 `/offers/archive` bez sesji przekierowuje do `/auth/signin` — 684f78c
+- [x] 4.9 `/dev/board` renderuje nowe sekcje pod `npm run dev` — 684f78c
 
 ### Phase 5: Smoke i dokumentacja
 
 #### Automated
 
-- [ ] 5.1 Smoke przechodzi na lokalnej bazie: `npm run smoke`
-- [ ] 5.2 Skrypty bazy przechodzą: `npm run test:db`
-- [ ] 5.3 Testy jednostkowe przechodzą: `npm test`
-- [ ] 5.4 Kontrola typów przechodzi: `npx astro sync && npx astro check`
-- [ ] 5.5 Lint przechodzi: `npm run lint`
-- [ ] 5.6 Build przechodzi: `npm run build`
+- [x] 5.1 Smoke przechodzi na lokalnej bazie: `npm run smoke`
+- [x] 5.2 Skrypty bazy przechodzą: `npm run test:db`
+- [x] 5.3 Testy jednostkowe przechodzą: `npm test`
+- [x] 5.4 Kontrola typów przechodzi: `npx astro sync && npx astro check`
+- [x] 5.5 Lint przechodzi: `npm run lint`
+- [x] 5.6 Build przechodzi: `npm run build`
 
 #### Manual
 
-- [ ] 5.7 Krok kontrolny bloku archiwizacji w smoke wypada czerwono po celowym zepsuciu (filtr tablicy usunięty lokalnie) i zielono po jego przywróceniu
-- [ ] 5.8 `CLAUDE.md` i `README.md` nie zawierają już zapowiedzi S-10 w czasie przyszłym
+- [x] 5.7 Krok kontrolny bloku archiwizacji w smoke wypada czerwono po celowym zepsuciu (filtr tablicy usunięty lokalnie) i zielono po jego przywróceniu
+- [x] 5.8 `CLAUDE.md` i `README.md` nie zawierają już zapowiedzi S-10 w czasie przyszłym

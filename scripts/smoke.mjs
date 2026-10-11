@@ -90,6 +90,25 @@
 // not exist (both to /dashboard?error=). The helper refuses the two fixture offers' ids outright: a re-fetch of an
 // offer that exists goes on to the stored address, and smoke never reaches otodom.pl. What a real re-fetch does is
 // covered against a stubbed portal in tests/pages/api/offer-refetch.test.ts.
+// Archive (FR-014): /offers/archive and POST /api/offer-archive turn an anonymous caller away, the route a forged
+// session too. Signed in, the route ends an id that is not a uuid and an offer that does not exist on
+// /dashboard?error=, before any write. The archive block stands after the offer writes about notes and the author and
+// before the criteria steps, works on the first fixture offer alone and ends with that offer restored, so every later
+// step finds both fixture offers on /dashboard. An unknown `intent` naming the fixture offer leaves its row as it
+// was. Before anything is archived, two control steps read where the offer stands: on the board of /dashboard and
+// not in its "recently archived" section, and not on /offers/archive. The board is read up to that section, because
+// the section links an archived offer's title to the same card address a board row does. Archiving through the
+// route redirects to the card with every note on both fixture offers the same row; the stored row is signed by the
+// member who sent it, the card carries data-offer-archived="true", the offer is off the board and in the section
+// under data-archive-state="ok" as data-archived-offer="<id>", and /offers/archive lists it the same way. Archiving
+// it again writes nothing. Through the Data API the second member then signs the archived offer for themselves and
+// backdates it: both writes answer with the row, and the row is the same afterwards - the trigger owns the
+// signature. Restoring through the route leaves every note as it was, puts the offer back on the board and out of
+// both archive lists, and the card says "false". On the live offer the second member archives through the Data API
+// with a date from the past and the first member's signature: that write is the control step for the offer's row -
+// it must be reported as changed - and the stored row holds the caller's id and a date of the database's. The same
+// member restores it through the Data API, the notes untouched and both columns empty. No step asks for an audit of
+// the archived offer: that refusal is covered in tests/pages/api/audits.test.ts.
 // Audit freshness (FR-003, FR-009), written through the Data API and read from the pages: once the control step has
 // failed the second fixture offer's attempt, the first member takes the row over and completes it - a result with no
 // findings, the criteria revision as it stands at that moment, and a listing fingerprint this script computes with
@@ -107,8 +126,8 @@
 // second member's, which must have lasted until then.
 // A session Auth refuses is a sign-out, never an outage (src/middleware.ts): before signing in, it sends a forged
 // session cookie - named after the SUPABASE_URL host, with a token that has not expired and a signature that is not
-// real - on GET /dashboard, on POST /api/offers, on POST /api/audit-settings, on POST /api/audits and on
-// POST /api/offer-refetch, and each must
+// real - on GET /dashboard, on POST /api/offers, on POST /api/audit-settings, on POST /api/audits, on
+// POST /api/offer-refetch and on POST /api/offer-archive, and each must
 // redirect to /auth/signin, not answer with the 503 page. The cookie goes instead of the cookie jar and nothing the server
 // answers is stored in it. An outage itself cannot be played against a live Auth; tests/middleware.test.ts covers
 // it. The error pages answer under their own addresses with their own status and marker: /503 with 503 and
@@ -246,6 +265,15 @@ const FINGERPRINT_COLUMNS = [
 const FINGERPRINT_NUMBERS = ["price", "price_per_m", "area_m2", "rooms", "floors_total", "build_year", "rent"];
 // The title the second fixture offer gets once its audit is stored: a change of the listing the audit read.
 const TITLE_AFTER_AUDIT = "Smoke: oferta testowa ze zmienionym tytułem";
+// The archive's marker for a successful read, on the section under the board on /dashboard and on the list on
+// /offers/archive; a failed read renders data-archive-state="error", with 200 like an empty archive.
+const ARCHIVE_OK = 'data-archive-state="ok"';
+// Where the "recently archived" section starts in a /dashboard page: the board ends before it.
+const ARCHIVE_SECTION = "data-archive-state=";
+// The first fixture offer as an entry of either archive list, and what its card says about its state.
+const FIXTURE_ARCHIVED_ENTRY = `data-archived-offer="${FIXTURE_OFFER_ID}"`;
+const OFFER_ARCHIVED = 'data-offer-archived="true"';
+const OFFER_LIVE = 'data-offer-archived="false"';
 // What POST /api/audits answers with whenever it does not redirect: one JSON object per line.
 const AUDIT_STREAM_TYPE = "application/x-ndjson; charset=utf-8";
 
@@ -903,6 +931,63 @@ function requestRefetchOfMissingOffer(offerId, send = request) {
   return send("/api/offer-refetch", { method: "POST", form: { offer_id: offerId } });
 }
 
+// A signed-in member - or, with `send`, a forged session - asks to archive or restore an offer the way the forms on
+// the card and on /offers/archive do. The route reads and writes public.offers alone, so - unlike an audit or a
+// re-fetch - it may name a fixture offer.
+function requestArchive(offerId, intent, send = request) {
+  return send("/api/offer-archive", { method: "POST", form: { offer_id: offerId, intent } });
+}
+
+// An observed read for withSnapshot: the first fixture offer's whole row, its archive columns included, read by the
+// first member, who reads every offer.
+function observedOffer() {
+  return { as: MEMBER, order: "id", path: FIXTURE_OFFER };
+}
+
+// The first fixture offer, read only if it is archived, signed by `signer` and dated by the database rather than
+// with the year 2000 the forgeries below send: a separate read, because a redirect or a PATCH's own answer is not
+// where the stored signature is checked.
+async function offerArchivedBy(signer) {
+  const member = await memberId(signer);
+  if (member.error) return { status: 0, location: "", error: member.error };
+  return supabaseRest(`${FIXTURE_OFFER}&archived_by=eq.${member.userId}&archived_at=gt.2001-01-01&select=id`, {
+    as: MEMBER,
+  });
+}
+
+// The second member archives the live first fixture offer straight through the Data API, backdating it and signing
+// it with the first member's uid. RLS allows the update (any member writes any offer); the trigger must keep neither.
+async function forgeArchiveAsOther() {
+  const member = await memberId(MEMBER);
+  if (member.error) return { status: 0, location: "", error: member.error };
+  return patchOfferAsOther({ archived_at: "2000-01-01T00:00:00Z", archived_by: member.userId });
+}
+
+// Where the first fixture offer stands on /dashboard, as `place`: on the "board", in the "archive" section under
+// it, in "both" or in "neither". The board is the page up to that section - the section links an archived offer's
+// title to the same card address a board row does, so a search of the whole page would find a "row" for an offer
+// that is off the board. Throws when the page lacks either read's marker, which fails the step that asked for it:
+// a board or an archive that could not be read says nothing about where the offer stands.
+async function fixtureOnDashboard() {
+  const page = await request("/dashboard");
+  const sectionStart = page.body.indexOf(ARCHIVE_SECTION);
+  if (!page.body.includes(BOARD_OK) || !page.body.includes(ARCHIVE_OK) || sectionStart === -1) {
+    throw new Error(`/dashboard does not carry ${BOARD_OK} and ${ARCHIVE_OK} (${page.status})`);
+  }
+  const onBoard = boardRow({ ...page, body: page.body.slice(0, sectionStart) }, FIXTURE_CARD).body !== "";
+  const inArchive = page.body.slice(sectionStart).includes(FIXTURE_ARCHIVED_ENTRY);
+  const place = onBoard ? (inArchive ? "both" : "board") : inArchive ? "archive" : "neither";
+  return { ...page, place };
+}
+
+// Whether /offers/archive lists the first fixture offer, as `place`: "archive" or "neither". Throws when the page
+// does not carry the marker of a successful read, for the same reason.
+async function fixtureOnArchivePage() {
+  const page = await request("/offers/archive");
+  if (!page.body.includes(ARCHIVE_OK)) throw new Error(`/offers/archive does not carry ${ARCHIVE_OK} (${page.status})`);
+  return { ...page, place: page.body.includes(FIXTURE_ARCHIVED_ENTRY) ? "archive" : "neither" };
+}
+
 // The listing fingerprint of the second fixture offer as it stands now, in the `v1` format: `v1:` and the SHA-256,
 // in hex, of the JSON of the fingerprint's columns in their order - each as the Data API answers it, a number sent
 // as text read as that number. Throws when the row cannot be read, which fails the step that asked for it.
@@ -1101,6 +1186,12 @@ const steps = [
     () => requestRefetchOfMissingOffer(randomUUID()),
     { status: 302, location: "/auth/signin" },
   ],
+  // The same for the archive: a well-formed id of no offer and an intent the route knows.
+  [
+    "offer archive redirects anonymous user",
+    () => requestArchive(randomUUID(), "archive"),
+    { status: 302, location: "/auth/signin" },
+  ],
   // A session Auth refuses reads as signed out, on a page and on a form route alike: the 503 page is for an Auth
   // that could not answer, never for one that said no.
   [
@@ -1138,7 +1229,18 @@ const steps = [
     () => requestRefetchOfMissingOffer(randomUUID(), requestWithForgedSession),
     { status: 302, location: "/auth/signin" },
   ],
+  [
+    "offer archive redirects a forged session to sign-in",
+    () => requestArchive(randomUUID(), "archive", requestWithForgedSession),
+    { status: 302, location: "/auth/signin" },
+  ],
   ["criteria page redirects anonymous user", () => request("/criteria"), { status: 302, location: "/auth/signin" }],
+  // The static route under the protected /offers prefix, not the card of an offer called "archive".
+  [
+    "archive page redirects anonymous user",
+    () => request("/offers/archive"),
+    { status: 302, location: "/auth/signin" },
+  ],
   [
     "offer card redirects anonymous user",
     () => request(`/offers/${randomUUID()}`),
@@ -1216,6 +1318,22 @@ const steps = [
     "offer re-fetch refuses an offer that does not exist",
     () => requestRefetchOfMissingOffer(randomUUID()),
     { status: 302, locationPrefix: "/dashboard?error=" },
+  ],
+  // The archive route, as far as it goes without an offer: both end before any write, with no card to return to.
+  [
+    "offer archive refuses an id that is not a uuid",
+    () => requestArchive("not-a-uuid", "archive"),
+    { status: 302, locationPrefix: "/dashboard?error=" },
+  ],
+  [
+    "offer archive refuses an offer that does not exist",
+    () => requestArchive(randomUUID(), "restore"),
+    { status: 302, locationPrefix: "/dashboard?error=" },
+  ],
+  [
+    "archive page renders for signed-in user",
+    () => request("/offers/archive"),
+    { status: 200, bodyIncludes: ARCHIVE_OK },
   ],
   ["smoke fixture offer is created", () => createFixtureOffer(FIXTURE_OFFER_ID), { status: 201, rows: 1 }],
   ["second smoke fixture offer is created", () => createFixtureOffer(FIXTURE_OFFER_ID_2), { status: 201, rows: 1 }],
@@ -1426,6 +1544,112 @@ const steps = [
     "fixture offer keeps its author after another member clears it",
     () => offerStillByMember(),
     { status: 200, rows: 1 },
+  ],
+  // The archive (FR-014), on the first fixture offer alone, and the block ends with that offer restored: every step
+  // below finds both fixture offers on /dashboard. Nothing here touches the criteria or the second offer's listing.
+  // An intent the route does not know names an offer that exists, and leaves its row as it was.
+  [
+    "offer archive refuses an unknown intent and leaves the offer as it was",
+    () => withSnapshot([observedOffer()], () => requestArchive(FIXTURE_OFFER_ID, "delete")),
+    { status: 302, locationPrefix: "/dashboard?error=", snapshot: "same" },
+  ],
+  // Controls for the two reads of where an offer stands, before anything is archived: the same reads must answer
+  // otherwise once it is, so a read that never found a board row, or found an archive entry for every offer, cannot
+  // pass both.
+  [
+    "control: live fixture offer stands on the board and not among the recently archived",
+    () => fixtureOnDashboard(),
+    { status: 200, place: "board" },
+  ],
+  [
+    "control: live fixture offer is not on the archive page",
+    () => fixtureOnArchivePage(),
+    { status: 200, place: "neither" },
+  ],
+  ["offer card of a live offer says so", () => request(FIXTURE_CARD), { status: 200, bodyIncludes: OFFER_LIVE }],
+  [
+    "archiving the fixture offer leaves every note as it was",
+    () => withSnapshot([observedNotes(ALL_FIXTURE_NOTES)], () => requestArchive(FIXTURE_OFFER_ID, "archive")),
+    { status: 302, location: `${FIXTURE_CARD}?archive=archived`, snapshot: "same" },
+  ],
+  ["archived offer is signed by the member who archived it", () => offerArchivedBy(MEMBER), { status: 200, rows: 1 }],
+  [
+    "offer card of the archived offer says so",
+    () => request(FIXTURE_CARD),
+    { status: 200, bodyIncludes: OFFER_ARCHIVED },
+  ],
+  [
+    "archived fixture offer is off the board and among the recently archived",
+    () => fixtureOnDashboard(),
+    { status: 200, place: "archive" },
+  ],
+  ["archive page lists the archived fixture offer", () => fixtureOnArchivePage(), { status: 200, place: "archive" }],
+  // Already archived: no write and no error, and the row - its date and signature included - is the same.
+  [
+    "archiving the archived offer again writes nothing",
+    () => withSnapshot([observedOffer()], () => requestArchive(FIXTURE_OFFER_ID, "archive")),
+    { status: 302, location: `${FIXTURE_CARD}?archive=already-archived`, snapshot: "same" },
+  ],
+  // The signature against the Data API: the update policy lets any member write these columns, so each PATCH
+  // answers with the row, and the trigger alone keeps who archived the offer and when.
+  [
+    "another member cannot sign the archived offer for themselves",
+    async () => {
+      const other = await memberId(OTHER_MEMBER);
+      if (other.error) throw new Error(other.error);
+      return withSnapshot([observedOffer()], () => patchOfferAsOther({ archived_by: other.userId }));
+    },
+    { status: 200, rows: 1, snapshot: "same" },
+  ],
+  [
+    "another member cannot backdate the archived offer",
+    () => withSnapshot([observedOffer()], () => patchOfferAsOther({ archived_at: "2000-01-01T00:00:00Z" })),
+    { status: 200, rows: 1, snapshot: "same" },
+  ],
+  [
+    "restoring the fixture offer leaves every note as it was",
+    () => withSnapshot([observedNotes(ALL_FIXTURE_NOTES)], () => requestArchive(FIXTURE_OFFER_ID, "restore")),
+    { status: 302, location: `${FIXTURE_CARD}?archive=restored`, snapshot: "same" },
+  ],
+  [
+    "offer card of the restored offer says it is live",
+    () => request(FIXTURE_CARD),
+    { status: 200, bodyIncludes: OFFER_LIVE },
+  ],
+  [
+    "restored fixture offer is back on the board and out of the recently archived",
+    () => fixtureOnDashboard(),
+    { status: 200, place: "board" },
+  ],
+  ["archive page no longer lists the restored offer", () => fixtureOnArchivePage(), { status: 200, place: "neither" }],
+  // The control for the offer's row, and the forgery on a live offer in one: the second member's write archives the
+  // offer, so the row must be reported as changed - and what is stored is the caller and the database's time, not
+  // the first member and the year 2000 the request carried.
+  [
+    "control: another member's forged archiving of the live offer is reported as changed",
+    () => withSnapshot([observedOffer()], () => forgeArchiveAsOther()),
+    { status: 200, rows: 1, snapshot: "changed" },
+  ],
+  [
+    "forged archiving is signed by the member who sent it and dated by the database",
+    () => offerArchivedBy(OTHER_MEMBER),
+    { status: 200, rows: 1 },
+  ],
+  // The block's last write: the offer is live again for everything below.
+  [
+    "another member restores the offer through the Data API and every note stays as it was",
+    () => withSnapshot([observedNotes(ALL_FIXTURE_NOTES)], () => patchOfferAsOther({ archived_at: null })),
+    { status: 200, rows: 1, snapshot: "same" },
+  ],
+  [
+    "restored offer holds no archive date and no signature",
+    () => supabaseRest(`${FIXTURE_OFFER}&archived_at=is.null&archived_by=is.null&select=id`, { as: MEMBER }),
+    { status: 200, rows: 1 },
+  ],
+  [
+    "fixture offer is on the board again at the end of the archive steps",
+    () => fixtureOnDashboard(),
+    { status: 200, place: "board" },
   ],
   // Team criteria. The limits as they stood before the run were read above, before the first write attempt.
   [
@@ -2095,6 +2319,11 @@ function boardOrder({ higher }) {
   return higher === undefined ? "" : `, ${higher} fixture offer higher`;
 }
 
+// Where the first fixture offer stood, for the report line; empty when the step does not look for it.
+function offerPlace({ place }) {
+  return place === undefined ? "" : `, fixture offer on: ${place}`;
+}
+
 // How an audit request ended, for the report line; empty when the step sends none.
 function auditEnding({ auditEnded }) {
   return auditEnded === undefined ? "" : `, audit ended: ${auditEnded}`;
@@ -2124,16 +2353,17 @@ for (const [name, run, expected] of steps) {
     (expected.revisionDelta === undefined || actual.revisionDelta === expected.revisionDelta) &&
     (expected.snapshot === undefined || actual.snapshot === expected.snapshot) &&
     (expected.higher === undefined || actual.higher === expected.higher) &&
+    (expected.place === undefined || actual.place === expected.place) &&
     (expected.auditEnded === undefined || actual.auditEnded === expected.auditEnded);
   const rows = actual.rows === undefined ? undefined : `${actual.rows} row(s)`;
   const detail =
     actual.error ??
-    `${actual.status} ${actual.errorCode ?? rows ?? actual.location}${revisionMoved(actual)}${snapshotResult(actual)}${boardOrder(actual)}${auditEnding(actual)}`;
+    `${actual.status} ${actual.errorCode ?? rows ?? actual.location}${revisionMoved(actual)}${snapshotResult(actual)}${boardOrder(actual)}${offerPlace(actual)}${auditEnding(actual)}`;
   console.log(`${ok ? "PASS" : "FAIL"}  ${name}  -> ${detail}`);
   if (!ok) {
     failed++;
     console.log(
-      `      expected ${[expected.status].flat().join(" or ")} ${expected.errorCode ?? expected.location ?? expected.locationPrefix ?? expected.bodyIncludes ?? expectedRows(expected)}${expected.locationIncludes === undefined ? "" : ` with ${expected.locationIncludes}`}${revisionMoved(expected)}${snapshotResult(expected)}${boardOrder(expected)}${auditEnding(expected)}`,
+      `      expected ${[expected.status].flat().join(" or ")} ${expected.errorCode ?? expected.location ?? expected.locationPrefix ?? expected.bodyIncludes ?? expectedRows(expected)}${expected.locationIncludes === undefined ? "" : ` with ${expected.locationIncludes}`}${revisionMoved(expected)}${snapshotResult(expected)}${boardOrder(expected)}${offerPlace(expected)}${auditEnding(expected)}`,
     );
   }
 }

@@ -1,5 +1,5 @@
-// Formatting for the app's own columns (created_at and, later, note and archive dates), as
-// opposed to `@/lib/otodom/labels`, which formats what the listing portal stated.
+// Formatting for the app's own columns (created_at, and the dates of a note, an audit and an
+// archiving), as opposed to `@/lib/otodom/labels`, which formats what the listing portal stated.
 //
 // No imports: islands read this module in the browser.
 
