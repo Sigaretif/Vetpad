@@ -444,6 +444,9 @@ const fullFindings: StoredFindings = {
   ],
 };
 
+/** A fingerprint of the stored format; no fixture offer is hashed for it. */
+const FIXTURE_FINGERPRINT = `v1:${"0".repeat(64)}`;
+
 /** A result with every category filled, made against limits and three requirements, with two findings left out. */
 const fullAuditResult: StoredAudit = {
   findings: fullFindings,
@@ -454,6 +457,8 @@ const fullAuditResult: StoredAudit = {
   effort: "medium",
   hadLimits: true,
   requirementsCount: 3,
+  criteriaRevision: 7,
+  listingFingerprint: FIXTURE_FINGERPRINT,
 };
 
 /**
@@ -491,6 +496,8 @@ const missingOnlyAuditResult: StoredAudit = {
   effort: "low",
   hadLimits: false,
   requirementsCount: 0,
+  criteriaRevision: 7,
+  listingFingerprint: FIXTURE_FINGERPRINT,
 };
 
 /**
@@ -543,6 +550,8 @@ const longAuditResult: StoredAudit = {
   effort: "high",
   hadLimits: true,
   requirementsCount: 22,
+  criteriaRevision: 7,
+  listingFingerprint: FIXTURE_FINGERPRINT,
 };
 
 /** Never audited and never tried: no row. */
@@ -601,10 +610,13 @@ export const auditReadFailed: OfferAudit = { state: "error" };
 // The audit index for the /dev/board kitchen sink.
 
 /** No offer has a stored result: every row reads „Nie audytowano" (the existing sections). */
-export const noAudits: AuditIndex = { ok: true, audited: new Set() };
+export const noAudits: AuditIndex = { ok: true, audited: new Map() };
 
 /** `fullOffer` has a stored result; every other offer has none. */
-export const someAudits: AuditIndex = { ok: true, audited: new Set([fullOffer.id]) };
+export const someAudits: AuditIndex = {
+  ok: true,
+  audited: new Map([[fullOffer.id, { criteriaRevision: 7, listingFingerprint: FIXTURE_FINGERPRINT }]]),
+};
 
 /** A failed read of the audits: every row says its status could not be checked. */
 export const failedAudits: AuditIndex = { ok: false };

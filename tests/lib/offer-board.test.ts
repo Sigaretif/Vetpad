@@ -133,13 +133,27 @@ describe("auditStatus: what a board row says about the offer's audit (#3, FR-006
   const NOT_AUDITED = "0b9f0c2e-7d1a-4c55-9a53-0000000000f2";
 
   /** The index as read: one offer has a stored result. */
-  const INDEX: AuditIndex = { ok: true, audited: new Set([AUDITED]) };
+  const INDEX: AuditIndex = {
+    ok: true,
+    audited: new Map([[AUDITED, { criteriaRevision: 7, listingFingerprint: `v1:${"0".repeat(64)}` }]]),
+  };
   /** A read that succeeded and found no stored result at all. */
-  const EMPTY_INDEX: AuditIndex = { ok: true, audited: new Set() };
+  const EMPTY_INDEX: AuditIndex = { ok: true, audited: new Map() };
   const FAILED_INDEX: AuditIndex = { ok: false };
 
   it("says audited for an offer the index holds", () => {
     expect(auditStatus({ id: AUDITED }, INDEX)).toBe("audited");
+  });
+
+  // What the audit recorded for comparison does not decide whether there is one.
+  it("says audited for an offer the index holds with comparison values that did not read", () => {
+    const unread: AuditIndex = {
+      ok: true,
+      audited: new Map([[AUDITED, { criteriaRevision: null, listingFingerprint: null }]]),
+    };
+
+    expect(auditStatus({ id: AUDITED }, unread)).toBe("audited");
+    expect(auditStatus({ id: NOT_AUDITED }, unread)).toBe("not_audited");
   });
 
   it("says not audited for an offer the index was read without", () => {

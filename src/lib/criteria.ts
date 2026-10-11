@@ -312,8 +312,12 @@ export interface ReadFailure {
 /** How many times the criteria are read before a revision that keeps moving is a failed read. */
 const AUDIT_CRITERIA_READS = 2;
 
-/** The counter as PostgREST sends a `bigint` (a JSON number, or digits as text), or `null` when unreadable. */
-function revisionNumber(value: unknown): number | null {
+/**
+ * The counter as PostgREST sends a `bigint` (a JSON number, or digits as text), or `null` when
+ * unreadable. The revision stored with an audit is read through it as well
+ * (`@/lib/audit/store`), so the two values compared for freshness are read by one rule.
+ */
+export function revisionNumber(value: unknown): number | null {
   const digits = typeof value === "string" && WHOLE.test(value);
   const parsed = typeof value === "number" ? value : digits ? Number(value) : Number.NaN;
   return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
@@ -325,6 +329,25 @@ async function readRevision(supabase: SupabaseClient): Promise<number | ReadFail
   if (result.error) return { detail: "revision_query", dbCode: result.error.code, dbStatus: result.status };
   if (!result.data) return { detail: "revision_missing", dbStatus: result.status };
   return revisionNumber((result.data as Record<string, unknown>).revision) ?? { detail: "revision_unreadable" };
+}
+
+export type CriteriaRevisionResult = { ok: true; revision: number } | { ok: false };
+
+/**
+ * Just the revision the criteria stand at now, for the views that compare it with the one an
+ * audit was made under (`@/lib/audit/freshness`). No client (the zero-config state), a failed
+ * query, a missing singleton row, a value that is not a whole number or an exception is
+ * `{ ok: false }` — never revision 0, which would read as "nothing changed" for an audit made
+ * before the first change. Never throws.
+ */
+export async function loadCriteriaRevision(supabase: SupabaseClient | null): Promise<CriteriaRevisionResult> {
+  if (!supabase) return { ok: false };
+  try {
+    const revision = await readRevision(supabase);
+    return typeof revision === "number" ? { ok: true, revision } : { ok: false };
+  } catch {
+    return { ok: false };
+  }
 }
 
 /**

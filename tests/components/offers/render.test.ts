@@ -345,6 +345,8 @@ function stored(overrides: Partial<StoredAudit> = {}): StoredAudit {
     effort: "medium",
     hadLimits: true,
     requirementsCount: 3,
+    criteriaRevision: 7,
+    listingFingerprint: `v1:${"0".repeat(64)}`,
     ...overrides,
   };
 }

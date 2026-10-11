@@ -73,7 +73,13 @@ const NO_RESULT = {
   effort: null,
   had_limits: null,
   requirements_count: null,
+  criteria_revision: null,
+  listing_fingerprint: null,
 };
+
+/** A fingerprint as `listingFingerprint` writes one: the version, a colon, sixty-four hex digits. */
+const FINGERPRINT = `v1:${"ab".repeat(32)}`;
+const OTHER_FINGERPRINT = `v1:${"cd".repeat(32)}`;
 
 /** The result columns of an audited row, as PostgREST answers them. */
 const RESULT = {
@@ -85,6 +91,8 @@ const RESULT = {
   effort: "medium",
   had_limits: true,
   requirements_count: 3,
+  criteria_revision: 7,
+  listing_fingerprint: FINGERPRINT,
 };
 
 /** The same result as `loadOfferAudit` hands it to the card, audited by Anna as another member sees her. */
@@ -97,6 +105,8 @@ const RESULT_VIEW = {
   effort: "medium",
   hadLimits: true,
   requirementsCount: 3,
+  criteriaRevision: 7,
+  listingFingerprint: `v1:${"ab".repeat(32)}`,
 };
 
 /** A row whose last attempt completed and is its result. */
@@ -230,7 +240,7 @@ describe("loadOfferAudit: a failed read is its own state, never an offer nobody 
     const params = new URL(stub.requests[0].url).searchParams;
     expect(params.get("offer_id")).toBe("eq.0b9f0c2e-7d1a-4c55-9a53-0000000000f1");
     expect(params.get("select")).toBe(
-      "run_state,run_started_at,run_started_by,run_failure,findings,rejected_count,audited_at,audited_by,model,effort,had_limits,requirements_count",
+      "run_state,run_started_at,run_started_by,run_failure,findings,rejected_count,audited_at,audited_by,model,effort,had_limits,requirements_count,criteria_revision,listing_fingerprint",
     );
   });
 });
@@ -459,6 +469,86 @@ describe("loadOfferAudit: the attempt and the result are read independently (#3)
   });
 });
 
+// What the audit recorded for comparison (context/changes/refetch-and-stale-audit/plan.md, Phase 1:
+// a value that is not a whole number ≥ 0, or not a non-blank text, is `null`, and the result stays
+// `ok`). A value that does not read must hide nothing: the findings are still the team's to read,
+// and only the freshness is unknown.
+describe("loadOfferAudit: what the audit recorded for comparison (FR-009)", () => {
+  it("carries the criteria revision and the listing fingerprint as stored", async () => {
+    stubAudits(rows(COMPLETED_ROW), bothMembers);
+
+    expect(await loadOfferAudit(client(), OFFER, VIEWER, NOW)).toMatchObject({
+      state: "ok",
+      result: { criteriaRevision: 7, listingFingerprint: "v1:" + "ab".repeat(32) },
+    });
+  });
+
+  it.each<[string, unknown, number]>([
+    ["revision 0, the counter's start", 0, 0],
+    ["a revision sent as digits in a text", "12", 12],
+  ])("reads %s as that number", async (_case, stored, expected) => {
+    stubAudits(rows({ ...COMPLETED_ROW, criteria_revision: stored }), bothMembers);
+
+    expect(await loadOfferAudit(client(), OFFER, VIEWER, NOW)).toMatchObject({
+      state: "ok",
+      result: { criteriaRevision: expected },
+    });
+  });
+
+  it.each<[string, unknown]>([
+    ["null", null],
+    ["a negative number", -1],
+    ["a fraction", 7.5],
+    ["non-numeric text", "abc"],
+    ["an empty text", ""],
+    ["a boolean", true],
+  ])("reads a revision that is %s as null, and keeps the result and its fingerprint", async (_what, value) => {
+    stubAudits(rows({ ...COMPLETED_ROW, criteria_revision: value }), bothMembers);
+
+    expect(await loadOfferAudit(client(), OFFER, VIEWER, NOW)).toEqual({
+      state: "ok",
+      attempt: { kind: "none" },
+      result: { ...RESULT_VIEW, criteriaRevision: null },
+    });
+  });
+
+  it.each<[string, unknown]>([
+    ["null", null],
+    ["an empty text", ""],
+    ["a blank text", "  "],
+    ["a number", 5],
+    ["a list", ["v1:ab"]],
+  ])("reads a fingerprint that is %s as null, and keeps the result and its revision", async (_what, value) => {
+    stubAudits(rows({ ...COMPLETED_ROW, listing_fingerprint: value }), bothMembers);
+
+    expect(await loadOfferAudit(client(), OFFER, VIEWER, NOW)).toEqual({
+      state: "ok",
+      attempt: { kind: "none" },
+      result: { ...RESULT_VIEW, listingFingerprint: null },
+    });
+  });
+
+  // The fingerprint's format is the freshness rule's to judge, not the read's.
+  it("keeps a fingerprint of another shape as stored", async () => {
+    stubAudits(rows({ ...COMPLETED_ROW, listing_fingerprint: "v2:xyz" }), bothMembers);
+
+    expect(await loadOfferAudit(client(), OFFER, VIEWER, NOW)).toMatchObject({
+      state: "ok",
+      result: { listingFingerprint: "v2:xyz" },
+    });
+  });
+
+  it("keeps the comparison values of a result that stands beside a failed re-run", async () => {
+    stubAudits(rows({ ...COMPLETED_ROW, run_state: "failed", run_failure: "provider_timeout" }), bothMembers);
+
+    expect(await loadOfferAudit(client(), OFFER, VIEWER, NOW)).toMatchObject({
+      state: "ok",
+      attempt: { kind: "failed" },
+      result: { criteriaRevision: 7, listingFingerprint: "v1:" + "ab".repeat(32) },
+    });
+  });
+});
+
 describe("loadOfferAudit: the people of the row are named with one read (#3)", () => {
   it("names the starter of a running attempt and the auditor of the result it stands beside, each as their own", async () => {
     const stub = stubAudits(rows({ ...RUNNING_ROW, run_started_by: BARTEK, ...RESULT }), bothMembers);
@@ -554,23 +644,31 @@ describe("auditDataState: one word for the card's data-audit-state (#3)", () => 
 
 describe("loadAuditIndex: a failed read is its own state, never a board where nothing is audited (#3)", () => {
   /** "No offer has a stored result": a successful read that finds none. */
-  const NOTHING_AUDITED: AuditIndex = { ok: true, audited: new Set() };
+  const NOTHING_AUDITED: AuditIndex = { ok: true, audited: new Map() };
 
-  it("control: answers an empty set for a read that succeeds and finds no audited offer", async () => {
+  it("control: answers an empty map for a read that succeeds and finds no audited offer", async () => {
     const stub = stubAudits(rows());
 
-    expect(await loadAuditIndex(client())).toEqual({ ok: true, audited: new Set() });
+    expect(await loadAuditIndex(client())).toEqual({ ok: true, audited: new Map() });
     expect(stub.requests).toHaveLength(1);
   });
 
-  it("answers the offers that have a stored result", async () => {
-    stubAudits(rows({ offer_id: OFFER }, { offer_id: OTHER_OFFER }));
+  it("answers the offers that have a stored result, each with what its audit recorded", async () => {
+    stubAudits(
+      rows(
+        { offer_id: OFFER, criteria_revision: 7, listing_fingerprint: FINGERPRINT },
+        { offer_id: OTHER_OFFER, criteria_revision: 9, listing_fingerprint: OTHER_FINGERPRINT },
+      ),
+    );
 
     const index = await loadAuditIndex(client());
 
     expect(index).toEqual({
       ok: true,
-      audited: new Set(["0b9f0c2e-7d1a-4c55-9a53-0000000000f1", "0b9f0c2e-7d1a-4c55-9a53-0000000000f2"]),
+      audited: new Map([
+        ["0b9f0c2e-7d1a-4c55-9a53-0000000000f1", { criteriaRevision: 7, listingFingerprint: "v1:" + "ab".repeat(32) }],
+        ["0b9f0c2e-7d1a-4c55-9a53-0000000000f2", { criteriaRevision: 9, listingFingerprint: "v1:" + "cd".repeat(32) }],
+      ]),
     });
     expect(index).not.toEqual(NOTHING_AUDITED);
   });
@@ -581,8 +679,45 @@ describe("loadAuditIndex: a failed read is its own state, never a board where no
     await loadAuditIndex(client());
 
     const params = new URL(stub.requests[0].url).searchParams;
-    expect(params.get("select")).toBe("offer_id");
+    expect(params.get("select")).toBe("offer_id,criteria_revision,listing_fingerprint");
     expect(params.get("findings")).toBe("not.is.null");
+  });
+
+  // A comparison value that does not read fails nothing: the offer has findings all the same.
+  it.each<[string, Record<string, unknown>, { criteriaRevision: number | null; listingFingerprint: string | null }]>([
+    [
+      "a revision sent as digits in a text",
+      { criteria_revision: "12", listing_fingerprint: FINGERPRINT },
+      { criteriaRevision: 12, listingFingerprint: "v1:" + "ab".repeat(32) },
+    ],
+    [
+      "a revision that is not a number",
+      { criteria_revision: "abc", listing_fingerprint: FINGERPRINT },
+      { criteriaRevision: null, listingFingerprint: "v1:" + "ab".repeat(32) },
+    ],
+    [
+      "a negative revision",
+      { criteria_revision: -1, listing_fingerprint: FINGERPRINT },
+      { criteriaRevision: null, listingFingerprint: "v1:" + "ab".repeat(32) },
+    ],
+    [
+      "a blank fingerprint",
+      { criteria_revision: 7, listing_fingerprint: " " },
+      { criteriaRevision: 7, listingFingerprint: null },
+    ],
+    [
+      "a fingerprint that is not a text",
+      { criteria_revision: 7, listing_fingerprint: 5 },
+      { criteriaRevision: 7, listingFingerprint: null },
+    ],
+    ["neither column", {}, { criteriaRevision: null, listingFingerprint: null }],
+  ])("keeps an offer audited when its row holds %s", async (_case, columns, expected) => {
+    stubAudits(rows({ offer_id: OFFER, ...columns }));
+
+    const index = await loadAuditIndex(client());
+
+    expect(index).toEqual({ ok: true, audited: new Map([[OFFER, expected]]) });
+    expect(index).not.toEqual(NOTHING_AUDITED);
   });
 
   it("answers not ok without a client, and asks the database nothing", async () => {
@@ -609,8 +744,10 @@ describe("loadAuditIndex: a failed read is its own state, never a board where no
     ["an object", {}],
     ["null", null],
     ["a list holding something that is not a row", [null]],
+    ["a list holding a text", ["0b9f0c2e-7d1a-4c55-9a53-0000000000f1"]],
     ["a row without an offer id", [{ offer_id: OFFER }, {}]],
     ["a row whose offer id is not a text", [{ offer_id: 5 }]],
+    ["a row whose offer id is empty", [{ offer_id: "" }]],
   ])("answers not ok for a 200 whose body is %s, and does not throw", async (_case, body) => {
     const stub = stubAudits(() => jsonResponse(body, 200));
 

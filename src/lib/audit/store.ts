@@ -26,6 +26,7 @@ import {
 } from "@/lib/audit/failure";
 import { type StoredFindings, readFindings } from "@/lib/audit/schema";
 import type { AuditEffort, AuditModel } from "@/lib/audit/settings";
+import { revisionNumber } from "@/lib/criteria";
 import { type Saver, resolveAuthors } from "@/lib/members";
 import type { createClient } from "@/lib/supabase";
 
@@ -281,7 +282,19 @@ export interface StoredAudit {
   effort: string;
   hadLimits: boolean;
   requirementsCount: number;
+  /**
+   * What the audit was made against, for `auditFreshness` in `@/lib/audit/freshness` — no view
+   * shows either. `null` is a value that does not read; the result beside it is still a result.
+   */
+  criteriaRevision: number | null;
+  listingFingerprint: string | null;
 }
+
+/**
+ * What an audit recorded about the criteria and the listing it was made against. `null` is a
+ * stored value that does not read: the comparison then cannot be made, which is never "unchanged".
+ */
+export type AuditComparison = Pick<StoredAudit, "criteriaRevision" | "listingFingerprint">;
 
 /**
  * An offer's audit, or a failed read — which is never shown as "not audited". With `ok`, the
@@ -299,9 +312,9 @@ export type OfferAudit =
   | { state: "broken"; attempt: AuditAttempt }
   | { state: "ok"; attempt: AuditAttempt; result: StoredAudit | null };
 
-/** Everything the card reads. `criteria_revision` and `listing_fingerprint` are S-09's, and are not shown. */
+/** Everything the card reads. `criteria_revision` and `listing_fingerprint` are compared, never shown. */
 const VIEW_COLUMNS =
-  "run_state, run_started_at, run_started_by, run_failure, findings, rejected_count, audited_at, audited_by, model, effort, had_limits, requirements_count";
+  "run_state, run_started_at, run_started_by, run_failure, findings, rejected_count, audited_at, audited_by, model, effort, had_limits, requirements_count, criteria_revision, listing_fingerprint";
 
 function isReadableDate(value: unknown): value is string {
   return typeof value === "string" && !Number.isNaN(Date.parse(value));
@@ -318,6 +331,19 @@ function isCount(value: unknown): value is number {
 
 function isText(value: unknown): value is string {
   return typeof value === "string" && value.trim() !== "";
+}
+
+/**
+ * The two values an audit stores for comparison, each read on its own: the revision as
+ * `criteria_revision.revision` itself is read, the fingerprint as a non-blank text. One that does
+ * not read is `null` and takes nothing else with it.
+ */
+function readComparison(row: Record<string, unknown>): AuditComparison {
+  const fingerprint = row.listing_fingerprint;
+  return {
+    criteriaRevision: revisionNumber(row.criteria_revision),
+    listingFingerprint: isText(fingerprint) ? fingerprint : null,
+  };
 }
 
 type RowAttempt =
@@ -353,6 +379,9 @@ type RowResult = Omit<StoredAudit, "auditedBy"> & { auditedBy: string | null };
  * `undefined` when they do not read — half a result, findings `readFindings` turns away, a count
  * that is not one, a date that is not one. The table's check keeps a result whole or absent; the
  * row is still not trusted to be either.
+ *
+ * The two comparison values decide neither answer: they are not what the card shows, so one that
+ * does not read leaves the result readable and its freshness unknown.
  */
 function readResult(row: Record<string, unknown>): RowResult | null | undefined {
   const {
@@ -374,7 +403,17 @@ function readResult(row: Record<string, unknown>): RowResult | null | undefined 
   if (findings === null) return undefined;
   if (!isCount(rejectedCount) || !isCount(requirementsCount) || !isReadableDate(auditedAt)) return undefined;
   if (!isText(model) || !isText(effort) || typeof hadLimits !== "boolean") return undefined;
-  return { findings, rejectedCount, auditedAt, auditedBy, model, effort, hadLimits, requirementsCount };
+  return {
+    findings,
+    rejectedCount,
+    auditedAt,
+    auditedBy,
+    model,
+    effort,
+    hadLimits,
+    requirementsCount,
+    ...readComparison(row),
+  };
 }
 
 /**
@@ -473,27 +512,34 @@ export function auditDataState(audit: OfferAudit): AuditDataState {
 }
 
 /**
- * Which offers have a stored audit result, or a failed read — which the board shows as "could not
- * check", never as "not audited". An attempt alone (running, failed, interrupted) puts no offer in
- * the set: the set answers whether there are findings to read.
+ * Which offers have a stored audit result — each with what that audit recorded for comparison —
+ * or a failed read, which the board shows as "could not check", never as "not audited". An
+ * attempt alone (running, failed, interrupted) puts no offer in the map: the map answers whether
+ * there are findings to read.
  */
-export type AuditIndex = { ok: true; audited: ReadonlySet<string> } | { ok: false };
+export type AuditIndex = { ok: true; audited: ReadonlyMap<string, AuditComparison> } | { ok: false };
 
 /**
- * The ids of every offer whose row holds a result, read once per board. No client (the
- * zero-config state), a failed query, an answer that is not a list of rows with an offer id, or
- * an exception is `{ ok: false }` — never an empty set. Never throws.
+ * Every offer whose row holds a result, read once per board. No client (the zero-config state),
+ * a failed query, an answer that is not a list of rows with an offer id, or an exception is
+ * `{ ok: false }` — never an empty map. A comparison value that does not read is `null` in the
+ * offer's entry and fails nothing: the offer is still audited. Never throws.
  */
 export async function loadAuditIndex(supabase: SupabaseClient | null): Promise<AuditIndex> {
   if (!supabase) return { ok: false };
   try {
-    const read = await supabase.from(TABLE).select("offer_id").not("findings", "is", null);
+    const read = await supabase
+      .from(TABLE)
+      .select("offer_id, criteria_revision, listing_fingerprint")
+      .not("findings", "is", null);
     if (read.error || !Array.isArray(read.data)) return { ok: false };
-    const audited = new Set<string>();
+    const audited = new Map<string, AuditComparison>();
     for (const row of read.data as unknown[]) {
-      const id = typeof row === "object" && row !== null ? (row as Record<string, unknown>).offer_id : undefined;
+      if (typeof row !== "object" || row === null) return { ok: false };
+      const columns = row as Record<string, unknown>;
+      const id = columns.offer_id;
       if (typeof id !== "string" || id === "") return { ok: false };
-      audited.add(id);
+      audited.set(id, readComparison(columns));
     }
     return { ok: true, audited };
   } catch {

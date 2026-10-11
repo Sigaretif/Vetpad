@@ -93,9 +93,11 @@ describe("OfferBoardItem: the audit status is one of three, and a failed read is
   const AUDITED = "Audytowano";
   const NOT_AUDITED = "Nie audytowano";
   const UNKNOWN = "Nie udało się sprawdzić audytu";
+  /** What an audit recorded for comparison; the row does not read it yet. */
+  const COMPARISON = { criteriaRevision: 7, listingFingerprint: `v1:${"0".repeat(64)}` };
 
   it("says the offer was audited when the index holds it", async () => {
-    const text = await rowText(fullOffer, { ok: true, audited: new Set([fullOffer.id]) });
+    const text = await rowText(fullOffer, { ok: true, audited: new Map([[fullOffer.id, COMPARISON]]) });
 
     expect(text).toContain(AUDITED);
     expect(text).not.toContain(NOT_AUDITED);
@@ -103,8 +105,8 @@ describe("OfferBoardItem: the audit status is one of three, and a failed read is
   });
 
   it.each<[string, AuditIndex]>([
-    ["no offer has a result", { ok: true, audited: new Set() }],
-    ["only another offer has a result", { ok: true, audited: new Set([unknownOffer.id]) }],
+    ["no offer has a result", { ok: true, audited: new Map() }],
+    ["only another offer has a result", { ok: true, audited: new Map([[unknownOffer.id, COMPARISON]]) }],
   ])("says the offer was not audited when %s", async (_case, audits) => {
     const text = await rowText(fullOffer, audits);
 

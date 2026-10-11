@@ -5,6 +5,7 @@ import {
   type TeamLimitsResult,
   loadAuditCriteria,
   loadCriteria,
+  loadCriteriaRevision,
   loadTeamLimits,
 } from "@/lib/criteria";
 import { createClient } from "@/lib/supabase";
@@ -1081,5 +1082,65 @@ describe("loadAuditCriteria: the criteria and their revision come from one momen
     expect(criteria).not.toEqual({ ...NO_AUDIT_CRITERIA, revision: 8 });
     // The repeated read stopped at its failed criteria read: no fourth read of the revision.
     expect(tablesAsked(stub.requests).filter((table) => table === "criteria_revision")).toHaveLength(3);
+  });
+});
+
+// The views' read of the revision alone (context/changes/refetch-and-stale-audit/plan.md, Phase 1).
+// What it must never be confused with is "the criteria never changed": a failed read answered as
+// revision 0 would call an audit made under revision 0 fresh, and every other audit stale.
+describe("loadCriteriaRevision: a failed read is its own state, never revision 0 (FR-003)", () => {
+  /** "The criteria never changed": a successful read of the counter at its start. */
+  const NEVER_REVISED = { ok: true, revision: 0 };
+
+  it("control: answers revision 0 for a counter that never moved, with one read of the singleton row", async () => {
+    const stub = stubAuditCriteria({ revisions: [revision(0)] });
+
+    expect(await loadCriteriaRevision(client())).toEqual({ ok: true, revision: 0 });
+
+    expect(tablesAsked(stub.requests)).toEqual(["criteria_revision"]);
+    const params = new URL(stub.requests[0].url).searchParams;
+    expect(params.get("select")).toBe("revision");
+    expect(params.get("id")).toBe("eq.true");
+  });
+
+  it.each<[string, unknown, number]>([
+    ["a number", 7, 7],
+    ["digits in a text", "12", 12],
+  ])("answers the revision sent as %s", async (_case, value, expected) => {
+    stubAuditCriteria({ revisions: [revision(value)] });
+
+    expect(await loadCriteriaRevision(client())).toEqual({ ok: true, revision: expected });
+  });
+
+  it("answers not ok without a client, and asks the database nothing", async () => {
+    const stub = stubFetch(() => undefined);
+
+    const read = await loadCriteriaRevision(null);
+
+    expect(read).toEqual({ ok: false });
+    expect(read).not.toEqual(NEVER_REVISED);
+    expect(stub.requests).toHaveLength(0);
+  });
+
+  it.each<[string, () => Response]>([
+    ["the database fails the read (500)", failedRead],
+    ["the singleton row is missing (200 [])", noRows],
+    ["the read answers two rows (PGRST116)", rows({ revision: 0 }, { revision: 0 })],
+    ["the row has no revision column", rows({})],
+    ["the row is null", rows(null)],
+    ["the body is an empty object", () => jsonResponse({}, 200)],
+    ["the revision is null", revision(null)],
+    ["the revision is non-numeric text", revision("abc")],
+    ["the revision is negative", revision(-1)],
+    ["the revision is a fraction", revision(7.5)],
+  ])("answers not ok when %s, and does not throw", async (_case, answer) => {
+    const stub = stubAuditCriteria({ revisions: [answer] });
+
+    const read = await loadCriteriaRevision(client());
+
+    expect(read).toEqual({ ok: false });
+    expect(read).not.toEqual(NEVER_REVISED);
+    // The outcome came from the database's answer — the read did go out, once, and is not repeated.
+    expect(stub.requests).toHaveLength(1);
   });
 });
