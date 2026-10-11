@@ -8,13 +8,19 @@ import {
   areaBelowOffer,
   boardLimits,
   failedAudits,
+  failedFreshness,
   failedLimits,
   fullOffer,
+  fullOfferFresh,
+  fullOfferFreshnessUnknown,
+  fullOfferStale,
   lodzLimits,
   longCityLimits,
   longTitleOffer,
   manyBreachesOffer,
+  mixedFreshness,
   noAudits,
+  noFreshness,
   noLimits,
   outsideCityOffer,
   priceAboveOffer,
@@ -22,6 +28,7 @@ import {
   singleImageOffer,
   someAudits,
   streetOnlyOffer,
+  threeAudits,
   unknownOffer,
   unsafeImagesOffer,
   withinLimitsOffer,
@@ -44,7 +51,8 @@ const areaDesc: BoardSortValue = { key: "area", dir: "desc" };
 
 // Single rows, in the same <ul>/<li> markup OfferBoard gives a row in production. The rows that
 // predate the team's limits render with no limit set, as before; the rest name the limits they
-// are compared with.
+// are compared with. The same goes for the audit: a row without `audits` is compared with an index
+// that holds no result, and the last two name the freshness of the result they have.
 const BOARD_LIMITS = "limity: Warszawa, 600 000–850 000 zł, od 60 m²";
 const rows = [
   {
@@ -114,6 +122,22 @@ const rows = [
     offer: withinLimitsOffer,
     limits: lodzLimits,
   },
+  {
+    state: "row-audit-stale",
+    caption: "Wiersz: audyt nieaktualny — „Audyt nieaktualny”",
+    offer: fullOffer,
+    limits: noLimits,
+    audits: someAudits,
+    freshness: fullOfferStale,
+  },
+  {
+    state: "row-audit-freshness-unknown",
+    caption: "Wiersz: audyt, którego aktualności nie udało się ustalić — nigdy „Audytowano”",
+    offer: fullOffer,
+    limits: noLimits,
+    audits: someAudits,
+    freshness: fullOfferFreshnessUnknown,
+  },
 ];
 
 const stateClass = "border-border flex flex-col gap-6 border-t pt-6";
@@ -130,9 +154,10 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
       samych siebie (<code>board-breaches</code>, <code>board-limits-error</code>), tak samo sekcje „audits” i
       „audits-error” ze znaczkiem statusu audytu (<code>board-audits</code>, <code>board-audits-error</code>). Stany
       disabled i loading: nie dotyczy — tablica nie ma wyłączanych kontrolek i nie pobiera niczego po stronie klienta.
-      Znaczek statusu audytu: default („Audytowano”, „Nie audytowano”) i error („Nie udało się sprawdzić audytu”);
-      hover, focus, disabled, empty i loading nie dotyczą — znaczek nie jest interaktywny i nie ma własnego stanu
-      ładowania.
+      Znaczek statusu audytu: default („Audytowano”, „Nie audytowano”, „Audyt nieaktualny”, „Aktualności audytu nie
+      udało się ustalić” — sekcje „audit-freshness” i „audit-freshness-error”) i error („Nie udało się sprawdzić
+      audytu”); hover, focus, disabled, empty i loading nie dotyczą — znaczek nie jest interaktywny i nie ma własnego
+      stanu ładowania.
     </p>
 
     <div class:list={stateClass} data-state="default">
@@ -141,6 +166,7 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
         result={{ ok: true, offers: [fullOffer, singleImageOffer] }}
         limits={noLimits}
         audits={noAudits}
+        freshness={noFreshness}
         sort={defaultSort}
       />
     </div>
@@ -151,6 +177,7 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
         result={{ ok: true, offers: [fullOffer, outsideCityOffer, unknownOffer] }}
         limits={boardLimits}
         audits={noAudits}
+        freshness={noFreshness}
         sort={defaultSort}
         headingId="board-heading-breaches"
       />
@@ -162,6 +189,7 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
         result={{ ok: true, offers: [fullOffer, singleImageOffer] }}
         limits={failedLimits}
         audits={noAudits}
+        freshness={noFreshness}
         sort={defaultSort}
         headingId="board-heading-limits-error"
       />
@@ -173,8 +201,39 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
         result={{ ok: true, offers: [fullOffer, singleImageOffer] }}
         limits={noLimits}
         audits={someAudits}
+        freshness={fullOfferFresh}
         sort={defaultSort}
         headingId="board-heading-audits"
+      />
+    </div>
+
+    <div class:list={stateClass} data-state="audit-freshness">
+      <p class:list={captionClass}>
+        Stan: aktualność audytu — „Audytowano” (pierwsza oferta), „Audyt nieaktualny” (druga), „Aktualności audytu nie
+        udało się ustalić” (trzecia) i „Nie audytowano” (czwarta)
+      </p>
+      <OfferBoard
+        result={{ ok: true, offers: [fullOffer, singleImageOffer, longTitleOffer, streetOnlyOffer] }}
+        limits={noLimits}
+        audits={threeAudits}
+        freshness={mixedFreshness}
+        sort={defaultSort}
+        headingId="board-heading-audit-freshness"
+      />
+    </div>
+
+    <div class:list={stateClass} data-state="audit-freshness-error">
+      <p class:list={captionClass}>
+        Stan: błąd odczytu aktualności (każdy audytowany wiersz: „Aktualności audytu nie udało się ustalić”, nigdy
+        „Audytowano”; oferta bez audytu nadal „Nie audytowano”)
+      </p>
+      <OfferBoard
+        result={{ ok: true, offers: [fullOffer, singleImageOffer, streetOnlyOffer] }}
+        limits={noLimits}
+        audits={threeAudits}
+        freshness={failedFreshness}
+        sort={defaultSort}
+        headingId="board-heading-audit-freshness-error"
       />
     </div>
 
@@ -186,6 +245,7 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
         result={{ ok: true, offers: [fullOffer, longTitleOffer] }}
         limits={boardLimits}
         audits={failedAudits}
+        freshness={failedFreshness}
         sort={defaultSort}
         headingId="board-heading-audits-error"
       />
@@ -207,6 +267,7 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
         result={{ ok: true, offers: [] }}
         limits={noLimits}
         audits={noAudits}
+        freshness={noFreshness}
         sort={defaultSort}
         headingId="board-heading-empty"
       />
@@ -218,6 +279,7 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
         result={{ ok: false }}
         limits={noLimits}
         audits={noAudits}
+        freshness={noFreshness}
         sort={defaultSort}
         headingId="board-heading-error"
       />
@@ -228,7 +290,12 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
         <p class:list={captionClass}>Stan: {row.caption}</p>
         <ul class="flex flex-col gap-3">
           <li>
-            <OfferBoardItem offer={row.offer} limits={row.limits} audits={noAudits} />
+            <OfferBoardItem
+              offer={row.offer}
+              limits={row.limits}
+              audits={row.audits ?? noAudits}
+              freshness={row.freshness ?? noFreshness}
+            />
           </li>
         </ul>
       </div>

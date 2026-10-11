@@ -714,32 +714,32 @@ od pierwszego wyświetlenia. Wdrożenie nie wymaga `supabase db push`.
 
 #### Automated
 
-- [x] 3.1 Testy jednostkowe i testy renderu przechodzą: `npm test`
-- [x] 3.2 Typy przechodzą: `npx astro sync && npx astro check`
-- [x] 3.3 Lint przechodzi, w tym `tokensOnlyConfig`: `npm run lint`
-- [x] 3.4 Budowanie przechodzi bez sekretów: `npm run build`
+- [x] 3.1 Testy jednostkowe i testy renderu przechodzą: `npm test` — 1c557db
+- [x] 3.2 Typy przechodzą: `npx astro sync && npx astro check` — 1c557db
+- [x] 3.3 Lint przechodzi, w tym `tokensOnlyConfig`: `npm run lint` — 1c557db
+- [x] 3.4 Budowanie przechodzi bez sekretów: `npm run build` — 1c557db
 
 #### Manual
 
-- [x] 3.5 `/dev/offer-card` pokazuje wszystkie nowe stany sekcji audytu, karty i powiadomienia o duplikacie, czytelne w ciemnym motywie
-- [x] 3.6 `/dev/forms` pokazuje `RefetchForm` w czterech stanach
+- [x] 3.5 `/dev/offer-card` pokazuje wszystkie nowe stany sekcji audytu, karty i powiadomienia o duplikacie, czytelne w ciemnym motywie — 1c557db
+- [x] 3.6 `/dev/forms` pokazuje `RefetchForm` w czterech stanach — 1c557db
 - [x] 3.7 Na lokalnej ofercie zmiana tytułu przez Data API oznacza audyt jako nieaktualny z powodu ogłoszenia, a zmiana limitu na `/criteria` — z powodu kryteriów
-- [x] 3.8 Błąd edytora notatek nadal pojawia się przy edytorze, a nie w bloku pobrania
+- [x] 3.8 Błąd edytora notatek nadal pojawia się przy edytorze, a nie w bloku pobrania — 1c557db
 
 ### Phase 4: Tablica
 
 #### Automated
 
-- [ ] 4.1 Testy jednostkowe i testy renderu przechodzą: `npm test`
-- [ ] 4.2 Typy przechodzą: `npx astro sync && npx astro check`
-- [ ] 4.3 Lint przechodzi: `npm run lint`
-- [ ] 4.4 Budowanie przechodzi bez sekretów: `npm run build`
+- [x] 4.1 Testy jednostkowe i testy renderu przechodzą: `npm test`
+- [x] 4.2 Typy przechodzą: `npx astro sync && npx astro check`
+- [x] 4.3 Lint przechodzi: `npm run lint`
+- [x] 4.4 Budowanie przechodzi bez sekretów: `npm run build`
 
 #### Manual
 
-- [ ] 4.5 `/dev/board` pokazuje pięć statusów audytu, rozróżnialnych bez koloru
+- [x] 4.5 `/dev/board` pokazuje pięć statusów audytu, rozróżnialnych bez koloru
 - [ ] 4.6 Na lokalnej tablicy zmiana limitu na `/criteria` zmienia status audytowanej oferty na „nieaktualny"
-- [ ] 4.7 Sortowanie i znaczniki limitów działają jak przed fazą
+- [x] 4.7 Sortowanie i znaczniki limitów działają jak przed fazą
 
 ### Phase 5: Smoke i dokumentacja
 

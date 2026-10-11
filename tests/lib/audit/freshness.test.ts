@@ -1,13 +1,29 @@
 import { createHash } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   type AuditFreshness,
+  type BoardFreshness,
   type CurrentComparison,
   type StoredComparison,
   auditFreshness,
   currentListingFingerprint,
+  loadBoardFreshness,
 } from "@/lib/audit/freshness";
+import { AUDIT_OFFER_COLUMNS } from "@/lib/audit/input";
+import type { AuditIndex } from "@/lib/audit/store";
+import { createClient } from "@/lib/supabase";
 import { auditOfferRow } from "../../fixtures/audit";
+import { type RecordedRequest, isOffersRequest, jsonResponse, restoreFetch, stubFetch } from "../../fixtures/http";
+
+// A configured Supabase client (test values, never a real project's) for `loadBoardFreshness`:
+// this mock overrides the zero-config one in tests/setup.ts. Only the network is stubbed below —
+// @/lib/supabase and @/lib/audit/* run as they do in production.
+vi.mock("astro:env/server", async () => {
+  const { SUPABASE_TEST_KEY, SUPABASE_TEST_URL } = await import("../../fixtures/http");
+  return { SUPABASE_URL: SUPABASE_TEST_URL, SUPABASE_KEY: SUPABASE_TEST_KEY, getSecret: () => undefined };
+});
+
+afterEach(restoreFetch);
 
 // Expected values are written by hand from the freshness table in
 // context/changes/refetch-and-stale-audit/plan.md („Desired End State": nine rows) and the Phase 1
@@ -319,5 +335,248 @@ describe("currentListingFingerprint: the fingerprint of an offer's row as it sta
 
   it("control: answers a fingerprint for the same row once it reads", async () => {
     expect(await currentListingFingerprint(auditOfferRow({ price: 599000 }))).not.toBeNull();
+  });
+});
+
+// The board's read (context/changes/refetch-and-stale-audit/plan.md, Phase 4): one query for the
+// audit's columns of the offers the index holds, the fingerprint of each, and the rule above with
+// the revision the page passes. What it must never be confused with is "every audit is up to
+// date": a failed read is its own answer, and every failure below stands beside the read that
+// succeeds. Expected values are written by hand from that contract and the nine-row table.
+describe("loadBoardFreshness: the freshness of every audited offer, from one read (FR-003, FR-009)", () => {
+  const FIRST = "0b9f0c2e-7d1a-4c55-9a53-0000000000f1";
+  const SECOND = "0b9f0c2e-7d1a-4c55-9a53-0000000000f2";
+  const THIRD = "0b9f0c2e-7d1a-4c55-9a53-0000000000f3";
+  const NOT_AUDITED = "0b9f0c2e-7d1a-4c55-9a53-0000000000f9";
+
+  /** Three offers' rows as the database answers them now. The second differs from the first in its title. */
+  const FIRST_ROW = auditOfferRow({ id: FIRST });
+  const SECOND_ROW = auditOfferRow({ id: SECOND, title: "Kawalerka przy parku" });
+  const THIRD_ROW = auditOfferRow({ id: THIRD, price: 610000 });
+
+  /** The client the way a request builds it, with no session cookie. */
+  function client(): NonNullable<ReturnType<typeof createClient>> {
+    const supabase = createClient(new Headers(), { set: vi.fn() });
+    if (supabase === null) throw new Error("expected a configured Supabase client");
+    return supabase;
+  }
+
+  /** Answers the one read of `offers`; any other request is unplanned and fails the test. */
+  function stubOffers(answer: () => Response) {
+    return stubFetch((request) => (isOffersRequest(request, "GET") ? answer() : undefined));
+  }
+
+  function rows(...list: unknown[]): () => Response {
+    return () => jsonResponse(list, 200);
+  }
+
+  function failedRead(): Response {
+    return jsonResponse({ code: "XX000", message: "internal error", details: null, hint: null }, 500);
+  }
+
+  /** The fingerprint of a row as it stands, taken the way the audit route takes it. */
+  async function fingerprintOf(row: unknown): Promise<string> {
+    const fingerprint = await currentListingFingerprint(row);
+    if (fingerprint === null) throw new Error("expected a row that reads");
+    return fingerprint;
+  }
+
+  /** An index in which each offer was audited under revision 7 against the given row. */
+  async function indexOf(entries: [string, unknown][]): Promise<AuditIndex> {
+    const audited = new Map<string, { criteriaRevision: number | null; listingFingerprint: string | null }>();
+    for (const [id, row] of entries) {
+      audited.set(id, { criteriaRevision: 7, listingFingerprint: await fingerprintOf(row) });
+    }
+    return { ok: true, audited };
+  }
+
+  /** The ids the read filters by, from `id=in.(a,b,…)`, sorted. */
+  function idsAskedFor(request: RecordedRequest): string[] {
+    const filter = new URL(request.url).searchParams.get("id") ?? "";
+    const list = /^in\.\((.*)\)$/.exec(filter)?.[1];
+    if (list === undefined) throw new Error(`expected an in.(…) filter on id, got "${filter}"`);
+    return list.split(",").sort();
+  }
+
+  function entries(freshness: BoardFreshness): [string, AuditFreshness][] {
+    if (!freshness.ok) throw new Error("expected a read that succeeded");
+    return [...freshness.byOffer.entries()].sort(([a], [b]) => a.localeCompare(b));
+  }
+
+  /** "Every audited offer is up to date": the answer a failed read must never be taken for. */
+  const ALL_FRESH: BoardFreshness = { ok: true, byOffer: new Map([[FIRST, { state: "fresh" }]]) };
+
+  it("control: answers fresh for an offer whose row and revision stand as audited, with one read", async () => {
+    const stub = stubOffers(rows(FIRST_ROW));
+
+    const freshness = await loadBoardFreshness(client(), await indexOf([[FIRST, FIRST_ROW]]), 7);
+
+    expect(freshness).toEqual({ ok: true, byOffer: new Map([[FIRST, { state: "fresh" }]]) });
+    expect(stub.requests).toHaveLength(1);
+  });
+
+  it("answers each offer by its own row: fresh, a changed listing, and both changed", async () => {
+    // Audited against the rows as they were; the second and the third have changed since.
+    const index = await indexOf([
+      [FIRST, FIRST_ROW],
+      [SECOND, auditOfferRow({ id: SECOND })],
+      [THIRD, auditOfferRow({ id: THIRD })],
+    ]);
+    if (!index.ok) throw new Error("expected an index");
+    // The third was audited under an earlier revision as well.
+    const audited = new Map(index.audited);
+    audited.set(THIRD, { criteriaRevision: 6, listingFingerprint: await fingerprintOf(auditOfferRow({ id: THIRD })) });
+    // The answer comes in an order of its own.
+    const stub = stubOffers(rows(THIRD_ROW, FIRST_ROW, SECOND_ROW));
+
+    const freshness = await loadBoardFreshness(client(), { ok: true, audited }, 7);
+
+    expect(entries(freshness)).toEqual([
+      [FIRST, { state: "fresh" }],
+      [SECOND, { state: "stale", reasons: ["listing"] }],
+      [THIRD, { state: "stale", reasons: ["listing", "criteria"] }],
+    ]);
+    expect(stub.requests).toHaveLength(1);
+  });
+
+  it("answers stale by the criteria when the revision the page passed has moved", async () => {
+    stubOffers(rows(FIRST_ROW));
+
+    expect(await loadBoardFreshness(client(), await indexOf([[FIRST, FIRST_ROW]]), 8)).toEqual({
+      ok: true,
+      byOffer: new Map([[FIRST, { state: "stale", reasons: ["criteria"] }]]),
+    });
+  });
+
+  // A failed read of the revision goes in as null: the rule decides, and never reads it as unchanged.
+  it("answers unknown for an unchanged listing when the revision could not be read, and stale for a changed one", async () => {
+    stubOffers(rows(FIRST_ROW, SECOND_ROW));
+    const index = await indexOf([
+      [FIRST, FIRST_ROW],
+      [SECOND, auditOfferRow({ id: SECOND })],
+    ]);
+
+    const freshness = await loadBoardFreshness(client(), index, null);
+
+    expect(entries(freshness)).toEqual([
+      [FIRST, { state: "unknown" }],
+      [SECOND, { state: "stale", reasons: ["listing"] }],
+    ]);
+  });
+
+  // The offer's row is there and does not read: its listing cannot be compared, the read still succeeded.
+  it("answers unknown for an offer whose row does not read, and fails nothing beside it", async () => {
+    stubOffers(rows(FIRST_ROW, auditOfferRow({ id: SECOND, price: 0 })));
+    const index = await indexOf([
+      [FIRST, FIRST_ROW],
+      [SECOND, auditOfferRow({ id: SECOND })],
+    ]);
+
+    expect(entries(await loadBoardFreshness(client(), index, 7))).toEqual([
+      [FIRST, { state: "fresh" }],
+      [SECOND, { state: "unknown" }],
+    ]);
+    // With a moved revision the same row is stale by the criteria alone.
+    stubOffers(rows(FIRST_ROW, auditOfferRow({ id: SECOND, price: 0 })));
+    expect(entries(await loadBoardFreshness(client(), index, 8))).toEqual([
+      [FIRST, { state: "stale", reasons: ["criteria"] }],
+      [SECOND, { state: "stale", reasons: ["criteria"] }],
+    ]);
+  });
+
+  it("answers unknown for an offer whose stored comparison values did not read", async () => {
+    stubOffers(rows(FIRST_ROW));
+    const index: AuditIndex = {
+      ok: true,
+      audited: new Map([[FIRST, { criteriaRevision: null, listingFingerprint: null }]]),
+    };
+
+    expect(await loadBoardFreshness(client(), index, 7)).toEqual({
+      ok: true,
+      byOffer: new Map([[FIRST, { state: "unknown" }]]),
+    });
+  });
+
+  it("gives no entry to an audited offer the answer does not hold, nor to a row nobody asked for", async () => {
+    stubOffers(rows(FIRST_ROW, auditOfferRow({ id: NOT_AUDITED })));
+    const index = await indexOf([
+      [FIRST, FIRST_ROW],
+      [SECOND, SECOND_ROW],
+    ]);
+
+    expect(entries(await loadBoardFreshness(client(), index, 7))).toEqual([[FIRST, { state: "fresh" }]]);
+  });
+
+  // Written by hand from postgrest-js: `select` with its whitespace stripped, and `in` as a list.
+  it("asks once for the id and the audit's columns of the offers in the index, and for nothing else", async () => {
+    const stub = stubOffers(rows(FIRST_ROW, SECOND_ROW));
+
+    await loadBoardFreshness(
+      client(),
+      await indexOf([
+        [FIRST, FIRST_ROW],
+        [SECOND, SECOND_ROW],
+      ]),
+      7,
+    );
+
+    expect(stub.requests).toHaveLength(1);
+    const params = new URL(stub.requests[0].url).searchParams;
+    expect(params.get("select")).toBe(
+      "id,title,description,price,price_currency,price_per_m,area_m2,rooms,floors_total,build_year,rent," +
+        "rent_currency,floor,market,building_type,construction_status,building_ownership,heating,windows_type," +
+        "building_material,energy_certificate,advert_type,free_from,location_label,street_name,features",
+    );
+    // Control: that list is the audit's whitelist behind the key — no `raw`, no `images`, no `source_url`.
+    expect(params.get("select")).toBe(["id", ...AUDIT_OFFER_COLUMNS].join(","));
+    expect(idsAskedFor(stub.requests[0])).toEqual([FIRST, SECOND]);
+  });
+
+  it("sends no request for an index that holds no offer, and answers an empty map", async () => {
+    const stub = stubFetch(() => undefined);
+
+    const freshness = await loadBoardFreshness(client(), { ok: true, audited: new Map() }, 7);
+
+    expect(freshness).toEqual({ ok: true, byOffer: new Map() });
+    expect(stub.requests).toHaveLength(0);
+  });
+
+  it("sends no request for an index that could not be read, and answers not ok", async () => {
+    const stub = stubFetch(() => undefined);
+
+    const freshness = await loadBoardFreshness(client(), { ok: false }, 7);
+
+    expect(freshness).toEqual({ ok: false });
+    expect(stub.requests).toHaveLength(0);
+  });
+
+  it("answers not ok without a client for an index that holds an offer, and asks the database nothing", async () => {
+    const stub = stubFetch(() => undefined);
+
+    const freshness = await loadBoardFreshness(null, await indexOf([[FIRST, FIRST_ROW]]), 7);
+
+    expect(freshness).toEqual({ ok: false });
+    expect(freshness).not.toEqual(ALL_FRESH);
+    expect(stub.requests).toHaveLength(0);
+  });
+
+  it.each<[string, () => Response]>([
+    ["the database fails the read (500)", failedRead],
+    ["the body is an object", () => jsonResponse({}, 200)],
+    ["the body is null", () => jsonResponse(null, 200)],
+    ["the list holds something that is not a row", rows(FIRST_ROW, null)],
+    ["the list holds a text", rows(FIRST_ROW, FIRST)],
+    ["a row has no id", rows(FIRST_ROW, auditOfferRow({ id: undefined }))],
+    ["a row's id is a number", rows(FIRST_ROW, auditOfferRow({ id: 7 }))],
+    ["a row's id is empty", rows(FIRST_ROW, auditOfferRow({ id: "" }))],
+  ])("answers not ok when %s, and does not throw", async (_case, answer) => {
+    const stub = stubOffers(answer);
+
+    const freshness = await loadBoardFreshness(client(), await indexOf([[FIRST, FIRST_ROW]]), 7);
+
+    expect(freshness).toEqual({ ok: false });
+    expect(freshness).not.toEqual(ALL_FRESH);
+    // The outcome came from the database's answer — the read did go out, once, and is not repeated.
+    expect(stub.requests).toHaveLength(1);
   });
 });

@@ -7,7 +7,7 @@
 // by hand as well — no finding here was produced by a model or taken from a real listing.
 
 import { auditFailureMessage } from "@/lib/audit/failure";
-import type { AuditFreshness } from "@/lib/audit/freshness";
+import type { AuditFreshness, BoardFreshness } from "@/lib/audit/freshness";
 import type { StoredFindings } from "@/lib/audit/schema";
 import type { AuditIndex, OfferAudit, StoredAudit } from "@/lib/audit/store";
 import type { TeamLimitsResult } from "@/lib/criteria";
@@ -639,3 +639,45 @@ export const someAudits: AuditIndex = {
 
 /** A failed read of the audits: every row says its status could not be checked. */
 export const failedAudits: AuditIndex = { ok: false };
+
+/** A stored result for each of three offers, so the board can show every status a result may have side by side. */
+export const threeAudits: AuditIndex = {
+  ok: true,
+  audited: new Map(
+    [fullOffer.id, singleImageOffer.id, longTitleOffer.id].map((id) => [
+      id,
+      { criteriaRevision: 7, listingFingerprint: FIXTURE_FINGERPRINT },
+    ]),
+  ),
+};
+
+// The freshness of the audited offers for the /dev/board kitchen sink, as `loadBoardFreshness`
+// answers it: the kitchen sink passes one beside an index instead of comparing anything.
+
+/** No audited offer to judge: what the read answers beside `noAudits`. */
+export const noFreshness: BoardFreshness = { ok: true, byOffer: new Map() };
+
+/** `fullOffer`'s result is up to date: the row reads „Audytowano". */
+export const fullOfferFresh: BoardFreshness = { ok: true, byOffer: new Map([[fullOffer.id, freshAudit]]) };
+
+/** `fullOffer`'s result is stale: the row reads „Audyt nieaktualny". */
+export const fullOfferStale: BoardFreshness = { ok: true, byOffer: new Map([[fullOffer.id, staleCriteria]]) };
+
+/** `fullOffer`'s result could not be compared: the row says its freshness could not be established. */
+export const fullOfferFreshnessUnknown: BoardFreshness = {
+  ok: true,
+  byOffer: new Map([[fullOffer.id, freshnessUnknown]]),
+};
+
+/** Beside `threeAudits`: one result up to date, one stale, one that could not be compared. */
+export const mixedFreshness: BoardFreshness = {
+  ok: true,
+  byOffer: new Map<string, AuditFreshness>([
+    [fullOffer.id, freshAudit],
+    [singleImageOffer.id, staleListing],
+    [longTitleOffer.id, freshnessUnknown],
+  ]),
+};
+
+/** A failed read of the freshness: every audited row says it could not be established, never „Audytowano". */
+export const failedFreshness: BoardFreshness = { ok: false };

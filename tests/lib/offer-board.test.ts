@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { AuditFreshness, BoardFreshness } from "@/lib/audit/freshness";
 import type { AuditIndex } from "@/lib/audit/store";
 import {
   type AuditStatus,
@@ -15,7 +16,10 @@ import {
 // That an offer without a price or an area stands last is a property of the SQL query in
 // src/pages/dashboard.astro, not of this module: scripts/smoke.mjs proves it on a real database.
 // For `auditStatus`: its contract in context/changes/grounded-listing-audit/plan.md (Phase 5 —
-// `audited` when the offer has a stored result, `unknown` when the index could not be read).
+// `audited` when the offer has a stored result, `unknown` when the index could not be read), and
+// context/changes/refetch-and-stale-audit/plan.md (Phase 4): a stored result reads `audited`,
+// `stale` or `freshness_unknown` by that offer's freshness, and an audited offer without a
+// freshness is `freshness_unknown` — never `audited`.
 
 /** The sort the board reads from a query string. */
 function parse(query: string): BoardSort {
@@ -141,31 +145,88 @@ describe("auditStatus: what a board row says about the offer's audit (#3, FR-006
   const EMPTY_INDEX: AuditIndex = { ok: true, audited: new Map() };
   const FAILED_INDEX: AuditIndex = { ok: false };
 
-  it("says audited for an offer the index holds", () => {
-    expect(auditStatus({ id: AUDITED }, INDEX)).toBe("audited");
+  /** The freshness read as it answers for the audited offer. */
+  function freshnessOf(freshness: AuditFreshness): BoardFreshness {
+    return { ok: true, byOffer: new Map([[AUDITED, freshness]]) };
+  }
+  const FRESH = freshnessOf({ state: "fresh" });
+  /** A read that succeeded and holds no offer. */
+  const EMPTY_FRESHNESS: BoardFreshness = { ok: true, byOffer: new Map() };
+  const FAILED_FRESHNESS: BoardFreshness = { ok: false };
+
+  it("says audited for an offer the index holds, whose result is fresh", () => {
+    expect(auditStatus({ id: AUDITED }, INDEX, FRESH)).toBe("audited");
   });
 
-  // What the audit recorded for comparison does not decide whether there is one.
+  // What the audit recorded for comparison does not decide whether there is one: the freshness
+  // worked out from it does, and here it was worked out as fresh.
   it("says audited for an offer the index holds with comparison values that did not read", () => {
     const unread: AuditIndex = {
       ok: true,
       audited: new Map([[AUDITED, { criteriaRevision: null, listingFingerprint: null }]]),
     };
 
-    expect(auditStatus({ id: AUDITED }, unread)).toBe("audited");
-    expect(auditStatus({ id: NOT_AUDITED }, unread)).toBe("not_audited");
+    expect(auditStatus({ id: AUDITED }, unread, FRESH)).toBe("audited");
+    expect(auditStatus({ id: NOT_AUDITED }, unread, FRESH)).toBe("not_audited");
   });
 
   it("says not audited for an offer the index was read without", () => {
-    expect(auditStatus({ id: NOT_AUDITED }, INDEX)).toBe("not_audited");
-    expect(auditStatus({ id: AUDITED }, EMPTY_INDEX)).toBe("not_audited");
+    expect(auditStatus({ id: NOT_AUDITED }, INDEX, FRESH)).toBe("not_audited");
+    expect(auditStatus({ id: AUDITED }, EMPTY_INDEX, FRESH)).toBe("not_audited");
   });
 
   // A failed read knows nothing about any offer — the audited one included. It is never "not audited".
   it.each([AUDITED, NOT_AUDITED])("says unknown for offer %s when the index could not be read", (id) => {
-    const status: AuditStatus = auditStatus({ id }, FAILED_INDEX);
+    const status: AuditStatus = auditStatus({ id }, FAILED_INDEX, FRESH);
 
     expect(status).toBe("unknown");
     expect(status).not.toBe("not_audited");
+  });
+
+  // Phase 4: a stored result is one of three, by that offer's freshness. Each stands beside the
+  // `audited` answer above, which the same index gives for a fresh result.
+  it.each<[string, AuditFreshness]>([
+    ["the listing changed", { state: "stale", reasons: ["listing"] }],
+    ["the criteria changed", { state: "stale", reasons: ["criteria"] }],
+    ["both changed", { state: "stale", reasons: ["listing", "criteria"] }],
+  ])("says stale for an audited offer when %s", (_case, freshness) => {
+    expect(auditStatus({ id: AUDITED }, INDEX, freshnessOf(freshness))).toBe("stale");
+    expect(auditStatus({ id: AUDITED }, INDEX, FRESH)).toBe("audited");
+  });
+
+  it("says freshness unknown for an audited offer whose freshness could not be established", () => {
+    expect(auditStatus({ id: AUDITED }, INDEX, freshnessOf({ state: "unknown" }))).toBe("freshness_unknown");
+    expect(auditStatus({ id: AUDITED }, INDEX, FRESH)).toBe("audited");
+  });
+
+  // A comparison nobody made is never "up to date".
+  it.each<[string, BoardFreshness]>([
+    ["the freshness read failed", FAILED_FRESHNESS],
+    ["the freshness read holds no offer", EMPTY_FRESHNESS],
+    [
+      "the freshness read holds only another offer",
+      { ok: true, byOffer: new Map([[NOT_AUDITED, { state: "fresh" }]]) },
+    ],
+  ])("says freshness unknown for an audited offer when %s, never audited", (_case, freshness) => {
+    const status = auditStatus({ id: AUDITED }, INDEX, freshness);
+
+    expect(status).toBe("freshness_unknown");
+    expect(status).not.toBe("audited");
+  });
+
+  // The freshness says nothing about whether there is an audit: the index alone does.
+  it.each<[string, BoardFreshness]>([
+    ["fresh", { ok: true, byOffer: new Map([[NOT_AUDITED, { state: "fresh" }]]) }],
+    ["stale", { ok: true, byOffer: new Map([[NOT_AUDITED, { state: "stale", reasons: ["listing"] }]]) }],
+    ["a failed read", FAILED_FRESHNESS],
+  ])("says not audited for an offer the index does not hold, whatever the freshness (%s)", (_case, freshness) => {
+    expect(auditStatus({ id: NOT_AUDITED }, INDEX, freshness)).toBe("not_audited");
+  });
+
+  it.each<[string, BoardFreshness]>([
+    ["a stale freshness", freshnessOf({ state: "stale", reasons: ["criteria"] })],
+    ["a failed freshness read", FAILED_FRESHNESS],
+  ])("says unknown when the index could not be read, beside %s", (_case, freshness) => {
+    expect(auditStatus({ id: AUDITED }, FAILED_INDEX, freshness)).toBe("unknown");
   });
 });

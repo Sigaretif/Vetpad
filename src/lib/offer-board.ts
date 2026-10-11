@@ -2,6 +2,7 @@
 // is read from the URL, how a sort link is built, and what audit status a row shows.
 // Pure on purpose, like otodom/labels.ts: no runtime imports, only types.
 
+import type { BoardFreshness } from "@/lib/audit/freshness";
 import type { AuditIndex } from "@/lib/audit/store";
 import type { OfferRow } from "@/lib/otodom/types";
 
@@ -72,18 +73,38 @@ export type BoardResult = { ok: true; offers: OfferBoardItem[] } | { ok: false }
 
 /**
  * What a board row says about the offer's audit. `unknown` is a failed read of the audits: the
- * row then says the status could not be checked, never that the offer was not audited.
+ * row then says the status could not be checked, never that the offer was not audited. An offer
+ * with a stored result is one of three: `audited` when the result is known to be up to date,
+ * `stale` when the listing or the criteria changed since, and `freshness_unknown` when that could
+ * not be established — which is never shown as `audited`.
  */
-export type AuditStatus = "not_audited" | "audited" | "unknown";
+export type AuditStatus = "not_audited" | "audited" | "stale" | "freshness_unknown" | "unknown";
 
 /**
  * The audit status of one row, from the index the board read beside the offers
- * (`loadAuditIndex` in `@/lib/audit/store`): `audited` when the offer has a stored result,
- * `not_audited` when the index was read and does not hold it — an attempt that is running or
- * failed is not a result — and `unknown` when the index could not be read.
- * `AuditStatusBadge.astro` is the one place a status gets its label.
+ * (`loadAuditIndex` in `@/lib/audit/store`) and the freshness read after it (`loadBoardFreshness`
+ * in `@/lib/audit/freshness`): `unknown` when the index could not be read, `not_audited` when it
+ * was read and does not hold the offer — an attempt that is running or failed is not a result —
+ * and for an offer it holds, what that offer's freshness says: `audited` for `fresh`, `stale` for
+ * `stale`, `freshness_unknown` for `unknown`. An audited offer without a freshness — the read
+ * failed, or its answer does not hold the offer — is `freshness_unknown` as well: a comparison
+ * nobody made is never "up to date". `AuditStatusBadge.astro` is the one place a status gets its
+ * label.
  */
-export function auditStatus(offer: Pick<OfferBoardItem, "id">, index: AuditIndex): AuditStatus {
+export function auditStatus(
+  offer: Pick<OfferBoardItem, "id">,
+  index: AuditIndex,
+  freshness: BoardFreshness,
+): AuditStatus {
   if (!index.ok) return "unknown";
-  return index.audited.has(offer.id) ? "audited" : "not_audited";
+  if (!index.audited.has(offer.id)) return "not_audited";
+  const state = freshness.ok ? freshness.byOffer.get(offer.id)?.state : undefined;
+  switch (state) {
+    case "fresh":
+      return "audited";
+    case "stale":
+      return "stale";
+    default:
+      return "freshness_unknown";
+  }
 }

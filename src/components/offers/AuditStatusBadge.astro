@@ -1,13 +1,17 @@
 ---
 /*
  * The one presentation of an offer's audit status on the board (FR-006). A new status gets its
- * label here and nowhere else. The three read apart without colour: each has its own words, and
- * the two that are not the plain "not audited" carry an icon. `unknown` is a failed read of the
+ * label here and nowhere else. The five read apart without colour: each has its own words, and
+ * every one but the plain "not audited" carries its own icon. `unknown` is a failed read of the
  * audits — it says the status could not be checked, never that the offer was not audited.
+ * `stale` and `freshness_unknown` are offers with a stored result that is not known to be up to
+ * date (FR-003, FR-009), worded as on the offer card: the first changed since the audit, for the
+ * second that could not be established — and neither reads as the plain „Audytowano".
  */
-import { Check, CircleAlert } from "lucide-react";
+import { Check, CircleAlert, CircleHelp, History } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { AuditStatus } from "@/lib/offer-board";
+import { cn } from "@/lib/utils";
 
 interface Props {
   status: AuditStatus;
@@ -16,8 +20,13 @@ interface Props {
 const LABEL: Record<AuditStatus, string> = {
   not_audited: "Nie audytowano",
   audited: "Audytowano",
+  stale: "Audyt nieaktualny",
+  freshness_unknown: "Aktualności audytu nie udało się ustalić",
   unknown: "Nie udało się sprawdzić audytu",
 };
+
+/** A label long enough to need more than one line in a row at 375 px. */
+const wrapClass = "max-w-full shrink rounded-md whitespace-normal";
 
 const { status } = Astro.props;
 ---
@@ -27,11 +36,21 @@ const { status } = Astro.props;
     <Check />
     {LABEL[status]}
   </Badge>
+) : status === "stale" ? (
+  <Badge variant="warning" data-audit-status={status}>
+    <History />
+    {LABEL[status]}
+  </Badge>
+) : status === "freshness_unknown" ? (
+  <Badge variant="outline" data-audit-status={status} className={wrapClass}>
+    <CircleHelp />
+    {LABEL[status]}
+  </Badge>
 ) : status === "unknown" ? (
   <Badge
     variant="outline"
     data-audit-status={status}
-    className="border-destructive/40 text-destructive max-w-full shrink rounded-md whitespace-normal"
+    className={cn("border-destructive/40 text-destructive", wrapClass)}
   >
     <CircleAlert />
     {LABEL[status]}
