@@ -1,0 +1,69 @@
+---
+/*
+ * Under the board on /dashboard (FR-014): an offer never disappears from the board silently. The
+ * section names the offers archived in the last 7 days — which ones those are is decided by
+ * `loadArchive` in `@/lib/offer-archive`, never here — and its link counts everything in the
+ * archive, the older offers included.
+ *
+ * `data-archive-state` carries ok or error into the markup, because a failed read renders with 200
+ * like an empty archive. It is a read of its own: it says nothing about the board's read, and the
+ * board's markers say nothing about it. A failed read is an error message and a link without a
+ * number — never „nothing was archived”.
+ *
+ * No buttons: an offer is restored from its card or from the archive page.
+ */
+import ArchiveSignature from "@/components/offers/ArchiveSignature.astro";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { buttonVariants } from "@/components/ui/button";
+import type { ArchiveResult } from "@/lib/offer-archive";
+import { cn } from "@/lib/utils";
+
+interface Props {
+  result: ArchiveResult;
+  /** Unique per page: a page that renders more than one section (/dev/board) passes its own. */
+  headingId?: string;
+}
+
+const { result, headingId = "recently-archived-heading" } = Astro.props;
+const linkClass = cn(buttonVariants({ variant: "link" }), "h-auto p-0");
+---
+
+<section aria-labelledby={headingId} data-archive-state={result.ok ? "ok" : "error"} class="flex flex-col gap-4">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <h2 id={headingId} class="text-xl font-semibold">
+      Ostatnio zarchiwizowane
+    </h2>
+    <a href="/offers/archive" class:list={linkClass}>
+      {result.ok ? `Archiwum (${result.offers.length})` : "Archiwum"}
+    </a>
+  </div>
+
+  {!result.ok ? (
+    <Alert variant="destructive">
+      <AlertDescription>
+        Nie udało się wczytać archiwum — nie wiadomo, czy są w nim oferty. Odśwież stronę za chwilę.
+      </AlertDescription>
+    </Alert>
+  ) : result.offers.length === 0 ? (
+    <p class="text-muted-foreground">Archiwum jest puste.</p>
+  ) : result.recent.length === 0 ? (
+    <p class="text-muted-foreground">W ostatnich 7 dniach nic nie zarchiwizowano.</p>
+  ) : (
+    <ul class="flex flex-col gap-3">
+      {result.recent.map((entry) => (
+        <li
+          data-archived-offer={entry.offer.id}
+          class="border-border flex flex-col gap-1 border-b pb-3 last:border-b-0"
+        >
+          <a
+            href={`/offers/${entry.offer.id}`}
+            class:list={cn(linkClass, "justify-start self-start text-left whitespace-normal wrap-anywhere")}
+          >
+            {entry.offer.title}
+          </a>
+          <ArchiveSignature archivedAt={entry.archivedAt} archiver={entry.archiver} />
+        </li>
+      ))}
+    </ul>
+  )}
+</section>

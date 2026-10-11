@@ -2,10 +2,12 @@
 import AppLayout from "@/layouts/AppLayout.astro";
 import AddOfferForm from "@/components/offers/AddOfferForm";
 import OfferBoard from "@/components/offers/OfferBoard.astro";
+import RecentlyArchived from "@/components/offers/RecentlyArchived.astro";
 import { Card, CardHeader, CardDescription, CardContent } from "@/components/ui/card";
 import { loadBoardFreshness } from "@/lib/audit/freshness";
 import { loadAuditIndex } from "@/lib/audit/store";
 import { loadCriteriaRevision, loadTeamLimits } from "@/lib/criteria";
+import { loadArchive } from "@/lib/offer-archive";
 import { BOARD_COLUMNS, BOARD_SORT_COLUMN, parseBoardSort, type BoardResult, type BoardSort } from "@/lib/offer-board";
 import { createClient } from "@/lib/supabase";
 
@@ -14,7 +16,7 @@ const sort = parseBoardSort(Astro.url.searchParams);
 const supabase = createClient(Astro.request.headers, Astro.cookies);
 
 /**
- * Every saved offer in the chosen order, or `{ ok: false }` for unconfigured Supabase (the
+ * Every live offer in the chosen order — an archived one is not on the board (FR-014) — or `{ ok: false }` for unconfigured Supabase (the
  * zero-config state), a query error or a thrown exception — each renders the board's error
  * state, never a 500 and never an empty board. `nullsFirst: false` holds in both directions:
  * an offer that does not state its price or area is always last (prd.md, Guardrails).
@@ -25,6 +27,7 @@ async function loadBoard({ key, dir }: BoardSort): Promise<BoardResult> {
     const result = await supabase
       .from("offers")
       .select(BOARD_COLUMNS)
+      .is("archived_at", null)
       .order(BOARD_SORT_COLUMN[key], { ascending: dir === "asc", nullsFirst: false })
       .order("id", { ascending: true });
     // The client is untyped, so `data` is already accepted as OfferBoardItem[] (BOARD_COLUMNS is that Pick).
@@ -35,12 +38,15 @@ async function loadBoard({ key, dir }: BoardSort): Promise<BoardResult> {
 }
 
 // The team's limits, the index of audited offers and the criteria revision are read beside the
-// offers, not after them; each of the four reads may fail on its own, and none of them throws.
-const [board, limits, audits, revision] = await Promise.all([
+// offers, not after them, and so is the archive, for the section under the board; each of the five
+// reads may fail on its own, and none of them throws. A failed read of the archive is that
+// section's error state and changes nothing on the board.
+const [board, limits, audits, revision, archive] = await Promise.all([
   loadBoard(sort),
   loadTeamLimits(supabase),
   loadAuditIndex(supabase),
   loadCriteriaRevision(supabase),
+  loadArchive(supabase, Astro.locals.user?.id, new Date()),
 ]);
 
 // Whether each stored result still describes the listing and the criteria (FR-003, FR-009). The
@@ -65,4 +71,6 @@ const freshness = await loadBoardFreshness(supabase, audits, revision.ok ? revis
   </Card>
 
   <OfferBoard result={board} limits={limits} audits={audits} freshness={freshness} sort={sort} />
+
+  <RecentlyArchived result={archive} />
 </AppLayout>

@@ -665,35 +665,35 @@ Smoke dowodzi na żywej lokalnej bazie, że archiwizacja nie rusza notatek i że
 
 #### Automated
 
-- [x] 3.1 Testy renderowania przechodzą: `npm test`
-- [x] 3.2 Kontrola typów przechodzi: `npx astro sync && npx astro check`
-- [x] 3.3 Lint przechodzi, w tym `tokensOnlyConfig`: `npm run lint`
-- [x] 3.4 Build przechodzi: `npm run build`
+- [x] 3.1 Testy renderowania przechodzą: `npm test` — b67f9f9
+- [x] 3.2 Kontrola typów przechodzi: `npx astro sync && npx astro check` — b67f9f9
+- [x] 3.3 Lint przechodzi, w tym `tokensOnlyConfig`: `npm run lint` — b67f9f9
+- [x] 3.4 Build przechodzi: `npm run build` — b67f9f9
 
 #### Manual
 
-- [x] 3.5 Na lokalnej bazie: „Zarchiwizuj” na karcie pokazuje komunikat, stan z własnym podpisem („przez Ciebie”) i przycisk „Przywróć”; „Przywróć” wraca do stanu wyjściowego
-- [x] 3.6 Karta zarchiwizowana przez inne konto z `supabase/seed.sql` pokazuje jego adres email
+- [x] 3.5 Na lokalnej bazie: „Zarchiwizuj” na karcie pokazuje komunikat, stan z własnym podpisem („przez Ciebie”) i przycisk „Przywróć”; „Przywróć” wraca do stanu wyjściowego — b67f9f9
+- [x] 3.6 Karta zarchiwizowana przez inne konto z `supabase/seed.sql` pokazuje jego adres email — b67f9f9
 - [ ] 3.7 Na zarchiwizowanej ofercie sekcja audytu nie ma przycisku, a notatka i ponowne pobranie dają się wysłać
-- [x] 3.8 Wklejenie adresu zarchiwizowanej oferty w formularzu na `/dashboard` otwiera kartę z komunikatem o archiwum i przyciskiem przywrócenia
-- [x] 3.9 `/dev/offer-card` i `/dev/forms` renderują nowe stany pod `npm run dev`
+- [x] 3.8 Wklejenie adresu zarchiwizowanej oferty w formularzu na `/dashboard` otwiera kartę z komunikatem o archiwum i przyciskiem przywrócenia — b67f9f9
+- [x] 3.9 `/dev/offer-card` i `/dev/forms` renderują nowe stany pod `npm run dev` — b67f9f9
 
 ### Phase 4: Tablica i strona archiwum
 
 #### Automated
 
-- [ ] 4.1 Testy widoków przechodzą: `npm test`
-- [ ] 4.2 Kontrola typów przechodzi: `npx astro sync && npx astro check`
-- [ ] 4.3 Lint przechodzi: `npm run lint`
-- [ ] 4.4 Build przechodzi: `npm run build`
+- [x] 4.1 Testy widoków przechodzą: `npm test`
+- [x] 4.2 Kontrola typów przechodzi: `npx astro sync && npx astro check`
+- [x] 4.3 Lint przechodzi: `npm run lint`
+- [x] 4.4 Build przechodzi: `npm run build`
 
 #### Manual
 
-- [ ] 4.5 Na lokalnej bazie: zarchiwizowana oferta znika z `/dashboard`, licznik w nagłówku tablicy maleje, a sekcja pod tablicą wymienia ją z nazwiskiem i datą; „Archiwum (N)” rośnie o jeden
-- [ ] 4.6 `/offers/archive` pokazuje ofertę; „Przywróć” w wierszu wraca na stronę archiwum z komunikatem, a oferta wraca na `/dashboard`
-- [ ] 4.7 Oferta z `archived_at` cofniętym w lokalnej bazie o ponad 7 dni znika z sekcji, a licznik nadal ją liczy
-- [ ] 4.8 `/offers/archive` bez sesji przekierowuje do `/auth/signin`
-- [ ] 4.9 `/dev/board` renderuje nowe sekcje pod `npm run dev`
+- [x] 4.5 Na lokalnej bazie: zarchiwizowana oferta znika z `/dashboard`, licznik w nagłówku tablicy maleje, a sekcja pod tablicą wymienia ją z nazwiskiem i datą; „Archiwum (N)” rośnie o jeden
+- [x] 4.6 `/offers/archive` pokazuje ofertę; „Przywróć” w wierszu wraca na stronę archiwum z komunikatem, a oferta wraca na `/dashboard`
+- [x] 4.7 Oferta z `archived_at` cofniętym w lokalnej bazie o ponad 7 dni znika z sekcji, a licznik nadal ją liczy
+- [x] 4.8 `/offers/archive` bez sesji przekierowuje do `/auth/signin`
+- [x] 4.9 `/dev/board` renderuje nowe sekcje pod `npm run dev`
 
 ### Phase 5: Smoke i dokumentacja
 

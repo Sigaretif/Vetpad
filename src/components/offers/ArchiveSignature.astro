@@ -1,0 +1,33 @@
+---
+/*
+ * „zarchiwizowana przez {kto} · {data}”: one archived offer's signature in a list (FR-014), shared
+ * by the board's section and the archive page so both name the archiver by the same rule.
+ * `saverName` gives the accusative „przez” takes; a deleted account reads „osobę z usuniętym
+ * kontem”, and `unknown` — a failed read of the name — names nobody and is never shown as a
+ * deleted account. The name is rendered as text only: never `set:html`, never an attribute.
+ */
+import { formatTimestamp } from "@/lib/format";
+import { saverName, type Saver } from "@/lib/members";
+
+interface Props {
+  archivedAt: string;
+  archiver: Saver;
+}
+
+const { archivedAt, archiver } = Astro.props;
+const who = saverName(archiver);
+---
+
+<p class="text-muted-foreground text-sm">
+  {who === null ? (
+    "Zarchiwizowana"
+  ) : (
+    <>
+      Zarchiwizowana przez <span class="wrap-anywhere">{who}</span>
+    </>
+  )}
+  {" · "}
+  <time datetime={archivedAt} class="wrap-anywhere">
+    {formatTimestamp(archivedAt)}
+  </time>
+</p>

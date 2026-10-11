@@ -1,0 +1,92 @@
+---
+/*
+ * One archived offer on /offers/archive (FR-014): what the offer is, who archived it and when, and
+ * the button that restores it without opening the card. Unlike a board row, the row is not one
+ * link: the title is the link to the card, and the restore form stands beside it as an element of
+ * its own — a button is never nested in an `<a>`.
+ *
+ * The thumbnail is decorative (alt="") because the title names the offer. A fact the listing does
+ * not state reads as unstated, never as 0 or an empty value (prd.md, Guardrails). The row shows no
+ * audit status and no limit marks: the archive page reads neither.
+ *
+ * The island gets the offer's id alone; the archiver's name is rendered by the server, as text.
+ */
+import ArchiveForm from "@/components/offers/ArchiveForm";
+import ArchiveSignature from "@/components/offers/ArchiveSignature.astro";
+import Unstated from "@/components/offers/Unstated.astro";
+import { buttonVariants } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import type { ArchivedOffer } from "@/lib/offer-archive";
+import { formatArea, formatMoney } from "@/lib/otodom/labels";
+import type { OfferImage } from "@/lib/otodom/types";
+import { safeHttpsUrl } from "@/lib/safe-url";
+import { cn } from "@/lib/utils";
+
+interface Props {
+  entry: ArchivedOffer;
+}
+
+const { entry } = Astro.props;
+const { offer } = entry;
+
+// Row data lands in src, so the thumbnail is the first one that passes safeHttpsUrl (lessons.md).
+const images: unknown[] = Array.isArray(offer.images) ? offer.images : [];
+let thumbnail: string | null = null;
+for (const image of images) {
+  thumbnail = safeHttpsUrl((image as Partial<OfferImage> | null)?.thumbnail);
+  if (thumbnail !== null) break;
+}
+
+const location = [offer.location_label, offer.street_name]
+  .filter((part): part is string => typeof part === "string" && part.trim() !== "")
+  .join(", ");
+---
+
+<Card data-archived-offer={offer.id} className="flex-col gap-4 p-3 sm:flex-row sm:items-start sm:p-4">
+  <div class="flex min-w-0 flex-1 items-start gap-4">
+    {thumbnail === null ? (
+      <div class="bg-muted h-20 w-28 shrink-0 rounded-lg" aria-hidden="true"></div>
+    ) : (
+      <img
+        src={thumbnail}
+        alt=""
+        loading="lazy"
+        decoding="async"
+        referrerpolicy="no-referrer"
+        class="bg-muted h-20 w-28 shrink-0 rounded-lg object-cover"
+      />
+    )}
+    <div class="flex min-w-0 flex-1 flex-col gap-1">
+      <h3 class="font-semibold">
+        <a
+          href={`/offers/${offer.id}`}
+          class:list={cn(
+            buttonVariants({ variant: "link" }),
+            "text-foreground line-clamp-2 inline h-auto p-0 text-base font-semibold whitespace-normal wrap-anywhere",
+          )}
+        >
+          {offer.title}
+        </a>
+      </h3>
+      <p class="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+        <span>
+          {offer.price === null ? (
+            <Unstated>Cena: nie podano w ogłoszeniu</Unstated>
+          ) : (
+            <span class="font-semibold">{formatMoney(offer.price, offer.price_currency)}</span>
+          )}
+        </span>
+        <span>
+          {offer.area_m2 === null ? <Unstated>Metraż: nie podano w ogłoszeniu</Unstated> : formatArea(offer.area_m2)}
+        </span>
+      </p>
+      <p class="text-muted-foreground text-sm wrap-anywhere">
+        {location === "" ? <Unstated>Lokalizacja: nie podano w ogłoszeniu</Unstated> : location}
+      </p>
+      <ArchiveSignature archivedAt={entry.archivedAt} archiver={entry.archiver} />
+    </div>
+  </div>
+  <div class="sm:w-40 sm:shrink-0">
+    <ArchiveForm client:load offerId={offer.id} intent="restore" returnTo="archive" />
+  </div>
+</Card>

@@ -1,0 +1,53 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import Banner from "@/components/Banner.astro";
+import OfferArchive from "@/components/offers/OfferArchive.astro";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { buttonVariants } from "@/components/ui/button";
+import { loadArchive } from "@/lib/offer-archive";
+import { createClient } from "@/lib/supabase";
+import { cn } from "@/lib/utils";
+
+// The archive of offers (FR-014): every archived offer, most recently archived first, each with
+// the button that restores it. Protected by the `/offers` prefix in the middleware; this static
+// route wins over `src/pages/offers/[id].astro`.
+//
+// One read, through `loadArchive`, which never throws: no client (the zero-config state), a failed
+// query or an exception is `{ ok: false }`, rendered as the list's error state — never a 500 and
+// never an empty archive.
+const supabase = createClient(Astro.request.headers, Astro.cookies);
+const archive = await loadArchive(supabase, Astro.locals.user?.id, new Date());
+
+// What POST /api/offer-archive leaves in the address after a restore sent from a row here. Anyone
+// can type it by hand: only the exact value picks the sentence, and nothing is rendered as it came.
+const restored = Astro.url.searchParams.get("restored") === "1";
+// A failed restore lands on the offer's card, so this page needs no `form=`; a message that does
+// arrive here is rendered as text, never as HTML.
+const error = Astro.url.searchParams.get("error");
+---
+
+<AppLayout title="Archiwum ofert — Vetpad">
+  {restored && (
+    <Banner slot="notice" variant="info">
+      <span data-archive-result="restored">Oferta została przywrócona z archiwum i wróciła na tablicę.</span>
+    </Banner>
+  )}
+
+  <a href="/dashboard" class:list={cn(buttonVariants({ variant: "link" }), "h-auto self-start p-0")}>
+    ← Wróć do ofert
+  </a>
+
+  <h1 class="text-foreground text-2xl font-bold">Archiwum ofert</h1>
+  <p class="text-muted-foreground text-sm">
+    Zarchiwizowanych ofert nie ma na tablicy. Ich notatki i wyniki audytu zostają, a przywrócić ofertę może każdy
+    członek zespołu.
+  </p>
+
+  {error !== null && error !== "" && (
+    <Alert variant="destructive">
+      <AlertDescription>{error}</AlertDescription>
+    </Alert>
+  )}
+
+  <OfferArchive result={archive} />
+</AppLayout>

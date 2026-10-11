@@ -13,7 +13,7 @@ import type { AuditIndex, OfferAudit, StoredAudit } from "@/lib/audit/store";
 import type { TeamLimitsResult } from "@/lib/criteria";
 import type { Saver } from "@/lib/members";
 import type { NoteView, OfferNotes } from "@/lib/notes";
-import type { OfferArchiveState } from "@/lib/offer-archive";
+import type { ArchivedOffer, ArchiveResult, OfferArchiveState } from "@/lib/offer-archive";
 import type { OfferImage, OfferRow } from "@/lib/otodom/types";
 
 /** Saved by another member: the banner and the card name them by email. */
@@ -256,6 +256,80 @@ export const archivedByUnknown: OfferArchiveState = { archivedAt: ARCHIVED_AT, a
 
 /** Archived by a member with a very long address: it must wrap on the card and in the notices. */
 export const archivedByLongEmail: OfferArchiveState = { archivedAt: ARCHIVED_AT, archiver: longEmailSaver };
+
+// Archive reads (`ArchiveResult`) for the /dev/board kitchen sink: the section under the board and
+// the archive page, as `loadArchive` answers them. Which offers are „recent" is the read's
+// decision, so each fixture states its `recent` list itself instead of comparing dates.
+
+/** An offer row as the archive read holds it, with its archiver named. `archived_by` follows the archiver. */
+function archivedEntry(offer: OfferRow, archivedAt: string, archiver: Saver): ArchivedOffer {
+  return {
+    offer: { ...offer, archived_at: archivedAt, archived_by: archiver.kind === "deleted" ? null : offer.archived_by },
+    archivedAt,
+    archiver,
+  };
+}
+
+/** Archived a day ago by another member. */
+export const archivedEntryByMember = archivedEntry(archivedOffer, ARCHIVED_AT, memberSaver);
+
+/** Archived the same week by the viewing member: „przez Ciebie". */
+export const archivedEntryBySelf = archivedEntry(
+  { ...singleImageOffer, id: "00000000-0000-4000-8000-000000000023" },
+  "2026-10-08T09:05:00Z",
+  selfSaver,
+);
+
+/** Archived long ago by a member whose account was deleted: „przez osobę z usuniętym kontem". */
+export const archivedEntryByDeleted = archivedEntry(archivedByDeletedOffer, "2026-09-12T11:00:00Z", deletedSaver);
+
+/** The archiver could not be established: the date alone, and never a deleted account. */
+export const archivedEntryByUnknown = archivedEntry(
+  { ...streetOnlyOffer, id: "00000000-0000-4000-8000-000000000024" },
+  "2026-09-02T15:40:00Z",
+  unknownSaver,
+);
+
+/** Unsafe photo URLs beside a valid one: only the valid thumbnail may render. */
+export const archivedEntryUnsafeImages = archivedEntry(
+  { ...unsafeImagesOffer, id: "00000000-0000-4000-8000-000000000025" },
+  ARCHIVED_AT,
+  memberSaver,
+);
+
+/** Nothing stated: price, area and location read as unstated, never as 0; a placeholder for the photo. */
+export const archivedEntryUnstated = archivedEntry(
+  { ...unknownOffer, id: "00000000-0000-4000-8000-000000000026" },
+  ARCHIVED_AT,
+  memberSaver,
+);
+
+/** A very long title with no spaces, archived by a member with a very long address. */
+export const archivedEntryLongTitle = archivedEntry(
+  { ...longTitleOffer, id: "00000000-0000-4000-8000-000000000027" },
+  ARCHIVED_AT,
+  longEmailSaver,
+);
+
+/** Nothing in the archive. */
+export const emptyArchive: ArchiveResult = { ok: true, offers: [], recent: [] };
+
+/** Four archived offers, two of them archived in the last 7 days: the section lists two, the link counts four. */
+export const archiveWithRecent: ArchiveResult = {
+  ok: true,
+  offers: [archivedEntryByMember, archivedEntryBySelf, archivedEntryByDeleted, archivedEntryByUnknown],
+  recent: [archivedEntryByMember, archivedEntryBySelf],
+};
+
+/** Two archived offers, both archived more than 7 days ago: the section lists none, the link counts two. */
+export const archiveWithoutRecent: ArchiveResult = {
+  ok: true,
+  offers: [archivedEntryByDeleted, archivedEntryByUnknown],
+  recent: [],
+};
+
+/** A failed read of the archive: an error, never an empty archive. */
+export const failedArchive: ArchiveResult = { ok: false };
 
 // Team limits for the /dev/board kitchen sink, and offers that break them one way each. Against
 // `boardLimits` (Warszawa, 600 000–850 000 zł, from 60 m²) `fullOffer` breaks two limits at once.

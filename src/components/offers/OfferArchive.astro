@@ -1,0 +1,45 @@
+---
+/*
+ * „Zarchiwizowane oferty” on /offers/archive (FR-014): the list, the empty archive and a failed
+ * read are three different states. A failed read is never shown as an empty archive — that would
+ * say nothing was hidden from the board. `data-archive-state` carries ok (list or empty) or error
+ * into the markup, because a failed read renders with 200 like the other two.
+ *
+ * The order is the read's: most recently archived first (`loadArchive` in `@/lib/offer-archive`).
+ */
+import OfferArchiveItem from "@/components/offers/OfferArchiveItem.astro";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import type { ArchiveResult } from "@/lib/offer-archive";
+
+interface Props {
+  result: ArchiveResult;
+  /** Unique per page: a page that renders more than one list (/dev/board) passes its own. */
+  headingId?: string;
+}
+
+const { result, headingId = "archive-heading" } = Astro.props;
+---
+
+<section aria-labelledby={headingId} data-archive-state={result.ok ? "ok" : "error"} class="flex flex-col gap-4">
+  <h2 id={headingId} class="text-xl font-semibold">
+    {result.ok ? `Zarchiwizowane oferty (${result.offers.length})` : "Zarchiwizowane oferty"}
+  </h2>
+
+  {!result.ok ? (
+    <Alert variant="destructive">
+      <AlertDescription>Nie udało się wczytać archiwum. Odśwież stronę za chwilę.</AlertDescription>
+    </Alert>
+  ) : result.offers.length === 0 ? (
+    <p class="text-muted-foreground">
+      Archiwum jest puste. Ofertę archiwizuje się z jej karty — znika wtedy z tablicy i trafia tutaj.
+    </p>
+  ) : (
+    <ul class="flex flex-col gap-3">
+      {result.offers.map((entry) => (
+        <li>
+          <OfferArchiveItem entry={entry} />
+        </li>
+      ))}
+    </ul>
+  )}
+</section>

@@ -1,12 +1,24 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import BoardSort from "@/components/offers/BoardSort.astro";
+import OfferArchive from "@/components/offers/OfferArchive.astro";
+import OfferArchiveItem from "@/components/offers/OfferArchiveItem.astro";
 import OfferBoard from "@/components/offers/OfferBoard.astro";
 import OfferBoardItem from "@/components/offers/OfferBoardItem.astro";
+import RecentlyArchived from "@/components/offers/RecentlyArchived.astro";
 import { parseBoardSort, type BoardSort as BoardSortValue } from "@/lib/offer-board";
 import {
+  archivedEntryByDeleted,
+  archivedEntryByUnknown,
+  archivedEntryLongTitle,
+  archivedEntryUnsafeImages,
+  archivedEntryUnstated,
+  archiveWithoutRecent,
+  archiveWithRecent,
   areaBelowOffer,
   boardLimits,
+  emptyArchive,
+  failedArchive,
   failedAudits,
   failedFreshness,
   failedLimits,
@@ -140,6 +152,67 @@ const rows = [
   },
 ];
 
+// The section under the board on /dashboard, in every state of the archive read.
+const recentSections = [
+  {
+    state: "recent-some",
+    caption: "Ostatnio zarchiwizowane: dwie z ostatnich 7 dni, licznik „Archiwum (4)” liczy wszystkie",
+    result: archiveWithRecent,
+  },
+  {
+    state: "recent-none",
+    caption: "Ostatnio zarchiwizowane: nic z ostatnich 7 dni, w archiwum dwie oferty",
+    result: archiveWithoutRecent,
+  },
+  { state: "recent-empty", caption: "Ostatnio zarchiwizowane: puste archiwum", result: emptyArchive },
+  {
+    state: "recent-error",
+    caption: "Ostatnio zarchiwizowane: błąd odczytu archiwum (link bez liczby, nigdy „nic nie zarchiwizowano”)",
+    result: failedArchive,
+  },
+];
+
+// The list on /offers/archive, in every state of the same read.
+const archiveSections = [
+  {
+    state: "archive-list",
+    caption: "Strona archiwum: lista (przez członka, przez Ciebie, usunięte konto, nieustalony)",
+    result: archiveWithRecent,
+  },
+  { state: "archive-empty", caption: "Strona archiwum: puste archiwum", result: emptyArchive },
+  { state: "archive-error", caption: "Strona archiwum: błąd odczytu (nigdy puste archiwum)", result: failedArchive },
+];
+
+// Single archive rows, in the same <ul>/<li> markup OfferArchive gives a row in production. The
+// restore button posts for an offer that does not exist: the route answers without writing anything.
+const archiveRows = [
+  {
+    state: "archive-row-deleted",
+    caption: "Wiersz archiwum: archiwizujący z usuniętym kontem",
+    entry: archivedEntryByDeleted,
+  },
+  {
+    state: "archive-row-unknown",
+    caption: "Wiersz archiwum: archiwizujący nieustalony — sama data, nigdy usunięte konto",
+    entry: archivedEntryByUnknown,
+  },
+  {
+    state: "archive-row-unsafe-images",
+    caption: "Wiersz archiwum: filtr miniatur (http: i javascript: odrzucone)",
+    entry: archivedEntryUnsafeImages,
+  },
+  {
+    state: "archive-row-unstated",
+    caption: "Wiersz archiwum: cena, metraż i lokalizacja niepodane (placeholder zamiast miniatury)",
+    entry: archivedEntryUnstated,
+  },
+  {
+    state: "archive-row-long-title",
+    caption: "Wiersz archiwum: długi tytuł bez spacji i długi adres archiwizującego",
+    entry: archivedEntryLongTitle,
+  },
+];
+
 const stateClass = "border-border flex flex-col gap-6 border-t pt-6";
 const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppercase";
 ---
@@ -157,7 +230,10 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
       Znaczek statusu audytu: default („Audytowano”, „Nie audytowano”, „Audyt nieaktualny”, „Aktualności audytu nie
       udało się ustalić” — sekcje „audit-freshness” i „audit-freshness-error”) i error („Nie udało się sprawdzić
       audytu”); hover, focus, disabled, empty i loading nie dotyczą — znaczek nie jest interaktywny i nie ma własnego
-      stanu ładowania.
+      stanu ładowania. Archiwum (bez bramki wizualnej): sekcja pod tablicą w stanach „recent-some”, „recent-none”,
+      „recent-empty” i „recent-error”, lista ze strony <code>/offers/archive</code> w stanach „archive-list”,
+      „archive-empty” i „archive-error” oraz stany wiersza archiwum „archive-row-*” (usunięte konto, archiwizujący
+      nieustalony, niebezpieczne adresy zdjęć, wartości niepodane, długi tytuł).
     </p>
 
     <div class:list={stateClass} data-state="default">
@@ -296,6 +372,31 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
               audits={row.audits ?? noAudits}
               freshness={row.freshness ?? noFreshness}
             />
+          </li>
+        </ul>
+      </div>
+    ))}
+
+    {recentSections.map((section) => (
+      <div class:list={stateClass} data-state={section.state}>
+        <p class:list={captionClass}>Stan: {section.caption}</p>
+        <RecentlyArchived result={section.result} headingId={`recently-archived-heading-${section.state}`} />
+      </div>
+    ))}
+
+    {archiveSections.map((section) => (
+      <div class:list={stateClass} data-state={section.state}>
+        <p class:list={captionClass}>Stan: {section.caption}</p>
+        <OfferArchive result={section.result} headingId={`archive-heading-${section.state}`} />
+      </div>
+    ))}
+
+    {archiveRows.map((row) => (
+      <div class:list={stateClass} data-state={row.state}>
+        <p class:list={captionClass}>Stan: {row.caption}</p>
+        <ul class="flex flex-col gap-3">
+          <li>
+            <OfferArchiveItem entry={row.entry} />
           </li>
         </ul>
       </div>
