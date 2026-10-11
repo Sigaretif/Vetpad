@@ -2,6 +2,7 @@
 import AppLayout from "@/layouts/AppLayout.astro";
 import ArchiveNotice from "@/components/offers/ArchiveNotice.astro";
 import DuplicateNotice from "@/components/offers/DuplicateNotice.astro";
+import NoteDeleteNotice from "@/components/offers/NoteDeleteNotice.astro";
 import OfferNotFound from "@/components/offers/OfferNotFound.astro";
 import OfferView from "@/components/offers/OfferView.astro";
 import RefetchNotice from "@/components/offers/RefetchNotice.astro";
@@ -95,17 +96,23 @@ const freshness: AuditFreshness | null =
       )
     : null;
 
-// Three routes redirect back to the card with `?error=`: POST /api/offer-refetch, which adds
+// Four routes redirect back to the card with `?error=`: POST /api/offer-refetch, which adds
 // `&form=refetch` (`/offers/<id>?error=…&form=refetch#pobranie`), POST /api/offer-archive, which
-// adds `&form=archive` (`/offers/<id>?error=…&form=archive#archiwum`), and POST /api/notes
-// (`/offers/<id>?error=…#notatki`). The page cannot read the `#` fragment, so `form` tells them
-// apart: with `form=refetch` the message belongs to the re-fetch block, with `form=archive` to the
-// archive block, and in every other case to the note editor. Rendered as text, never as HTML.
+// adds `&form=archive` (`/offers/<id>?error=…&form=archive#archiwum`), POST /api/offer-delete,
+// which adds `&form=delete` (`/offers/<id>?error=…&form=delete#usuwanie`), and POST /api/notes —
+// `/offers/<id>?error=…#notatki` for a failed save and `…&form=note-delete#notatki` for a failed
+// deletion of the note. The page cannot read the `#` fragment, so `form` tells them apart: each
+// named value hands the message to its own block — `note-delete` to the note's preview, without
+// opening the editor — and only an address with no known `form` belongs to the note editor.
+// Rendered as text, never as HTML.
 const error = offer ? Astro.url.searchParams.get("error") : null;
 const errorForm = Astro.url.searchParams.get("form");
+const NAMED_FORMS = ["refetch", "archive", "delete", "note-delete"];
 const refetchError = errorForm === "refetch" ? error : null;
 const archiveError = errorForm === "archive" ? error : null;
-const noteError = errorForm === "refetch" || errorForm === "archive" ? null : error;
+const deleteError = errorForm === "delete" ? error : null;
+const noteDeleteError = errorForm === "note-delete" ? error : null;
+const noteError = errorForm !== null && NAMED_FORMS.includes(errorForm) ? null : error;
 
 // What POST /api/offer-refetch leaves in the address after a fetch that went through: `lost` when
 // it stopped on facts that would disappear, `refetched` when it saved. Anyone can type either by
@@ -115,12 +122,18 @@ const refetched = offer ? Astro.url.searchParams.get("refetched") : null;
 // What POST /api/offer-archive leaves after an archiving or a restore. ArchiveNotice reads it
 // through a whitelist, renders no value as it came, and shows nothing the row contradicts.
 const archiveResult = offer ? Astro.url.searchParams.get("archive") : null;
+// What POST /api/notes leaves after a deletion of the member's own note. NoteDeleteNotice reads it
+// through a whitelist and shows nothing while the member has a note — which a failed read of the
+// notes cannot rule out, so it counts as one.
+const noteResult = offer ? Astro.url.searchParams.get("note") : null;
+const hasOwnNote = notes?.state !== "ok" || notes.own !== null;
 ---
 
 <AppLayout wide={offer !== null} title={offer ? `${offer.title} — Vetpad` : "Nie znaleziono oferty — Vetpad"}>
   {duplicate && <DuplicateNotice slot="notice" saver={saver} offerId={offer.id} archive={archive} />}
   {refetched !== null && <RefetchNotice slot="notice" refetched={refetched} />}
   {archiveResult !== null && <ArchiveNotice slot="notice" result={archiveResult} archive={archive} />}
+  {noteResult !== null && <NoteDeleteNotice slot="notice" result={noteResult} hasOwnNote={hasOwnNote} />}
 
   {/* The same for an archived offer: the archive is one click away on the Topbar, and a link that
       changed with the click on „Zarchiwizuj” would read as the page having moved. */}
@@ -143,6 +156,8 @@ const archiveResult = offer ? Astro.url.searchParams.get("archive") : null;
       lost={lost}
       archive={archive}
       archiveError={archiveError}
+      deleteError={deleteError}
+      noteDeleteError={noteDeleteError}
     />
   )}
 </AppLayout>

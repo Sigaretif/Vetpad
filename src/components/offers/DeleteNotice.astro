@@ -1,0 +1,35 @@
+---
+import Banner from "@/components/Banner.astro";
+
+/*
+ * What a deletion of an offer ended with (FR-015), from the `?deleted=` that
+ * `POST /api/offer-delete` leaves on /dashboard and on /offers/archive and anyone can type by
+ * hand. The value only picks one of the two sentences below; it is never rendered itself, and a
+ * value that is neither renders nothing. The parent places the notice in AppLayout's `notice` slot.
+ *
+ * `gone` is neither a success nor an error: the offer was not there when the member's delete
+ * arrived — another member deleted it first — so the member is not told they deleted it.
+ */
+interface Props {
+  /** The page's `?deleted=`, as the address carries it. */
+  result: string | null;
+}
+
+const { result } = Astro.props;
+
+const RESULTS = {
+  "1": { token: "deleted", sentence: "Oferta została usunięta razem z notatkami zespołu i wynikiem audytu." },
+  gone: {
+    token: "already-gone",
+    sentence: "Tej oferty już nie było — ktoś usunął ją wcześniej. Niczego nie usunięto.",
+  },
+};
+
+const shown = result !== null && Object.hasOwn(RESULTS, result) ? RESULTS[result as keyof typeof RESULTS] : null;
+---
+
+{shown !== null && (
+  <Banner variant="info">
+    <span data-delete-result={shown.token}>{shown.sentence}</span>
+  </Banner>
+)}

@@ -2,6 +2,7 @@
 import AppLayout from "@/layouts/AppLayout.astro";
 import Banner from "@/components/Banner.astro";
 import ArchiveNotice from "@/components/offers/ArchiveNotice.astro";
+import NoteDeleteNotice from "@/components/offers/NoteDeleteNotice.astro";
 import DuplicateNotice from "@/components/offers/DuplicateNotice.astro";
 import type { AuditRunnerPreview } from "@/components/offers/AuditRunner";
 import OfferAudit from "@/components/offers/OfferAudit.astro";
@@ -84,6 +85,10 @@ interface State {
   /** Who archived the offer, as the page would have named them; the state itself is the row's. */
   archive?: OfferArchiveState;
   archiveError?: string;
+  /** A failed deletion of the offer, as `?error=…&form=delete` would carry it. */
+  deleteError?: string;
+  /** A failed deletion of the member's own note, as `?error=…&form=note-delete` would carry it. */
+  noteDeleteError?: string;
 }
 
 /** The freshness a state passes down: its own, or `fresh` for a stored result and `null` without one. */
@@ -93,7 +98,9 @@ function freshnessOf(audit: OfferAuditData, freshness: AuditFreshness | undefine
 }
 
 // Each state renders the whole view (card + team column); `notatki-<n>`, `audyt-<n>`,
-// `pobranie-<n>` and `archiwum-<n>` keep the sections' ids unique on one page. Every card carries
+// `pobranie-<n>`, `archiwum-<n>` and `usuwanie-<n>` keep the sections' ids unique on one page. Every
+// card carries the delete block as well (FR-015): its button opens a confirmation, and a confirmed
+// one posts to /api/offer-delete for a fixture offer that does not exist, so nothing is deleted. Every card carries
 // the archive block too, and the notices above carry its restore button: it posts to
 // /api/offer-archive for a fixture offer that does not exist, and the route answers
 // `offer_missing` without writing anything. Every card carries the re-fetch block,
@@ -107,6 +114,10 @@ const REFETCH_TIMED_OUT = ingestFailureMessage("timeout", undefined, "refetch");
 // A failed archiving and a failed restore, in the words of POST /api/offer-archive.
 const ARCHIVE_FAILED = "Nie udało się zarchiwizować oferty. Oferta pozostała na tablicy — spróbuj ponownie.";
 const RESTORE_FAILED = "Nie udało się przywrócić oferty. Oferta pozostała w archiwum — spróbuj ponownie.";
+// A failed deletion of the offer and of the note, in the words of POST /api/offer-delete and POST /api/notes.
+const DELETE_FAILED =
+  "Nie udało się usunąć oferty. Oferta, jej notatki i wynik audytu pozostały bez zmian — spróbuj ponownie.";
+const NOTE_DELETE_FAILED = "Nie udało się usunąć notatki. Notatka pozostała bez zmian — spróbuj ponownie.";
 const states: State[] = [
   {
     caption:
@@ -213,6 +224,36 @@ const states: State[] = [
     audit: auditNone,
     auditAvailable: true,
     archiveError: ARCHIVE_FAILED,
+  },
+  {
+    caption:
+      "Nieudane usunięcie żywej oferty (komunikat w bloku usuwania, nie przy archiwum, pobraniu ani notatkach) · audyt: brak · notatki: brak",
+    offer: fullOffer,
+    saver: memberSaver,
+    notes: noNotes,
+    audit: auditNone,
+    auditAvailable: true,
+    deleteError: DELETE_FAILED,
+  },
+  {
+    caption: "Nieudane usunięcie własnej notatki (komunikat nad notatką w podglądzie, edytor zamknięty) · audyt: brak",
+    offer: fullOffer,
+    saver: memberSaver,
+    notes: fullNotes,
+    audit: auditNone,
+    auditAvailable: true,
+    noteDeleteError: NOTE_DELETE_FAILED,
+  },
+  {
+    caption:
+      "W archiwum · nieudane usunięcie zarchiwizowanej oferty (blok usuwania bez zdania o archiwum) · audyt: brak · notatki: brak",
+    offer: archivedOffer,
+    saver: memberSaver,
+    notes: noNotes,
+    audit: auditNone,
+    auditAvailable: true,
+    archive: archivedByMember,
+    deleteError: DELETE_FAILED,
   },
   {
     caption:
@@ -511,6 +552,8 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
     <ArchiveNotice slot="notice" result="already-archived" archive={archivedByMember} />
     <ArchiveNotice slot="notice" result="already-archived" archive={archivedByUnknown} />
     <ArchiveNotice slot="notice" result="already-live" archive={null} />
+    <NoteDeleteNotice slot="notice" result="deleted" hasOwnNote={false} />
+    <NoteDeleteNotice slot="notice" result="gone" hasOwnNote={false} />
     <Banner slot="notice" variant="warning">
       <strong>Uwaga:</strong> Supabase nie jest skonfigurowany — funkcje uwierzytelniania są wyłączone.{" "}
       <a href="https://github.com/Sigaretif/Vetpad#supabase-configuration" target="_blank" rel="noopener noreferrer">
@@ -532,7 +575,9 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
       zespołu” — w innym wariancie. Pod kartami sekcja audytu stoi osobno w każdym stanie swojej macierzy. Stany
       archiwum: karta zarchiwizowana przez członka, oglądającego, usunięte konto i archiwizującego nieustalonego, sekcja
       audytu w archiwum (<code>audit-archived-*</code>), a u góry powiadomienie o duplikacie zarchiwizowanej oferty i
-      komunikaty po archiwizacji i przywróceniu.
+      komunikaty po archiwizacji i przywróceniu. Usuwanie: blok „Usuń ofertę” stoi na każdej karcie, żywej i
+      zarchiwizowanej, trzy stany pokazują nieudane usunięcie oferty i notatki, a u góry stoją oba komunikaty po
+      usunięciu własnej notatki.
     </p>
 
     {states.map((state, index) => (
@@ -555,6 +600,9 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
           archive={state.archive}
           archiveError={state.archiveError}
           archiveAnchorId={`archiwum-${index + 1}`}
+          deleteError={state.deleteError}
+          deleteAnchorId={`usuwanie-${index + 1}`}
+          noteDeleteError={state.noteDeleteError}
         />
       </div>
     ))}

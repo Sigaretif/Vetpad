@@ -13,19 +13,30 @@ import type { OfferNotes } from "@/lib/notes";
  * column (`OfferAudit.astro`, placed by `OfferView.astro`).
  *
  * A failed read is never "no notes": the column then renders no editor, because an empty form
- * saved as an upsert would overwrite the member's existing note.
+ * saved as an upsert would overwrite the member's existing note — and no „Usuń" either. Only the
+ * member's own note has actions (FR-015): everyone else's, a deleted account's among them, is a
+ * `NoteCard` without any.
  */
 interface Props {
   offerId: string;
   notes: OfferNotes;
   /** A failed save from the card's `?error=` — shown in the editor. */
   serverError?: string | null;
+  /** A failed deletion of the member's own note, from `?error=…&form=note-delete` — it opens no editor. */
+  deleteError?: string | null;
   startEditing?: boolean;
   /** The section's id: the note route redirects to `#notatki`; the kitchen sink passes unique values. */
   anchorId?: string;
 }
 
-const { offerId, notes, serverError = null, startEditing = false, anchorId = "notatki" } = Astro.props;
+const {
+  offerId,
+  notes,
+  serverError = null,
+  deleteError = null,
+  startEditing = false,
+  anchorId = "notatki",
+} = Astro.props;
 
 const headingId = `${anchorId}-naglowek`;
 const own =
@@ -46,7 +57,14 @@ const own =
 
   {notes.state === "ok" ? (
     <>
-      <NoteEditor client:load offerId={offerId} note={own} serverError={serverError} startEditing={startEditing} />
+      <NoteEditor
+        client:load
+        offerId={offerId}
+        note={own}
+        serverError={serverError}
+        deleteError={deleteError}
+        startEditing={startEditing}
+      />
       {notes.others.length > 0 ? (
         notes.others.map((note) => <NoteCard author={note.author} note={note} />)
       ) : (
@@ -55,8 +73,9 @@ const own =
     </>
   ) : (
     <>
-      {/* A failed save that landed on a failed read: the member still has to learn the save did not happen. */}
+      {/* A failed save or deletion that landed on a failed read: the member still has to learn it did not happen. */}
       <ServerError message={serverError} />
+      <ServerError message={deleteError} />
       <Alert variant="destructive">
         <CircleAlert />
         <AlertDescription>Nie udało się wczytać notatek.</AlertDescription>

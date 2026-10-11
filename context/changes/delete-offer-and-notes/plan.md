@@ -410,10 +410,10 @@ Brak migracji i brak `supabase db push`. Wdrożenie to sam Worker. Wycofanie to 
 
 #### Automated
 
-- [x] 1.1 `npm test` przechodzi, w tym nowe pliki testów obu tras
-- [x] 1.2 `npm run lint` przechodzi
-- [x] 1.3 `npx astro sync && npx astro check` przechodzi
-- [x] 1.4 `npm run build` przechodzi bez `.env` i `.dev.vars`
+- [x] 1.1 `npm test` przechodzi, w tym nowe pliki testów obu tras — 8159321
+- [x] 1.2 `npm run lint` przechodzi — 8159321
+- [x] 1.3 `npx astro sync && npx astro check` przechodzi — 8159321
+- [x] 1.4 `npm run build` przechodzi bez `.env` i `.dev.vars` — 8159321
 
 #### Manual
 
@@ -423,11 +423,11 @@ Brak migracji i brak `supabase db push`. Wdrożenie to sam Worker. Wycofanie to 
 
 #### Automated
 
-- [ ] 2.1 `npm test` przechodzi, w tym nowe testy renderowania
-- [ ] 2.2 `npm run lint` przechodzi z pustą listą `ignores` w `tokensOnlyConfig`
-- [ ] 2.3 `npx astro sync && npx astro check` przechodzi
-- [ ] 2.4 `npm run build` przechodzi bez `.env` i `.dev.vars`
-- [ ] 2.5 `package.json` zawiera `@radix-ui/react-alert-dialog` i nie zawiera pakietu `radix-ui`
+- [x] 2.1 `npm test` przechodzi, w tym nowe testy renderowania
+- [x] 2.2 `npm run lint` przechodzi z pustą listą `ignores` w `tokensOnlyConfig`
+- [x] 2.3 `npx astro sync && npx astro check` przechodzi
+- [x] 2.4 `npm run build` przechodzi bez `.env` i `.dev.vars`
+- [x] 2.5 `package.json` zawiera `@radix-ui/react-alert-dialog` i nie zawiera pakietu `radix-ui`
 
 #### Manual
 

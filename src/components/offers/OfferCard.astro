@@ -3,6 +3,7 @@ import { TriangleAlert } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { buttonVariants } from "@/components/ui/button";
 import ArchiveForm from "@/components/offers/ArchiveForm";
+import DeleteOfferForm from "@/components/offers/DeleteOfferForm";
 import { Card, CardContent } from "@/components/ui/card";
 import OfferDescription from "@/components/offers/OfferDescription.astro";
 import OfferGallery from "@/components/offers/OfferGallery.astro";
@@ -42,6 +43,10 @@ interface Props {
   archiveError?: string | null;
   /** The archive block's id: the route redirects to `#archiwum`; the kitchen sink passes unique values. */
   archiveAnchorId?: string;
+  /** A failed deletion, from the card's `?error=…&form=delete` — shown in the delete block, as text. */
+  deleteError?: string | null;
+  /** The delete block's id: the route redirects to `#usuwanie`; the kitchen sink passes unique values. */
+  deleteAnchorId?: string;
 }
 
 const {
@@ -53,6 +58,8 @@ const {
   archive,
   archiveError = null,
   archiveAnchorId = "archiwum",
+  deleteError = null,
+  deleteAnchorId = "usuwanie",
 } = Astro.props;
 
 // Whether the offer is archived is the row's fact alone (FR-014); the prop only adds who archived
@@ -181,6 +188,19 @@ const linkClass = cn(buttonVariants({ variant: "link" }), "h-auto p-0");
           </Alert>
         )}
         <RefetchForm client:load offerId={offer.id} serverError={refetchError} acceptLost={lostColumns.join(",")} />
+      </div>
+      {/* Deleting (FR-015) stands on the card of every offer, live or archived. The island gets
+          the offer's id alone, and nothing is sent before the member confirms in its dialog. */}
+      <div
+        id={deleteAnchorId}
+        data-offer-delete
+        class="border-border mt-4 flex scroll-mt-4 flex-col gap-3 border-t pt-4"
+      >
+        <p class="text-muted-foreground text-sm">
+          Usunięcia nie da się cofnąć: z ofertą znikają notatki wszystkich członków zespołu i wynik audytu.
+          {archived === null && " Oferta, która ma tylko zniknąć z tablicy, nadaje się do archiwum."}
+        </p>
+        <DeleteOfferForm client:load offerId={offer.id} serverError={deleteError} />
       </div>
     </CardContent>
   </Card>

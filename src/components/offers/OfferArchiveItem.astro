@@ -1,18 +1,20 @@
 ---
 /*
  * One archived offer on /offers/archive (FR-014): what the offer is, who archived it and when, and
- * the button that restores it without opening the card. Like a board row, the whole row opens the
- * card — but the row is not one link, because a button is never nested in an `<a>`: the title is
- * the link, stretched over the row by its `::after`, and the restore form stands beside it as an
- * element of its own, above that layer.
+ * two buttons that act on it without opening the card — „Przywróć", and under it „Usuń ofertę"
+ * (FR-015), which opens a confirmation before anything is sent. Like a board row, the whole row
+ * opens the card — but the row is not one link, because a button is never nested in an `<a>`: the
+ * title is the link, stretched over the row by its `::after`, and the two forms stand beside it as
+ * elements of their own, above that layer.
  *
  * The thumbnail is decorative (alt="") because the title names the offer. A fact the listing does
  * not state reads as unstated, never as 0 or an empty value (prd.md, Guardrails). The row shows no
  * audit status and no limit marks: the archive page reads neither.
  *
- * The island gets the offer's id alone; the archiver's name is rendered by the server, as text.
+ * Each island gets the offer's id alone; the archiver's name is rendered by the server, as text.
  */
 import ArchiveForm from "@/components/offers/ArchiveForm";
+import DeleteOfferForm from "@/components/offers/DeleteOfferForm";
 import ArchiveSignature from "@/components/offers/ArchiveSignature.astro";
 import Unstated from "@/components/offers/Unstated.astro";
 import { buttonVariants } from "@/components/ui/button";
@@ -92,5 +94,6 @@ const location = [offer.location_label, offer.street_name]
   </div>
   <div class="relative z-10 sm:w-40 sm:shrink-0">
     <ArchiveForm client:load offerId={offer.id} intent="restore" returnTo="archive" />
+    <DeleteOfferForm client:load offerId={offer.id} returnTo="archive" compact />
   </div>
 </Card>

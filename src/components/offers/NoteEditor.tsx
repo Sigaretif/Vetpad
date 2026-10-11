@@ -1,7 +1,8 @@
 import React, { useEffect, useId, useRef, useState } from "react";
-import { CircleAlert, Pencil, Save } from "lucide-react";
+import { CircleAlert, Pencil, Save, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/form/ConfirmDialog";
 import { ServerError } from "@/components/form/ServerError";
 import { SubmitButton } from "@/components/form/SubmitButton";
 import { TextareaField } from "@/components/form/TextareaField";
@@ -17,17 +18,33 @@ interface Props {
   note: (NoteValues & { updatedAt: string }) | null;
   /** A failed save, from the card's `?error=`: the form opens with it. */
   serverError?: string | null;
+  /**
+   * A failed deletion of the note, from the card's `?error=…&form=note-delete`: shown above the
+   * note, and never a reason to open the form — the member asked to delete, not to edit.
+   */
+  deleteError?: string | null;
   startEditing?: boolean;
+  /** For the /dev kitchen sinks alone: the delete confirmation is open on the first render. */
+  deleteDialogOpen?: boolean;
 }
 
 const EMPTY: NoteValues = { pros: "", cons: "", observations: "" };
 
 /**
- * The member's own note: a preview with „Edytuj", or the three-field form that saves it through
- * `POST /api/notes` (a native POST, so it also works with JavaScript off). Ids come from `useId()`
- * because the kitchen sinks render several editors on one page.
+ * The member's own note: a preview with „Edytuj" and „Usuń", or the three-field form that saves it
+ * through `POST /api/notes` (a native POST, so it also works with JavaScript off). „Usuń" opens a
+ * confirmation whose form posts `intent=delete` to the same route (FR-015); the saving form names
+ * its own intent, `save`. Ids come from `useId()` because the kitchen sinks render several editors
+ * on one page.
  */
-export default function NoteEditor({ offerId, note, serverError, startEditing = false }: Props) {
+export default function NoteEditor({
+  offerId,
+  note,
+  serverError,
+  deleteError,
+  startEditing = false,
+  deleteDialogOpen = false,
+}: Props) {
   const saved: NoteValues = note ? { pros: note.pros, cons: note.cons, observations: note.observations } : EMPTY;
 
   const [editing, setEditing] = useState(note === null || startEditing || Boolean(serverError));
@@ -83,16 +100,35 @@ export default function NoteEditor({ offerId, note, serverError, startEditing = 
 
   if (!editing && note) {
     return (
-      <NoteCard
-        author={{ kind: "self" }}
-        note={note}
-        action={
-          <Button id={editButtonId} type="button" variant="outline" size="sm" onClick={startEdit}>
-            <Pencil />
-            Edytuj
-          </Button>
-        }
-      />
+      <div className="flex flex-col gap-3">
+        <ServerError message={deleteError} />
+        <NoteCard
+          author={{ kind: "self" }}
+          note={note}
+          action={
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button id={editButtonId} type="button" variant="outline" size="sm" onClick={startEdit}>
+                <Pencil />
+                Edytuj
+              </Button>
+              <ConfirmDialog
+                triggerLabel="Usuń"
+                triggerIcon={<Trash2 />}
+                triggerVariant="outline"
+                triggerSize="sm"
+                title="Usunąć Twoją notatkę?"
+                description="Twoje zalety, wady i obserwacje dla tej oferty znikną na zawsze. Notatki pozostałych członków zespołu zostaną."
+                confirmLabel="Usuń notatkę"
+                confirmIcon={<Trash2 className="size-4" />}
+                pendingText="Usuwam…"
+                action="/api/notes"
+                fields={{ offer_id: offerId, intent: "delete" }}
+                defaultOpen={deleteDialogOpen}
+              />
+            </div>
+          }
+        />
+      </div>
     );
   }
 
@@ -113,6 +149,7 @@ export default function NoteEditor({ offerId, note, serverError, startEditing = 
           noValidate
         >
           <input type="hidden" name="offer_id" value={offerId} />
+          <input type="hidden" name="intent" value="save" />
 
           {NOTE_FIELDS.map((field) => (
             <TextareaField

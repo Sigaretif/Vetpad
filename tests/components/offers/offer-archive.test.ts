@@ -276,7 +276,7 @@ describe("OfferArchiveItem: what the offer is, who archived it, and the restore 
     expect(html).not.toContain("javascript:");
   });
 
-  it("keeps the restore button outside the link, and sends intent=restore and return=archive", async () => {
+  it("keeps both buttons outside the link, and sends intent=restore and return=archive", async () => {
     const html = await item(RECENT_1);
     const links = Array.from(html.matchAll(/<a\b[^>]*>[\s\S]*?<\/a>/g), (match) => match[0]);
     const buttons = Array.from(html.matchAll(/<button\b[^>]*>([\s\S]*?)<\/button>/g), (match) => visibleText(match[1]));
@@ -285,7 +285,12 @@ describe("OfferArchiveItem: what the offer is, who archived it, and the restore 
     expect(links[0]).not.toContain("<button");
     expect(links[0]).not.toContain("<form");
     expect(links[0]).not.toContain("<input");
-    expect(buttons).toEqual([RESTORE]);
+    // „Usuń ofertę” (FR-015) stands under the restore, and only opens a confirmation: the form
+    // that deletes lives in the dialog, so the row holds no delete form and no second `return`.
+    expect(buttons).toEqual([RESTORE, "Usuń ofertę"]);
+    expect(html).not.toContain('action="/api/offer-delete"');
+    expect(Array.from(html.matchAll(/<form\b/g))).toHaveLength(1);
+    expect(Array.from(html.matchAll(/<astro-island\b/g))).toHaveLength(2);
     // The whole row opens the card: the title's link is stretched over the positioned row, and the
     // restore form stands above that layer, so a click on the button never lands on the link.
     expect(links[0]).toContain("after:absolute after:inset-0");

@@ -1,6 +1,7 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import AddOfferForm from "@/components/offers/AddOfferForm";
+import DeleteNotice from "@/components/offers/DeleteNotice.astro";
 import OfferBoard from "@/components/offers/OfferBoard.astro";
 import RecentlyArchived from "@/components/offers/RecentlyArchived.astro";
 import { Card, CardHeader, CardDescription, CardContent } from "@/components/ui/card";
@@ -12,6 +13,9 @@ import { BOARD_COLUMNS, BOARD_SORT_COLUMN, parseBoardSort, type BoardResult, typ
 import { createClient } from "@/lib/supabase";
 
 const error = Astro.url.searchParams.get("error");
+// What POST /api/offer-delete leaves after a deletion sent from an offer's card (FR-015).
+// DeleteNotice reads it through a whitelist and renders no value as it came.
+const deleted = Astro.url.searchParams.get("deleted");
 const sort = parseBoardSort(Astro.url.searchParams);
 const supabase = createClient(Astro.request.headers, Astro.cookies);
 
@@ -58,6 +62,8 @@ const freshness = await loadBoardFreshness(supabase, audits, revision.ok ? revis
 ---
 
 <AppLayout title="Oferty — Vetpad">
+  {deleted !== null && <DeleteNotice slot="notice" result={deleted} />}
+
   <h1 class="text-foreground text-2xl font-bold">Oferty</h1>
 
   <Card>

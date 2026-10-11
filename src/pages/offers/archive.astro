@@ -1,6 +1,7 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import Banner from "@/components/Banner.astro";
+import DeleteNotice from "@/components/offers/DeleteNotice.astro";
 import OfferArchive from "@/components/offers/OfferArchive.astro";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { buttonVariants } from "@/components/ui/button";
@@ -21,8 +22,12 @@ const archive = await loadArchive(supabase, Astro.locals.user?.id, new Date());
 // What POST /api/offer-archive leaves in the address after a restore sent from a row here. Anyone
 // can type it by hand: only the exact value picks the sentence, and nothing is rendered as it came.
 const restored = Astro.url.searchParams.get("restored") === "1";
-// A failed restore lands on the offer's card, so this page needs no `form=`; a message that does
-// arrive here is rendered as text, never as HTML.
+// What POST /api/offer-delete leaves after a deletion sent from a row here (FR-015). DeleteNotice
+// reads it through a whitelist and renders no value as it came.
+const deleted = Astro.url.searchParams.get("deleted");
+// A failed restore lands on the offer's card; a failed deletion sent from a row here comes back
+// here, and it is the only message that does, so this page needs no `form=`. Rendered as text,
+// never as HTML.
 const error = Astro.url.searchParams.get("error");
 ---
 
@@ -32,6 +37,7 @@ const error = Astro.url.searchParams.get("error");
       <span data-archive-result="restored">Oferta została przywrócona z archiwum i wróciła na tablicę.</span>
     </Banner>
   )}
+  {deleted !== null && <DeleteNotice slot="notice" result={deleted} />}
 
   <a href="/dashboard" class:list={cn(buttonVariants({ variant: "link" }), "h-auto self-start p-0")}>
     ← Wróć do ofert

@@ -56,6 +56,12 @@ interface Props {
   archiveError?: string | null;
   /** Passed to OfferCard as `archiveAnchorId`; unique per instance on the kitchen sink. */
   archiveAnchorId?: string;
+  /** Passed to OfferCard: a failed deletion of the offer from the card's `?error=…&form=delete`. */
+  deleteError?: string | null;
+  /** Passed to OfferCard as `deleteAnchorId`; unique per instance on the kitchen sink. */
+  deleteAnchorId?: string;
+  /** Passed to OfferNotes: a failed deletion of the member's own note, from `?error=…&form=note-delete`. */
+  noteDeleteError?: string | null;
 }
 
 const {
@@ -76,6 +82,9 @@ const {
   archive,
   archiveError = null,
   archiveAnchorId,
+  deleteError = null,
+  deleteAnchorId,
+  noteDeleteError = null,
 } = Astro.props;
 
 const archived = archive ?? archiveOf(offer, { kind: "unknown" });
@@ -95,6 +104,8 @@ const archived = archive ?? archiveOf(offer, { kind: "unknown" });
       archive={archived}
       archiveError={archiveError}
       archiveAnchorId={archiveAnchorId}
+      deleteError={deleteError}
+      deleteAnchorId={deleteAnchorId}
     />
   </div>
   <div class="flex min-w-0 flex-col gap-8">
@@ -111,6 +122,7 @@ const archived = archive ?? archiveOf(offer, { kind: "unknown" });
       offerId={offer.id}
       notes={notes}
       serverError={noteError}
+      deleteError={noteDeleteError}
       startEditing={startEditing}
       anchorId={notesAnchorId}
     />

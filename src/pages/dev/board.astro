@@ -1,5 +1,6 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
+import DeleteNotice from "@/components/offers/DeleteNotice.astro";
 import BoardSort from "@/components/offers/BoardSort.astro";
 import OfferArchive from "@/components/offers/OfferArchive.astro";
 import OfferArchiveItem from "@/components/offers/OfferArchiveItem.astro";
@@ -185,6 +186,7 @@ const archiveSections = [
 
 // Single archive rows, in the same <ul>/<li> markup OfferArchive gives a row in production. The
 // restore button posts for an offer that does not exist: the route answers without writing anything.
+// So does the „Usuń ofertę" button under it, once its dialog is confirmed: nothing is deleted.
 const archiveRows = [
   {
     state: "archive-row-deleted",
@@ -219,6 +221,8 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
 
 {isDev ? (
   <AppLayout title="Tablica ofert — stany — Vetpad">
+    <DeleteNotice slot="notice" result="1" />
+    <DeleteNotice slot="notice" result="gone" />
     <p class="text-muted-foreground text-sm">
       Strona testowa (tylko <code>astro dev</code>): tablica ofert z <code>/dashboard</code> w każdym stanie, z danych
       testowych. Hover i fokus mają własne zrzuty na sekcji „default” (<code>board-hover-row</code>,{" "}
@@ -233,7 +237,9 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
       stanu ładowania. Archiwum (bez bramki wizualnej): sekcja pod tablicą w stanach „recent-some”, „recent-none”,
       „recent-empty” i „recent-error”, lista ze strony <code>/offers/archive</code> w stanach „archive-list”,
       „archive-empty” i „archive-error” oraz stany wiersza archiwum „archive-row-*” (usunięte konto, archiwizujący
-      nieustalony, niebezpieczne adresy zdjęć, wartości niepodane, długi tytuł).
+      nieustalony, niebezpieczne adresy zdjęć, wartości niepodane, długi tytuł). Usuwanie: u góry strony oba komunikaty
+      po usunięciu oferty („usunięta” i „już jej nie było”), a każdy wiersz archiwum ma pod „Przywróć” przycisk „Usuń
+      ofertę”, który otwiera dialog potwierdzenia.
     </p>
 
     <div class:list={stateClass} data-state="default">

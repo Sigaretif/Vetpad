@@ -3,7 +3,9 @@ import { loadRenderers } from "astro:container";
 import { experimental_AstroContainer as AstroContainer } from "astro/container";
 import { beforeAll, describe, expect, it } from "vitest";
 import ArchiveNotice from "@/components/offers/ArchiveNotice.astro";
+import DeleteNotice from "@/components/offers/DeleteNotice.astro";
 import DuplicateNotice from "@/components/offers/DuplicateNotice.astro";
+import NoteDeleteNotice from "@/components/offers/NoteDeleteNotice.astro";
 import OfferAudit from "@/components/offers/OfferAudit.astro";
 import OfferBoardItem from "@/components/offers/OfferBoardItem.astro";
 import OfferCard from "@/components/offers/OfferCard.astro";
@@ -20,12 +22,14 @@ import {
   archivedByDeletedOffer,
   archivedOffer,
   failedNotes,
+  fullNotes,
   fullOffer,
   malformedImagesOffer,
   memberSaver,
   noAudits,
   noLimits,
   noNotes,
+  othersOnlyNotes,
   outsideCityOffer,
   streetOnlyOffer,
   unknownOffer,
@@ -1019,12 +1023,12 @@ function hiddenValues(html: string, name: string): string[] {
   );
 }
 
-/** The card's re-fetch block: from its id to the end of the card's header. */
+/** The card's re-fetch block: from its id to the delete block that follows it. */
 function refetchBlock(html: string): string {
   const start = html.indexOf('id="pobranie"');
   if (start === -1) throw new Error("expected the re-fetch block to render");
-  const end = html.indexOf("</header>", start);
-  if (end === -1) throw new Error("expected the card's header to be closed");
+  const end = html.indexOf('id="usuwanie"', start);
+  if (end === -1) throw new Error("expected the delete block to follow the re-fetch block");
   return withoutIslandProps(html.slice(start, end));
 }
 
@@ -1650,4 +1654,244 @@ describe("DuplicateNotice: an archived offer's notice says so and offers the res
     expect(html).not.toContain("<img src=x");
     expect(html.split("onerror")).toHaveLength(2);
   });
+});
+
+// Deleting an offer and the member's own note (FR-015). The buttons only open a confirmation: the
+// form that deletes lives in the dialog, which a server render does not hold, so nothing here can
+// be sent by one click or with JavaScript off. Expected outcomes are written by hand from the
+// plan's contract (context/changes/delete-offer-and-notes/plan.md, Phase 2), never copied from the
+// rendered output. What the dialog itself says and does is tests/e2e/delete-with-confirmation.spec.ts.
+
+const DELETE_OFFER = "Usuń ofertę";
+const DELETE_NOTE = "Usuń";
+const EDIT_NOTE = "Edytuj";
+const SAVE_NOTE = "Zapisz notatkę";
+const TO_ARCHIVE_INSTEAD = "nadaje się do archiwum";
+
+/** The card's delete block: from its id to the end of the card's header. */
+function deleteBlock(html: string): string {
+  const start = html.indexOf('id="usuwanie"');
+  if (start === -1) throw new Error("expected the delete block to render");
+  const end = html.indexOf("</header>", start);
+  if (end === -1) throw new Error("expected the card's header to be closed");
+  return withoutIslandProps(html.slice(start, end));
+}
+
+/** The notes section, to the end of the view. */
+function notesBlock(html: string): string {
+  const start = html.indexOf('<section id="notatki"');
+  if (start === -1) throw new Error("expected the notes section to render");
+  return withoutIslandProps(html.slice(start));
+}
+
+describe("OfferView: every offer's card offers its deletion, behind a confirmation (FR-015)", () => {
+  it.each<[string, Record<string, unknown>, boolean]>([
+    ["a live offer", {}, true],
+    ["an archived offer", { offer: archivedOffer, archive: archivedBy(memberSaver) }, false],
+    ["an offer archived by a deleted account", { offer: archivedByDeletedOffer }, false],
+  ])("renders the delete block with its one button for %s", async (_case, props, live) => {
+    const html = await offerView(props);
+    const block = deleteBlock(html);
+
+    expect(html.split("data-offer-delete")).toHaveLength(2);
+    expect(buttonsIn(block)).toEqual([{ label: DELETE_OFFER, disabled: false }]);
+    expect(visibleText(block)).toContain("Usunięcia nie da się cofnąć");
+    expect(visibleText(block)).toContain("notatki wszystkich członków zespołu i wynik audytu");
+    // Only a live offer can still go to the archive instead.
+    expect(visibleText(block).includes(TO_ARCHIVE_INSTEAD)).toBe(live);
+    expect(block).not.toContain('role="alert"');
+  });
+
+  it("puts no form and no field in the block: the button alone sends nothing", async () => {
+    const html = await offerView({});
+    const block = deleteBlock(html);
+
+    expect(block).not.toContain("<form");
+    expect(block).not.toContain("<input");
+    expect(block).toMatch(/<button\b[^>]*type="button"/);
+    expect(block).not.toMatch(/<button\b[^>]*type="submit"/);
+    expect(html).not.toContain('action="/api/offer-delete"');
+    // Controls: the blocks beside it do carry their forms, so the search above can find one.
+    expect(archiveBlock(html)).toContain('action="/api/offer-archive"');
+    expect(refetchBlock(html)).toContain('action="/api/offer-refetch"');
+  });
+
+  it("shows a failed deletion in the delete block, as text, and nowhere else", async () => {
+    const message = 'Nie udało się <b>usunąć</b> <script>alert("x")</script>';
+    const html = await offerView({ deleteError: message, notes: fullNotes });
+
+    expect(visibleText(deleteBlock(html))).toContain(message);
+    expect(deleteBlock(html)).toContain('role="alert"');
+    expect(visibleText(archiveBlock(html))).not.toContain(message);
+    expect(visibleText(refetchBlock(html))).not.toContain(message);
+    expect(visibleText(notesBlock(html))).not.toContain(message);
+    expect(html).not.toContain("<b>");
+    expect(html).not.toContain("<script>alert");
+    // Not the note editor's error either: the member's note stays in preview.
+    expect(notesBlock(html)).not.toContain("<textarea");
+    expect(buttonsIn(deleteBlock(html))).toEqual([{ label: DELETE_OFFER, disabled: false }]);
+  });
+
+  it("control: the same card without an error shows no alert in any block", async () => {
+    const html = await offerView({ notes: fullNotes });
+
+    expect(deleteBlock(html)).not.toContain('role="alert"');
+    expect(notesBlock(html)).not.toContain('role="alert"');
+  });
+});
+
+describe("OfferNotes: only the member's own note can be deleted (FR-015)", () => {
+  it("offers „Edytuj” and „Usuń” on the member's own note, and no action on anyone else's", async () => {
+    // fullNotes: the viewer's note, a member's note and a note of a deleted account.
+    const block = notesBlock(await offerView({ notes: fullNotes }));
+
+    expect(buttonsIn(block)).toEqual([
+      { label: EDIT_NOTE, disabled: false },
+      { label: DELETE_NOTE, disabled: false },
+    ]);
+    expect(visibleText(block)).toContain("czlonek-zespolu@example.com");
+    expect(visibleText(block)).toContain(DELETED_ACCOUNT);
+    // The button only opens the confirmation: the form that deletes is not in the page.
+    expect(block).not.toContain("<form");
+    expect(block).not.toContain('value="delete"');
+  });
+
+  it("offers no deletion to a member who has no note: the form saves, and names that intent", async () => {
+    // othersOnlyNotes: two notes, neither the viewer's.
+    const block = notesBlock(await offerView({ notes: othersOnlyNotes }));
+
+    expect(buttonsIn(block)).toEqual([{ label: SAVE_NOTE, disabled: false }]);
+    expect(hiddenValues(block, "intent")).toEqual(["save"]);
+    expect(hiddenValues(block, "offer_id")).toEqual([fullOffer.id]);
+  });
+
+  it("renders no action at all when the notes could not be read", async () => {
+    const block = notesBlock(await offerView({ notes: failedNotes }));
+
+    expect(block).toContain('data-notes-state="error"');
+    expect(buttonsIn(block)).toEqual([]);
+    expect(block).not.toContain("<form");
+  });
+
+  it("shows a failed deletion above the note, as text, without opening the editor", async () => {
+    const message = 'Nie udało się <b>usunąć</b> notatki <script>alert("x")</script>';
+    const html = await offerView({ notes: fullNotes, noteDeleteError: message });
+    const block = notesBlock(html);
+
+    expect(visibleText(block)).toContain(message);
+    expect(block).toContain('role="alert"');
+    expect(block).not.toContain("<textarea");
+    expect(buttonsIn(block)).toEqual([
+      { label: EDIT_NOTE, disabled: false },
+      { label: DELETE_NOTE, disabled: false },
+    ]);
+    expect(visibleText(deleteBlock(html))).not.toContain(message);
+    expect(visibleText(archiveBlock(html))).not.toContain(message);
+    expect(visibleText(refetchBlock(html))).not.toContain(message);
+    expect(html).not.toContain("<b>");
+    expect(html).not.toContain("<script>alert");
+  });
+
+  // Beside it: a failed save is the error that does open the editor.
+  it("control: a failed save opens the editor on the same note", async () => {
+    const block = notesBlock(await offerView({ notes: fullNotes, noteError: "Nie udało się zapisać notatki." }));
+
+    expect(block).toContain("<textarea");
+    expect(buttonsIn(block).map((button) => button.label)).toContain(SAVE_NOTE);
+    expect(buttonsIn(block).map((button) => button.label)).not.toContain(DELETE_NOTE);
+  });
+
+  it("still tells a failed deletion when the notes could not be read", async () => {
+    const message = "Nie udało się usunąć notatki.";
+    const block = notesBlock(await offerView({ notes: failedNotes, noteDeleteError: message }));
+
+    expect(visibleText(block)).toContain(message);
+    expect(buttonsIn(block)).toEqual([]);
+  });
+});
+
+/** Values an address can carry that are not on a notice's list. */
+const OFF_THE_LIST: [string, string | null][] = [
+  ["no value", null],
+  ["an empty value", ""],
+  ["an unknown value", "archived"],
+  ["another case", "GONE"],
+  ["an inherited key", "constructor"],
+  ["markup", "<script>alert(1)</script>"],
+  ["markup around a known value", 'gone"><img src=x onerror=alert(1)>'],
+];
+
+describe("DeleteNotice: the address only picks one of two sentences", () => {
+  function notice(result: string | null): Promise<string> {
+    return container.renderToString(DeleteNotice, { props: { result } });
+  }
+
+  it("says the offer was deleted with its notes and audit for `1`", async () => {
+    const html = await notice("1");
+
+    expect(visibleText(html)).toBe("Oferta została usunięta razem z notatkami zespołu i wynikiem audytu.");
+    expect(html).toContain('data-delete-result="deleted"');
+  });
+
+  it("says the offer was already gone for `gone`, and never that the member deleted it", async () => {
+    const html = await notice("gone");
+
+    expect(visibleText(html)).toBe("Tej oferty już nie było — ktoś usunął ją wcześniej. Niczego nie usunięto.");
+    expect(html).toContain('data-delete-result="already-gone"');
+    expect(html).not.toContain('data-delete-result="deleted"');
+    expect(visibleText(html)).not.toContain("została usunięta");
+  });
+
+  it.each<[string, string | null]>([...OFF_THE_LIST, ["the token of the other result", "deleted"], ["true", "true"]])(
+    "renders nothing for %s",
+    async (_case, result) => {
+      const html = await notice(result);
+
+      expect(visibleText(html)).toBe("");
+      expect(html).not.toContain("alert(1)");
+      expect(html).not.toContain("<img");
+      expect(html).not.toContain("data-delete-result");
+    },
+  );
+});
+
+describe("NoteDeleteNotice: the address only picks one of two sentences, and never whether a note exists", () => {
+  function notice(result: string | null, hasOwnNote: boolean): Promise<string> {
+    return container.renderToString(NoteDeleteNotice, { props: { result, hasOwnNote } });
+  }
+
+  it("says the note was deleted for `deleted`", async () => {
+    const html = await notice("deleted", false);
+
+    expect(visibleText(html)).toBe("Twoja notatka została usunięta.");
+    expect(html).toContain('data-note-result="deleted"');
+  });
+
+  it("says the note was already gone for `gone`, and never that it was deleted", async () => {
+    const html = await notice("gone", false);
+
+    expect(visibleText(html)).toBe("Twojej notatki już nie było — niczego nie usunięto.");
+    expect(html).toContain('data-note-result="gone"');
+    expect(visibleText(html)).not.toContain("została usunięta");
+  });
+
+  // Beside the two above: the same addresses over a card whose member does have a note.
+  it.each(["deleted", "gone"])("renders nothing for `%s` while the member has a note", async (result) => {
+    const html = await notice(result, true);
+
+    expect(visibleText(html)).toBe("");
+    expect(html).not.toContain("data-note-result");
+  });
+
+  it.each<[string, string | null]>([...OFF_THE_LIST, ["the offer notice's value", "1"]])(
+    "renders nothing for %s",
+    async (_case, result) => {
+      const html = await notice(result, false);
+
+      expect(visibleText(html)).toBe("");
+      expect(html).not.toContain("alert(1)");
+      expect(html).not.toContain("<img");
+      expect(html).not.toContain("data-note-result");
+    },
+  );
 });

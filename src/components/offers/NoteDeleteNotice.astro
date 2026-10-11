@@ -1,0 +1,37 @@
+---
+import Banner from "@/components/Banner.astro";
+
+/*
+ * What a deletion of the member's own note ended with (FR-015), from the card's `?note=`, which
+ * `POST /api/notes` sets and anyone can type by hand. The value only picks one of the two
+ * sentences below; it is never rendered itself, and a value that is neither renders nothing. The
+ * parent places the notice in AppLayout's `notice` slot.
+ *
+ * Whether the member has a note is never taken from the address: `hasOwnNote` comes from the read
+ * of the notes, and while the member has one, neither sentence is rendered — the row contradicts
+ * the address (a reloaded page after a new note, a link typed by hand). A failed read of the
+ * notes is passed as `true` for the same reason: nothing then confirms that the note is gone.
+ */
+interface Props {
+  /** The card's `?note=`, as the address carries it. */
+  result: string | null;
+  /** Whether the notes' read found the member's own note on this offer. */
+  hasOwnNote: boolean;
+}
+
+const { result, hasOwnNote } = Astro.props;
+
+const RESULTS = {
+  deleted: "Twoja notatka została usunięta.",
+  gone: "Twojej notatki już nie było — niczego nie usunięto.",
+};
+
+const shown =
+  !hasOwnNote && result !== null && Object.hasOwn(RESULTS, result) ? (result as keyof typeof RESULTS) : null;
+---
+
+{shown !== null && (
+  <Banner variant="info">
+    <span data-note-result={shown}>{RESULTS[shown]}</span>
+  </Banner>
+)}
