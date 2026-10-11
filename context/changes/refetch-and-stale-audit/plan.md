@@ -738,24 +738,24 @@ od pierwszego wyświetlenia. Wdrożenie nie wymaga `supabase db push`.
 #### Manual
 
 - [x] 4.5 `/dev/board` pokazuje pięć statusów audytu, rozróżnialnych bez koloru — 5112a0d
-- [x] 4.6 Na lokalnej tablicy zmiana limitu na `/criteria` zmienia status audytowanej oferty na „nieaktualny"
+- [x] 4.6 Na lokalnej tablicy zmiana limitu na `/criteria` zmienia status audytowanej oferty na „nieaktualny" — b58bcd0
 - [x] 4.7 Sortowanie i znaczniki limitów działają jak przed fazą — 5112a0d
 
 ### Phase 5: Smoke i dokumentacja
 
 #### Automated
 
-- [x] 5.1 Testy jednostkowe przechodzą: `npm test`
-- [x] 5.2 Typy przechodzą: `npx astro sync && npx astro check`
-- [x] 5.3 Lint przechodzi: `npm run lint`
-- [x] 5.4 Budowanie przechodzi bez sekretów: `npm run build`
-- [x] 5.5 Skrypty bazy przechodzą bez zmian: `npm run test:db`
-- [x] 5.6 Smoke przechodzi na podglądzie produkcyjnym i lokalnym Supabase: `npm run smoke`
+- [x] 5.1 Testy jednostkowe przechodzą: `npm test` — b58bcd0
+- [x] 5.2 Typy przechodzą: `npx astro sync && npx astro check` — b58bcd0
+- [x] 5.3 Lint przechodzi: `npm run lint` — b58bcd0
+- [x] 5.4 Budowanie przechodzi bez sekretów: `npm run build` — b58bcd0
+- [x] 5.5 Skrypty bazy przechodzą bez zmian: `npm run test:db` — b58bcd0
+- [x] 5.6 Smoke przechodzi na podglądzie produkcyjnym i lokalnym Supabase: `npm run smoke` — b58bcd0
 
 #### Manual
 
-- [x] 5.7 Ponowne pobranie prawdziwego ogłoszenia z karty lokalnej oferty kończy się komunikatem „bez zmian" albo „dane się zmieniły" i nową datą pobrania
-- [x] 5.8 Notatka dodana przed tym pobraniem czyta się po nim co do znaku tak samo, z tą samą datą edycji
-- [x] 5.9 Oferta z audytem, której tytuł zmieniono przez Data API, wraca do zgodności z otodom po pobraniu, a jej audyt jest oznaczony jako nieaktualny
-- [x] 5.10 Wklejenie adresu zapisanej oferty na `/dashboard` otwiera kartę z powiadomieniem o duplikacie, a przycisk w powiadomieniu pobiera dane ponownie
-- [x] 5.11 Pobranie oferty, której zapisany `source_url` zmieniono przez Data API na adres wygasłego ogłoszenia, zostawia kartę bez zmian i podaje przyczynę
+- [x] 5.7 Ponowne pobranie prawdziwego ogłoszenia z karty lokalnej oferty kończy się komunikatem „bez zmian" albo „dane się zmieniły" i nową datą pobrania — b58bcd0
+- [x] 5.8 Notatka dodana przed tym pobraniem czyta się po nim co do znaku tak samo, z tą samą datą edycji — b58bcd0
+- [x] 5.9 Oferta z audytem, której tytuł zmieniono przez Data API, wraca do zgodności z otodom po pobraniu, a jej audyt jest oznaczony jako nieaktualny — b58bcd0
+- [x] 5.10 Wklejenie adresu zapisanej oferty na `/dashboard` otwiera kartę z powiadomieniem o duplikacie, a przycisk w powiadomieniu pobiera dane ponownie — b58bcd0
+- [x] 5.11 Pobranie oferty, której zapisany `source_url` zmieniono przez Data API na adres wygasłego ogłoszenia, zostawia kartę bez zmian i podaje przyczynę — b58bcd0
