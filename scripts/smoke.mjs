@@ -23,9 +23,24 @@
 // the database's) and leaves the other member's note alone. Against public.offers: the second member rewrites the
 // listing data of an offer the first one saved, as a re-fetch would, and every note on both offers is the same row
 // afterwards; the offer's author survives being reassigned and being cleared, read back with a filter rather than
-// from the PATCH's answer. Deleting the first fixture offer as the second member takes both members' notes with it
-// and nothing from the second offer; the second offer follows, and a last delete of both ids leaves nothing behind
-// whatever failed in between. Because it writes and deletes offers, it never runs against production.
+// from the PATCH's answer. Because it writes and deletes offers, it never runs against production.
+// Deleting (FR-015), through the routes: POST /api/offer-delete turns an anonymous caller and a forged session away,
+// and so does POST /api/notes with `intent=delete`. Signed in, the offer route ends a body that is not a form and an
+// id that is not a uuid on /dashboard?error=, and answers an offer that does not exist with `?deleted=gone` - on
+// /dashboard, or on /offers/archive when the form says it came from there - which /dashboard shows as
+// data-delete-result="already-gone". Zero deleted rows is its own result on both routes, never a success. The note
+// steps stand after the audit-freshness steps and the cleanup of the criteria, because everything before them
+// expects both members' notes on the first fixture offer: an unknown `intent` leaves every note as it was; the
+// first member's `intent=delete` lands on the card with `?note=deleted`, their note is gone, and the second
+// member's note on the same offer and the note on the second offer are the same rows (withSnapshot); the card
+// carries data-note-result="deleted"; the same request again lands on `?note=gone`. The cascade follows, through
+// the route as well and both ways. The first member deletes the first fixture offer, which by then holds the second
+// member's note alone - a note the first member has no delete policy on - and lands on /dashboard?deleted=1: the
+// note is gone with the offer and nothing from the second offer; /dashboard carries data-delete-result="deleted".
+// The second member - signed in to the app with a session of their own, kept out of the cookie jar - deletes the
+// same offer again and gets `?deleted=gone`, then deletes the second offer with `return=archive` and lands on
+// /offers/archive?deleted=1: the first member's note on it and its audit are gone with it. A last
+// delete of both ids through the Data API leaves nothing behind whatever failed in between, and expects no row.
 // Team criteria (FR-002, FR-003): /criteria, /api/criteria and /api/requirements turn anonymous users away, and the
 // publishable key alone reads nothing from public.team_criteria, public.criteria_revision or public.member_requirements
 // nor changes the limits. Signed in, it reads the limits as they stood before the run, saves limits of its own
@@ -127,7 +142,7 @@
 // A session Auth refuses is a sign-out, never an outage (src/middleware.ts): before signing in, it sends a forged
 // session cookie - named after the SUPABASE_URL host, with a token that has not expired and a signature that is not
 // real - on GET /dashboard, on POST /api/offers, on POST /api/audit-settings, on POST /api/audits, on
-// POST /api/offer-refetch and on POST /api/offer-archive, and each must
+// POST /api/offer-refetch, on POST /api/offer-archive and on POST /api/offer-delete, and each must
 // redirect to /auth/signin, not answer with the 503 page. The cookie goes instead of the cookie jar and nothing the server
 // answers is stored in it. An outage itself cannot be played against a live Auth; tests/middleware.test.ts covers
 // it. The error pages answer under their own addresses with their own status and marker: /503 with 503 and
@@ -938,6 +953,48 @@ function requestArchive(offerId, intent, send = request) {
   return send("/api/offer-archive", { method: "POST", form: { offer_id: offerId, intent } });
 }
 
+// A member's session in the app itself, as a `Cookie` header: the cookies POST /api/auth/signin sets for `account`,
+// kept out of the cookie jar, which stays the first member's. For a step where the second member acts through a
+// route rather than through the Data API. Throws when the sign-in does not answer with a session, which fails the
+// step that asked for it.
+const appSessions = new Map();
+
+async function appSessionCookie(account) {
+  if (appSessions.has(account.email)) return appSessions.get(account.email);
+  const response = await fetch(`${BASE_URL}/api/auth/signin`, {
+    method: "POST",
+    redirect: "manual",
+    headers: { Origin: BASE_URL, "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ email: account.email, password: account.password }).toString(),
+  });
+  const cookies = response.headers
+    .getSetCookie()
+    .map((raw) => raw.split(";")[0].trim())
+    .filter((pair) => pair.startsWith("sb-"));
+  if (response.status !== 302 || cookies.length === 0) {
+    throw new Error(`no app session for ${account.email} (${response.status})`);
+  }
+  const cookie = cookies.join("; ");
+  appSessions.set(account.email, cookie);
+  return cookie;
+}
+
+// A member asks to delete an offer the way the dialog on the card and on /offers/archive does (FR-015): `returnTo`
+// is the hidden `return` field, `as` the member who asks when it is not the first one, and `send` a forged session.
+// The route reads and writes public.offers alone, so it may name a fixture offer - and does, once, for each of
+// them, as the last thing the run does to it.
+async function requestOfferDelete(offerId, { returnTo, as, send = request } = {}) {
+  const form = { offer_id: offerId, ...(returnTo ? { return: returnTo } : {}) };
+  const cookie = as ? await appSessionCookie(as) : undefined;
+  return send("/api/offer-delete", { method: "POST", form, ...(cookie ? { cookie } : {}) });
+}
+
+// The first member asks to delete their own note on an offer the way the dialog beside „Edytuj" does (FR-015):
+// the offer and the intent, and nothing that names a note or an author.
+function requestNoteDelete(offerId) {
+  return request("/api/notes", { method: "POST", form: { offer_id: offerId, intent: "delete" } });
+}
+
 // An observed read for withSnapshot: the first fixture offer's whole row, its archive columns included, read by the
 // first member, who reads every offer.
 function observedOffer() {
@@ -1192,6 +1249,17 @@ const steps = [
     () => requestArchive(randomUUID(), "archive"),
     { status: 302, location: "/auth/signin" },
   ],
+  // The same for both deletions (FR-015): a well-formed id of no offer.
+  [
+    "offer delete redirects anonymous user",
+    () => requestOfferDelete(randomUUID()),
+    { status: 302, location: "/auth/signin" },
+  ],
+  [
+    "note delete redirects anonymous user",
+    () => requestNoteDelete(randomUUID()),
+    { status: 302, location: "/auth/signin" },
+  ],
   // A session Auth refuses reads as signed out, on a page and on a form route alike: the 503 page is for an Auth
   // that could not answer, never for one that said no.
   [
@@ -1232,6 +1300,11 @@ const steps = [
   [
     "offer archive redirects a forged session to sign-in",
     () => requestArchive(randomUUID(), "archive", requestWithForgedSession),
+    { status: 302, location: "/auth/signin" },
+  ],
+  [
+    "offer delete redirects a forged session to sign-in",
+    () => requestOfferDelete(randomUUID(), { send: requestWithForgedSession }),
     { status: 302, location: "/auth/signin" },
   ],
   ["criteria page redirects anonymous user", () => request("/criteria"), { status: 302, location: "/auth/signin" }],
@@ -1329,6 +1402,34 @@ const steps = [
     "offer archive refuses an offer that does not exist",
     () => requestArchive(randomUUID(), "restore"),
     { status: 302, locationPrefix: "/dashboard?error=" },
+  ],
+  // The delete route (FR-015), as far as it goes without an offer. A body that is not a form and an id that is not
+  // a uuid end before any write; an offer that does not exist is the one write of the route reaching no row, which
+  // is neither a success nor an error - "already gone", on the page the form said it came from.
+  [
+    "offer delete rejects a non-form body",
+    () => request("/api/offer-delete", { method: "POST", json: { offer_id: randomUUID() } }),
+    { status: 302, locationPrefix: "/dashboard?error=" },
+  ],
+  [
+    "offer delete refuses an id that is not a uuid",
+    () => requestOfferDelete("not-a-uuid"),
+    { status: 302, locationPrefix: "/dashboard?error=" },
+  ],
+  [
+    "offer delete of an offer that does not exist says it was already gone",
+    () => requestOfferDelete(randomUUID()),
+    { status: 302, location: "/dashboard?deleted=gone" },
+  ],
+  [
+    "offer delete from the archive page of an offer that does not exist says the same there",
+    () => requestOfferDelete(randomUUID(), { returnTo: "archive" }),
+    { status: 302, location: "/offers/archive?deleted=gone" },
+  ],
+  [
+    "dashboard says the offer was already gone, never that it was deleted",
+    () => request("/dashboard?deleted=gone"),
+    { status: 200, bodyIncludes: [BOARD_OK, 'data-delete-result="already-gone"'] },
   ],
   [
     "archive page renders for signed-in user",
@@ -2244,32 +2345,103 @@ const steps = [
     async () => supabaseRest(`${await bothRequirementsPath()}&select=author_id`, { as: MEMBER }),
     { status: 200, rows: 0 },
   ],
-  // The cascade (FR-015), both ways: deleting the offer takes every member's notes on it, the first member's
-  // among them although the second member has no delete policy on that note, and nothing from the other offer.
-  ["fixture offer holds both members' notes before it is deleted", () => bothMembersNotes(), { status: 200, rows: 2 }],
+  // Deleting a member's own note through the route (FR-015). These steps stand after every step that expects both
+  // members' notes on the first fixture offer - the archive and the audit-freshness steps among them. An intent the
+  // route does not know neither saves nor deletes, although the form carries a whole note.
   [
-    "another member deletes the fixture offer and the second offer's notes stay as they were",
+    "note route refuses an unknown intent and leaves every note as it was",
     () =>
-      withSnapshot([observedNotes(FIXTURE_NOTES_2)], () =>
-        supabaseRest(FIXTURE_OFFER, { as: OTHER_MEMBER, method: "DELETE", prefer: "return=representation" }),
+      withSnapshot([observedNotes(ALL_FIXTURE_NOTES)], () =>
+        request("/api/notes", {
+          method: "POST",
+          form: { offer_id: FIXTURE_OFFER_ID, intent: "archive", pros: "smoke-unknown-intent" },
+        }),
       ),
-    { status: 200, rows: 1, snapshot: "same" },
+    { status: 302, locationPrefix: "/dashboard?error=", snapshot: "same" },
+  ],
+  ["fixture offer holds both members' notes before one is deleted", () => bothMembersNotes(), { status: 200, rows: 2 }],
+  // The other member's note on the same offer, and the note on the other offer, are the same rows afterwards.
+  [
+    "member deletes their own note through the route and nobody else's note changes",
+    () =>
+      withSnapshot([observedNote(OTHER_MEMBER), observedNotes(FIXTURE_NOTES_2)], () =>
+        requestNoteDelete(FIXTURE_OFFER_ID),
+      ),
+    { status: 302, location: `${FIXTURE_CARD}?note=deleted#notatki`, snapshot: "same" },
+  ],
+  ["member's deleted note is gone", () => noteRest(MEMBER, { as: MEMBER, select: "id" }), { status: 200, rows: 0 }],
+  [
+    "offer card says the member's note was deleted",
+    () => request(`${FIXTURE_CARD}?note=deleted`),
+    { status: 200, bodyIncludes: [NOTES_OK, 'data-note-result="deleted"'] },
+  ],
+  // Zero rows is its own result, never a second "deleted" - and the other member's note is still not touched.
+  [
+    "deleting the note again says it was already gone",
+    () =>
+      withSnapshot([observedNote(OTHER_MEMBER), observedNotes(FIXTURE_NOTES_2)], () =>
+        requestNoteDelete(FIXTURE_OFFER_ID),
+      ),
+    { status: 302, location: `${FIXTURE_CARD}?note=gone#notatki`, snapshot: "same" },
+  ],
+  // The cascade (FR-015), both ways and through the route: deleting an offer takes the notes on it that the
+  // deleting member has no delete policy on, and nothing from the other offer. The first fixture offer holds the
+  // second member's note alone by now, and the first member deletes it.
+  [
+    "fixture offer holds the other member's note before it is deleted",
+    () => supabaseRest(`${FIXTURE_NOTES}&select=id`, { as: MEMBER }),
+    { status: 200, rows: 1 },
   ],
   [
-    "both members' notes are gone with the offer",
+    "member deletes the fixture offer through the route and the second offer's notes stay as they were",
+    () => withSnapshot([observedNotes(FIXTURE_NOTES_2)], () => requestOfferDelete(FIXTURE_OFFER_ID)),
+    { status: 302, location: "/dashboard?deleted=1", snapshot: "same" },
+  ],
+  ["fixture offer is gone", () => supabaseRest(`${FIXTURE_OFFER}&select=id`, { as: MEMBER }), { status: 200, rows: 0 }],
+  [
+    "the other member's note is gone with the offer",
     () => supabaseRest(`${FIXTURE_NOTES}&select=id`, { as: MEMBER }),
     { status: 200, rows: 0 },
   ],
-  // The same cascade for the audit, which no member can delete by itself: it is there until its offer goes.
+  [
+    "dashboard says the offer was deleted",
+    () => request("/dashboard?deleted=1"),
+    { status: 200, bodyIncludes: [BOARD_OK, 'data-delete-result="deleted"'] },
+  ],
+  // The second member to delete the same offer learns it was already gone, and is never told they deleted it.
+  // They ask through the app with a session of their own, kept out of the cookie jar.
+  [
+    "another member deleting the deleted offer learns it was already gone",
+    () => requestOfferDelete(FIXTURE_OFFER_ID, { as: OTHER_MEMBER }),
+    { status: 302, location: "/dashboard?deleted=gone" },
+  ],
+  // The other way round, and the same cascade for the audit, which no member can delete by itself: the second
+  // fixture offer holds the first member's note and the audit that member started, and the second member deletes
+  // it the way a row of the archive page does, so the answer goes back there.
+  [
+    "second fixture offer holds the member's note before it is deleted",
+    () => noteRest(MEMBER, { offerId: FIXTURE_OFFER_ID_2, as: MEMBER, select: "id" }),
+    { status: 200, rows: 1 },
+  ],
   [
     "second fixture offer holds its audit attempt before it is deleted",
     () => supabaseRest(`${FIXTURE_AUDIT_2}&select=offer_id`, { as: MEMBER }),
     { status: 200, rows: 1 },
   ],
   [
-    "second fixture offer is deleted",
-    () => supabaseRest(FIXTURE_OFFER_2, { as: MEMBER, method: "DELETE", prefer: "return=representation" }),
-    { status: 200, rows: 1 },
+    "another member deletes the second fixture offer through the route, from the archive page",
+    () => requestOfferDelete(FIXTURE_OFFER_ID_2, { returnTo: "archive", as: OTHER_MEMBER }),
+    { status: 302, location: "/offers/archive?deleted=1" },
+  ],
+  [
+    "second fixture offer is gone",
+    () => supabaseRest(`${FIXTURE_OFFER_2}&select=id`, { as: MEMBER }),
+    { status: 200, rows: 0 },
+  ],
+  [
+    "archive page says the offer was deleted",
+    () => request("/offers/archive?deleted=1"),
+    { status: 200, bodyIncludes: [ARCHIVE_OK, 'data-delete-result="deleted"'] },
   ],
   [
     "second fixture offer's notes are gone with it",

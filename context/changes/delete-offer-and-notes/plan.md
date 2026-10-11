@@ -423,11 +423,11 @@ Brak migracji i brak `supabase db push`. Wdrożenie to sam Worker. Wycofanie to 
 
 #### Automated
 
-- [x] 2.1 `npm test` przechodzi, w tym nowe testy renderowania
-- [x] 2.2 `npm run lint` przechodzi z pustą listą `ignores` w `tokensOnlyConfig`
-- [x] 2.3 `npx astro sync && npx astro check` przechodzi
-- [x] 2.4 `npm run build` przechodzi bez `.env` i `.dev.vars`
-- [x] 2.5 `package.json` zawiera `@radix-ui/react-alert-dialog` i nie zawiera pakietu `radix-ui`
+- [x] 2.1 `npm test` przechodzi, w tym nowe testy renderowania — 166ca94
+- [x] 2.2 `npm run lint` przechodzi z pustą listą `ignores` w `tokensOnlyConfig` — 166ca94
+- [x] 2.3 `npx astro sync && npx astro check` przechodzi — 166ca94
+- [x] 2.4 `npm run build` przechodzi bez `.env` i `.dev.vars` — 166ca94
+- [x] 2.5 `package.json` zawiera `@radix-ui/react-alert-dialog` i nie zawiera pakietu `radix-ui` — 166ca94
 
 #### Manual
 
@@ -443,10 +443,10 @@ Brak migracji i brak `supabase db push`. Wdrożenie to sam Worker. Wycofanie to 
 
 #### Automated
 
-- [ ] 3.1 `npm run smoke` przechodzi na lokalnym Supabase
-- [ ] 3.2 `npm run test:db` przechodzi
-- [ ] 3.3 `npx playwright test` przechodzi na lokalnym Supabase
-- [ ] 3.4 `npm test`, `npm run lint`, `npx astro sync && npx astro check` i `npm run build` przechodzą
+- [x] 3.1 `npm run smoke` przechodzi na lokalnym Supabase
+- [x] 3.2 `npm run test:db` przechodzi
+- [x] 3.3 `npx playwright test` przechodzi na lokalnym Supabase
+- [x] 3.4 `npm test`, `npm run lint`, `npx astro sync && npx astro check` i `npm run build` przechodzą
 
 #### Manual
 

@@ -62,19 +62,53 @@ export async function createFixtureOffer(
   await expect(response, "the fixture offer is saved").toBeOK();
 }
 
+/** Saves the member's own note on the offer, with `pros` as its one filled field. */
+export async function createFixtureNote(
+  request: APIRequestContext,
+  member: MemberApi,
+  offerId: string,
+  pros: string,
+): Promise<void> {
+  const response = await request.post(`${supabase().url}/rest/v1/offer_notes`, {
+    headers: member.headers,
+    data: { offer_id: offerId, author_id: member.userId, pros },
+  });
+  await expect(response, "the fixture note is saved").toBeOK();
+}
+
+/** How many rows of `table` the offer has, as the member reads them: the offer itself, or its notes. */
+export async function countFixtureRows(
+  request: APIRequestContext,
+  member: MemberApi,
+  table: "offers" | "offer_notes",
+  offerId: string,
+): Promise<number> {
+  const column = table === "offers" ? "id" : "offer_id";
+  const response = await request.get(`${supabase().url}/rest/v1/${table}?${column}=eq.${offerId}&select=id`, {
+    headers: member.headers,
+  });
+  await expect(response, `the fixture offer's rows in ${table} are read`).toBeOK();
+  return ((await response.json()) as unknown[]).length;
+}
+
 /**
  * Deletes the offer and, through the cascade, every note on it. Judged by rows, never by status
  * alone: a delete that row-level security denies answers 200 with `[]`.
+ *
+ * `expectedRows` is the caller's statement of what is left to delete: 1 by default, and 0 from a
+ * spec whose own action has already deleted the offer through the app — which this then proves,
+ * since an offer the app only claimed to delete would come back as one row.
  */
 export async function deleteFixtureOffer(
   request: APIRequestContext,
   member: MemberApi,
   offerId: string,
+  expectedRows: 0 | 1 = 1,
 ): Promise<void> {
   const { url } = supabase();
   const deleted = await request.delete(`${url}/rest/v1/offers?id=eq.${offerId}`, { headers: member.headers });
   await expect(deleted, "the fixture offer is deleted").toBeOK();
-  expect(await deleted.json(), "exactly the fixture offer was deleted").toHaveLength(1);
+  expect(await deleted.json(), `the cleanup deleted ${expectedRows} offer row(s)`).toHaveLength(expectedRows);
 
   const notes = await request.get(`${url}/rest/v1/offer_notes?offer_id=eq.${offerId}&select=id`, {
     headers: member.headers,
