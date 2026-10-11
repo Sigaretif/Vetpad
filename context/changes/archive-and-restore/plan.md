@@ -699,14 +699,14 @@ Smoke dowodzi na żywej lokalnej bazie, że archiwizacja nie rusza notatek i że
 
 #### Automated
 
-- [x] 5.1 Smoke przechodzi na lokalnej bazie: `npm run smoke`
-- [x] 5.2 Skrypty bazy przechodzą: `npm run test:db`
-- [x] 5.3 Testy jednostkowe przechodzą: `npm test`
-- [x] 5.4 Kontrola typów przechodzi: `npx astro sync && npx astro check`
-- [x] 5.5 Lint przechodzi: `npm run lint`
-- [x] 5.6 Build przechodzi: `npm run build`
+- [x] 5.1 Smoke przechodzi na lokalnej bazie: `npm run smoke` — 6269028
+- [x] 5.2 Skrypty bazy przechodzą: `npm run test:db` — 6269028
+- [x] 5.3 Testy jednostkowe przechodzą: `npm test` — 6269028
+- [x] 5.4 Kontrola typów przechodzi: `npx astro sync && npx astro check` — 6269028
+- [x] 5.5 Lint przechodzi: `npm run lint` — 6269028
+- [x] 5.6 Build przechodzi: `npm run build` — 6269028
 
 #### Manual
 
-- [x] 5.7 Krok kontrolny bloku archiwizacji w smoke wypada czerwono po celowym zepsuciu (filtr tablicy usunięty lokalnie) i zielono po jego przywróceniu
-- [x] 5.8 `CLAUDE.md` i `README.md` nie zawierają już zapowiedzi S-10 w czasie przyszłym
+- [x] 5.7 Krok kontrolny bloku archiwizacji w smoke wypada czerwono po celowym zepsuciu (filtr tablicy usunięty lokalnie) i zielono po jego przywróceniu — 6269028
+- [x] 5.8 `CLAUDE.md` i `README.md` nie zawierają już zapowiedzi S-10 w czasie przyszłym — 6269028
