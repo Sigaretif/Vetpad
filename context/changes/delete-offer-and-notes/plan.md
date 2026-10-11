@@ -433,11 +433,11 @@ Brak migracji i brak `supabase db push`. Wdrożenie to sam Worker. Wycofanie to 
 
 - [x] 2.6 Na karcie żywej oferty „Usuń ofertę” otwiera dialog; „Anuluj” i Escape niczego nie usuwają, a fokus wraca na przycisk
 - [x] 2.7 Potwierdzenie usuwa ofertę i prowadzi na `/dashboard` z banerem; oferty nie ma na tablicy, w sekcji „Ostatnio zarchiwizowane” ani w liczniku archiwum
-- [ ] 2.8 Zarchiwizowaną ofertę da się usunąć z karty (powrót na tablicę) i z wiersza `/offers/archive` (powrót na archiwum z banerem)
+- [x] 2.8 Zarchiwizowaną ofertę da się usunąć z karty (powrót na tablicę) i z wiersza `/offers/archive` (powrót na archiwum z banerem)
 - [x] 2.9 „Usuń” przy własnej notatce usuwa ją po potwierdzeniu; karta pokazuje baner i pusty edytor, a notatki innych członków stoją bez zmian
 - [x] 2.10 Przy cudzej notatce nie ma przycisku „Usuń”
 - [x] 2.11 Strony `/dev/forms`, `/dev/offer-card` i `/dev/board` renderują nowe sekcje pod `npm run dev`
-- [ ] 2.12 Dialog jest czytelny na wąskim ekranie i w ciemnym motywie, a przycisk potwierdzenia wyraźnie różni się od „Anuluj”
+- [x] 2.12 Dialog jest czytelny na wąskim ekranie i w ciemnym motywie, a przycisk potwierdzenia wyraźnie różni się od „Anuluj”
 
 ### Phase 3: Smoke, E2E i dokumentacja
 
@@ -450,6 +450,6 @@ Brak migracji i brak `supabase db push`. Wdrożenie to sam Worker. Wycofanie to 
 
 #### Manual
 
-- [ ] 3.5 Dwie przeglądarki z dwoma kontami: obie mają otwartą kartę tej samej oferty; pierwsza usuwa, druga po potwierdzeniu widzi baner „Tej oferty już nie było”
+- [x] 3.5 Dwie przeglądarki z dwoma kontami: obie mają otwartą kartę tej samej oferty; pierwsza usuwa, druga po potwierdzeniu widzi baner „Tej oferty już nie było”
 - [x] 3.6 W logu `npm run dev` usunięcie oferty zostawia wpis `offer_delete` z `user_id`, `offer_id` i `otodom_id`, a usunięcie notatki wpis `note` bez treści notatki
-- [ ] 3.7 `CLAUDE.md`, `README.md`, PRD i plan testów opisują stan zgodny z kodem
+- [x] 3.7 `CLAUDE.md`, `README.md`, PRD i plan testów opisują stan zgodny z kodem
