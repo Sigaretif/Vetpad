@@ -1,10 +1,10 @@
 ---
 change_id: testing-audit-grounding-privacy
 title: Test audit grounding and prompt privacy (test-plan Phase 4)
-status: implemented
+status: archived
 created: 2026-10-12
 updated: 2026-10-12
-archived_at: null
+archived_at: 2026-10-12T12:30:16Z
 ---
 
 ## Notes
