@@ -829,10 +829,57 @@ describe("POST /api/audits: what can be checked for free is checked before the c
       }),
     ]);
   });
+
+  // Nothing before the claim is meant to throw. The edge that makes it is the platform's Web
+  // Crypto: the listing's fingerprint is the last thing worked out before the row is claimed.
+  it("reports unexpected when something throws before the claim: 0 provider calls, no claim", async () => {
+    const digest = vi
+      .spyOn(crypto.subtle, "digest")
+      .mockRejectedValue(new DOMException("KANAREK-DIGEST the operation failed", "OperationError"));
+    try {
+      const { lines, stub, captured } = await audit({ provider: answered });
+
+      const { reason, message } = failure(lines);
+      expect(reason).toBe("unexpected");
+      expect(message).toContain("nieoczekiwany błąd aplikacji");
+      expect(lines).toStrictEqual([{ type: "stage", stage: "reading" }, lines.at(-1)]);
+      expect(digest).toHaveBeenCalledTimes(1);
+      expect(providerCalls(stub.requests)).toHaveLength(0);
+      // Every read, and nothing after them: the row was not claimed, so nothing is left to end.
+      expect(tablesAsked(stub)).toEqual(READS_AND_CLAIM.slice(0, 6));
+      expect(requestsTo(stub, "offer_audits")).toHaveLength(0);
+      // The class of what was thrown, and neither its message nor what only a claimed audit
+      // carries: no model, no effort, no criteria revision, no length of the listing.
+      expect(captured.entries()).toStrictEqual([
+        entry("error", {
+          outcome: "failed",
+          stage: "unexpected",
+          reason: "unexpected",
+          user_id: USER_ID,
+          offer_id: OFFER_ID,
+          error_name: "OperationError",
+        }),
+      ]);
+      expect(captured.text()).not.toContain("KANAREK-DIGEST");
+    } finally {
+      digest.mockRestore();
+    }
+  });
 });
 
 describe("POST /api/audits: the row is claimed before anything is paid for (#2)", () => {
   const EXISTING_ROW = dbError(409, "23505", 'duplicate key value violates unique constraint "offer_audits_pkey"');
+
+  // A claim is one row with a non-empty text in `run_started_at`: the name the two writes that end
+  // the attempt are filtered by. Each answer here is a success by its status and is not that row.
+  const NOT_THE_CLAIMED_ROW: [string, unknown][] = [
+    ["an empty text where the start stands", [{ run_started_at: "" }]],
+    ["a number where the start stands", [{ run_started_at: 1759917600123 }]],
+    ["null where the start stands", [{ run_started_at: null }]],
+    ["two rows", [{ run_started_at: STARTED_AT }, { run_started_at: "2026-10-08T10:00:00.654321+00:00" }]],
+    ["the start itself where the row should be", [STARTED_AT]],
+    ["null where the row should be", [null]],
+  ];
 
   it("claims the offer's first attempt with an insert that names the offer and the state, and nothing else", async () => {
     const { stub } = await audit({ provider: answered });
@@ -915,6 +962,18 @@ describe("POST /api/audits: the row is claimed before anything is paid for (#2)"
       { detail: "takeover", db_code: "XX000", db_message: "internal error", db_status: 500 },
     ],
     ["the takeover reaches no row", { claim: EXISTING_ROW, takeover: rows() }, { detail: "takeover", db_status: 200 }],
+    ...NOT_THE_CLAIMED_ROW.flatMap(([what, answer]): [string, Network, Record<string, string | number>][] => [
+      [
+        `the insert answers with ${what}`,
+        { claim: () => jsonResponse(answer, 201) },
+        { detail: "insert", db_status: 201 },
+      ],
+      [
+        `the takeover answers with ${what}`,
+        { claim: EXISTING_ROW, takeover: () => jsonResponse(answer, 200) },
+        { detail: "takeover", db_status: 200 },
+      ],
+    ]),
   ])("reports claim_failed when %s: 0 provider calls", async (_case, network, fields) => {
     const { lines, stub, captured } = await audit(network);
 
@@ -1071,6 +1130,20 @@ describe("POST /api/audits: a finished audit is one provider call and one stored
       had_limits: false,
       requirements_count: 0,
     });
+  });
+
+  // Beside it: one limit of the four is still a team with limits.
+  it("stores had_limits for a team that has set one limit and left three empty: 1 provider call", async () => {
+    const { stub, lines } = await audit({
+      limits: rows({ city: "Warszawa", price_min: null, price_max: null, area_min: null }),
+      provider: answered,
+    });
+
+    expect(lines.at(-1)).toStrictEqual({ type: "done" });
+    expect(providerCalls(stub.requests)).toHaveLength(1);
+    const saves = writes(stub, "completed");
+    expect(saves).toHaveLength(1);
+    expect(body(saves[0])).toMatchObject({ had_limits: true, requirements_count: 2 });
   });
 });
 
@@ -1632,6 +1705,135 @@ describe("POST /api/audits: a failed model call is paid for at most once, and le
         db_status: 500,
       }),
     );
+  });
+
+  // The same write answering 200 with no row: the row is another attempt's by now. That is a
+  // takeover, not a write the database failed, and the entry has nothing of the database to carry.
+  it("says the attempt was taken over when the mark reached no row: 1 provider call, no retry", async () => {
+    const { lines, stub, captured } = await audit({
+      provider: () => providerError(500, "api_error"),
+      fail: rows(),
+    });
+
+    expect(failure(lines).reason).toBe("provider_unavailable");
+    expect(providerCalls(stub.requests)).toHaveLength(1);
+    expect(writes(stub, "completed")).toHaveLength(0);
+    const marks = writes(stub, "failed");
+    expect(marks).toHaveLength(1);
+    expectOwnAttemptOnly(marks[0]);
+    expect(captured.entries().at(-1)).toStrictEqual(
+      entry("error", {
+        outcome: "failed",
+        stage: "provider",
+        reason: "provider_unavailable",
+        ...KNOWN,
+        ...refusedWith(500, "api_error"),
+        detail: "attempt_taken_over",
+      }),
+    );
+  });
+});
+
+// Nothing after the claim is meant to throw. The edge that makes it is the console: the `started`
+// entry is written inside the claimed part of the route, before the model is called. The console
+// throws for that entry alone — the entry of the way out goes through the same console, outside
+// any handler, and a throw there would leave the answer without its last line.
+describe("POST /api/audits: a throw after the claim leaves the attempt failed, and nothing paid for (#2, #3)", () => {
+  /** The captured console, except that writing the `started` entry throws `thrown`. */
+  function captureConsoleThrowingAtStarted(thrown: Error): ConsoleCapture {
+    const captured = captureConsole();
+    // The spy `captureConsole` has just put on `info`: spying again hands the same one back.
+    const info = vi.spyOn(console, "info");
+    const record = info.getMockImplementation();
+    info.mockImplementation((...args: unknown[]) => {
+      if ((args[0] as { outcome?: unknown } | undefined)?.outcome === "started") throw thrown;
+      record?.(...args);
+    });
+    return captured;
+  }
+
+  /** The audit of the fixture offer under that console; `restoreConsole` puts the real one back. */
+  async function auditThrowingAtStarted(network: Network): Promise<Omit<Audited, keyof Sent>> {
+    const captured = captureConsoleThrowingAtStarted(new RangeError("KANAREK-KONSOLA the log could not be written"));
+    const stub = stubNetwork(network);
+    const { response } = await post();
+    const text = await response.text();
+    return { lines: parseLines(text), text, stub, captured };
+  }
+
+  it("marks the attempt failed as unexpected: 0 provider calls, nothing stored as a result", async () => {
+    const { lines, text, stub, captured } = await auditThrowingAtStarted({ provider: answered });
+
+    const { reason, message } = failure(lines);
+    expect(reason).toBe("unexpected");
+    expect(message).toContain("nieoczekiwany błąd aplikacji");
+    // The throw stands before the model stage: the member never read that the model was asked.
+    expect(lines).toStrictEqual([{ type: "stage", stage: "reading" }, lines.at(-1)]);
+    expect(providerCalls(stub.requests)).toHaveLength(0);
+    // The row was claimed, so it is ended: it does not stay `running`.
+    expect(requestsTo(stub, "offer_audits", "POST")).toHaveLength(1);
+    const marks = writes(stub, "failed");
+    expect(marks).toHaveLength(1);
+    expectOwnAttemptOnly(marks[0]);
+    expect(body(marks[0])).toEqual({ run_state: "failed", run_failure: "unexpected" });
+    expect(writes(stub, "completed")).toHaveLength(0);
+    // One entry, and no `started` before it: that one was never written.
+    expect(captured.entries()).toStrictEqual([
+      entry("error", {
+        outcome: "failed",
+        stage: "unexpected",
+        reason: "unexpected",
+        ...KNOWN,
+        error_name: "RangeError",
+        duration_ms: 0,
+      }),
+    ]);
+    // The class of what was thrown, never its message — in the log or in the answer.
+    expect(captured.text()).not.toContain("KANAREK-KONSOLA");
+    expect(text).not.toContain("KANAREK-KONSOLA");
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("says so in the entry when the attempt could not be marked: 0 provider calls, the mark tried once", async () => {
+    const { lines, stub, captured } = await auditThrowingAtStarted({
+      provider: answered,
+      fail: dbError(500, "XX000", "internal error"),
+    });
+
+    // The member reads the same answer; the row stays `running` until it reads as interrupted.
+    const { reason, message } = failure(lines);
+    expect(reason).toBe("unexpected");
+    expect(message).toContain("nieoczekiwany błąd aplikacji");
+    expect(providerCalls(stub.requests)).toHaveLength(0);
+    const marks = writes(stub, "failed");
+    expect(marks).toHaveLength(1);
+    expectOwnAttemptOnly(marks[0]);
+    expect(body(marks[0])).toEqual({ run_state: "failed", run_failure: "unexpected" });
+    expect(writes(stub, "completed")).toHaveLength(0);
+    expect(captured.entries()).toStrictEqual([
+      entry("error", {
+        outcome: "failed",
+        stage: "unexpected",
+        reason: "unexpected",
+        ...KNOWN,
+        error_name: "RangeError",
+        detail: "attempt_not_marked",
+        db_code: "XX000",
+        db_message: "internal error",
+        db_status: 500,
+        duration_ms: 0,
+      }),
+    ]);
+    expect(captured.text()).not.toContain("KANAREK-DETAILS");
+  });
+
+  it("control: the same request with a console that takes the entry reaches the provider: 1 provider call", async () => {
+    const { lines, stub, captured } = await audit({ provider: answered });
+
+    expect(lines.at(-1)).toStrictEqual({ type: "done" });
+    expect(providerCalls(stub.requests)).toHaveLength(1);
+    expect(writes(stub, "failed")).toHaveLength(0);
+    expect(captured.entries()).toStrictEqual([STARTED, COMPLETED]);
   });
 });
 
