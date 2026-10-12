@@ -216,11 +216,11 @@ Nie dotyczy: brak zmian w bazie i w kodzie aplikacji.
 
 #### Automated
 
-- [x] 2.1 Przebieg Strykera na czterech modułach kończy się, a każdy ocalały i niepokryty mutant ma decyzję z powodem w `mutation.md`
-- [x] 2.2 `npm test`, `npm run lint`, `npx astro sync` i `npx astro check` przechodzą
-- [x] 2.3 Zmienione pliki Markdown przechodzą `npx prettier --check`
-- [x] 2.4 `git diff --stat` nie pokazuje żadnego pliku pod `src/`, `supabase/` ani `scripts/`, ani `eslint.config.js`, ani `stryker.config.json`
+- [x] 2.1 Przebieg Strykera na czterech modułach kończy się, a każdy ocalały i niepokryty mutant ma decyzję z powodem w `mutation.md` — 506af1d
+- [x] 2.2 `npm test`, `npm run lint`, `npx astro sync` i `npx astro check` przechodzą — 506af1d
+- [x] 2.3 Zmienione pliki Markdown przechodzą `npx prettier --check` — 506af1d
+- [x] 2.4 `git diff --stat` nie pokazuje żadnego pliku pod `src/`, `supabase/` ani `scripts/`, ani `eslint.config.js`, ani `stryker.config.json` — 506af1d
 
 #### Manual
 
-- [x] 2.5 Użytkownik czyta wpis fazy 4 w §6.6 i `mutation.md` i potwierdza, że lista „Open" mówi to, co zdecydował
+- [x] 2.5 Użytkownik czyta wpis fazy 4 w §6.6 i `mutation.md` i potwierdza, że lista „Open" mówi to, co zdecydował — 506af1d
