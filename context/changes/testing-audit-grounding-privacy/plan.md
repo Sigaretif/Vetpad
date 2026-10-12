@@ -206,21 +206,21 @@ Nie dotyczy: brak zmian w bazie i w kodzie aplikacji.
 
 #### Automated
 
-- [x] 1.1 Nowe przypadki przechodzą: `npm test -- tests/lib/audit tests/eslint.config.test.ts`
-- [x] 1.2 Cały zestaw przechodzi: `npm test`
-- [x] 1.3 `npm run lint`, `npx astro sync` i `npx astro check` przechodzą
-- [x] 1.4 Każdy nowy przypadek był raz czerwony i wrócił do zielonego
-- [x] 1.5 Po cofnięciu zepsuć `git status --short` nie pokazuje żadnego pliku pod `src/` ani `eslint.config.js`
+- [x] 1.1 Nowe przypadki przechodzą: `npm test -- tests/lib/audit tests/eslint.config.test.ts` — 5e4836c
+- [x] 1.2 Cały zestaw przechodzi: `npm test` — 5e4836c
+- [x] 1.3 `npm run lint`, `npx astro sync` i `npx astro check` przechodzą — 5e4836c
+- [x] 1.4 Każdy nowy przypadek był raz czerwony i wrócił do zielonego — 5e4836c
+- [x] 1.5 Po cofnięciu zepsuć `git status --short` nie pokazuje żadnego pliku pod `src/` ani `eslint.config.js` — 5e4836c
 
 ### Phase 2: Stryker i dokumentacja
 
 #### Automated
 
-- [ ] 2.1 Przebieg Strykera na czterech modułach kończy się, a każdy ocalały i niepokryty mutant ma decyzję z powodem w `mutation.md`
-- [ ] 2.2 `npm test`, `npm run lint`, `npx astro sync` i `npx astro check` przechodzą
-- [ ] 2.3 Zmienione pliki Markdown przechodzą `npx prettier --check`
-- [ ] 2.4 `git diff --stat` nie pokazuje żadnego pliku pod `src/`, `supabase/` ani `scripts/`, ani `eslint.config.js`, ani `stryker.config.json`
+- [x] 2.1 Przebieg Strykera na czterech modułach kończy się, a każdy ocalały i niepokryty mutant ma decyzję z powodem w `mutation.md`
+- [x] 2.2 `npm test`, `npm run lint`, `npx astro sync` i `npx astro check` przechodzą
+- [x] 2.3 Zmienione pliki Markdown przechodzą `npx prettier --check`
+- [x] 2.4 `git diff --stat` nie pokazuje żadnego pliku pod `src/`, `supabase/` ani `scripts/`, ani `eslint.config.js`, ani `stryker.config.json`
 
 #### Manual
 
-- [ ] 2.5 Użytkownik czyta wpis fazy 4 w §6.6 i `mutation.md` i potwierdza, że lista „Open" mówi to, co zdecydował
+- [x] 2.5 Użytkownik czyta wpis fazy 4 w §6.6 i `mutation.md` i potwierdza, że lista „Open" mówi to, co zdecydował

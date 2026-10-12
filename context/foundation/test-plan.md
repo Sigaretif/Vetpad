@@ -76,12 +76,12 @@ Each row is a discrete rollout phase that will open its own change folder
 via `/10x-new`. Status moves left-to-right through the values below; the
 orchestrator updates Status as artifacts appear on disk.
 
-| #   | Phase name                           | Goal (one line)                                                                                                                                 | Risks covered        | Test types                                                                   | Status        | Change folder                                  |
-| --- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | ---------------------------------------------------------------------------- | ------------- | ---------------------------------------------- |
-| 1   | Test runner and ingestion guardrails | Bootstrap Vitest and prove that ingestion never saves an invented fact, a non-flat-sale, seller data, or an unsafe URL; wire `npm test` into CI | #1, #6 (storage), #7 | unit (recorded fixtures)                                                     | complete      | context/changes/testing-ingestion-guardrails/  |
-| 2   | Write isolation                      | Prove that a write on X leaves every other member's data untouched, before S-09/S-10/S-11 add more writes                                       | #5                   | integration (smoke), SQL against the local database, one hermetic route test | complete      | context/changes/testing-write-isolation/       |
-| 3   | Audit cost and durability            | Prove that a paid model call cannot be multiplied and a paid result cannot be silently lost — starts only after S-04 ships                      | #2, #3               | integration (provider stub)                                                  | change opened | context/changes/testing-audit-cost-durability/ |
-| 4   | Audit grounding and prompt privacy   | Prove that no finding without a verbatim excerpt is shown and no note or seller data reaches the prompt — starts only after S-04 ships          | #4, #6 (prompt)      | unit, optional manual golden set                                             | not started   | —                                              |
+| #   | Phase name                           | Goal (one line)                                                                                                                                 | Risks covered        | Test types                                                                   | Status        | Change folder                                    |
+| --- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | ---------------------------------------------------------------------------- | ------------- | ------------------------------------------------ |
+| 1   | Test runner and ingestion guardrails | Bootstrap Vitest and prove that ingestion never saves an invented fact, a non-flat-sale, seller data, or an unsafe URL; wire `npm test` into CI | #1, #6 (storage), #7 | unit (recorded fixtures)                                                     | complete      | context/changes/testing-ingestion-guardrails/    |
+| 2   | Write isolation                      | Prove that a write on X leaves every other member's data untouched, before S-09/S-10/S-11 add more writes                                       | #5                   | integration (smoke), SQL against the local database, one hermetic route test | complete      | context/changes/testing-write-isolation/         |
+| 3   | Audit cost and durability            | Prove that a paid model call cannot be multiplied and a paid result cannot be silently lost — starts only after S-04 ships                      | #2, #3               | integration (provider stub)                                                  | complete      | context/changes/testing-audit-cost-durability/   |
+| 4   | Audit grounding and prompt privacy   | Prove that no finding without a verbatim excerpt is shown and no note or seller data reaches the prompt — starts only after S-04 ships          | #4, #6 (prompt)      | unit, optional manual golden set                                             | change opened | context/changes/testing-audit-grounding-privacy/ |
 
 Phase 1 adds `vitest` to `package.json`; CLAUDE.md requires the user's
 explicit go-ahead for that, which `/10x-plan` asks for. Phases 3 and 4 are
@@ -757,7 +757,12 @@ presence.
     search passes on a fixture that lost its canaries.
   - **The other half, always:** what the advertiser typed into the
     description is there verbatim, once, and in the message only — never in
-    the instruction. A canary hit is fixed in the whitelist
+    the instruction. The title is the listing's own words too: the fixture's
+    title holds nothing that looks like a contact, so the case builds one —
+    `auditOfferRow({ title })` with `TYPED_NAME` and `TYPED_PHONE` — and
+    expects it whole in the input and in the `tytul` block, with the search
+    for `FORBIDDEN_IN_AUDIT` and its control in the same case. A canary hit
+    is fixed in the whitelist
     (`AUDIT_OFFER_COLUMNS`), never by redacting the listing's text, which
     would break the excerpts (FR-011).
   - **Key sets, written out by hand:** the keys of the input, of a
@@ -772,7 +777,13 @@ presence.
     test ever answers `offer_notes`, so a read of it fails the test, and
     `npm run lint` fails an import of the notes module under
     `src/lib/audit/` (`auditNoNotesConfig` in `eslint.config.js`). The lint
-    rule is confirmed by adding the import once and watching it go red.
+    rule has a test of its own, `tests/eslint.config.test.ts`, which runs the
+    project's configuration through ESLint's API inside `npm test`: a sample
+    is linted as text under the path of a file that exists — typed linting
+    ends an invented path with a fatal message before any rule runs — every
+    case asserts that no message is fatal, each import that is rejected
+    stands beside one that is not, and the configuration computed for every
+    file under `src/lib/audit/` is asked for the audit's own message.
   - **Unknown stays unknown (#1):** a `null` column goes out as „nie podano w
     ogłoszeniu”, never as zero — with `rent: "0"` sitting in the fixture's
     `raw` to prove `raw` is not read — and a value that does not read as what
@@ -794,9 +805,9 @@ presence.
   instruction with the user, then the test.
 - **Tag:** `(#4)` for grounding and the readers, `(#6)` for what leaves the
   system, `(#1)` for an unknown that must stay one.
-- **Run:** `npm test -- tests/lib/audit`, then Stryker narrowed to the gate —
-  `npx stryker run --mutate "src/lib/audit/grounding.ts"`, and the same for
-  `src/lib/audit/input.ts`.
+- **Run:** `npm test -- tests/lib/audit tests/eslint.config.test.ts`, then
+  Stryker narrowed to the four modules both rules stand on —
+  `npx stryker run --mutate "src/lib/audit/grounding.ts,src/lib/audit/input.ts,src/lib/audit/prompt.ts,src/lib/audit/schema.ts"`.
 - **Pitfalls:**
   - Never use a model to judge whether an excerpt is grounded: the check is a
     deterministic comparison, and so is its test (§2, risk #4).
@@ -1224,6 +1235,89 @@ insert answers 23505] … expected 23505, got no error`; its `ROLLBACK`
     of the read that follows a failed save (`:176`), and `findings_count` in
     the log entry (`src/pages/api/audits.ts:231`).
 
+**Phase 4 — Audit grounding and prompt privacy**
+(`testing-audit-grounding-privacy`, 2026-10-12)
+
+- The second phase S-04's entry left to the orchestrator, opened the same
+  way as Phase 3. The tests written in S-04 already proved both protections:
+  the research found no way for an ungrounded finding to be stored (#4) or
+  for seller data or a note to reach the request (#6), and no defect.
+  Nothing under `src/` changed, and neither did `eslint.config.js`. What the
+  phase adds is a guideline of §2 proved to the letter, a manual proof turned
+  into a test, and a record.
+- Delivered:
+  - **#6 (prompt), the title** — §2 says a phone or a name the advertiser
+    typed "into the title or description" is kept verbatim; the fixture
+    carried them in the description alone. One case in
+    `tests/lib/audit/input.test.ts` and one in
+    `tests/lib/audit/prompt.test.ts` build a title that holds both and
+    expect it whole in the audit's input and in the `tytul` block, in the
+    message only, with the search for `FORBIDDEN_IN_AUDIT` and its control
+    in the same case.
+  - **#6 (prompt), the lint rule** — `tests/eslint.config.test.ts`, new:
+    `auditNoNotesConfig` rejects an import of the notes module under
+    `src/lib/audit/input.ts` and `src/pages/api/audits.ts`, by the alias, by
+    a relative path and with a file extension, with the audit's own message;
+    it does not reject the same import in `src/lib/members.ts`, or
+    `@/lib/footnotes` in an audit file; and the configuration computed for
+    every file that stands under `src/lib/audit/` and for the route carries
+    the rule as an error. Until now the rule had been confirmed once, by
+    hand. `npm test` is about five seconds longer for it.
+  - **#4** — no new case. The protection stands on one pure function and one
+    reader of the answer's shape, and every mutant of both is killed, timed
+    out or equivalent.
+- Stryker, narrowed to `src/lib/audit/grounding.ts`, `input.ts`, `prompt.ts`
+  and `schema.ts`, after the phase (2026-10-12) — the first recorded result
+  for these modules. Every survivor has a decision in
+  `context/changes/testing-audit-grounding-privacy/mutation.md`; the score
+  was never the target.
+
+  | File                         | Score  | Killed / timeout / survived / no coverage / total |
+  | ---------------------------- | ------ | ------------------------------------------------- |
+  | `src/lib/audit/grounding.ts` | 99.14% | 111 / 4 / 1 / 0 / 116                             |
+  | `src/lib/audit/input.ts`     | 100%   | 181 / 0 / 0 / 0 / 181                             |
+  | `src/lib/audit/prompt.ts`    | 100%   | 38 / 0 / 0 / 0 / 38                               |
+  | `src/lib/audit/schema.ts`    | 100%   | 172 / 0 / 0 / 0 / 172                             |
+
+  The research run, before the phase, gave the same numbers: the new cases
+  kill no mutant the tests of S-04 had not killed, because they guard against
+  changes Stryker does not make. The one survivor, `grounding.ts:73:10`, is
+  equivalent, and the four timeouts are mutations that make the loop of
+  `collapse` endless.
+
+- Each new case went red once on a deliberately broken system (2026-10-12)
+  and green again after the restore:
+  - `readAuditOffer` replacing what looks like a phone number in the title —
+    the two title cases, and no other test under `tests/lib/audit/`.
+  - `buildAuditPrompt` doing the same inside the `tytul` block — the prompt
+    case alone, with the route test green beside it.
+  - `auditNoNotesConfig` taken out of the export of `eslint.config.js` — the
+    five rejections and the computed-configuration case.
+  - The rule's expression narrowed to relative paths — the two rejections of
+    the alias.
+- No test, script or step of this phase sent a request the model provider
+  would answer.
+- Open:
+  - An excerpt may begin in the middle of a sentence. The gate looks for the
+    excerpt as a run of characters and knows no word or sentence bounds, so
+    the end of a sentence that denies something, cut after the denial, is
+    verbatim, long enough, and kept. The instruction asks for an excerpt
+    that can be understood on its own; the gate does not enforce it, and no
+    test pins the behaviour either way. Whether it should is a product
+    question for FR-011 in `context/foundation/prd.md`, to be decided there
+    before a test or the gate changes.
+  - A closing tag in the listing's text: a description that holds `</opis>`
+    ends its block of the message early, since the block's body is passed as
+    written. The excerpt gate works whatever the model read, and changing the
+    text would break the excerpts, so this is outside #4 and #6; no test.
+  - The optional golden set (§4) has still not been run. It is the only tool
+    for whether the model points at what matters, it costs a paid audit per
+    listing, and it is the user's to start.
+  - The three sister rules — `refetchNoNotesConfig`, `archiveNoNotesConfig`
+    and `deleteNoNotesConfig` — have no test. They guard another invariant
+    than #6 (a machine action never touches a note);
+    `tests/eslint.config.test.ts` is the pattern for the day they get one.
+
 ### 6.7 Adding a unit test for a read function (a failed read is its own state)
 
 A read function takes the Supabase client as an argument and answers a union
@@ -1561,7 +1655,7 @@ sign-out. Its test plays Auth, not `@/lib/supabase`.
 ## 8. Freshness Ledger
 
 - Strategy (§1–§5) last reviewed: 2026-09-30; §2 (#5), §3 row 2, §4 and §5 amended for the write-isolation phase: 2026-10-01; §2 (#2, #3) and §7 amended for the audit cost and durability phase: 2026-10-12
-- Cookbook (§6) last changed: 2026-10-12 — §6.4 (a throw raised from an edge, the `23505` seam, the Stryker range) and a §6.6 entry, Phase 3 (`testing-audit-cost-durability`); before that 2026-10-09 — §6.4 and §6.5 filled in, the tags paragraph, a §6.8 pitfall and a §6.6 entry, outside the rollout (`grounded-listing-audit`, S-04); before that 2026-10-06 — §6.9, the two layers of the forbidden list, outside the rollout (`otodom-fetch-sub-reasons`), and §6.10, outside the rollout (`auth-outage-not-signed-out`); before that 2026-10-05 — §6.9, outside the rollout (`offers-outcome-logging`), and 2026-10-02 — the tags paragraph, §6.7, §6.8 and a §6.6 entry (`testing-read-failure-states`)
+- Cookbook (§6) last changed: 2026-10-12 — §6.5 (a contact typed into the title, the test of the lint rule, the Stryker range) and a §6.6 entry, Phase 4 (`testing-audit-grounding-privacy`); before that 2026-10-12 — §6.4 (a throw raised from an edge, the `23505` seam, the Stryker range) and a §6.6 entry, Phase 3 (`testing-audit-cost-durability`); before that 2026-10-09 — §6.4 and §6.5 filled in, the tags paragraph, a §6.8 pitfall and a §6.6 entry, outside the rollout (`grounded-listing-audit`, S-04); before that 2026-10-06 — §6.9, the two layers of the forbidden list, outside the rollout (`otodom-fetch-sub-reasons`), and §6.10, outside the rollout (`auth-outage-not-signed-out`); before that 2026-10-05 — §6.9, outside the rollout (`offers-outcome-logging`), and 2026-10-02 — the tags paragraph, §6.7, §6.8 and a §6.6 entry (`testing-read-failure-states`)
 - Stack versions last verified: 2026-09-30
 - AI-native tool references last verified: 2026-09-30
 
