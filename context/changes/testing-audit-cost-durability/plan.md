@@ -249,28 +249,28 @@ Nie dotyczy: żadnych migracji ani zmian danych. Kopia skryptu z zepsutym klucze
 
 #### Automated
 
-- [x] 1.1 Test trasy przechodzi: `npm test -- tests/pages/api/audits.test.ts`
-- [x] 1.2 Cały zestaw przechodzi bez nieobsłużonych błędów: `npm test`
-- [x] 1.3 Lint przechodzi: `npm run lint`
-- [x] 1.4 Typy przechodzą: `npx astro sync && npx astro check`
-- [x] 1.5 Każdy nowy przypadek podaje liczbę wywołań dostawcy w nazwie i w asercji
-- [x] 1.6 Brak nieplanowanych żądań i przeciekających szpiegów, także przy losowej kolejności
+- [x] 1.1 Test trasy przechodzi: `npm test -- tests/pages/api/audits.test.ts` — 8bef784
+- [x] 1.2 Cały zestaw przechodzi bez nieobsłużonych błędów: `npm test` — 8bef784
+- [x] 1.3 Lint przechodzi: `npm run lint` — 8bef784
+- [x] 1.4 Typy przechodzą: `npx astro sync && npx astro check` — 8bef784
+- [x] 1.5 Każdy nowy przypadek podaje liczbę wywołań dostawcy w nazwie i w asercji — 8bef784
+- [x] 1.6 Brak nieplanowanych żądań i przeciekających szpiegów, także przy losowej kolejności — 8bef784
 
 #### Manual
 
-- [x] 1.7 Przegląd diffu: oczekiwania wypisane ręcznie, nie skopiowane z wyjścia kodu
+- [x] 1.7 Przegląd diffu: oczekiwania wypisane ręcznie, nie skopiowane z wyjścia kodu — 8bef784
 
 ### Phase 2: Szew `23505` w bazie
 
 #### Automated
 
-- [ ] 2.1 Skrypty przechodzą na lokalnej bazie: `npm run test:db`
-- [ ] 2.2 Sprawdzenie staje się czerwone na kopii skryptu z usuniętym kluczem, a `ROLLBACK` zostawia bazę bez zmian
-- [ ] 2.3 Po tej próbie `npm run test:db` znów przechodzi
+- [x] 2.1 Skrypty przechodzą na lokalnej bazie: `npm run test:db`
+- [x] 2.2 Sprawdzenie staje się czerwone na kopii skryptu z usuniętym kluczem, a `ROLLBACK` zostawia bazę bez zmian
+- [x] 2.3 Po tej próbie `npm run test:db` znów przechodzi
 
 #### Manual
 
-- [ ] 2.4 Nowe bloki stoją we właściwym stanie wiersza i nie zmieniają go dla sprawdzeń po nich
+- [x] 2.4 Nowe bloki stoją we właściwym stanie wiersza i nie zmieniają go dla sprawdzeń po nich
 
 ### Phase 3: Stryker i plan testów
 

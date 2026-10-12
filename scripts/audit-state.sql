@@ -4,6 +4,8 @@
 -- sooner, a failed re-run leaves the previous result alone, and nobody writes a result, a date or a signature by
 -- hand. These rules live in triggers and depend on time, and the publishable key can neither age an attempt nor wait
 -- three minutes for one, so scripts/smoke.mjs cannot cover them.
+-- It also holds the seam the route's claim stands on: a second insert for an offer that has an audit row answers
+-- 23505, the one code after which src/lib/audit/store.ts goes on to the takeover.
 --
 -- The whole file is one transaction that ends in ROLLBACK: it leaves no trace, whether it passes or fails (psql
 -- stops at the first error and the open transaction dies with the connection). Every check is a DO block that
@@ -164,6 +166,43 @@ begin
   end if;
 end $$;
 
+-- The seam with the route. `claimAudit` (src/lib/audit/store.ts) always inserts first and goes on to the takeover -
+-- the update the lock above answers - only when the insert comes back as 23505. Any other code, 42501 or VP001
+-- among them, ends the request as a failed claim, and the double click would read "the audit could not be started"
+-- instead of "an audit is already running". So the code itself is checked, for the starter and for the other
+-- member, as the role the Data API writes in: under it the insert passes the trigger, then the policy's check, and
+-- only then meets the primary key. The row is the same afterwards.
+do $$
+declare
+  before_row jsonb := (select to_jsonb(a) from public.offer_audits a where a.offer_id = 'a0d17000-0000-4000-8000-000000000001');
+  claimant text;
+  refused text;
+begin
+  if before_row ->> 'run_state' is distinct from 'running' then
+    raise exception 'audit-state: [fixture: a running attempt] the row is %', before_row;
+  end if;
+
+  foreach claimant in array array['sigaretif1@vetpad.local', 'sigaretif2@vetpad.local'] loop
+    perform pg_temp.sign_in(claimant);
+    refused := null;
+    set local role authenticated;
+    begin
+      insert into public.offer_audits (offer_id, run_state) values ('a0d17000-0000-4000-8000-000000000001', 'running');
+    exception when others then
+      refused := sqlstate;
+    end;
+    reset role;
+    if refused is distinct from '23505' then
+      raise exception 'audit-state: [a second insert answers 23505] while the attempt runs, as % expected 23505, got %', claimant, coalesce(refused, 'no error');
+    end if;
+  end loop;
+
+  if (select to_jsonb(a) from public.offer_audits a where a.offer_id = 'a0d17000-0000-4000-8000-000000000001') is distinct from before_row then
+    raise exception 'audit-state: [a second insert changes nothing] while the attempt runs, before: %, after: %',
+      before_row, (select to_jsonb(a) from public.offer_audits a where a.offer_id = 'a0d17000-0000-4000-8000-000000000001');
+  end if;
+end $$;
+
 -- An attempt completes only with a whole result: one column short, and the write is refused.
 do $$
 declare
@@ -297,6 +336,39 @@ begin
 
   if (select to_jsonb(a) from public.offer_audits a where a.offer_id = 'a0d17000-0000-4000-8000-000000000001') is distinct from before_row then
     raise exception 'audit-state: [a write to a completed audit changes nothing] before: %, after: %',
+      before_row, (select to_jsonb(a) from public.offer_audits a where a.offer_id = 'a0d17000-0000-4000-8000-000000000001');
+  end if;
+end $$;
+
+-- The same seam beside a finished audit, where the route's takeover is a re-run: the second insert still answers
+-- 23505, for either member, and the completed row is the same afterwards.
+do $$
+declare
+  before_row jsonb := (select to_jsonb(a) from public.offer_audits a where a.offer_id = 'a0d17000-0000-4000-8000-000000000001');
+  claimant text;
+  refused text;
+begin
+  if before_row ->> 'run_state' is distinct from 'completed' then
+    raise exception 'audit-state: [fixture: a completed audit] the row is %', before_row;
+  end if;
+
+  foreach claimant in array array['sigaretif1@vetpad.local', 'sigaretif2@vetpad.local'] loop
+    perform pg_temp.sign_in(claimant);
+    refused := null;
+    set local role authenticated;
+    begin
+      insert into public.offer_audits (offer_id, run_state) values ('a0d17000-0000-4000-8000-000000000001', 'running');
+    exception when others then
+      refused := sqlstate;
+    end;
+    reset role;
+    if refused is distinct from '23505' then
+      raise exception 'audit-state: [a second insert answers 23505] beside a completed audit, as % expected 23505, got %', claimant, coalesce(refused, 'no error');
+    end if;
+  end loop;
+
+  if (select to_jsonb(a) from public.offer_audits a where a.offer_id = 'a0d17000-0000-4000-8000-000000000001') is distinct from before_row then
+    raise exception 'audit-state: [a second insert changes nothing] beside a completed audit, before: %, after: %',
       before_row, (select to_jsonb(a) from public.offer_audits a where a.offer_id = 'a0d17000-0000-4000-8000-000000000001');
   end if;
 end $$;
