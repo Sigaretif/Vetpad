@@ -264,25 +264,25 @@ Nie dotyczy: żadnych migracji ani zmian danych. Kopia skryptu z zepsutym klucze
 
 #### Automated
 
-- [x] 2.1 Skrypty przechodzą na lokalnej bazie: `npm run test:db`
-- [x] 2.2 Sprawdzenie staje się czerwone na kopii skryptu z usuniętym kluczem, a `ROLLBACK` zostawia bazę bez zmian
-- [x] 2.3 Po tej próbie `npm run test:db` znów przechodzi
+- [x] 2.1 Skrypty przechodzą na lokalnej bazie: `npm run test:db` — cdb5be3
+- [x] 2.2 Sprawdzenie staje się czerwone na kopii skryptu z usuniętym kluczem, a `ROLLBACK` zostawia bazę bez zmian — cdb5be3
+- [x] 2.3 Po tej próbie `npm run test:db` znów przechodzi — cdb5be3
 
 #### Manual
 
-- [x] 2.4 Nowe bloki stoją we właściwym stanie wiersza i nie zmieniają go dla sprawdzeń po nich
+- [x] 2.4 Nowe bloki stoją we właściwym stanie wiersza i nie zmieniają go dla sprawdzeń po nich — cdb5be3
 
 ### Phase 3: Stryker i plan testów
 
 #### Automated
 
-- [ ] 3.1 Przebieg Strykera kończy się bez błędu
-- [ ] 3.2 Żaden mutant we wskazanych liniach nie zostaje bez zabicia lub wpisu w `mutation.md`
-- [ ] 3.3 `npm test` przechodzi
-- [ ] 3.4 `npm run lint` przechodzi
-- [ ] 3.5 Plan testów nie zawiera już „a loop" w wierszu #2 ani „recoverable or" w wierszu #3
+- [x] 3.1 Przebieg Strykera kończy się bez błędu
+- [x] 3.2 Żaden mutant we wskazanych liniach nie zostaje bez zabicia lub wpisu w `mutation.md`
+- [x] 3.3 `npm test` przechodzi
+- [x] 3.4 `npm run lint` przechodzi
+- [x] 3.5 Plan testów nie zawiera już „a loop" w wierszu #2 ani „recoverable or" w wierszu #3
 
 #### Manual
 
-- [ ] 3.6 Decyzje w `mutation.md` są do obrony
-- [ ] 3.7 §2 i §7 planu testów czytają się zgodnie z decyzjami z 2026-10-12
+- [x] 3.6 Decyzje w `mutation.md` są do obrony
+- [x] 3.7 §2 i §7 planu testów czytają się zgodnie z decyzjami z 2026-10-12

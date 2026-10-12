@@ -46,7 +46,7 @@ research's job, see §1 principle #3).
 | #   | Risk (failure scenario)                                                                                                                                                                                                        | Impact | Likelihood | Source (evidence — not anchor)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------ | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1   | Ingestion saves a false or incomplete offer: an unstated attribute reads as "0 zł" or "no", a rental or a house is saved as a flat sale, or a failed/changed-shape fetch leaves a blank or partial record behind               | High   | Medium     | PRD Guardrails, NFR, FR-005; interview Q4; roadmap: upcoming second writers of offer data (re-fetch FR-009, extraction-service fallback, S-04 reading the stored raw payload). Hot-spot dir `src/lib/otodom/` (5 commits/30d) reflects the module's creation, not instability (research, Phase 1)                                                                                                                                                                                                               |
-| 2   | **Denial of Wallet:** the paid AI audit can be triggered repeatedly — a loop, a double click, concurrent requests, or a request without a session — and every call is billed by the model provider                             | High   | High       | interview Q1; roadmap S-04 (next slice on Stream A); PRD NFR (correctness over cost — a slower, pricier model per call)                                                                                                                                                                                                                                                                                                                                                                                         |
+| 2   | **Denial of Wallet:** the paid AI audit can be triggered repeatedly — a double click, concurrent requests, or a request without a session — and every call is billed by the model provider                                     | High   | High       | interview Q1; roadmap S-04 (next slice on Stream A); PRD NFR (correctness over cost — a slower, pricier model per call)                                                                                                                                                                                                                                                                                                                                                                                         |
 | 3   | A paid audit result is lost: the model answered but the database write failed or the request timed out, the offer falls back to "Not Audited", and the same audit has to be paid for again                                     | High   | Medium     | interview Q1; PRD NFR (~3-minute audit limit, reported as failed with a retry offered); roadmap S-04 Unknowns                                                                                                                                                                                                                                                                                                                                                                                                   |
 | 4   | The audit reports an ungrounded finding: a red flag, cost or mandatory condition with no excerpt, with an excerpt that is not verbatim listing text, or a missing-information finding outside the decision-critical attributes | High   | High       | PRD Guardrails, FR-011, NFR (every finding traceable to a verbatim quotation); roadmap S-04                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | 5   | A write on X changes Y: a re-fetch overwrites notes, one member's action edits or deletes another member's note or requirements, a delete takes more (or less) than the PRD says it should                                     | High   | Medium     | interview Q1; PRD FR-009, FR-012–FR-015, NFR (no system action modifies human-authored text); roadmap S-09, S-10, S-11; `lessons.md` (author FK blocked account deletion); hot-spot dir `supabase/migrations/` (9 commits/30d) — the valid signal: triggers and checks there have needed correcting after review. Churn in `src/` and `scripts/` does not raise this risk: the write routes bind every row to the session's member, and the smoke churn is coverage growing with each slice (research, Phase 2) |
@@ -63,8 +63,8 @@ covered through #5.
 | Risk | What would prove protection                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Must challenge                                                                                                                                                                                                                                            | Context `/10x-research` must ground                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Likely cheapest layer                                                                                                                                                                                                                                                                                                          | Anti-pattern to avoid                                                                                                                                                                                      |
 | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | #1   | On a listing payload built from the documented shapes, an absent, empty, unparseable or `"0"` numeric attribute becomes unknown on every numeric fact (not only rent), and a currency never survives its unknown amount; a rental and a non-flat are refused naming which check failed — including a rental house, a sale/offer-type disagreement reported as a changed format, and a payload whose generic category says flat while the ad category says otherwise; a page without usable listing data is a fetch error and nothing is persisted    | "The mapper passes for a typical listing, so the edge cases pass too"                                                                                                                                                                                     | Fixture source: no recorded payload exists — fixtures are hand-authored from the shapes documented in `ingestion/otodom_fetching.md` §7 (rental with `rent: "1"`, house without a rent key, `rent: "0"`, enums with empty localized values), carrying synthetic seller canaries, never third-party data; the persistence boundary that decides save vs refuse                                                                                                                                                                                                                                                                                                                                                               | unit on fixtures, network stubbed at the HTTP edge                                                                                                                                                                                                                                                                             | Expected values copied from the mapper's current output; the oracle is the PRD and `ingestion/otodom_fetching.md` §7. Committing a recorded live payload (third-party data, possible PII in a public repo) |
-| #2   | A second audit request for the same offer while one is in flight does not call the provider; an unauthenticated request never calls it; the stub's call count is asserted                                                                                                                                                                                                                                                                                                                                                                            | "There are three of us behind a login, so there is no attacker" and "middleware protects `/api`"                                                                                                                                                          | Audit entry point, its auth check, where in-flight state lives (Postgres, never module scope), the provider boundary                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | integration on the audit endpoint with the provider stubbed at the HTTP edge                                                                                                                                                                                                                                                   | Asserting only a 200 status instead of the number of billed calls                                                                                                                                          |
-| #3   | When the provider answered and the write failed, the result is recoverable or the failure is explicit; "in progress" does not hang forever; a retry does not pay for a result that already exists                                                                                                                                                                                                                                                                                                                                                    | "A 200 from the provider means the audit is done"                                                                                                                                                                                                         | Order of provider call vs persist, audit status states, the ~3-minute timeout path, the retry path                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | integration with a provider stub and a forced write failure                                                                                                                                                                                                                                                                    | Mocking internal modules instead of the network and database edges                                                                                                                                         |
+| #2   | A second audit request for the same offer while one is in flight does not call the provider; an unauthenticated request never calls it; the stub's call count is asserted. Audits of the same offer one after another are not limited: the lock stops two at once, never a sequence (§7)                                                                                                                                                                                                                                                             | "There are three of us behind a login, so there is no attacker" and "middleware protects `/api`"                                                                                                                                                          | Audit entry point, its auth check, where in-flight state lives (Postgres, never module scope), the provider boundary                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | integration on the audit endpoint with the provider stubbed at the HTTP edge                                                                                                                                                                                                                                                   | Asserting only a 200 status instead of the number of billed calls                                                                                                                                          |
+| #3   | When the provider answered and the write failed, the save is tried twice and a failure after that is explicit — `save_failed`, the attempt marked failed, and the member reads that a retry is a new paid request; the paid answer is not recoverable; "in progress" does not hang forever; a retry does not pay for a result that already exists                                                                                                                                                                                                    | "A 200 from the provider means the audit is done"                                                                                                                                                                                                         | Order of provider call vs persist, audit status states, the ~3-minute timeout path, the retry path                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | integration with a provider stub and a forced write failure                                                                                                                                                                                                                                                                    | Mocking internal modules instead of the network and database edges                                                                                                                                         |
 | #4   | A positive finding without an excerpt, or whose excerpt is not a verbatim substring of the stored listing text, is rejected; a missing-data finding carries no excerpt                                                                                                                                                                                                                                                                                                                                                                               | "The prompt tells the model to quote, so it quotes"                                                                                                                                                                                                       | Structured-output shape, where validation happens, which stored text is the reference for matching (whitespace, quotes, diacritics)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | unit on the output validator (deterministic substring match); optional manual golden set                                                                                                                                                                                                                                       | Using an LLM to judge whether a quote is grounded when a deterministic comparison exists                                                                                                                   |
 | #5   | After every write operation — a denied one and a successful one made next to another member's row — the other members' rows (notes, requirements, author columns) are identical to before, compared as whole rows with their dates, not one field; a delete of an offer takes every member's notes on that offer and nothing from another offer (FR-015); an RLS denial is recognised by its row count: a denied read, update or delete affects zero rows and raises no error, a forged insert or upsert is refused with `42501` (research, Phase 2) | "The UPDATE succeeded, so only the targeted row changed" — and "a denied cross-member update or delete surfaces as an error": it does not, and without `Prefer: return=representation` it answers 204 with an empty body, exactly like a successful write | Which operations write which tables, RLS policies per operation, cascades and freeze triggers, the denial signatures per operation and per `Prefer` header. The re-fetch (S-09) and the archive (S-10) have their routes and their route-level checks: `tests/pages/api/offer-refetch.test.ts`, and for the archive the smoke steps through `POST /api/offer-archive` beside `tests/pages/api/offer-archive.test.ts`. Note delete and offer delete have theirs too (S-11): the smoke steps through `POST /api/notes` with `intent=delete` and through `POST /api/offer-delete`, beside `tests/pages/api/notes.test.ts` and `tests/pages/api/offer-delete.test.ts`, where a delete that reached zero rows is its own outcome | integration in `scripts/smoke.mjs` against local Supabase — a stub cannot answer for a policy, a trigger or a cascade. One exception: a route's handling of a save that RLS filtered down to zero rows cannot be produced by the real policies for a signed-in member, so it is a hermetic route test stubbed at the HTTP edge | Asserting only "no error" or only a status — a denied write and a successful one can share it; assert the number of rows affected. Calling a row "unchanged" after comparing a single field                |
 | #6   | The persisted row and the built prompt contain no seller phone or name from the portal's contact fields, and the prompt contains no notes — also when the fixture carries all of them; a phone or name the advertiser typed into the title or description is kept verbatim (PRD NFR: the rule covers contact fields, not the listing's own words)                                                                                                                                                                                                    | "The mapper whitelist is enough, so the prompt is clean" — and, for every future writer (re-fetch, extraction-service fallback), "it goes through the same whitelist"                                                                                     | The `raw` whitelist, prompt assembly inputs, every path that reads notes near the audit, every writer of offer data                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | unit on the mapper and the prompt builder: a serialised-row search for canary strings plus key-absence checks                                                                                                                                                                                                                  | Asserting only that expected fields are present, never that forbidden ones are absent. "Fixing" a canary hit by redacting the description, which breaks FR-011's verbatim excerpts                         |
@@ -616,6 +616,33 @@ message, details })` is a request refused before any stream; and
   for what no entry may carry — the listing, the criteria, the model's words,
   the provider's message (`PROVIDER_MESSAGE_CANARY` sits in every error the
   stubbed provider writes), a member's address.
+- **A throw is raised from an edge, never by mocking a module.** The route
+  has two `catch` branches for what is not meant to throw, and each is
+  reached through the platform, with `@/lib/*` running as in production.
+  After the claim: a console that throws while the `started` entry is
+  written — that entry stands inside the route's `try`, before the call —
+  proves zero provider calls, one write of `failed` with `unexpected`, and
+  one `error` entry; `captureConsoleThrowingAtStarted` in the reference test
+  is the pattern. Before the claim: `crypto.subtle.digest` rejecting, since
+  the listing's fingerprint is computed before the row is claimed — zero
+  provider calls, the reads and no `POST` to `offer_audits`; the spy is
+  restored in the test itself. The first stands beside its control: the same
+  request under a console that does not throw reaches the provider once.
+  Assert the class of what was thrown in
+  the entry (`error_name`) and that its message is in neither the log nor the
+  answer.
+- **The seam between the two layers is a code, and each side proves its
+  half.** The route test writes `23505` and `VP001` into the stub's answers
+  by hand; that the database really answers them is a check in
+  `scripts/audit-state.sql`. `[a second insert answers 23505]` and
+  `[a second insert changes nothing]` are the reference for the first: the
+  route goes on to the takeover only after `23505`, so the check inserts a
+  second row for an offer that has one — as the starter and as the other
+  member, while the attempt runs and beside a completed audit — under the
+  role `authenticated`, so that the insert passes the trigger and the
+  policy's check and meets the primary key, and compares the whole row
+  (`to_jsonb`) before and after. A code the route branches on gets its check
+  on the database's side in the change that adds the branch.
 - **Oracle:** the PRD (FR-010; Non-Functional Requirements for the
   three-minute limit and what may leave the system), §2 risks #2 and #3, the
   route's contract in the plan of the change that built it, and the header of
@@ -624,8 +651,10 @@ message, details })` is a request refused before any stream; and
   matched by a hand-written fragment of the Polish copy, never imported.
 - **Tag:** `(#2)`, `(#3)` on the `describe`.
 - **Run:** `npm test -- tests/pages/api/audits.test.ts`, then
-  `npx stryker run --mutate "src/pages/api/audits.ts,src/lib/audit/provider.ts"`.
-  The SQL checks: `npm run test:db`. The smoke steps: as in §6.3.
+  `npx stryker run --mutate "src/pages/api/audits.ts,src/lib/audit/store.ts:1-243,src/lib/audit/provider.ts"`.
+  Lines `1-243` of the store are its writes; the reads below them have
+  their own test (§6.7). The SQL checks: `npm run test:db`. The smoke steps:
+  as in §6.3.
 - **Adding a check to `scripts/audit-state.sql`:** one `DO` block that raises
   `audit-state: [<check name>] …`, inside the file's one transaction. The
   checks build on one another — each starts from the row the one before it
@@ -636,6 +665,11 @@ message, details })` is a request refused before any stream; and
   trigger off as the table's owner, for one statement; test both sides of the
   threshold, one second short of it and one second past.
 - **Pitfalls:**
+  - The console of a throw-from-the-edge case throws for the `started` entry
+    and for nothing else — the condition is `outcome === "started"`. The
+    exit's entry goes through the same console in a `.then` that no `catch`
+    stands around: a throw there rejects the audit's promise, the stream
+    never gets its last line, and the test hangs instead of failing.
   - A stream that is cut by an abort does not throw in the SDK: the iteration
     just ends. A provider that never answers and a stream that goes quiet are
     two cases, `providerSilence` and `providerStream(…, { stall: true })`.
@@ -1094,6 +1128,102 @@ key constraint "offer_notes_author_id_fkey" (23503)`; restored with a
   - What a stale audit is — S-09 compares the stored revision and
     fingerprint — has no test yet, because nothing reads them.
 
+**Phase 3 — Audit cost and durability**
+(`testing-audit-cost-durability`, 2026-10-12)
+
+- The phase S-04's entry left to the orchestrator: opened to look for what
+  the tests written in S-04 do not prove. No defect was found — no new case
+  showed the route or the database answering otherwise than their contracts
+  say — and nothing under `src/` or `supabase/migrations/` changed. It is
+  regression protection, and a correction of what this plan promised.
+- The gaps came from a Stryker run narrowed to `src/pages/api/audits.ts`,
+  `src/lib/audit/store.ts:1-243` and `src/lib/audit/provider.ts`
+  (2026-10-12, the first for these files): branches with no coverage and
+  survivors on the lines both risks stand on.
+- Delivered, by risk:
+  - **#2 (Denial of Wallet)** — `tests/pages/api/audits.test.ts`: a throw
+    before the claim (`crypto.subtle.digest` rejecting) answers `unexpected`
+    with zero provider calls, the reads and no claim; a claim the database
+    answers with anything but one row holding a non-empty text
+    `run_started_at` — an empty text, a number, `null`, two rows, a bare text
+    or `null` where the row should be, for the insert and for the takeover —
+    is `claim_failed` with zero provider calls. `scripts/audit-state.sql`:
+    a second insert for an offer that has an audit row answers `23505` and
+    changes nothing, for the starter and for the other member, while the
+    attempt runs and beside a completed audit. The route test wrote that code
+    into its stub by hand; until now nothing asked the database for it.
+  - **#3 (a paid result lost)** — the same route test: a throw after the
+    claim (the console throwing at the `started` entry) leaves the attempt
+    `failed` with `unexpected`, zero provider calls and nothing stored as a
+    result, and when that mark cannot be written the entry says
+    `attempt_not_marked` with the database's answer; a `failed` mark that
+    reached no row after a failed model call is logged as
+    `attempt_taken_over`, one provider call and no retry.
+  - Beside them, outside both risks: a result stored when the team set one
+    limit of the four carries `had_limits: true`.
+- §2 and §7 now say what is proved, by the user's decisions of 2026-10-12:
+  the loop is gone from the ways risk #2 lists — consecutive audits of one offer are not
+  limited, and §7 names that — and risk #3 no longer offers a recoverable
+  result: the save is tried twice and then fails explicitly.
+- Stryker, narrowed to `src/pages/api/audits.ts` and
+  `src/lib/audit/store.ts:1-243`, after the phase (2026-10-12). Every
+  survivor and every uncovered mutant in scope has a decision in
+  `context/changes/testing-audit-cost-durability/mutation.md`; the score was
+  never the target.
+
+  | File (scope)                   | Score  | Killed / timeout / survived / no coverage / total |
+  | ------------------------------ | ------ | ------------------------------------------------- |
+  | `src/pages/api/audits.ts`      | 92.09% | 256 / 0 / 15 / 7 / 278                            |
+  | `src/lib/audit/store.ts:1-243` | 82.74% | 138 / 1 / 16 / 13 / 168                           |
+
+  There is no per-file score from before: the research run covered the three
+  files together (731 mutants: 599 killed, 1 timeout, 89 survived, 42 without
+  coverage) and its report was overwritten. What is known from before is the
+  lines of the gaps, and on them — `audits.ts:250-253`, `:354-360`, `:91`,
+  `:242` and `store.ts:67-72` — every mutant is now killed but one,
+  `store.ts:70:17`, which is equivalent.
+
+- Each new case went red once on a deliberately broken system (2026-10-12)
+  and green again after the restore:
+  - The `catch` after the claim marking `save_failed` instead of
+    `unexpected` — the two throw-after-the-claim cases.
+  - The `catch` before the claim dropping `error_name` — the
+    `crypto.subtle.digest` case.
+  - `startedAt` in `src/lib/audit/store.ts` accepting an empty
+    `run_started_at` — two rows of the `claim_failed` table; accepting any
+    number of rows — two more.
+  - The `claim_lost` branch removed from `unmarked()` — the
+    `attempt_taken_over` case.
+  - `.some` turned into `.every` for `had_limits` — the one-limit case.
+  - `scripts/audit-state.sql`: a copy of the script outside the repository,
+    with `alter table public.offer_audits drop constraint offer_audits_pkey`
+    before each new block, exited non-zero with `audit-state: [a second
+insert answers 23505] … expected 23505, got no error`; its `ROLLBACK`
+    left the database as it was, and `npm run test:db` passed again.
+- No test, script or step of this phase sent a request the model provider
+  would answer.
+- Open:
+  - `getSession` that throws (`src/pages/api/audits.ts:133`, `:317-321`) has
+    no case. The one edge that reaches it — `cookies.set` throwing on a
+    session refresh — does arrive at the `catch`, but leaves two unhandled
+    promise rejections from the Supabase client, which Vitest counts as a
+    failed run; a test does not silence errors. The rejections are not
+    explained.
+  - The classification of provider errors
+    (`src/lib/audit/provider.ts:149-254`; 43 survivors and 10 mutants without
+    coverage in the research run). It decides the sentence a member reads,
+    never the number of calls, so it is outside #2 and #3.
+  - Two requests at once in a route test (the research's G5) were left out.
+    The stub would have to play `VP001` itself, so the test would pass with
+    the lock broken. The lock is the database's proof
+    (`scripts/audit-state.sql`), the route's half is the `busy` case, and the
+    seam between them is the `23505` check above.
+  - Three mutants the research had not judged are recorded as open in the
+    mutant log, none on the lines of a gap: an ending write answered `200`
+    with a body that is not a list (`src/lib/audit/store.ts:160`), the filter
+    of the read that follows a failed save (`:176`), and `findings_count` in
+    the log entry (`src/pages/api/audits.ts:231`).
+
 ### 6.7 Adding a unit test for a read function (a failed read is its own state)
 
 A read function takes the Supabase client as an argument and answers a union
@@ -1419,11 +1549,19 @@ sign-out. Its test plays Auth, not `@/lib/supabase`.
 - **Live otodom.pl or live model-provider calls in CI** — paid, flaky and
   dependent on a third-party site; fixtures and stubs stand in. (Source:
   CLAUDE.md `## Testing`; consistent with interview Q1 cost concern.)
+- **A limit on audits of the same offer run one after another** — there is
+  none, and no test expects one: the lock stops two audits of an offer at
+  once, never a sequence, and a finished audit can be run again at once
+  (`scripts/audit-state.sql` checks that it can). Every audit is a deliberate manual action of a closed team
+  of three known members. Re-evaluate if the provider's bill does not match
+  the number of audits the team ran on purpose. (Source: PRD — Non-Goals,
+  the audit is manually triggered; Access Control, flat roles for the three
+  known users; the user's decision of 2026-10-12.)
 
 ## 8. Freshness Ledger
 
-- Strategy (§1–§5) last reviewed: 2026-09-30; §2 (#5), §3 row 2, §4 and §5 amended for the write-isolation phase: 2026-10-01
-- Cookbook (§6) last changed: 2026-10-09 — §6.4 and §6.5 filled in, the tags paragraph, a §6.8 pitfall and a §6.6 entry, outside the rollout (`grounded-listing-audit`, S-04); before that 2026-10-06 — §6.9, the two layers of the forbidden list, outside the rollout (`otodom-fetch-sub-reasons`), and §6.10, outside the rollout (`auth-outage-not-signed-out`); before that 2026-10-05 — §6.9, outside the rollout (`offers-outcome-logging`), and 2026-10-02 — the tags paragraph, §6.7, §6.8 and a §6.6 entry (`testing-read-failure-states`)
+- Strategy (§1–§5) last reviewed: 2026-09-30; §2 (#5), §3 row 2, §4 and §5 amended for the write-isolation phase: 2026-10-01; §2 (#2, #3) and §7 amended for the audit cost and durability phase: 2026-10-12
+- Cookbook (§6) last changed: 2026-10-12 — §6.4 (a throw raised from an edge, the `23505` seam, the Stryker range) and a §6.6 entry, Phase 3 (`testing-audit-cost-durability`); before that 2026-10-09 — §6.4 and §6.5 filled in, the tags paragraph, a §6.8 pitfall and a §6.6 entry, outside the rollout (`grounded-listing-audit`, S-04); before that 2026-10-06 — §6.9, the two layers of the forbidden list, outside the rollout (`otodom-fetch-sub-reasons`), and §6.10, outside the rollout (`auth-outage-not-signed-out`); before that 2026-10-05 — §6.9, outside the rollout (`offers-outcome-logging`), and 2026-10-02 — the tags paragraph, §6.7, §6.8 and a §6.6 entry (`testing-read-failure-states`)
 - Stack versions last verified: 2026-09-30
 - AI-native tool references last verified: 2026-09-30
 
