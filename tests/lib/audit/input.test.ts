@@ -519,6 +519,25 @@ describe("buildAuditInput: nothing but the listing and the criteria gets in (#6)
     expect(input.description).toContain(TYPED_NAME);
   });
 
+  // The same rule for the other text the excerpts are cut from. The fixture's title holds
+  // nothing that looks like a contact, so this one is built here: a redaction of phone-number
+  // patterns in the title would pass every other case in this file.
+  it("keeps a phone number and a name the advertiser typed into the title, verbatim", () => {
+    const title = `Mieszkanie bez pośredników: ${TYPED_NAME}, tel. ${TYPED_PHONE}`;
+    const row = auditOfferRow({ title });
+    const offer = offerFrom(row);
+    const input = buildAuditInput(offer, auditCriteria());
+
+    expect(offer.title).toBe(title);
+    expect(input.title).toBe(title);
+    // Keeping the typed contact lets in nothing of the portal's contact fields, notes or ids.
+    const serialised = JSON.stringify(input);
+    for (const forbidden of FORBIDDEN_IN_AUDIT) expect(serialised).not.toContain(forbidden);
+    // The control: what it was built from does carry them.
+    const sources = JSON.stringify([row, auditCriteria()]);
+    for (const forbidden of FORBIDDEN_IN_AUDIT) expect(sources).toContain(forbidden);
+  });
+
   it("passes on the requirements' texts and nothing about who wrote them", () => {
     const input = buildAuditInput(statedOffer(), auditCriteria());
 

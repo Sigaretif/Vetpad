@@ -528,6 +528,28 @@ describe("buildAuditPrompt: nothing but the listing and the criteria leaves the 
     expect(system).not.toContain(TYPED_NAME);
   });
 
+  // The same rule for the title, the other text the excerpts are cut from. The fixture's title
+  // holds nothing that looks like a contact, so this one is built here.
+  it("keeps a phone number and a name the advertiser typed into the title, verbatim", () => {
+    const title = `Mieszkanie bez pośredników: ${TYPED_NAME}, tel. ${TYPED_PHONE}`;
+    const prompt = buildAuditPrompt(inputFor({ title }));
+
+    expect(blockBody(prompt.user, "tytul")).toBe(`\n${title}\n`);
+    // Once in each text that carries it — the title and the description — and nowhere else.
+    expect(prompt.user.split(TYPED_PHONE)).toHaveLength(3);
+    expect(prompt.user.split(TYPED_NAME)).toHaveLength(3);
+    expect(prompt.system).not.toContain(TYPED_PHONE);
+    expect(prompt.system).not.toContain(TYPED_NAME);
+    // Keeping the typed contact lets in nothing of the portal's contact fields, notes or ids.
+    for (const forbidden of FORBIDDEN_IN_AUDIT) {
+      expect(prompt.user).not.toContain(forbidden);
+      expect(prompt.system).not.toContain(forbidden);
+    }
+    // The control: what the prompt was built from does carry every one of them.
+    const sources = JSON.stringify([auditOfferRow({ title }), auditCriteria()]);
+    for (const forbidden of FORBIDDEN_IN_AUDIT) expect(sources).toContain(forbidden);
+  });
+
   it("answers a system text and a user message, and nothing else", () => {
     expect(Object.keys(buildAuditPrompt(inputFor())).sort()).toEqual(["system", "user"]);
   });
