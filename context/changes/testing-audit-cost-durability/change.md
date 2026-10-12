@@ -1,7 +1,7 @@
 ---
 change_id: testing-audit-cost-durability
 title: Test rollout phase 3 — audit cost and durability (risks #2, #3)
-status: implementing
+status: implemented
 created: 2026-10-12
 updated: 2026-10-12
 archived_at: null

@@ -276,13 +276,13 @@ Nie dotyczy: żadnych migracji ani zmian danych. Kopia skryptu z zepsutym klucze
 
 #### Automated
 
-- [x] 3.1 Przebieg Strykera kończy się bez błędu
-- [x] 3.2 Żaden mutant we wskazanych liniach nie zostaje bez zabicia lub wpisu w `mutation.md`
-- [x] 3.3 `npm test` przechodzi
-- [x] 3.4 `npm run lint` przechodzi
-- [x] 3.5 Plan testów nie zawiera już „a loop" w wierszu #2 ani „recoverable or" w wierszu #3
+- [x] 3.1 Przebieg Strykera kończy się bez błędu — 3db2033
+- [x] 3.2 Żaden mutant we wskazanych liniach nie zostaje bez zabicia lub wpisu w `mutation.md` — 3db2033
+- [x] 3.3 `npm test` przechodzi — 3db2033
+- [x] 3.4 `npm run lint` przechodzi — 3db2033
+- [x] 3.5 Plan testów nie zawiera już „a loop" w wierszu #2 ani „recoverable or" w wierszu #3 — 3db2033
 
 #### Manual
 
-- [x] 3.6 Decyzje w `mutation.md` są do obrony
-- [x] 3.7 §2 i §7 planu testów czytają się zgodnie z decyzjami z 2026-10-12
+- [x] 3.6 Decyzje w `mutation.md` są do obrony — 3db2033
+- [x] 3.7 §2 i §7 planu testów czytają się zgodnie z decyzjami z 2026-10-12 — 3db2033
