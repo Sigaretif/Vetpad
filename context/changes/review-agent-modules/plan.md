@@ -231,24 +231,24 @@ Bez zmian — ten sam model, budżet i liczba tur.
 
 #### Automated
 
-- [x] 1.1 Typecheck przechodzi: `cd packages/code-reviewer && npm run typecheck` — 6455221
-- [x] 1.2 `SYSTEM_PROMPT` ma ten sam SHA-256 przed i po przeniesieniu — 6455221
-- [x] 1.3 `review-schema.ts` nie zawiera już `SYSTEM_PROMPT` — 6455221
-- [x] 1.4 Brak klucza zgłaszany kodem `missing_api_key` — 6455221
-- [x] 1.5 Pusty diff kończy CLI przed wywołaniem API — 6455221
+- [x] 1.1 Typecheck przechodzi: `cd packages/code-reviewer && npm run typecheck` — c270ed6
+- [x] 1.2 `SYSTEM_PROMPT` ma ten sam SHA-256 przed i po przeniesieniu — c270ed6
+- [x] 1.3 `review-schema.ts` nie zawiera już `SYSTEM_PROMPT` — c270ed6
+- [x] 1.4 Brak klucza zgłaszany kodem `missing_api_key` — c270ed6
+- [x] 1.5 Pusty diff kończy CLI przed wywołaniem API — c270ed6
 
 ### Phase 2: Agent, publiczne API i CLI
 
 #### Automated
 
-- [x] 2.1 Typecheck przechodzi: `cd packages/code-reviewer && npm run typecheck`
-- [x] 2.2 Import barrela nie ma efektów ubocznych
-- [x] 2.3 Pusty diff odrzucany przed API z `error (empty_diff)`
-- [x] 2.4 Złe opcje odrzucane przed API z `invalid_options`
-- [x] 2.5 `query(` występuje tylko w `src/reviewer.ts`
-- [x] 2.6 Żaden moduł nie czyta klucza z env powłoki
+- [x] 2.1 Typecheck przechodzi: `cd packages/code-reviewer && npm run typecheck` — 889055d
+- [x] 2.2 Import barrela nie ma efektów ubocznych — 889055d
+- [x] 2.3 Pusty diff odrzucany przed API z `error (empty_diff)` — 889055d
+- [x] 2.4 Złe opcje odrzucane przed API z `invalid_options` — 889055d
+- [x] 2.5 `query(` występuje tylko w `src/reviewer.ts` — 889055d
+- [x] 2.6 Żaden moduł nie czyta klucza z env powłoki — 889055d
 
 #### Manual
 
-- [x] 2.7 Płatny bieg na `data/sample-1.diff` uruchomiony przez użytkownika daje JSON zgodny z `REVIEW_SCHEMA` i log kosztu
-- [x] 2.8 `npm run review` bez stdin kończy się komunikatem o braku diffu
+- [x] 2.7 Płatny bieg na `data/sample-1.diff` uruchomiony przez użytkownika daje JSON zgodny z `REVIEW_SCHEMA` i log kosztu — 889055d
+- [x] 2.8 `npm run review` bez stdin kończy się komunikatem o braku diffu — 889055d
