@@ -7,8 +7,11 @@
   "engines": {
     "node": ">=22"
   },
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
-    "review": "tsx src/index.ts",
+    "review": "tsx src/cli.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
