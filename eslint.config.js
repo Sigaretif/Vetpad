@@ -210,6 +210,8 @@ export default defineConfig(
   includeIgnoreFile(gitignorePath),
   // Agent skill tooling lives outside the app's tsconfig and is not app code.
   globalIgnores([".claude/**"]),
+  // Standalone packages carry their own package.json, node_modules and typecheck; the root CI never installs them.
+  globalIgnores(["packages/**"]),
   baseConfig,
   reactConfig,
   eslintPluginAstro.configs["flat/recommended"],

@@ -15,6 +15,7 @@
     ".env",
     ".dev.vars",
     "context",
+    "packages",
     "supabase",
     "public",
     "reports",

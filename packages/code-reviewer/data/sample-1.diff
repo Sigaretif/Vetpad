@@ -1,0 +1,28 @@
+diff --git a/src/lib/discount.ts b/src/lib/discount.ts
+new file mode 100644
+index 0000000..3f2a9c1
+--- /dev/null
++++ b/src/lib/discount.ts
+@@ -0,0 +1,22 @@
++export interface CartItem {
++  price: number;
++  quantity: number;
++}
++
++// Applies a percentage discount code to the cart total.
++export function applyDiscount(items: CartItem[], code: string): number {
++  const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
++  const percent = parseInt(code.replace("SAVE", ""));
++  return total - (total * percent) / 100;
++}
++
++export function parseCart(body: string): CartItem[] {
++  return JSON.parse(body) as CartItem[];
++}
++
++export async function handleCheckout(request: Request): Promise<Response> {
++  const body = await request.text();
++  const code = new URL(request.url).searchParams.get("code")!;
++  const total = applyDiscount(parseCart(body), code);
++  return new Response(JSON.stringify({ total }));
++}
