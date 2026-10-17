@@ -51,6 +51,8 @@ export type MapFailureReason = "not_for_sale" | "not_a_flat" | "shape_changed";
 
 export interface OfferImage {
   thumbnail: string;
+  /** The 655×491 variant. Absent in rows saved before it was mapped, until a manual re-fetch of the offer. */
+  medium?: string;
   large: string;
 }
 
