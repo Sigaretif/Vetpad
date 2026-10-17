@@ -271,6 +271,7 @@ A third workflow, **AI Code Review** (`.github/workflows/review.yml`, through th
 - **Secret** — `CODE_REVIEWER_API_KEY`, the reviewer's own Anthropic key, a repository secret separate from the application's `ANTHROPIC_API_KEY` and used by this workflow only. Without it the run fails with no comment. PRs from forks get no secrets, so their review fails the same way.
 - **Cost** — each run is a paid call, capped at `maxBudgetUsd` from `packages/code-reviewer/src/config.ts` (0.5 USD).
 - **Not a required check yet** — `master` has no branch protection, so a failed review does not block a merge. A run skipped because of an unrelated label reports success; see `CLAUDE.md` before making `review` a required check.
+- **Known risk: the key and the PR's code** — the workflow runs `npm ci` and `packages/code-reviewer/src/ci.ts` from the PR's own code while holding `CODE_REVIEWER_API_KEY`, so anyone with write access to the repository could change the reviewer or its dependencies in a PR and exfiltrate the key. PRs from forks get no secrets and the repository has a single owner today, so the risk is low. The fix — running the reviewer from the base branch's code — comes back before the repository gets another collaborator with write access.
 
 ## License
 
