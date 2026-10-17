@@ -8,7 +8,7 @@ import { query, type SDKResultMessage } from "@anthropic-ai/claude-agent-sdk";
 import { PACKAGE_DIR, REVIEW_DEFAULTS } from "./config.ts";
 import { ReviewerError, type ReviewerErrorCode, type ReviewMeta } from "./errors.ts";
 import { SYSTEM_PROMPT } from "./prompts/system.ts";
-import { buildReviewPrompt } from "./prompts/user.ts";
+import { buildReviewPrompt, type PullRequestContext } from "./prompts/user.ts";
 import { REVIEW_JSON_SCHEMA, REVIEW_SCHEMA, type Review } from "./review-schema.ts";
 
 export interface ReviewOptions {
@@ -17,6 +17,8 @@ export interface ReviewOptions {
   model?: string;
   maxTurns?: number;
   maxBudgetUsd?: number;
+  // The PR's title and description, from the CI gate. Without it the prompt is the diff alone.
+  pr?: PullRequestContext;
 }
 
 export interface ReviewOutcome {
@@ -54,7 +56,7 @@ function subprocessEnv(apiKey: string, configDir: string): Record<string, string
 }
 
 // Everything that can be checked for free, before a temp dir or a subprocess exists.
-function resolveOptions(diff: string, options: ReviewOptions): Required<ReviewOptions> {
+function resolveOptions(diff: string, options: ReviewOptions): Required<Omit<ReviewOptions, "pr">> {
   if (!diff.trim()) {
     throw new ReviewerError("empty_diff", "The diff is empty — nothing to review.");
   }
@@ -99,7 +101,7 @@ export async function reviewDiff(diff: string, options: ReviewOptions): Promise<
   let result: SDKResultMessage | undefined;
   try {
     const run = query({
-      prompt: buildReviewPrompt(diff),
+      prompt: buildReviewPrompt(diff, options.pr),
       options: {
         model,
         systemPrompt: SYSTEM_PROMPT,
