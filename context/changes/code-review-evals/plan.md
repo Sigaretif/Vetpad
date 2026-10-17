@@ -309,29 +309,29 @@ Nie dotyczy: nowy, niezależny katalog. Akcja CI, pakiet reviewera i aplikacja s
 
 #### Automated
 
-- [x] 1.1 Instalacja przechodzi: `cd packages/code-reviewer && npm ci && cd evals && npm ci`
-- [x] 1.2 Typecheck evali przechodzi: `cd packages/code-reviewer/evals && npm run typecheck`
-- [x] 1.3 Typecheck pakietu reviewera bez zmian przechodzi: `cd packages/code-reviewer && npm run typecheck`
-- [x] 1.4 Darmowy preflight przechodzi i zgłasza `empty_diff`: `cd packages/code-reviewer/evals && npm run preflight`
-- [x] 1.5 `git status` nie pokazuje `node_modules/` ani wyjść promptfoo z `packages/code-reviewer/evals/`
-- [x] 1.6 `packages/code-reviewer/package.json`, `package-lock.json` i `.github/actions/ai-reviewer/action.yml` są bez zmian: `git diff --stat` ich nie wymienia
+- [x] 1.1 Instalacja przechodzi: `cd packages/code-reviewer && npm ci && cd evals && npm ci` — 231b6aa
+- [x] 1.2 Typecheck evali przechodzi: `cd packages/code-reviewer/evals && npm run typecheck` — 231b6aa
+- [x] 1.3 Typecheck pakietu reviewera bez zmian przechodzi: `cd packages/code-reviewer && npm run typecheck` — 231b6aa
+- [x] 1.4 Darmowy preflight przechodzi i zgłasza `empty_diff`: `cd packages/code-reviewer/evals && npm run preflight` — 231b6aa
+- [x] 1.5 `git status` nie pokazuje `node_modules/` ani wyjść promptfoo z `packages/code-reviewer/evals/` — 231b6aa
+- [x] 1.6 `packages/code-reviewer/package.json`, `package-lock.json` i `.github/actions/ai-reviewer/action.yml` są bez zmian: `git diff --stat` ich nie wymienia — 231b6aa
 
 #### Manual
 
-- [x] 1.7 Przegląd `provider.ts`: klucz pochodzi tylko z `loadApiKey()`, błąd wraca z kosztem, nic nie jest logowane
+- [x] 1.7 Przegląd `provider.ts`: klucz pochodzi tylko z `loadApiKey()`, błąd wraca z kosztem, nic nie jest logowane — 231b6aa
 
 ### Phase 2: Przypadek testowy i konfiguracja
 
 #### Automated
 
-- [ ] 2.1 Konfiguracja przechodzi walidację: `cd packages/code-reviewer/evals && npx promptfoo validate -c promptfooconfig.yaml`
-- [ ] 2.2 Diff jest poprawnym unified diffem, który `git apply --check` przyjmuje na pustym katalogu z plikiem `package.json` w wersji „przed” (albo pliki są oznaczone jako nowe)
-- [ ] 2.3 Preflight dalej przechodzi: `cd packages/code-reviewer/evals && npm run preflight`
+- [x] 2.1 Konfiguracja przechodzi walidację: `cd packages/code-reviewer/evals && npx promptfoo validate -c promptfooconfig.yaml`
+- [x] 2.2 Diff jest poprawnym unified diffem, który `git apply --check` przyjmuje na pustym katalogu z plikiem `package.json` w wersji „przed” (albo pliki są oznaczone jako nowe)
+- [x] 2.3 Preflight dalej przechodzi: `cd packages/code-reviewer/evals && npm run preflight`
 
 #### Manual
 
-- [ ] 2.4 Przegląd diffu: dokładnie trzy podłożone wady, bez komentarzy, które je zdradzają, bez innych oczywistych błędów, bez danych prawdziwych osób
-- [ ] 2.5 Użytkownik uruchamia jeden płatny przebieg `cd packages/code-reviewer/evals && npm run eval`, a potem `npx promptfoo view`. Tabela pokazuje trzy kolumny modeli z wynikami czterech metryk (`flaw-default-props`, `flaw-effect-deps`, `flaw-xss`, `verdict-fail`) i kosztem każdego przebiegu, bez błędów providera ani sędziego
+- [x] 2.4 Przegląd diffu: dokładnie trzy podłożone wady, bez komentarzy, które je zdradzają, bez innych oczywistych błędów, bez danych prawdziwych osób
+- [x] 2.5 Użytkownik uruchamia jeden płatny przebieg `cd packages/code-reviewer/evals && npm run eval`, a potem `npx promptfoo view`. Tabela pokazuje trzy kolumny modeli z wynikami czterech metryk (`flaw-default-props`, `flaw-effect-deps`, `flaw-xss`, `verdict-fail`) i kosztem każdego przebiegu, bez błędów providera ani sędziego
 
 ### Phase 3: Dokumentacja i reguła
 

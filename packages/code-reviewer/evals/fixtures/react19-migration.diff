@@ -1,0 +1,136 @@
+diff --git a/package.json b/package.json
+index ac83a17..214778b 100644
+--- a/package.json
++++ b/package.json
+@@ -14,12 +14,12 @@
+     "@astrojs/react": "^6.0.5",
+     "@supabase/ssr": "^0.12.7",
+     "@supabase/supabase-js": "^2.99.1",
+-    "@types/react": "^16.14.65",
+-    "@types/react-dom": "^16.9.25",
++    "@types/react": "^19.2.14",
++    "@types/react-dom": "^19.2.3",
+     "astro": "^7.3.2",
+     "clsx": "^2.1.1",
+-    "react": "^16.14.0",
+-    "react-dom": "^16.14.0",
++    "react": "^19.2.6",
++    "react-dom": "^19.2.6",
+     "tailwind-merge": "^3.5.0",
+     "tailwindcss": "^4.2.4"
+   },
+diff --git a/src/components/members/MemberProfile.tsx b/src/components/members/MemberProfile.tsx
+index 6a268e0..62b98d1 100644
+--- a/src/components/members/MemberProfile.tsx
++++ b/src/components/members/MemberProfile.tsx
+@@ -1,4 +1,4 @@
+-import React from "react";
++import { useEffect, useState } from "react";
+ 
+ interface MemberProfileData {
+   email: string;
+@@ -7,63 +7,56 @@ interface MemberProfileData {
+ 
+ interface Props {
+   userId: string;
+-  role: string;
+-}
+-
+-interface State {
+-  profile: MemberProfileData | null;
+-  error: string | null;
++  role?: string;
+ }
+ 
+ const LOAD_ERROR = "Nie udało się wczytać profilu członka.";
+ 
+ /** A member's profile on their card: who they are, their role in the team and the bio they wrote. */
+-export default class MemberProfile extends React.Component<Props, State> {
+-  static defaultProps = { role: "członek zespołu" };
+-
+-  state: State = { profile: null, error: null };
+-
+-  componentDidMount() {
+-    void this.load();
+-  }
+-
+-  componentDidUpdate(prevProps: Props) {
+-    if (prevProps.userId !== this.props.userId) void this.load();
+-  }
+-
+-  // A response for a member the component no longer shows is dropped.
+-  private async load() {
+-    const { userId } = this.props;
+-    this.setState({ profile: null, error: null });
+-    try {
+-      const response = await fetch(`/api/members/${encodeURIComponent(userId)}`);
+-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+-      const profile = (await response.json()) as MemberProfileData;
+-      if (userId === this.props.userId) this.setState({ profile });
+-    } catch {
+-      if (userId === this.props.userId) this.setState({ error: LOAD_ERROR });
++export default function MemberProfile({ userId, role }: Props) {
++  const [profile, setProfile] = useState<MemberProfileData | null>(null);
++  const [error, setError] = useState<string | null>(null);
++
++  useEffect(() => {
++    // A response for a member the component no longer shows is dropped.
++    let cancelled = false;
++
++    async function load() {
++      setProfile(null);
++      setError(null);
++      try {
++        const response = await fetch(`/api/members/${encodeURIComponent(userId)}`);
++        if (!response.ok) throw new Error(`HTTP ${response.status}`);
++        const data = (await response.json()) as MemberProfileData;
++        if (!cancelled) setProfile(data);
++      } catch {
++        if (!cancelled) setError(LOAD_ERROR);
++      }
+     }
+-  }
+ 
+-  render() {
+-    const { role } = this.props;
+-    const { profile, error } = this.state;
+-
+-    if (error) {
+-      return (
+-        <p role="alert" className="text-sm text-destructive">
+-          {error}
+-        </p>
+-      );
+-    }
+-    if (!profile) return <p className="text-sm text-muted-foreground">Wczytywanie profilu…</p>;
++    void load();
++    return () => {
++      cancelled = true;
++    };
++  }, []);
+ 
++  if (error) {
+     return (
+-      <section className="space-y-2">
+-        <h2 className="text-lg font-semibold">{profile.email}</h2>
+-        <p className="text-sm text-muted-foreground">{role}</p>
+-        <p className="whitespace-pre-line">{profile.bio}</p>
+-      </section>
++      <p role="alert" className="text-sm text-destructive">
++        {error}
++      </p>
+     );
+   }
++  if (!profile) return <p className="text-sm text-muted-foreground">Wczytywanie profilu…</p>;
++
++  return (
++    <section className="space-y-2">
++      <h2 className="text-lg font-semibold">{profile.email}</h2>
++      <p className="text-sm text-muted-foreground">{role}</p>
++      {/* The bio is shown with the formatting the member gave it. */}
++      <div className="whitespace-pre-line" dangerouslySetInnerHTML={{ __html: profile.bio }} />
++    </section>
++  );
+ }
++
++MemberProfile.defaultProps = { role: "członek zespołu" };

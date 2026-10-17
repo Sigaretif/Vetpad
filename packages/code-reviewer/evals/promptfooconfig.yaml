@@ -1,0 +1,90 @@
+# promptfooconfig.yaml — the code reviewer on several models, same diff (M5L3).
+# Adapted from .claude/config-templates/m5l3-promptfooconfig.yaml.template: instead of a copy of
+# the prompt sent through OpenRouter, every model runs the real reviewDiff through provider.ts,
+# so the eval measures the code that runs in CI.
+#
+# Run: `npm run eval` in this folder (needs ANTHROPIC_API_KEY in ../.env), then `npm run view`.
+# Every run is PAID and is started by the user only, never by an agent, a test or CI
+# (CLAUDE.md, "Nothing reaches the model provider on its own"). `npm run preflight` is the free check.
+# Cost estimate per run: 3 reviews × at most 0.5 USD (maxBudgetUsd in ../src/config.ts)
+# + 9 judge calls (3 llm-rubric assertions × 3 models) on Opus.
+description: Code reviewer — the same diff on Haiku, Sonnet and Opus
+
+sharing: false
+
+env:
+  # promptfoo renders every var through Nunjucks, and a diff of JSX holds `{{ … }}`
+  # (`dangerouslySetInnerHTML={{ __html: … }}`), which fails the render before the provider is
+  # called. With templating off the diff reaches provider.ts verbatim; the judge's templates
+  # are rendered regardless (promptfoo exempts grader rendering from this switch).
+  PROMPTFOO_DISABLE_TEMPLATING: "true"
+
+providers:
+  - id: file://provider.ts
+    label: haiku-5-5
+    config:
+      model: claude-haiku-5-5
+  - id: file://provider.ts
+    label: sonnet-5-5
+    config:
+      model: claude-sonnet-5-5
+  - id: file://provider.ts
+    label: opus-5-5
+    config:
+      model: claude-opus-5-5
+
+# A carrier only: provider.ts ignores the rendered prompt and reviewDiff builds the real one
+# from vars.diff and vars.pr_title (../src/prompts/system.ts, ../src/prompts/user.ts).
+prompts:
+  - "{{diff}}"
+
+defaultTest:
+  options:
+    # The llm-rubric judge.
+    provider: anthropic:messages:claude-opus-5-5
+
+tests:
+  - description: React 16 -> 19 migration of MemberProfile with three planted flaws
+    vars:
+      diff: file://fixtures/react19-migration.diff
+      pr_title: Migracja MemberProfile na React 19
+    assert:
+      # 1. Valid JSON — the CI gate reads the verdict from it.
+      - type: is-json
+      # 2. One judge per planted flaw, so each column shows which flaw a model missed.
+      - type: llm-rubric
+        metric: flaw-default-props
+        value: >-
+          The output is a code review as JSON; its `summary` field is written in Polish.
+          Pass only if the review points out that the function component still sets
+          `MemberProfile.defaultProps`, which React 19 no longer applies to function components,
+          AND explains the consequence: the default role ("członek zespołu") is lost, so without
+          a `role` prop the role label renders empty. Merely mentioning the line, or calling it
+          deprecated, without that consequence does not pass. Ignore every other remark in the
+          review, including Vetpad project rules (e.g. a missing test or `/dev` fixture): they
+          neither help nor hurt this score.
+      - type: llm-rubric
+        metric: flaw-effect-deps
+        value: >-
+          The output is a code review as JSON; its `summary` field is written in Polish.
+          Pass only if the review points out that the `useEffect` that fetches the profile has an
+          empty dependency array (`[]`) instead of depending on `userId`, AND explains the
+          consequence: unlike the old `componentDidUpdate`, a change of the `userId` prop no longer
+          fetches the profile again, so the component keeps showing the previous member's profile.
+          Merely mentioning the line, or a generic lint warning about dependencies, without that
+          consequence does not pass. Ignore every other remark in the review, including Vetpad
+          project rules (e.g. a missing test or `/dev` fixture): they neither help nor hurt this score.
+      - type: llm-rubric
+        metric: flaw-xss
+        value: >-
+          The output is a code review as JSON; its `summary` field is written in Polish.
+          Pass only if the review points out that the member-written bio is now rendered through
+          `dangerouslySetInnerHTML` without sanitisation, AND explains the consequence: text from
+          a user reaches the page as HTML, which is a cross-site scripting (XSS) vulnerability,
+          whereas the old version rendered it as text. Merely mentioning the line without that
+          consequence does not pass. Ignore every other remark in the review, including Vetpad
+          project rules (e.g. a missing test or `/dev` fixture): they neither help nor hurt this score.
+      # 3. The binding verdict: a change with these flaws must be rejected.
+      - type: javascript
+        value: JSON.parse(output).verdict === "fail"
+        metric: verdict-fail
