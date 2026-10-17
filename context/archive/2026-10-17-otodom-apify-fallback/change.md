@@ -1,10 +1,10 @@
 ---
 change_id: otodom-apify-fallback
 title: Apify ingestion fallback for otodom.pl with a switchable ingestion mode
-status: implemented
+status: archived
 created: 2026-10-17
 updated: 2026-10-17
-archived_at: null
+archived_at: 2026-10-17T21:12:14Z
 ---
 
 ## Notes
