@@ -1,7 +1,8 @@
-// System prompt for the code-review agent, written for Vetpad. Its source is the sections
-// "Code Review Criteria" and "Verdict" of context/changes/ci-cd-code-review/requirements.md;
-// change that text first, then this one. This is the first Vetpad-specific version and the
-// baseline the evals measure later prompt or model changes against.
+// System prompt for the code-review agent, written for Vetpad. This file is the source of the
+// reviewer's criteria: a change to them is made here. The sections "Code Review Criteria" and
+// "Verdict" of context/archive/2026-10-17-ci-cd-code-review/requirements.md are the history of
+// this first Vetpad-specific version, which is the baseline the evals measure later prompt or
+// model changes against.
 // The criteria mirror REVIEW_SCHEMA in ../review-schema.ts, which is the contract — change
 // the schema first, then this text. The agent runs isolated (no tools, no CLAUDE.md), so every
 // project rule it applies has to be stated here.
