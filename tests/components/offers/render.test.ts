@@ -45,8 +45,11 @@ const SOURCE_LINK = "Otwórz oryginał";
 
 const JS = "javascript:alert(1)";
 const THUMB = "https://picsum.photos/seed/render-test/320/240";
+const MEDIUM = "https://picsum.photos/seed/render-test/655/491";
 const LARGE = "https://picsum.photos/seed/render-test/800/600";
-const VALID: OfferImage = { thumbnail: THUMB, large: LARGE };
+const VALID: OfferImage = { thumbnail: THUMB, medium: MEDIUM, large: LARGE };
+/** A photo saved before `medium` was stored: the gallery falls back to `large`. */
+const VALID_LEGACY: OfferImage = { thumbnail: THUMB, large: LARGE };
 
 let container: AstroContainer;
 
@@ -56,15 +59,40 @@ beforeAll(async () => {
 });
 
 /**
- * Every `href`/`src` value in the markup. The count of attribute names guards the extraction: an
- * attribute the pattern cannot read (unquoted, single-quoted) fails the test instead of slipping
- * past the whitelist.
+ * Every `href`/`src` value in the markup, and every candidate URL of every `srcset`. The count of
+ * attribute names guards the extraction: an attribute the pattern cannot read (unquoted,
+ * single-quoted) fails the test instead of slipping past the whitelist.
  */
 function urlsIn(html: string): string[] {
-  const values = Array.from(html.matchAll(/(?<![\w-])(?:href|src)\s*=\s*"([^"]*)"/gi), (match) => match[1]);
-  const names = html.match(/(?<![\w-])(?:href|src)\s*=/gi) ?? [];
+  const values = Array.from(html.matchAll(/(?<![\w-])(href|src|srcset)\s*=\s*"([^"]*)"/gi), ([, name, value]) =>
+    name.toLowerCase() === "srcset" ? srcsetUrls(value) : [value],
+  );
+  const names = html.match(/(?<![\w-])(?:href|src|srcset)\s*=/gi) ?? [];
   expect(values).toHaveLength(names.length);
-  return values;
+  return values.flat();
+}
+
+/**
+ * The candidate URLs of a `srcset`, each followed by a width descriptor. A URL with whitespace in
+ * it would split into tokens that are not descriptors, so the descriptor check fails the test
+ * rather than letting part of a URL past the whitelist. A URL ending in a comma is checked too:
+ * the browser's parser ends the candidate there and reads the descriptor as a URL.
+ */
+function srcsetUrls(srcset: string): string[] {
+  const tokens = srcset.trim().split(/\s+/);
+  expect(tokens.length % 2).toBe(0);
+  return tokens.flatMap((token, index) => {
+    if (index % 2 === 0) {
+      expect(token).not.toMatch(/,$/);
+      return [token];
+    }
+    expect(token).toMatch(index === tokens.length - 1 ? /^\d+w$/ : /^\d+w,$/);
+    return [];
+  });
+}
+
+function imgAttributesIn(html: string, name: "srcset" | "sizes"): string[] {
+  return Array.from(html.matchAll(new RegExp(`<img\\b[^>]*?\\s${name}="([^"]*)"`, "gi")), (match) => match[1]);
 }
 
 function hrefsIn(html: string): string[] {
@@ -73,6 +101,20 @@ function hrefsIn(html: string): string[] {
 
 function imgSrcsIn(html: string): string[] {
   return Array.from(html.matchAll(/<img\b[^>]*?\ssrc="([^"]*)"/gi), (match) => match[1]);
+}
+
+/** The `props` attribute of every island in the markup, with Astro's `&quot;` escaping undone. */
+function islandPropsIn(html: string): string[] {
+  return Array.from(html.matchAll(/<astro-island\b[^>]*?\sprops="([^"]*)"/g), (match) =>
+    match[1].replaceAll("&quot;", '"').replaceAll("&amp;", "&"),
+  );
+}
+
+/** Every string anywhere in serialised island props, in document order. */
+function stringsIn(value: unknown): string[] {
+  if (typeof value === "string") return [value];
+  if (typeof value !== "object" || value === null) return [];
+  return Object.values(value).flatMap(stringsIn);
 }
 
 function countTags(html: string, tag: string): number {
@@ -244,7 +286,7 @@ describe("OfferCard: the map link", () => {
   );
 });
 
-describe("OfferGallery: a photo renders only when both its URLs are https (#7)", () => {
+describe("OfferGallery: a photo renders only when its thumbnail and large URLs are https (#7)", () => {
   it.each([
     ["a hostile thumbnail", { thumbnail: JS, large: LARGE }],
     ["a hostile large photo", { thumbnail: THUMB, large: JS }],
@@ -278,12 +320,107 @@ describe("OfferGallery: a photo renders only when both its URLs are https (#7)",
       { thumbnail: THUMB, large: "http://picsum.photos/seed/render-test/800/600" },
     ]);
 
-    expect(imgSrcsIn(html)).toEqual([THUMB]);
+    expect(imgSrcsIn(html)).toEqual([MEDIUM]);
     expect(hrefsIn(html)).toEqual([LARGE]);
     expect(countTags(html, "img")).toBe(1);
     expect(countTags(html, "a")).toBe(1);
     expect(html).not.toContain(NO_PHOTOS);
     expectOnlySafeUrls(html);
+  });
+
+  it("shows the medium variant in the grid, and the large one for a photo saved without it", async () => {
+    const html = await gallery([VALID, VALID_LEGACY]);
+
+    expect(imgSrcsIn(html)).toEqual([MEDIUM, LARGE]);
+    expect(imgAttributesIn(html, "srcset")).toEqual([
+      "https://picsum.photos/seed/render-test/655/491 655w, https://picsum.photos/seed/render-test/800/600 2048w",
+      "https://picsum.photos/seed/render-test/800/600 2048w",
+    ]);
+    expect(imgAttributesIn(html, "sizes")).toEqual([
+      "(min-width: 1024px) 223px, (min-width: 640px) 33vw, 50vw",
+      "(min-width: 1024px) 223px, (min-width: 640px) 33vw, 50vw",
+    ]);
+    expect(hrefsIn(html)).toEqual([LARGE, LARGE]);
+    expectOnlySafeUrls(html);
+  });
+
+  it("gives a single photo the width of the whole gallery", async () => {
+    const html = await gallery([VALID]);
+
+    expect(imgAttributesIn(html, "sizes")).toEqual(["(min-width: 1024px) 694px, 100vw"]);
+    expect(html).toContain("grid-cols-1");
+    expectOnlySafeUrls(html);
+  });
+
+  it.each([
+    ["a script URL", JS],
+    ["an http: URL", "http://picsum.photos/seed/render-test/655/491"],
+    ["a non-string", 42],
+  ])("renders the photo without a medium variant that is %s", async (_case, medium) => {
+    const html = await gallery([{ thumbnail: THUMB, medium, large: LARGE }]);
+
+    expect(imgSrcsIn(html)).toEqual([LARGE]);
+    expect(imgAttributesIn(html, "srcset")).toEqual(["https://picsum.photos/seed/render-test/800/600 2048w"]);
+    expect(hrefsIn(html)).toEqual([LARGE]);
+    expect(html).not.toContain("javascript:");
+    expect(html).not.toContain("http://");
+    expectOnlySafeUrls(html);
+  });
+
+  it("puts a medium URL with a space and a comma into srcset as one token", async () => {
+    const html = await gallery([{ thumbnail: THUMB, medium: "https://x.pl/a b, 9999w", large: LARGE }]);
+
+    expect(imgAttributesIn(html, "srcset")).toEqual([
+      "https://x.pl/a%20b,%209999w 655w, https://picsum.photos/seed/render-test/800/600 2048w",
+    ]);
+    expectOnlySafeUrls(html);
+  });
+
+  it("encodes a trailing comma of a medium or large URL in srcset", async () => {
+    const html = await gallery([{ thumbnail: THUMB, medium: "https://x.pl/a,", large: "https://x.pl/b," }]);
+
+    expect(imgAttributesIn(html, "srcset")).toEqual(["https://x.pl/a%2C 655w, https://x.pl/b%2C 2048w"]);
+    expectOnlySafeUrls(html);
+  });
+
+  it("hands the photo viewer island only the filtered URLs, never a rejected value", async () => {
+    const html = await gallery([
+      null,
+      { thumbnail: JS, medium: MEDIUM, large: LARGE },
+      { thumbnail: THUMB, medium: MEDIUM, large: JS },
+      { thumbnail: THUMB, medium: "http://picsum.photos/seed/render-test/655/491", large: LARGE },
+      { thumbnail: THUMB, medium: JS, large: LARGE },
+      VALID,
+      { thumbnail: THUMB, large: "http://picsum.photos/seed/render-test/800/600" },
+    ]);
+    const props = islandPropsIn(html);
+
+    expect(props).toHaveLength(1);
+    expect(props[0]).not.toContain("javascript:");
+    expect(props[0]).not.toContain("http://");
+    // Three photos survive the filter: two without their rejected medium variant, and VALID.
+    expect(stringsIn(JSON.parse(props[0]))).toEqual([LARGE, LARGE, MEDIUM, LARGE, fullOffer.title]);
+    expect(imgSrcsIn(html)).toEqual([LARGE, LARGE, MEDIUM]);
+    expectOnlySafeUrls(html);
+  });
+
+  it("renders the grid alone on the server, with the viewer closed even when it opens on a photo", async () => {
+    const html = await container.renderToString(OfferGallery, {
+      props: { images: [VALID, VALID_LEGACY], title: fullOffer.title, openAt: 1 },
+    });
+
+    expect(html).toContain("<astro-island");
+    expect(countTags(html, "img")).toBe(2);
+    expect(html).not.toContain('role="dialog"');
+    expect(html).not.toContain("Zdjęcia: ");
+    expect(html).not.toContain("aria-live");
+  });
+
+  it("mounts no photo viewer island for an offer with no photos", async () => {
+    const html = await gallery([{ thumbnail: JS, large: LARGE }]);
+
+    expect(html).toContain(NO_PHOTOS);
+    expect(html).not.toContain("<astro-island");
   });
 });
 

@@ -272,3 +272,44 @@ describe("mapAdToOffer: seller data stays out, the advertiser's words stay in (#
     expect(mapped(flatSaleAd()).street_name).toBe(CANARY_STREET);
   });
 });
+
+describe("mapAdToOffer: photos keep the medium variant when it is safe", () => {
+  const THUMBNAIL = "https://images.example.com/foto/thumbnail.jpg";
+  const MEDIUM = "https://images.example.com/foto/medium.jpg";
+  const LARGE = "https://images.example.com/foto/large.jpg";
+
+  function imagesOf(images: unknown[]): unknown {
+    return mapped(flatSaleAd({ images })).images;
+  }
+
+  it("keeps thumbnail, medium and large", () => {
+    expect(imagesOf([{ thumbnail: THUMBNAIL, medium: MEDIUM, large: LARGE }])).toEqual([
+      { thumbnail: THUMBNAIL, medium: MEDIUM, large: LARGE },
+    ]);
+  });
+
+  it.each([
+    ["an http: medium", "http://images.example.com/foto/medium.jpg"],
+    ["a javascript: medium", "javascript:alert(1)"],
+    ["an empty medium", ""],
+    ["a non-string medium", 42],
+  ])("keeps the photo without a medium key for %s", (_label, medium) => {
+    const [image] = imagesOf([{ thumbnail: THUMBNAIL, medium, large: LARGE }]) as Record<string, unknown>[];
+    expect(image).toEqual({ thumbnail: THUMBNAIL, large: LARGE });
+    expect(Object.keys(image)).toEqual(["thumbnail", "large"]);
+  });
+
+  it("keeps the photo without a medium key when medium is absent", () => {
+    const [image] = imagesOf([{ thumbnail: THUMBNAIL, large: LARGE }]) as Record<string, unknown>[];
+    expect(Object.keys(image)).toEqual(["thumbnail", "large"]);
+  });
+
+  it.each([
+    ["an http: thumbnail", { thumbnail: "http://images.example.com/foto/thumbnail.jpg", medium: MEDIUM, large: LARGE }],
+    ["a missing thumbnail", { medium: MEDIUM, large: LARGE }],
+    ["a javascript: large", { thumbnail: THUMBNAIL, medium: MEDIUM, large: "javascript:alert(1)" }],
+    ["a missing large", { thumbnail: THUMBNAIL, medium: MEDIUM }],
+  ])("drops the photo for %s, whatever medium holds", (_label, image) => {
+    expect(imagesOf([image, { thumbnail: THUMBNAIL, large: LARGE }])).toEqual([{ thumbnail: THUMBNAIL, large: LARGE }]);
+  });
+});

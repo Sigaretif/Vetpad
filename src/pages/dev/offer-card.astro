@@ -6,6 +6,7 @@ import NoteDeleteNotice from "@/components/offers/NoteDeleteNotice.astro";
 import DuplicateNotice from "@/components/offers/DuplicateNotice.astro";
 import type { AuditRunnerPreview } from "@/components/offers/AuditRunner";
 import OfferAudit from "@/components/offers/OfferAudit.astro";
+import OfferGallery from "@/components/offers/OfferGallery.astro";
 import OfferNotFound from "@/components/offers/OfferNotFound.astro";
 import OfferView from "@/components/offers/OfferView.astro";
 import type { AuditFreshness } from "@/lib/audit/freshness";
@@ -13,6 +14,7 @@ import type { OfferAudit as OfferAuditData } from "@/lib/audit/store";
 import type { Saver } from "@/lib/members";
 import type { OfferNotes } from "@/lib/notes";
 import type { OfferArchiveState } from "@/lib/offer-archive";
+import { clampOpenAt, galleryPhotos } from "@/lib/offer-gallery";
 import { ingestFailureMessage } from "@/lib/otodom/failure";
 import type { OfferRow } from "@/lib/otodom/types";
 import {
@@ -40,6 +42,7 @@ import {
   freshnessUnknown,
   fullNotes,
   fullOffer,
+  legacyImagesOffer,
   longEmailSaver,
   longNotes,
   longTitleOffer,
@@ -148,13 +151,22 @@ const states: State[] = [
   },
   {
     caption:
-      "Filtr adresów zdjęć (http: i javascript: odrzucone) · autor nieustalony · audyt: błąd odczytu · notatki: błąd odczytu po nieudanym zapisie",
+      "Filtr adresów zdjęć (http: i javascript: odrzucone; zdjęcie z wrogim wariantem średnim z samego dużego) · autor nieustalony · audyt: błąd odczytu · notatki: błąd odczytu po nieudanym zapisie",
     offer: unsafeImagesOffer,
     saver: unknownSaver,
     notes: failedNotes,
     audit: auditReadFailed,
     auditAvailable: true,
     noteError: "Nie udało się zapisać notatki. Spróbuj ponownie.",
+  },
+  {
+    caption:
+      "Zdjęcia zapisane przed wariantem średnim (siatka z dużego zdjęcia do ręcznego ponownego pobrania) · autor: członek zespołu · audyt: brak · notatki: brak (pusty formularz)",
+    offer: legacyImagesOffer,
+    saver: memberSaver,
+    notes: noNotes,
+    audit: auditNone,
+    auditAvailable: true,
   },
   {
     caption:
@@ -528,6 +540,13 @@ const auditStates: AuditState[] = [
   },
 ];
 
+// The gallery's photo viewer on its own, in a column as wide as the card's: `?open=photo-<n>`
+// (1-based) opens it on photo N on the first render, through `openAt`. The dialog is modal, so only
+// this section ever opens — no other state on the page passes `openAt`. Anything else in the
+// parameter, a number past the last photo included, leaves it closed.
+const viewerPhotoCount = galleryPhotos(fullOffer.images).length;
+const viewerOpenAt = clampOpenAt(Astro.url.searchParams.get("open"), viewerPhotoCount) ?? undefined;
+
 const stateClass = "border-border flex flex-col gap-6 border-t pt-6";
 const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppercase";
 ---
@@ -625,6 +644,31 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
         </div>
       </div>
     ))}
+
+    <div class:list={stateClass} data-state="gallery-viewer">
+      <p class:list={captionClass}>
+        Galeria — przeglądarka zdjęć: klik miniatury otwiera dialog, ←/→ i przyciski zawijają, Esc i „Zamknij” zamykają
+      </p>
+      <p class="text-sm">
+        Otwórz na zdjęciu:{" "}
+        {Array.from({ length: viewerPhotoCount }, (_, index) => (
+          <>
+            <a href={`?open=photo-${index + 1}`} class="text-link underline-offset-4 hover:underline">
+              {index + 1}
+            </a>{" "}
+          </>
+        ))}
+        ·{" "}
+        <a href={Astro.url.pathname} class="text-link underline-offset-4 hover:underline">
+          zamknięta
+        </a>
+      </p>
+      <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] lg:items-start">
+        <div class="flex min-w-0 flex-col gap-6">
+          <OfferGallery images={fullOffer.images} title={fullOffer.title} openAt={viewerOpenAt} />
+        </div>
+      </div>
+    </div>
 
     <div class:list={stateClass}>
       <p class:list={captionClass}>Stan: nie znaleziono oferty</p>

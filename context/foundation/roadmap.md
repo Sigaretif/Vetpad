@@ -3,7 +3,7 @@ project: Vetpad
 version: 1
 status: draft
 created: 2026-09-21
-updated: 2026-10-11
+updated: 2026-10-17
 prd_version: 1
 main_goal: market-feedback
 top_blocker: time
@@ -262,7 +262,6 @@ None. Every absent or partial layer in the Baseline is first needed by a user-fa
 - **Real-time collaborative editing** — Why parked: PRD §Non-Goals; notes are per-person and never co-edited.
 - **Registration and password reset** — Why parked: FR-001; a password is reissued by the database administrator.
 - **Extraction-service fallback for ingestion (Apify)** — Why parked: the direct path was verified end to end from Cloudflare's egress on 2026-09-20, so a second vendor and a second secret buy nothing today. Trigger to revisit: otodom.pl answering the Worker's egress with 403/429 — a failure mode S-02 reports distinctly from a payload-shape change, precisely so this trigger is recognisable. Verified request shape and failure modes: `context/foundation/ingestion/otodom_apify.md`.
-- **Photo viewer inside the card (lightbox)** — Why parked: S-02 opens a full-size photo in a new browser tab, which keeps the card free of React state and of hand-rolled focus and keyboard handling. Revisit when browsing twenty photos per listing becomes a real friction in the team's use.
 
 ## Milestone History
 
@@ -281,3 +280,4 @@ None. Every absent or partial layer in the Baseline is first needed by a user-fa
 - **S-09: user can re-fetch a listing's data on demand, finds every note exactly as its author left it, and sees an existing audit marked stale — and is prompted to re-run it — when the listing's data or the team's criteria changed.** — Archived 2026-10-11 → `context/archive/2026-10-09-refetch-and-stale-audit/`. Lesson: —.
 - **S-10: user can archive a listing to hide it from the board, sees who archived it and a visible "recently archived" section or counter, and can view and restore archived listings.** — Archived 2026-10-11 → `context/archive/2026-10-11-archive-and-restore/`. Lesson: —.
 - **S-11: user can delete a saved listing — taking every member's notes on it with it — and can delete their own notes. An archived listing can be deleted as well as a live one (user's decision, 2026-10-11, in S-10's plan).** — Archived 2026-10-11 → `context/archive/2026-10-11-delete-offer-and-notes/`. Lesson: —.
+- **Photo viewer inside the card (lightbox)** — taken off `## Parked` 2026-10-17: browsing twenty photos per listing became a real friction, the condition the parking named. Delivered outside M-1 by the change `offer-photo-lightbox` (sharp gallery thumbnails from the `medium`/`large` variants and an in-card lightbox with keyboard navigation, a counter and focus return). Archive path: filled in by `/10x-archive`. Lesson: —.

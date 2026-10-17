@@ -194,7 +194,10 @@ function mapImages(images: unknown): OfferImage[] {
     if (!isRecord(image)) continue;
     const thumbnail = httpsUrl(image.thumbnail);
     const large = httpsUrl(image.large);
-    if (thumbnail !== null && large !== null) mapped.push({ thumbnail, large });
+    if (thumbnail === null || large === null) continue;
+    // `medium` is optional: a missing or unsafe one drops the key, never the photo.
+    const medium = httpsUrl(image.medium);
+    mapped.push(medium === null ? { thumbnail, large } : { thumbnail, medium, large });
   }
   return mapped;
 }

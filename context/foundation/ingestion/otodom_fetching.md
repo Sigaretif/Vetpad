@@ -240,7 +240,7 @@ Each element of `data.searchAds.items[]`:
 | `isPrivateOwner`, `isPromoted`, `isExclusiveOffer`            | Booleans                                                                                                                                                                   |
 | `agency`                                                      | `{id, name, slug, imageUrl, type}` or `null`                                                                                                                               |
 | `location`                                                    | `address.street/city/province` + `reverseGeocoding.locations[]` with `locationLevel` of `voivodeship / city_or_village / district / residential`                           |
-| `images[]`                                                    | `{small, medium, large}` CDN URLs on `ireland.apollo.olxcdn.com`                                                                                                           |
+| `images[]`                                                    | `{thumbnail, small, medium, large, isExterior}` CDN URLs on `ireland.apollo.olxcdn.com`; sizes and what the mapper keeps are under the offer-page probe below              |
 | `totalPossibleImages`                                         | Photo count                                                                                                                                                                |
 | `shortDescription`                                            | Truncated description                                                                                                                                                      |
 | `tags[]`                                                      | `[{value: "BALCONY", weight: 35}, ...]`                                                                                                                                    |
@@ -480,7 +480,10 @@ transaction (a rental reported `ALL`). The gate itself is `mapAdToOffer` in
 Other observations from the same probe:
 
 - `description` is a sequence of `<p>…</p>`; `images[]` entries carry `thumbnail`,
-  `small`, `medium`, `large` and `isExterior` (20 photos on the flat above).
+  `small`, `medium`, `large` and `isExterior` (20 photos on the flat above). The size
+  is in each URL's `image;s=WxH;q=80` suffix: 184×138, 314×236, 655×491 and 2048×1536
+  (measured 2026-10-17). The mapper stores `{thumbnail, medium?, large}` only —
+  `mapImages` in `src/lib/otodom/map.ts`.
 - `localizedValue` behaved exactly as the trap in section 7.1 describes.
 - `owner` and `contactDetails` were filled (`phones`, `name`, `contacts`), `agency`
   was `null`, and `target` repeated the seller's account id as `seller_id`. That is

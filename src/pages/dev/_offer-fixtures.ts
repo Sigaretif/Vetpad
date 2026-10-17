@@ -34,11 +34,19 @@ export const deletedSaver: Saver = { kind: "deleted" };
 /** The author could not be established (failed read, no `members` row, no email) — never a deleted account. */
 export const unknownSaver: Saver = { kind: "unknown" };
 
+/** A photo in the variants otodom serves: medium 655×491 for the grid, large 2048×1536 for the full view. */
 function image(seed: string): OfferImage {
   return {
     thumbnail: `https://picsum.photos/seed/${seed}/320/240`,
-    large: `https://picsum.photos/seed/${seed}/800/600`,
+    medium: `https://picsum.photos/seed/${seed}/655/491`,
+    large: `https://picsum.photos/seed/${seed}/2048/1536`,
   };
+}
+
+/** A photo as rows saved before `medium` was stored hold it: the grid falls back to `large`. */
+function legacyImage(seed: string): OfferImage {
+  const { thumbnail, large } = image(seed);
+  return { thumbnail, large };
 }
 
 /** Every column stated: all parameters, several amenities, several photos. */
@@ -148,7 +156,7 @@ export const singleImageOffer: OfferRow = {
   images: [image("vetpad-single")],
 };
 
-/** Unsafe photo URLs beside a valid one: only the valid photo may render (`safeHttpsUrl`). */
+/** Unsafe photo URLs beside valid ones: only valid URLs may render (`safeHttpsUrl`). */
 export const unsafeImagesOffer: OfferRow = {
   ...fullOffer,
   id: "00000000-0000-4000-8000-000000000004",
@@ -162,7 +170,19 @@ export const unsafeImagesOffer: OfferRow = {
     },
     { thumbnail: "javascript:alert(1)", large: "javascript:alert(1)" },
     image("vetpad-valid"),
+    // Valid thumbnail and large photo, hostile medium: the photo renders from `large`, without `medium`.
+    { ...legacyImage("vetpad-hostile-medium"), medium: "javascript:alert(1)" },
   ],
+};
+
+/** Photos saved before `medium` was stored (until a member re-fetches): the grid shows `large`. */
+export const legacyImagesOffer: OfferRow = {
+  ...fullOffer,
+  id: "00000000-0000-4000-8000-000000000014",
+  otodom_id: 1000014,
+  source_url: "https://example.com/oferta/zdjecia-sprzed-zmiany",
+  title: "Zdjęcia zapisane bez wariantu średniego",
+  images: [legacyImage("vetpad-legacy-1"), legacyImage("vetpad-legacy-2"), legacyImage("vetpad-legacy-3")],
 };
 
 /**
