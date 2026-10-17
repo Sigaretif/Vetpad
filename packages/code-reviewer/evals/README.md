@@ -2,7 +2,7 @@
 
 [promptfoo](https://www.promptfoo.dev/) evals of the code reviewer in `packages/code-reviewer`. Every model runs the real `reviewDiff` through `provider.ts`, so an eval measures the code that runs in CI (`.github/workflows/review.yml`), not a copy of its prompt. `promptfooconfig.yaml` is the eval set.
 
-**Rule (`CLAUDE.md`, "Run the eval set before changing the review prompt or model"):** before a change to `packages/code-reviewer/src/prompts/system.ts` or to the reviewer's model, run this set on the current code and on the change, and compare both with the baseline below.
+**Rule (`CLAUDE.md`, `### Paid model calls and CI review`, "The eval set runs before the reviewer's prompt or model changes"):** before a change to `packages/code-reviewer/src/prompts/system.ts` or to the reviewer's model, run this set on the current code and on the change, and compare both with the baseline below.
 
 ## Requirements
 
