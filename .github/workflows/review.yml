@@ -1,0 +1,97 @@
+# AI code review of pull requests to master (M5L3, based on
+# .claude/config-templates/m5l3-review.yml.template).
+# - Triggers: a PR opened or reopened, and on demand by adding the ai-cr:review label. There is
+#   no `synchronize` on purpose: a push to the PR does not start a paid run, so the comment, the
+#   label and the check speak for the commit named in the comment. Re-run with ai-cr:review.
+# - Result: a comment with the verdict, the reviewed head SHA, the six scores and the summary;
+#   the label ai-cr:passed or ai-cr:failed; a failing check when the verdict is not "pass".
+# - Secret: CODE_REVIEWER_API_KEY, the reviewer's own Anthropic key. Never the application's
+#   ANTHROPIC_API_KEY, which belongs to the build step of ci.yml only.
+# - Known risk: a job skipped by its `if` (any label other than ai-cr:review) reports Success.
+#   master has no required check today, so a skipped job unblocks nothing; see CLAUDE.md before
+#   making this check required in branch protection.
+name: AI Code Review
+
+on:
+  pull_request:
+    branches: [master]
+    types: [opened, reopened, labeled]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write # labels live on the issues API
+
+jobs:
+  review:
+    if: github.event.action != 'labeled' || github.event.label.name == 'ai-cr:review'
+    runs-on: ubuntu-latest
+    # A hung SDK subprocess or a slow npm ci with the ~268 MB binary must not hold the runner
+    # for the default 6 hours.
+    timeout-minutes: 10
+    # Job-level, so a run skipped by the `if` above (an unrelated label) never cancels a paid
+    # review that is in progress.
+    concurrency:
+      group: ai-review-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR: ${{ github.event.pull_request.number }}
+      # github.sha is the merge commit refs/pull/N/merge, which the PR author does not know.
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # full history, otherwise there is no base to diff against
+
+      - name: Compute diff
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        # Lockfiles are left out (the glob covers the root one too): one could eat the budget.
+        run: git diff "origin/$BASE_REF...HEAD" -- . ':(exclude,glob)**/package-lock.json' > "$RUNNER_TEMP/pr.diff"
+
+      - id: review
+        uses: ./.github/actions/ai-reviewer
+        with:
+          api-key: ${{ secrets.CODE_REVIEWER_API_KEY }}
+          pr-title: ${{ github.event.pull_request.title }}
+          pr-body: ${{ github.event.pull_request.body }}
+          diff-file: ${{ runner.temp }}/pr.diff
+
+      - name: Comment and label
+        if: always() && steps.review.outputs.verdict != ''
+        env:
+          VERDICT: ${{ steps.review.outputs.verdict }}
+          REVIEW_FILE: ${{ steps.review.outputs.review-file }}
+        run: |
+          node -e '
+            const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+            const rows = [
+              ["Poprawność implementacji", r.implementationCorrectness],
+              ["Idiomatyczność", r.idiomaticity],
+              ["Złożoność", r.complexity],
+              ["Pokrycie testami proporcjonalne do ryzyka", r.testRiskCoverage],
+              ["Dokumentacja", r.documentation],
+              ["Bezpieczeństwo", r.securitySafety],
+            ];
+            const table = ["| Kryterium | Ocena |", "| --- | --- |", ...rows.map(([name, score]) => "| " + name + " | " + score + "/10 |")];
+            console.log(["## AI Code Review: " + r.verdict, "", "Oceniony commit: " + process.argv[2], "", ...table, "", r.summary].join("\n"));
+          ' "$REVIEW_FILE" "$HEAD_SHA" > "$RUNNER_TEMP/comment.md"
+          gh pr comment "$PR" --body-file "$RUNNER_TEMP/comment.md"
+          gh label create ai-cr:passed --color 0E8A16 --force
+          gh label create ai-cr:failed --color B60205 --force
+          if [ "$VERDICT" = pass ]; then add=ai-cr:passed; drop=ai-cr:failed; else add=ai-cr:failed; drop=ai-cr:passed; fi
+          gh pr edit "$PR" --add-label "$add" --remove-label "$drop"
+
+      - name: Clear retry label
+        if: always()
+        # Runs after an error too, so ai-cr:review can be added again to retry.
+        run: |
+          gh label create ai-cr:review --force
+          gh pr edit "$PR" --remove-label ai-cr:review || true
+
+      - name: Gate on verdict
+        env:
+          VERDICT: ${{ steps.review.outputs.verdict }}
+        run: |
+          test "$VERDICT" = pass || { echo "AI review verdict: ${VERDICT:-missing}"; exit 1; }

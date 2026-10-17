@@ -380,31 +380,31 @@ Nie dotyczy. Nowe pliki nie zmieniają istniejących jobów `ci` ani `smoke`.
 
 #### Automated
 
-- [x] 1.1 Typecheck pakietu przechodzi
-- [x] 1.2 buildReviewPrompt: bez pr bez zmian, tagi PR-a, pusty opis pominięty, przycięcie 4000 znaków
-- [x] 1.3 ci.ts bez ANTHROPIC_API_KEY kończy się missing_api_key bez wywołania providera
-- [x] 1.4 ci.ts bez DIFF_FILE kończy się invalid_options bez wywołania providera
-- [x] 1.5 ci.ts z pustym diffem kończy się empty_diff bez wywołania providera
-- [x] 1.6 Root gates bez zmian (lint, astro check, test)
+- [x] 1.1 Typecheck pakietu przechodzi — 6354557
+- [x] 1.2 buildReviewPrompt: bez pr bez zmian, tagi PR-a, pusty opis pominięty, przycięcie 4000 znaków — 6354557
+- [x] 1.3 ci.ts bez ANTHROPIC_API_KEY kończy się missing_api_key bez wywołania providera — 6354557
+- [x] 1.4 ci.ts bez DIFF_FILE kończy się invalid_options bez wywołania providera — 6354557
+- [x] 1.5 ci.ts z pustym diffem kończy się empty_diff bez wywołania providera — 6354557
+- [x] 1.6 Root gates bez zmian (lint, astro check, test) — 6354557
 
 #### Manual
 
-- [x] 1.7 Użytkownik potwierdza wierne przeniesienie kryteriów do system.ts
+- [x] 1.7 Użytkownik potwierdza wierne przeniesienie kryteriów do system.ts — 6354557
 
 ### Phase 2: Akcja kompozytowa i workflow review
 
 #### Automated
 
-- [ ] 2.1 actionlint przechodzi dla review.yml
-- [ ] 2.2 Każde uses: przypięte do pełnego SHA z komentarzem tagu
-- [ ] 2.3 Brak ${{ inputs.* }} i ${{ github.event.* }} w blokach run:
-- [ ] 2.4 ci.yml bez zmian
-- [ ] 2.5 Diff z pathspec nie zawiera package-lock.json
-- [ ] 2.7 Job review ma timeout-minutes: 10
+- [x] 2.1 actionlint przechodzi dla review.yml
+- [x] 2.2 Każde uses: przypięte do pełnego SHA z komentarzem tagu
+- [x] 2.3 Brak ${{ inputs.* }} i ${{ github.event.* }} w blokach run:
+- [x] 2.4 ci.yml bez zmian
+- [x] 2.5 Diff z pathspec nie zawiera package-lock.json
+- [x] 2.7 Job review ma timeout-minutes: 10
 
 #### Manual
 
-- [ ] 2.6 Sekret CODE_REVIEWER_API_KEY ustawiony w repozytorium
+- [x] 2.6 Sekret CODE_REVIEWER_API_KEY ustawiony w repozytorium
 
 ### Phase 3: Dokumentacja reguł i weryfikacja na PR-ze
 
