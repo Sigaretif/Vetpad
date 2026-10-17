@@ -9,6 +9,7 @@ import RequirementsEditor from "@/components/criteria/RequirementsEditor";
 import TeamLimitsForm from "@/components/criteria/TeamLimitsForm";
 import { AUDIT_EFFORT_LABELS, AUDIT_MODEL_LABELS, type AuditSettingsResult } from "@/lib/audit/settings";
 import type { CriteriaResult } from "@/lib/criteria";
+import { INGESTION_MODE_LABELS, type ResolvedIngestionMode } from "@/lib/ingestion-settings";
 import { formatTimestamp } from "@/lib/format";
 import { saverName } from "@/lib/members";
 import { formatArea, formatMoney } from "@/lib/otodom/labels";
@@ -28,21 +29,31 @@ import { formatArea, formatMoney } from "@/lib/otodom/labels";
  * read did, and carries its own `data-audit-settings-state`. A failed settings read is never
  * shown as the defaults, and renders no form either. With a successful one the section also
  * carries the stored values as `data-audit-model` and `data-audit-effort`, for the same script.
+ *
+ * Last, the ingestion mode (FR-004, FR-009), read-only: the owner changes it in Supabase, so the
+ * section has no form. It carries its read as `data-ingestion-settings-state`, the configured mode
+ * as `data-ingestion-mode` (only after a successful read) and the mode that actually runs as
+ * `data-ingestion-mode-effective` — none of the three stands in for another. A failed read is
+ * never shown as a mode: it names none and says the listings are fetched directly only, which is
+ * what `resolveIngestionMode` runs it as.
  */
 interface Props {
   criteria: CriteriaResult;
   auditSettings: AuditSettingsResult;
+  /** The configured and the effective ingestion mode, from `resolveIngestionMode`. */
+  ingestion: ResolvedIngestionMode;
   /** The page's `?error=`, and which form it belongs to (`?form=`); `null` when none is named. */
   serverError?: string | null;
   serverErrorFor?: "limits" | "requirements" | "audit" | null;
   startEditing?: boolean;
-  /** Appended to the sections' ids: the routes redirect to `#limity`/`#wymagania`/`#audyt`; the kitchen sink passes unique values. */
+  /** Appended to the sections' ids (`#limity`/`#wymagania`/`#audyt`/`#pobieranie`): the routes redirect to the first three; the kitchen sink passes unique values. */
   anchorSuffix?: string;
 }
 
 const {
   criteria,
   auditSettings,
+  ingestion,
   serverError = null,
   serverErrorFor = null,
   startEditing = false,
@@ -52,6 +63,7 @@ const {
 const limitsId = `limity${anchorSuffix}`;
 const requirementsId = `wymagania${anchorSuffix}`;
 const auditId = `audyt${anchorSuffix}`;
+const ingestionId = `pobieranie${anchorSuffix}`;
 const limitsError = serverErrorFor === "limits" ? serverError : null;
 const requirementsError = serverErrorFor === "requirements" ? serverError : null;
 // The audit section renders in every state of the view, so its message is always shown there.
@@ -100,6 +112,10 @@ const settingRows =
 const settingsChangedAt = auditSettings.state === "ok" ? auditSettings.changedAt : null;
 const settingsChangedBy =
   auditSettings.state === "ok" && auditSettings.changedBy ? saverName(auditSettings.changedBy) : null;
+
+// `configured` is null exactly when the mode could not be read (`resolveIngestionMode`).
+const ingestionConfigured = ingestion.configured;
+const ingestionState = ingestionConfigured === null ? "error" : "ok";
 
 const sectionClass = "flex scroll-mt-4 flex-col gap-4";
 const labelClass = "text-muted-foreground mb-1 text-xs font-medium tracking-wide uppercase";
@@ -273,6 +289,54 @@ const labelClass = "text-muted-foreground mb-1 text-xs font-medium tracking-wide
           <AlertDescription>Nie udało się wczytać ustawień audytu.</AlertDescription>
         </Alert>
       </>
+    )}
+  </section>
+
+  <section
+    id={ingestionId}
+    aria-labelledby={`${ingestionId}-naglowek`}
+    data-criteria-section="ingestion"
+    data-ingestion-settings-state={ingestionState}
+    data-ingestion-mode={ingestionConfigured ?? undefined}
+    data-ingestion-mode-effective={ingestion.effective}
+    class:list={sectionClass}
+  >
+    <div class="flex flex-col gap-1">
+      <h2 id={`${ingestionId}-naglowek`} class="text-xl font-semibold">
+        Pobieranie ogłoszeń
+      </h2>
+      <p class="text-muted-foreground text-sm">
+        Sposób, w jaki aplikacja pobiera ogłoszenie z otodom.pl przy dodawaniu i odświeżaniu oferty. Tryb zmienia
+        administrator bazy w Supabase.
+      </p>
+    </div>
+
+    {ingestionConfigured !== null ? (
+      <Card className="gap-4">
+        <CardHeader>
+          <h3 class="leading-snug font-semibold">Tryb pobierania</h3>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <dl class="flex flex-col gap-3 text-sm">
+            <div>
+              <dt class:list={labelClass}>Ustawiony tryb</dt>
+              <dd class="wrap-anywhere">{INGESTION_MODE_LABELS[ingestionConfigured]}</dd>
+            </div>
+          </dl>
+          {ingestion.reason === "apify_unconfigured" && (
+            <p class="text-muted-foreground text-sm">
+              Obecnie działa: {INGESTION_MODE_LABELS[ingestion.effective]} — brak klucza Apify
+            </p>
+          )}
+        </CardContent>
+      </Card>
+    ) : (
+      <Alert variant="destructive">
+        <CircleAlert />
+        <AlertDescription>
+          Nie udało się odczytać trybu pobierania — aplikacja pobiera ogłoszenia tylko bezpośrednio.
+        </AlertDescription>
+      </Alert>
     )}
   </section>
 </div>

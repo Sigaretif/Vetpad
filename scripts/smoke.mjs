@@ -233,6 +233,13 @@ const AUDIT_SETTINGS_OK = 'data-audit-settings-state="ok"';
 let auditSettingsBefore = null;
 // The ingestion mode: one row, which only the owner changes in Supabase Studio (public.ingestion_settings).
 const INGESTION_SETTINGS = "ingestion_settings?id=eq.true";
+// The ingestion section's markers on /criteria: the seeded mode, read, and - since the smoke job holds no Apify
+// token - run as direct only. This is the zero-config proof that a missing token is shown, not crashed on.
+const INGESTION_MARKERS = [
+  'data-ingestion-settings-state="ok"',
+  'data-ingestion-mode="direct_with_fallback"',
+  'data-ingestion-mode-effective="direct_only"',
+];
 // The audit attempt this run starts hangs on the second fixture offer. The first one - the offer behind FIXTURE_CARD,
 // whose card the run opens - never gets an audit row, so a step that reads that card sees an offer nobody audited.
 const FIXTURE_AUDIT = `offer_audits?offer_id=eq.${FIXTURE_OFFER_ID}`;
@@ -2177,7 +2184,7 @@ const steps = [
   [
     "criteria page shows the saved audit settings",
     () => criteriaAfterAuditSettingsSave(),
-    { status: 200, bodyIncludes: [CRITERIA_OK, AUDIT_SETTINGS_OK] },
+    { status: 200, bodyIncludes: [CRITERIA_OK, AUDIT_SETTINGS_OK, ...INGESTION_MARKERS] },
   ],
   // The trigger keeps the signature and the date when nothing changes, so re-saving the form is not a change.
   [

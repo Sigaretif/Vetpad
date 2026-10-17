@@ -3,13 +3,18 @@ import AppLayout from "@/layouts/AppLayout.astro";
 import CriteriaView from "@/components/criteria/CriteriaView.astro";
 import type { AuditSettingsResult } from "@/lib/audit/settings";
 import type { CriteriaResult } from "@/lib/criteria";
+import type { ResolvedIngestionMode } from "@/lib/ingestion-settings";
 import {
+  apifyOnlyIngestion,
   defaultAuditSettings,
   deletedSaverAuditSettings,
   deletedSaverCriteria,
+  directOnlyIngestion,
+  directWithFallbackIngestion,
   emptyCriteria,
   failedAuditSettings,
   failedCriteria,
+  failedIngestion,
   fullCriteria,
   longCriteria,
   longEmailAuditSettings,
@@ -18,6 +23,7 @@ import {
   selfAuditSettings,
   unknownAuthorAuditSettings,
   unknownAuthorCriteria,
+  unconfiguredIngestion,
 } from "@/pages/dev/_criteria-fixtures";
 
 // Visual gate for /criteria: every named state of the view at once, from fixtures, in `astro dev`
@@ -34,6 +40,7 @@ interface State {
   caption: string;
   criteria: CriteriaResult;
   auditSettings: AuditSettingsResult;
+  ingestion: ResolvedIngestionMode;
   serverError?: string;
   serverErrorFor?: "limits" | "requirements" | "audit";
   startEditing?: boolean;
@@ -49,6 +56,7 @@ const states: State[] = [
       "Pełne: wszystkie limity (zmienił członek zespołu), własne wymagania w podglądzie, dwa cudze · ustawienia audytu zmienione przez członka zespołu",
     criteria: fullCriteria,
     auditSettings: memberAuditSettings,
+    ingestion: directWithFallbackIngestion,
   },
   {
     state: "empty",
@@ -56,6 +64,7 @@ const states: State[] = [
       "Puste: bez limitów (nikt ich nie zmieniał), bez wymagań — od razu pusty formularz · ustawienia audytu domyślne, bez podpisu",
     criteria: emptyCriteria,
     auditSettings: defaultAuditSettings,
+    ingestion: directWithFallbackIngestion,
   },
   {
     state: "partial",
@@ -63,6 +72,7 @@ const states: State[] = [
       "Częściowe limity (zmieniłeś Ty) · formularz limitów z błędem serwera · bez własnych wymagań · ustawienia audytu zmienione przez Ciebie",
     criteria: partialCriteria,
     auditSettings: selfAuditSettings,
+    ingestion: directWithFallbackIngestion,
     serverError: "Nie udało się zapisać limitów. Spróbuj ponownie.",
     serverErrorFor: "limits",
   },
@@ -71,18 +81,21 @@ const states: State[] = [
     caption: "Limity i ustawienia audytu zmienione przez osobę z usuniętym kontem · nikt inny nie wpisał wymagań",
     criteria: deletedSaverCriteria,
     auditSettings: deletedSaverAuditSettings,
+    ingestion: directWithFallbackIngestion,
   },
   {
     state: "unknown-author",
     caption: "Autor nieustalony: limity, cudze wymagania i ustawienia audytu nie nazywają nikogo",
     criteria: unknownAuthorCriteria,
     auditSettings: unknownAuthorAuditSettings,
+    ingestion: directWithFallbackIngestion,
   },
   {
     state: "error",
     caption: "Błąd odczytu kryteriów po nieudanym zapisie: bez formularzy kryteriów · ustawienia audytu odczytane",
     criteria: failedCriteria,
     auditSettings: defaultAuditSettings,
+    ingestion: directWithFallbackIngestion,
     serverError: "Nie udało się zapisać wymagań. Spróbuj ponownie.",
     serverErrorFor: "requirements",
   },
@@ -92,6 +105,7 @@ const states: State[] = [
       "Długa nazwa miasta, długi adres, długie słowo i akapity · własne wymagania w edycji z błędem serwera · długi adres w podpisie ustawień audytu",
     criteria: longCriteria,
     auditSettings: longEmailAuditSettings,
+    ingestion: directWithFallbackIngestion,
     serverError: "Nie udało się zapisać wymagań. Spróbuj ponownie.",
     serverErrorFor: "requirements",
     startEditing: true,
@@ -101,6 +115,7 @@ const states: State[] = [
     caption: "Ustawienia audytu: komunikat serwera nad formularzem po nieudanym zapisie",
     criteria: fullCriteria,
     auditSettings: memberAuditSettings,
+    ingestion: directWithFallbackIngestion,
     serverError: "Nie udało się zapisać ustawień audytu. Spróbuj ponownie.",
     serverErrorFor: "audit",
   },
@@ -109,8 +124,44 @@ const states: State[] = [
     caption: "Ustawienia audytu: nieudany odczyt po nieudanym zapisie — bez formularza i bez wartości domyślnych",
     criteria: fullCriteria,
     auditSettings: failedAuditSettings,
+    ingestion: directWithFallbackIngestion,
     serverError: "Nie udało się zapisać ustawień audytu. Spróbuj ponownie.",
     serverErrorFor: "audit",
+  },
+  {
+    state: "ingestion-direct-with-fallback",
+    caption: "Tryb pobierania: najpierw bezpośrednio, potem Apify — token jest, działa ustawiony tryb",
+    criteria: fullCriteria,
+    auditSettings: memberAuditSettings,
+    ingestion: directWithFallbackIngestion,
+  },
+  {
+    state: "ingestion-apify-only",
+    caption: "Tryb pobierania: tylko Apify — token jest, działa ustawiony tryb",
+    criteria: fullCriteria,
+    auditSettings: memberAuditSettings,
+    ingestion: apifyOnlyIngestion,
+  },
+  {
+    state: "ingestion-direct-only",
+    caption: "Tryb pobierania: tylko bezpośrednio (wyłącznik) — bez dopisku, nawet bez tokenu",
+    criteria: fullCriteria,
+    auditSettings: memberAuditSettings,
+    ingestion: directOnlyIngestion,
+  },
+  {
+    state: "ingestion-unconfigured",
+    caption: "Tryb pobierania: ustawiony inny niż działający — brak tokenu Apify, działa tylko bezpośrednio",
+    criteria: fullCriteria,
+    auditSettings: memberAuditSettings,
+    ingestion: unconfiguredIngestion,
+  },
+  {
+    state: "ingestion-read-error",
+    caption: "Tryb pobierania: nieudany odczyt — bez nazwy trybu, pobieranie tylko bezpośrednio",
+    criteria: fullCriteria,
+    auditSettings: memberAuditSettings,
+    ingestion: failedIngestion,
   },
 ];
 
@@ -135,6 +186,7 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
         <CriteriaView
           criteria={state.criteria}
           auditSettings={state.auditSettings}
+          ingestion={state.ingestion}
           serverError={state.serverError}
           serverErrorFor={state.serverErrorFor}
           startEditing={state.startEditing}

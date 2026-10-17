@@ -951,21 +951,21 @@ The migration must be pushed before the Worker that reads the table is deployed.
 
 #### Automated
 
-- [x] 4.1 Unit and route tests pass: `npm test`
-- [x] 4.2 Lint passes: `npm run lint`
-- [x] 4.3 Types check: `npx astro sync && npx astro check`
-- [x] 4.4 Build passes with no secrets: `npm run build`
-- [x] 4.5 No "45" deadline literal is left: `! grep -rnE --exclude=deadlines.ts --exclude=deadlines.test.ts '\b45( sekund|_000| s([^a-z]|$))' src scripts/otodom-inspect.mjs tests` (the deadlines module and its test keep `45_000` as the floor they pin)
+- [x] 4.1 Unit and route tests pass: `npm test` — dd9a0a1
+- [x] 4.2 Lint passes: `npm run lint` — dd9a0a1
+- [x] 4.3 Types check: `npx astro sync && npx astro check` — dd9a0a1
+- [x] 4.4 Build passes with no secrets: `npm run build` — dd9a0a1
+- [x] 4.5 No "45" deadline literal is left: `! grep -rnE --exclude=deadlines.ts --exclude=deadlines.test.ts '\b45( sekund|_000| s([^a-z]|$))' src scripts/otodom-inspect.mjs tests` (the deadlines module and its test keep `45_000` as the floor they pin) — dd9a0a1
 
 ### Phase 5: The mode on `/criteria`
 
 #### Automated
 
-- [ ] 5.1 Render and unit tests pass: `npm test`
-- [ ] 5.2 Lint passes, including `tokensOnlyConfig`: `npm run lint`
-- [ ] 5.3 Types check: `npx astro sync && npx astro check`
-- [ ] 5.4 Build passes: `npm run build`
-- [ ] 5.5 Smoke script parses: `node --check scripts/smoke.mjs`
+- [x] 5.1 Render and unit tests pass: `npm test`
+- [x] 5.2 Lint passes, including `tokensOnlyConfig`: `npm run lint`
+- [x] 5.3 Types check: `npx astro sync && npx astro check`
+- [x] 5.4 Build passes: `npm run build`
+- [x] 5.5 Smoke script parses: `node --check scripts/smoke.mjs`
 
 #### Manual
 

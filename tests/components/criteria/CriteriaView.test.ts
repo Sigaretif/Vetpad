@@ -5,6 +5,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import CriteriaView from "@/components/criteria/CriteriaView.astro";
 import type { AuditSettingsResult } from "@/lib/audit/settings";
 import type { CriteriaResult } from "@/lib/criteria";
+import type { ResolvedIngestionMode } from "@/lib/ingestion-settings";
 
 // The audit settings section of /criteria, rendered through the Container API. Expected outcomes
 // are written by hand from the view's contract in context/changes/grounded-listing-audit/plan.md
@@ -43,6 +44,14 @@ const CHOSEN: AuditSettingsResult = {
 };
 const SETTINGS_FAILED: AuditSettingsResult = { state: "error" };
 
+/** The seeded mode without a token: what smoke reads in CI, and the default of `view()`. */
+const INGESTION_UNCONFIGURED: ResolvedIngestionMode = {
+  configured: "direct_with_fallback",
+  effective: "direct_only",
+  reason: "apify_unconfigured",
+  read: "ok",
+};
+
 let container: AstroContainer;
 
 beforeAll(async () => {
@@ -53,6 +62,7 @@ beforeAll(async () => {
 interface ViewProps {
   criteria?: CriteriaResult;
   auditSettings: AuditSettingsResult;
+  ingestion?: ResolvedIngestionMode;
   serverError?: string;
   serverErrorFor?: "limits" | "requirements" | "audit";
 }
@@ -62,12 +72,12 @@ interface ViewProps {
  * carries its props serialised for hydration — the server error among them — so the tags'
  * attributes are dropped: a message is counted where a member reads it, not where it is stored.
  */
-async function view({ criteria = CRITERIA, ...props }: ViewProps): Promise<string> {
-  const html = await container.renderToString(CriteriaView, { props: { criteria, ...props } });
+async function view({ criteria = CRITERIA, ingestion = INGESTION_UNCONFIGURED, ...props }: ViewProps): Promise<string> {
+  const html = await container.renderToString(CriteriaView, { props: { criteria, ingestion, ...props } });
   return html.replace(/<astro-island\b[^>]*>/g, "<astro-island>");
 }
 
-/** The audit settings section alone: from its opening tag to its closing one. It is the view's last section. */
+/** The audit settings section alone: from its opening tag to its closing one. */
 function auditSection(html: string): string {
   const start = html.indexOf('<section id="audyt"');
   if (start === -1) throw new Error("expected the view to render the audit settings section");
@@ -259,5 +269,131 @@ describe("CriteriaView: who last changed the audit settings", () => {
     expect(section).toContain("6 października 2026");
     expect(section).not.toContain("przez");
     expect(section).not.toContain("usuniętym kontem");
+  });
+});
+
+// The ingestion mode section (FR-004, FR-009), read-only. Expected outcomes are written by hand
+// from context/changes/otodom-apify-fallback/plan.md (Phase 5): `data-ingestion-settings-state`
+// is ok or error, `data-ingestion-mode` names the configured mode only after a successful read,
+// `data-ingestion-mode-effective` names the mode that runs, and a failed read is never shown as a
+// mode — it says the listings are fetched directly only.
+
+const MODE_READ_FAILED = "Nie udało się odczytać trybu pobierania — aplikacja pobiera ogłoszenia tylko bezpośrednio.";
+const ADMIN_CHANGES = "Tryb zmienia administrator bazy w Supabase.";
+const RUNS_WITHOUT_TOKEN = "Obecnie działa: tylko bezpośrednio — brak klucza Apify";
+const MODE_LABELS = ["najpierw bezpośrednio, potem Apify", "tylko Apify", "tylko bezpośrednio"];
+
+function resolved(mode: "direct_with_fallback" | "apify_only" | "direct_only"): ResolvedIngestionMode {
+  return { configured: mode, effective: mode, reason: null, read: "ok" };
+}
+
+const INGESTION_FAILED: ResolvedIngestionMode = {
+  configured: null,
+  effective: "direct_only",
+  reason: "mode_read_failed",
+  read: "error",
+};
+
+/** The ingestion section alone: from its opening tag to its closing one. It is the view's last section. */
+function ingestionSection(html: string): string {
+  const start = html.indexOf('<section id="pobieranie"');
+  if (start === -1) throw new Error("expected the view to render the ingestion section");
+  const end = html.indexOf("</section>", start);
+  if (end === -1) throw new Error("expected the ingestion section to be closed");
+  return html.slice(start, end);
+}
+
+describe("CriteriaView: the ingestion mode after a successful read (FR-004, FR-009)", () => {
+  it.each([
+    ["direct_with_fallback", "najpierw bezpośrednio, potem Apify"],
+    ["apify_only", "tylko Apify"],
+    ["direct_only", "tylko bezpośrednio"],
+  ] as const)("shows %s by its label, as configured and as effective", async (mode, label) => {
+    const section = ingestionSection(await view({ auditSettings: CHOSEN, ingestion: resolved(mode) }));
+
+    expect(section).toContain('data-criteria-section="ingestion"');
+    expect(section).toContain('data-ingestion-settings-state="ok"');
+    expect(section).toContain(`data-ingestion-mode="${mode}"`);
+    expect(section).toContain(`data-ingestion-mode-effective="${mode}"`);
+    expect(section).toContain(`>${label}</dd>`);
+    expect(section).toContain(ADMIN_CHANGES);
+    expect(section).not.toContain("Obecnie działa");
+    expect(section).not.toContain(MODE_READ_FAILED);
+  });
+
+  it("renders no form: the mode is changed in Supabase, not here", async () => {
+    const section = ingestionSection(await view({ auditSettings: CHOSEN, ingestion: resolved("apify_only") }));
+
+    expect(section).not.toContain("<form");
+    expect(section).not.toContain("<input");
+    expect(section).not.toContain('role="combobox"');
+  });
+
+  it("says what runs instead when the configured mode needs the missing Apify key", async () => {
+    const section = ingestionSection(await view({ auditSettings: CHOSEN, ingestion: INGESTION_UNCONFIGURED }));
+
+    expect(section).toContain('data-ingestion-settings-state="ok"');
+    expect(section).toContain('data-ingestion-mode="direct_with_fallback"');
+    expect(section).toContain('data-ingestion-mode-effective="direct_only"');
+    expect(section).toContain(">najpierw bezpośrednio, potem Apify</dd>");
+    expect(section).toContain(RUNS_WITHOUT_TOKEN);
+  });
+
+  it("control: the same mode with a key says nothing about a missing one", async () => {
+    const section = ingestionSection(
+      await view({ auditSettings: CHOSEN, ingestion: resolved("direct_with_fallback") }),
+    );
+
+    expect(section).not.toContain(RUNS_WITHOUT_TOKEN);
+    expect(section).not.toContain("brak klucza Apify");
+  });
+
+  it("renders the section whatever the criteria and the audit settings reads did", async () => {
+    const html = await view({
+      criteria: CRITERIA_FAILED,
+      auditSettings: SETTINGS_FAILED,
+      ingestion: resolved("apify_only"),
+    });
+    const section = ingestionSection(html);
+
+    expect(html).toContain('data-criteria-state="error"');
+    expect(html).toContain('data-audit-settings-state="error"');
+    expect(section).toContain('data-ingestion-settings-state="ok"');
+    expect(section).not.toContain(CRITERIA_READ_FAILED);
+    expect(section).not.toContain(READ_FAILED);
+  });
+});
+
+describe("CriteriaView: a failed read of the ingestion mode is never shown as a mode", () => {
+  it("control: a successful read names the mode and shows no read error", async () => {
+    const section = ingestionSection(
+      await view({ auditSettings: CHOSEN, ingestion: resolved("direct_with_fallback") }),
+    );
+
+    expect(section).toContain('data-ingestion-mode="direct_with_fallback"');
+    expect(section).not.toContain(MODE_READ_FAILED);
+  });
+
+  it("marks the section error, names no mode, and says listings are fetched directly only", async () => {
+    const section = ingestionSection(await view({ auditSettings: CHOSEN, ingestion: INGESTION_FAILED }));
+
+    expect(section).toContain('data-ingestion-settings-state="error"');
+    expect(section).not.toContain("data-ingestion-mode=");
+    expect(section).toContain('data-ingestion-mode-effective="direct_only"');
+    expect(section).toContain(MODE_READ_FAILED);
+    expect(section).toContain(ADMIN_CHANGES);
+    expect(section).not.toContain("<dd");
+    expect(section).not.toContain("Obecnie działa");
+    for (const label of MODE_LABELS.filter((l) => l !== "tylko bezpośrednio")) {
+      expect(section).not.toContain(label);
+    }
+  });
+
+  it("leaves the other sections in place when only the mode read failed", async () => {
+    const html = await view({ auditSettings: CHOSEN, ingestion: INGESTION_FAILED });
+
+    expect(html).toContain('data-criteria-state="ok"');
+    expect(html).toContain('data-audit-settings-state="ok"');
+    expect(auditSection(html)).not.toContain(MODE_READ_FAILED);
   });
 });

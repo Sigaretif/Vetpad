@@ -1,4 +1,4 @@
-// Criteria and audit settings for the /dev/criteria kitchen sink (and the limits, requirements
+// Criteria, audit settings and the ingestion mode for the /dev/criteria kitchen sink (and the limits, requirements
 // and audit settings columns of /dev/forms): one per named state of the view, so the visual gate
 // renders without Supabase (zero-config). The `_` prefix keeps this file out of routing. Savers come from the offer
 // fixtures — `example.com` addresses that name a role, never a person — and requirements talk
@@ -6,6 +6,7 @@
 
 import { DEFAULT_AUDIT_SETTINGS, type AuditSettingsResult } from "@/lib/audit/settings";
 import type { CriteriaResult, RequirementsView, TeamLimits } from "@/lib/criteria";
+import type { ResolvedIngestionMode } from "@/lib/ingestion-settings";
 import type { Saver } from "@/lib/members";
 import { deletedSaver, longEmailSaver, memberSaver, selfSaver, unknownSaver } from "@/pages/dev/_offer-fixtures";
 
@@ -202,3 +203,46 @@ export const longEmailAuditSettings: AuditSettingsResult = {
 
 /** A failed read: the section renders no form, and never the defaults. */
 export const failedAuditSettings: AuditSettingsResult = { state: "error" };
+
+// The ingestion mode as `resolveIngestionMode` hands it to the view: the configured mode, the one
+// that runs, why they differ, and how the read ended.
+
+/** The seeded mode with a token: fetched directly, Apify only when the direct fetch is refused. */
+export const directWithFallbackIngestion: ResolvedIngestionMode = {
+  configured: "direct_with_fallback",
+  effective: "direct_with_fallback",
+  reason: null,
+  read: "ok",
+};
+
+/** Apify only, with a token: no direct request. */
+export const apifyOnlyIngestion: ResolvedIngestionMode = {
+  configured: "apify_only",
+  effective: "apify_only",
+  reason: null,
+  read: "ok",
+};
+
+/** The kill switch: direct only, whatever the token. */
+export const directOnlyIngestion: ResolvedIngestionMode = {
+  configured: "direct_only",
+  effective: "direct_only",
+  reason: null,
+  read: "ok",
+};
+
+/** The seeded mode without a token (the zero-config state): it runs as direct only, and says why. */
+export const unconfiguredIngestion: ResolvedIngestionMode = {
+  configured: "direct_with_fallback",
+  effective: "direct_only",
+  reason: "apify_unconfigured",
+  read: "ok",
+};
+
+/** A failed read: no mode is named, and the listings are fetched directly only. */
+export const failedIngestion: ResolvedIngestionMode = {
+  configured: null,
+  effective: "direct_only",
+  reason: "mode_read_failed",
+  read: "error",
+};

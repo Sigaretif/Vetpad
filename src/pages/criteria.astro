@@ -2,19 +2,25 @@
 import AppLayout from "@/layouts/AppLayout.astro";
 import CriteriaView from "@/components/criteria/CriteriaView.astro";
 import { loadAuditSettings } from "@/lib/audit/settings";
+import { isApifyAvailable } from "@/lib/config-status";
 import { loadCriteria } from "@/lib/criteria";
+import { loadIngestionSettings, resolveIngestionMode } from "@/lib/ingestion-settings";
 import { createClient } from "@/lib/supabase";
 
-// `null` when Supabase is unconfigured: loadCriteria and loadAuditSettings then answer
-// `{ state: "error" }`, which renders the error states without forms — never a 500 (the
-// zero-config rule). Two independent reads, sent together: neither waits for the other, and a
-// failure of one does not hide what the other read.
+// `null` when Supabase is unconfigured: loadCriteria, loadAuditSettings and loadIngestionSettings
+// then answer `{ state: "error" }`, which renders the error states without forms — never a 500
+// (the zero-config rule). Three independent reads, sent together: none waits for another, and a
+// failure of one does not hide what the others read.
 const supabase = createClient(Astro.request.headers, Astro.cookies);
 const viewerId = Astro.locals.user?.id;
-const [criteria, auditSettings] = await Promise.all([
+const [criteria, auditSettings, ingestionSettings] = await Promise.all([
   loadCriteria(supabase, viewerId),
   loadAuditSettings(supabase, viewerId),
+  loadIngestionSettings(supabase),
 ]);
+// The mode the routes would run, by the same rule they use. The page asks config-status whether a
+// token is set and never imports the Apify module, which holds the token.
+const ingestion = resolveIngestionMode(ingestionSettings, isApifyAvailable());
 
 // POST /api/criteria, POST /api/requirements and POST /api/audit-settings redirect here with
 // `?error=` and `&form=` naming the form it belongs to. Rendered as text, never as HTML.
@@ -29,6 +35,7 @@ const serverErrorFor = form === "limits" || form === "requirements" || form === 
   <CriteriaView
     criteria={criteria}
     auditSettings={auditSettings}
+    ingestion={ingestion}
     serverError={serverError}
     serverErrorFor={serverErrorFor}
   />
