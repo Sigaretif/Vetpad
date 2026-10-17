@@ -1,430 +1,345 @@
 # Fetching Otodom offers through Apify
 
 Companion to `otodom_fetching.md`. That document describes talking to Otodom
-directly. This one describes the third-party route: paying Apify to run a
-community scraper and calling it as an HTTP API.
+directly. This one describes the route Vetpad uses beside it: one run of Apify's
+generic `apify/cheerio-scraper`, with our own `pageFunction`, called as an HTTP API
+from the Worker. It is the fallback the user adopted on 2026-10-17 (change
+`otodom-apify-fallback`), and it is code in the repository, not a recipe:
 
-Everything marked **verified** was executed live on **2026-09-19** against the
-production Apify API with a real token, and the output was diffed field by field
-against Otodom's own `__NEXT_DATA__` for the same offer. Everything marked
-**unverified** is the actor author's documentation, which was wrong twice in this
-very session - see section 4.
+- `src/lib/otodom/apify-request.ts` — the actor, the run's parameters, the whitelists,
+  the `pageFunction`, the request (`buildApifyRequest`) and the reading of the answer
+  (`readApifyAnswer`);
+- `src/lib/otodom/apify.ts` — the token and the one request (`createApifyLeg`);
+- `src/lib/otodom/index.ts` — when a run follows a direct fetch (`FALLBACK_TRIGGERS`)
+  and which reason the member reads (`chooseOutcome`);
+- `src/lib/ingestion-settings.ts` and `public.ingestion_settings` — the mode.
+
+Everything marked **verified** was executed live: the actor comparison in the paid
+spike of 2026-10-17 (`context/changes/otodom-apify-fallback/spike-apify.md`), and the
+committed request module in that change's Phase 3
+(`context/changes/otodom-apify-fallback/live-verification.md`). Section 10 is the log.
+Everything marked **unverified** is Apify's documentation or a plausible name nobody
+has seen yet.
 
 ---
 
-## 1. When this route is the right choice
+## 1. When this route runs
 
-Use Apify when **any** of these is true:
+The ingestion mode — the one row of `public.ingestion_settings`, changed only by the
+owner in Supabase Studio — decides:
 
-- You are deploying to a runtime that cannot control its TLS stack, which makes
-  direct scraping impossible for the target. Cloudflare Workers is exactly this
-  case for OLX. See `otodom_fetching.md` section 9.1.
-- Your egress IP is a datacenter range and the target blocks it.
-- You do not want to own the maintenance of a scraper: `buildId` rotation,
-  markup changes, redirect handling.
+| `mode`                          | What runs                                                                                                                                                  |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `direct_with_fallback` (seeded) | The direct fetch (`otodom_fetching.md` 7.1) with a 20 s deadline; after `challenged`, `http_denied`, `timeout`, `network` or `data_missing`, one Apify run |
+| `apify_only`                    | One Apify run and no request of our own to otodom                                                                                                          |
+| `direct_only`                   | The direct fetch alone, with the whole 60 s — the kill switch                                                                                              |
 
-Do **not** use it when:
+Without `APIFY_TOKEN`, or when the row cannot be read, every mode runs as
+`direct_only`. The deadlines and their order are in `src/lib/otodom/deadlines.ts`.
 
-- You can reach the site directly and are willing to maintain ~15 lines of code.
-  `otodom_fetching.md` section 7.1 is verified, faster (~0.6 s against ~8.5 s),
-  and returns Otodom's full 62-field object rather than a 50-field projection.
-- You need a hard, unambiguous error when an offer is gone. Apify reports a
-  missing offer with **HTTP 201 and a fake result** (section 5).
+No run follows a listing that is gone (`not_found`, `expired`), an outage of the
+portal (`upstream_error`), a landing nobody has seen (`unexpected_landing`) or a
+changed page (`shape_changed`): Apify reads the same page and would only pay to learn
+the same. A refused address, or a listing the FR-005 gate refuses, never reaches the
+fetch at all.
 
 ### 1.1 What Apify is and is not
 
-Apify is **not** an Otodom API and has no relationship with Otodom. It is a
-marketplace hosting scrapers written by third parties. Choosing it does not
-improve your legal position: you are paying someone else to send the same
-requests. Otodom's terms of service do not distinguish which process issued them.
-
-It is arguably slightly worse in one respect: advertiser phone numbers pass
-through Apify's infrastructure before reaching you (section 6), which puts a
-processor in your data chain that self-hosting avoids.
+Apify is **not** an Otodom API and has no relationship with Otodom. It is a platform
+that runs crawlers, ours included. Choosing it does not improve the legal position:
+the same offer page is requested, from a residential IP instead of Cloudflare's.
+Vetpad still requests only `/pl/oferta/…` pages, which `robots.txt` allows
+(`otodom_fetching.md` section 1), one page per run.
 
 ---
 
-## 2. Actor selection
+## 2. Actor selection — verified 2026-10-17
 
-Over twenty Otodom actors exist in Apify Store; most have 2-8 users and look like
-mass-generated listings. The one verified here:
+|               |                                                                        |
+| ------------- | ---------------------------------------------------------------------- |
+| Actor         | `apify/cheerio-scraper` (maintained by Apify)                          |
+| Actor ID      | `YrQuEkowkNCLdk4j2` (`APIFY_ACTOR_ID`)                                 |
+| What it does  | fetches each start URL and runs our `pageFunction` on it, with Cheerio |
+| Pricing model | platform usage (compute units plus proxy traffic), not per result      |
 
-|                        |                                        |
-| ---------------------- | -------------------------------------- |
-| Actor                  | `trev0n/otodom-scraper`                |
-| Actor ID               | `ir34sMIv8mrbL0ojO`                    |
-| Title                  | Otodom.pl Scraper \| 2$/1k             |
-| Pricing model          | `PAY_PER_EVENT`, $2.00 / 1,000 results |
-| Users / monthly active | 127 / 39                               |
-| Reviews                | **none (0.0)**                         |
-| Versions               | one (`1.0`)                            |
+The `pageFunction` returns otodom's own `props.pageProps.ad`, narrowed inside Apify,
+together with the HTTP status and the landed URL. The Worker therefore receives the
+same `ad` the direct path gets, and runs the same classifier
+(`classifyAnswer`/`classifyPayload` in `src/lib/otodom/fetch.ts`) and the same
+`mapAdToOffer` on it. There is no second mapper.
 
-Selection criteria worth re-applying before trusting any replacement: it accepts
-detail-page URLs, it was modified recently, it has a non-trivial monthly active
-user count, and its pricing model is pay-per-event rather than rental. Rental
-actors require a paid Apify plan after the trial; pay-per-event ones draw on the
-free monthly credit.
+### 2.1 Rejected: `trev0n/otodom-scraper`
 
-**Abandonment is the expected failure mode.** One maintainer, one version, no
-reviews. Keep the field mapping in section 6 so you can migrate to another actor
-or to direct fetching without re-deriving it.
+Verified on 2026-09-19 and again in the 2026-10-17 spike, and rejected:
+
+- **No key carries the transaction or the property type** (otodom's `adCategory` is
+  not passed on), so the FR-005 flat-sale gate has no input.
+- **An expired listing comes back as a success**: HTTP 201, one item with a truthy
+  `id`, a price and an area, and `"***"` in the description and the street — otodom
+  masks an expired listing that way. A filter on a truthy `id` does not catch it, so
+  the fallback would save a gutted offer, which the PRD forbids.
+- A missing offer also came back as HTTP 201 with the 404 page's title (2026-09-19),
+  and the output changed between the two verifications (a sentinel record gone, the
+  advertiser's account id added). One maintainer, one version, no reviews.
+- It returns `sellerPhone` and `agencyName` — a private seller's phone and name — with
+  no input flag to suppress them.
+
+`abotapi/otodom-pl-scraper` and `dadhalfdev/otodom-scraper` were read (README only):
+both take search-result URLs, not a single offer page.
 
 ---
 
-## 3. Authentication and token scope
+## 3. Authentication, token scope and the one-time approval — verified
 
-Token page: `https://console.apify.com/settings/integrations`
-(**Settings -> API & Integrations** in Apify Console).
-
-Pass it in the header, not the query string; query parameters end up in logs:
+Token page: Apify Console → **Settings → API & Integrations**. The token travels in
+the header only, never in the query string, which ends up in logs:
 
 ```
 Authorization: Bearer apify_api_...
 ```
 
-### 3.1 Scoping, and the trap in it
+The production token is scoped (**Limit token permissions** on):
 
-Apify supports _scoped_ tokens via the **Limit token permissions** toggle. For
-running a third-party Store actor the useful configuration is:
+- **Resource-specific permissions → Actor** `YrQuEkowkNCLdk4j2`, permission **Run**.
+  The form wants the technical ID, not `apify/cheerio-scraper`.
+- **Actor execution: Full access.** It governs the short-lived token Apify injects
+  _into_ the run, not ours. Under _Restricted access_ the actor fails with
+  `insufficient permissions`.
+- **Default run storages access: ON.** `run-sync-get-dataset-items` reads the dataset
+  the run produced.
 
-- **Resource-specific permissions -> Actor**, ID `ir34sMIv8mrbL0ojO`,
-  permission **Run**. The form wants the technical ID; `trev0n/otodom-scraper`
-  is not accepted there.
-- **Actor execution: Full access.** Counter-intuitive but correct. This governs
-  the short-lived token Apify injects _into_ the run, not yours. Under
-  _Restricted access_ the actor may fail with `insufficient permissions` because
-  it cannot reach its own default storages.
-- **Default run storages access: ON.** Mandatory.
-  `run-sync-get-dataset-items` reads the dataset the run produced; with this
-  off, the call fails.
+A scoped token cannot list runs or read `GET /v2/users/me` (`insufficient-permissions`);
+that is not a broken token. Run logs and per-run cost are read in Console → **Runs**.
 
-**Verified diagnostics for a token that does not work.** The error messages are
-ambiguous, so distinguish them by `error.type`:
+**The one-time full-permission approval.** cheerio-scraper runs user-supplied code,
+so Apify classes it as a full-permission actor. Before its first run the account
+owner approves it once at
+`https://console.apify.com/actors/YrQuEkowkNCLdk4j2?approvePermissions=true`; until
+then every run answers 403 `full-permission-actor-not-approved`. The approval gives
+the run's injected token full account access while our `pageFunction` runs — which is
+why the `pageFunction` is a fixed string in the repository, reviewed like code and
+never built from input. Done by the user on 2026-10-17.
 
-| Situation                       | HTTP    | `error.type`                   |
-| ------------------------------- | ------- | ------------------------------ |
-| Malformed / nonexistent token   | 401     | `user-or-token-not-found`      |
-| No token supplied               | 401     | `token-not-provided`           |
-| Valid token, insufficient scope | **403** | **`insufficient-permissions`** |
+Diagnostics for a token that does not work, by `error.type` (the message is never
+read, see section 9):
 
-A 403 with `insufficient-permissions` means the token authenticates correctly and
-the scope is wrong. Do not go looking for a typo in the token.
-
-Note that a scoped token with only **Run** cannot read `GET /v2/users/me`; that
-is a separate permission and its 403 is **not** a sign of a broken token. Test
-scope by attempting the actual run, not by reading the profile.
-
-If scoping fights you, disable **Limit token permissions**, run once, delete the
-token. For the production token, scope it properly.
+| Situation                           | HTTP    | `error.type`                         |
+| ----------------------------------- | ------- | ------------------------------------ |
+| Malformed, unknown or revoked token | 401     | `user-or-token-not-found`            |
+| No token supplied                   | 401     | `token-not-provided`                 |
+| Valid token, insufficient scope     | **403** | **`insufficient-permissions`**       |
+| Actor never approved                | 403     | `full-permission-actor-not-approved` |
 
 ---
 
-## 4. The request
+## 4. The request — verified
+
+`buildApifyRequest(normalizedUrl)` in `src/lib/otodom/apify-request.ts` is the one
+definition; this is what it builds.
 
 ```
-POST https://api.apify.com/v2/acts/trev0n~otodom-scraper/run-sync-get-dataset-items
+POST https://api.apify.com/v2/acts/YrQuEkowkNCLdk4j2/run-sync-get-dataset-items
+     ?maxTotalChargeUsd=0.05&timeout=30&memory=1024
+Authorization: Bearer <APIFY_TOKEN>
+{ "startUrls": [{ "url": "<normalised offer URL>" }],
+  "pageFunction": "<APIFY_PAGE_FUNCTION>",
+  "proxyConfiguration": { "useApifyProxy": true, "apifyProxyGroups": ["RESIDENTIAL"], "apifyProxyCountry": "PL" },
+  "maxRequestsPerCrawl": 1, "maxRequestRetries": 1, "maxConcurrency": 1 }
 ```
 
-Note `acts` in the path (`actors` also works). Tilde separates owner and name.
+- The start URL is the only part that varies, and it is always the output of
+  `normalizeOfferUrl`.
+- `maxTotalChargeUsd=0.05` caps one run's cost — a 25× margin over the observed
+  cost (section 7).
+- `timeout=30` (`APIFY_RUN_TIMEOUT_S`) makes Apify end the run, and answer, before the
+  Worker stops waiting after 40 s (`APIFY_CLIENT_DEADLINE_MS`).
+- `run-sync-get-dataset-items` returns no run id, so none is logged.
+- The Worker makes exactly one request per run and never retries it; a member's retry
+  is a new deliberate action.
 
-### 4.1 `startUrls` takes objects, not strings - verified
+### 4.1 The `pageFunction`
 
-The actor's README shows plain strings. **That is wrong.** Strings produce:
+`APIFY_PAGE_FUNCTION` is assembled once, at module load, from the exported lists
+`APIFY_AD_KEYS`, `APIFY_LOCATION_KEYS` and `APIFY_TARGET_KEYS` — one whitelist, not a
+list in code plus a copy in a string. It:
 
-```json
-{
-  "error": {
-    "type": "invalid-input",
-    "message": "Input is not valid: Items in input.startUrls at positions [0] do not contain valid URLs"
-  }
-}
-```
+- reads `script#__NEXT_DATA__`, parses it and takes `props.pageProps.ad`;
+- copies only the whitelisted keys of `ad`, of `ad.location` and of `ad.target`;
+- returns `{requestedUrl, loadedUrl, status, markerPresent, parseError,
+pagePropsPresent, pagePropsExpired, ad}`. The status is `response.status` — the
+  crawler's `response` has `status` and `headers`, not `statusCode` (verified).
+  `pagePropsPresent` keeps a missing `pageProps` apart from a missing ad.
 
-Correct body:
-
-```json
-{
-  "startUrls": [{ "url": "https://www.otodom.pl/pl/oferta/kawalerka-przy-metrze-szwedzka-ID4Da0W" }],
-  "extractDetails": true,
-  "maxItems": 1
-}
-```
-
-Verified: **HTTP 201**, 8.3 s, 6,648 bytes.
-
-### 4.2 Useful query parameters
-
-| Parameter                     | Why                                                                                      |
-| ----------------------------- | ---------------------------------------------------------------------------------------- |
-| `maxTotalChargeUsd=0.05`      | Hard cost ceiling per run. Always set it.                                                |
-| `timeout=<s>`                 | Caps the run itself.                                                                     |
-| `fields=a,b,c`                | Server-side projection - a clean way to drop personal-data fields before they reach you. |
-| `omit=sellerPhone,agencyName` | The inverse. See section 6.                                                              |
-
-`maxItems` does **not** limit how many items come back. Per Apify's docs it
-limits only what you are **charged** for on pay-per-result actors. Verified: with
-`maxItems: 1` the response still contained 2 items (section 5).
-
-### 4.3 Reference implementation
-
-```python
-import os
-import requests
-
-APIFY_TOKEN = os.environ['APIFY_TOKEN']
-ACTOR = 'trev0n~otodom-scraper'
-ENDPOINT = f'https://api.apify.com/v2/acts/{ACTOR}/run-sync-get-dataset-items'
-
-
-def real_offers(items: list[dict]) -> list[dict]:
-    """Drop the actor's junk records. See section 5 - this is not optional."""
-    return [i for i in items
-            if i.get('id') and not i.get('noResults') and not i.get('_warning')]
-
-
-def fetch_offer_via_apify(url: str, timeout: int = 120) -> dict:
-    r = requests.post(
-        ENDPOINT,
-        params={'maxTotalChargeUsd': '0.05'},
-        headers={'Authorization': f'Bearer {APIFY_TOKEN}',
-                 'Content-Type': 'application/json'},
-        json={'startUrls': [{'url': url}],
-              'extractDetails': True,
-              'maxItems': 1},
-        timeout=timeout,
-    )
-    r.raise_for_status()
-    offers = real_offers(r.json())
-    if not offers:
-        raise LookupError(f'offer gone or unscrapable: {url}')
-    return offers[0]
-```
-
-Set the client timeout well above the observed 8.5 s. Apify itself returns
-**408** if the run exceeds **300 s**, so anything above that is pointless.
+The spike's first version turned a missing `pageProps` into "no ad" and accepted an
+array as an object; the committed version fixes both, and the Worker checks every
+field anyway (section 5).
 
 ---
 
-## 5. Two actor bugs you must handle - verified
+## 5. Reading the answer — verified
 
-### 5.1 A junk sentinel record accompanies every success
+`readApifyAnswer(httpStatus, json, requestedUrl)` is pure and reads the answer only
+through `isRecord` and type checks. Then the item goes through the same
+`classifyAnswer` and `classifyPayload` as a direct fetch.
 
-Requesting one detail URL returns **two** dataset items. The second:
+| Answer                                                                                 | Reading                                                                                                |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| non-2xx                                                                                | `apifyFailure: "http"`, `apifyStatus`, and `error.type` when it is a token; `error.message` never read |
+| 201 with `[]`                                                                          | `empty_dataset`                                                                                        |
+| 201 with an item `{"#error": true, "#debug": {…}}`                                     | `run_error`: Apify reached otodom and could not read the page — read as `http_denied`, no status       |
+| 201 with more than one item, a field of the wrong type, or an item for another address | `malformed_item`                                                                                       |
+| 201 with one well-formed item                                                          | the item's `status`, `loadedUrl`, marker and `ad` classified exactly like a direct fetch               |
 
-```json
-{
-  "noResults": true,
-  "source": "https://www.otodom.pl/pl/oferta/...-ID4Da0W",
-  "url": "https://www.otodom.pl/pl/oferta/...-ID4Da0W",
-  "reason": "No properties found - the requested URL/filters returned zero matches.",
-  "error": null,
-  "scrapedAt": "2026-09-19T19:52:41.581Z"
-}
-```
-
-The actor scrapes the detail page correctly, then also applies its
-"did the search yield results" check to the same URL. A detail page yields zero
-_search_ results, so it appends this record. It has 6 keys against the real
-record's 50.
-
-Consequence: `data[0]` works only by accident of ordering, and iterating the
-array feeds garbage into your pipeline. Always filter.
-
-### 5.2 A missing offer is reported as success
-
-A nonexistent offer URL returns **HTTP 201**, not an error:
-
-```json
-[
-  {
-    "title": "Strona błędu 404 | Otodom.pl",
-    "propertyUrl": "https://www.otodom.pl/pl/oferta/nie-ma-takiej-oferty-ID0X0X0",
-    "scrapedAt": "2026-09-19T19:54:01.457Z",
-    "_warning": "Could not extract structured data - only basic info available"
-  },
-  { "noResults": true, "...": "as in 5.1" }
-]
-```
-
-The actor swallows Otodom's 404 and hands you the error page's `<title>` as the
-offer title. There is no `id`, no `price`.
-
-This is a **regression against fetching Otodom directly**, where the same URL
-raises a clean `HTTPError 404`. A hard failure becomes a soft one, which is the
-classic way a cron job silently stops working.
-
-Detection: an item is a real offer only if `id` is truthy. `_warning` present or
-`noResults` true means failure. If `real_offers()` returns empty, treat it as
-404: mark the offer inactive locally, do not retry in a loop.
+- **Errors arrive as HTTP 201.** An `#error` item carries no `ad`, and its
+  `#debug.errorMessages` hold stack traces: it is a fetch failure, never data, and
+  `#debug` is never read into a result or a log.
+- **Datacenter proxies get 403 from otodom** (2 of 2 attempts in the spike, as
+  `#error` items after one retry). The fallback's trigger is exactly otodom refusing
+  a datacenter egress, so the run uses `RESIDENTIAL` in `PL`, through which an expired
+  listing's 410 reaches the `pageFunction` intact.
+- **A run that exceeds its `timeout=`** answers 400 `run-failed`, not 408 and not an
+  empty dataset (observed 2026-10-17). It is an Apify failure that did not reach
+  otodom.
+- An Apify leg that did not reach otodom leaves the direct reason to the member; in
+  `apify_only`, with no direct reason, the member reads `extraction_failed`
+  (`chooseOutcome` in `src/lib/otodom/index.ts`). A page without `__NEXT_DATA__` on
+  both legs keeps `data_missing` with `detail: "both_sources"`.
 
 ---
 
-## 6. Output schema and fidelity - verified
+## 6. Output and fidelity — verified
 
-50 keys in detail mode. Field-by-field diff against Otodom's own payload for the
-same offer, all **exact matches**:
+For two live listings (spike) and one more (Phase 3), every whitelisted key of the
+returned `ad` — `id, url, title, description, characteristics, features, adCategory,
+images, createdAt, modifiedAt, advertType, shouldShowExpiredAdPage`,
+`location.{coordinates, reverseGeocoding, address}`, `target.{OfferType, ProperType}`
+— is JSON-equal to a direct fetch of the same page, and the two `OfferInsert`s
+`mapAdToOffer` makes from them are deep-equal. Consequences:
 
-| Apify field    | Otodom source                         | Value                  |
-| -------------- | ------------------------------------- | ---------------------- |
-| `id`           | `ad.id`                               | `68438633`             |
-| `price`        | `characteristics.price`               | `450000`               |
-| `rentPrice`    | `characteristics.rent`                | `470`                  |
-| `area`         | `characteristics.m`                   | `25.3`                 |
-| `rooms`        | `characteristics.rooms_num`           | `1`                    |
-| `floor`        | `characteristics.floor_no`            | `floor_5`              |
-| `buildYear`    | `characteristics.build_year`          | `1975`                 |
-| `buildingType` | `characteristics.building_type`       | `block`                |
-| `condition`    | `characteristics.construction_status` | `ready_to_use`         |
-| `market`       | `ad.market` (lowercased)              | `secondary`            |
-| `latitude`     | `location.coordinates.latitude`       | `52.265083`            |
-| `dateCreated`  | `ad.createdAt`                        | `2026-09-19T18:25:16Z` |
-| `dateModified` | `ad.modifiedAt`                       | `2026-09-19T18:30:19Z` |
-| `description`  | `ad.description`                      | 701 chars, identical   |
-| `images`       | `ad.images`                           | 12, identical count    |
+- `listingFingerprint` does not move when the source changes, so an audit is not
+  flagged stale by a switch of the leg;
+- the lost-facts prompt of a re-fetch (FR-009) does not fire on a source switch;
+- no "not fetched" kind of unknown appears.
 
-**The actor passes Otodom's raw enum tokens through unchanged** (`floor_5`,
-`block`, `ready_to_use`, `secondary`). It does not invent its own vocabulary.
-This was the main risk with using a third-party scraper and it did not
-materialise: no silent mapping layer to audit.
+The item is 20–30 KB of JSON, against 530–560 KB of HTML on a direct fetch, so the
+Worker's CPU stays far below the direct path's.
 
-Fields observed `null` on this offer: `district`, `subdistrict`, `parkingType`,
-`elevator`. Do not assume presence.
+### 6.1 Personal data
 
-### 6.1 Personal data - act on this
-
-For a listing whose `sellerType` is `private`, the response contained:
-
-```
-sellerPhone : '+48 600 000 001'
-agencyName  : 'Kanarek Testowy'
-```
-
-Both values above are synthetic placeholders (the canaries in `tests/fixtures/otodom.ts`), substituted on 2026-09-30; the original response carried a real private seller's phone number and full name.
-
-A private individual's phone number and full name, the latter in a field called
-`agencyName`. There is no input flag to suppress them, and they traverse Apify's
-servers before reaching you.
-
-Mitigations, best first:
-
-1. Server-side projection so they never reach your runtime:
-   `?fields=id,title,price,area,rooms,floor,market,dateCreated,propertyUrl,mainImage`
-2. Or `?omit=sellerPhone,sellerPhones,agencyName,agencyUrl,agencyLicenseNumber`
-3. Strip them on receipt and never persist them.
-
-In Vetpad mitigation 1 is the one to use, and none of this is optional: `@CLAUDE.md`
-makes "the advertiser's phone number and name never reach the database" a rule, and
-`@context/foundation/prd.md` states it as a product property under Non-Functional
-Requirements. The projection keeps the data out of the Worker entirely, so there is
-nothing to strip and nothing to leak.
-
-See `otodom_fetching.md` section 1 for why. Note OLX is easier here: its
-`contact.phone` is a boolean.
-
-### 6.2 Fields to ignore
-
-`isPromoted`, `isPremium`, `isExclusiveOffer` are presentation flags. `scrapedAt`
-is the actor's clock, not Otodom's - never use it for freshness.
+The `pageFunction` never copies `owner`, `contactDetails` or `agency`, and narrows
+`target` to `OfferType`/`ProperType`, so the advertiser's phone, name and account id
+do not leave Apify; none appeared in any item, live or in the spike. `mapAdToOffer`'s
+own whitelist stays the second line of defence. `tests/fixtures/apify.ts` builds its
+items with the seller's data still in them, so the canary tests prove that second
+line on its own (`@CLAUDE.md`, Secrets and data access).
 
 ---
 
-## 7. Cost and latency - verified
+## 7. Cost and latency — verified
 
-|                             |                                                   |
-| --------------------------- | ------------------------------------------------- |
-| Latency per run             | **8.3 s and 8.5 s** across two runs               |
-| Charge                      | 1 result per run under `maxItems: 1`, i.e. $0.002 |
-| Two-run test total          | ~$0.004                                           |
-| Apify sync-endpoint ceiling | 300 s, then HTTP 408                              |
+|                           |                                                                                   |
+| ------------------------- | --------------------------------------------------------------------------------- |
+| Latency per run           | 2–9 s (`RESIDENTIAL`/`PL`: 5.4–6.9 s in the spike)                                |
+| Cost per run              | `RESIDENTIAL`/`PL` $0.001–0.002; datacenter $0.000–0.001 (Console → Runs → Usage) |
+| A failed run              | billed too (a 403-blocked datacenter run billed $0.001)                           |
+| A run past its `timeout=` | 400 `run-failed`; the 1 s run in Phase 3 was TIMED-OUT, $0.000                    |
+| Per 1,000 fallbacks       | roughly $1–2                                                                      |
+| Free plan                 | $5 of usage per month, no rollover; the platform is suspended once it is spent    |
 
-Container startup dominates the 8.5 s; the scrape itself is a fraction of it. Do
-not expect the ~0.6 s of a direct request.
-
-At one offer per day the monthly cost is ~$0.06, comfortably inside the free
-plan's monthly credit. Pay-per-event actors, unlike rental ones, do not require a
-paid plan.
+Container startup dominates the latency. Do not expect the ~0.6 s of a direct
+request: a fallback adds 5–9 s to the member's wait. Set a monthly usage limit in
+Console → Billing → Limits.
 
 ---
 
 ## 8. Calling this from Cloudflare Workers
 
-The call is an ordinary HTTPS POST to `api.apify.com`: no TLS tuning, no IP
-reputation concern, nothing a Worker cannot do. Platform limits and the two hard
-Workers constraints are tabulated in `otodom_fetching.md` section 9.1.
+The call is an ordinary HTTPS POST to `api.apify.com`. Waiting on `fetch()` costs no
+CPU time and HTTP-triggered Workers have no wall-time cap, so the synchronous endpoint
+fits one member's request; no async run, webhook or run id is used.
 
-At 8.5 s per run, the synchronous endpoint fits a Cron Trigger with a very large
-margin (15 min wall time, and `fetch()` waiting does not consume CPU time). The
-asynchronous pattern below is therefore optional - worth adopting if you batch
-many URLs per run, unnecessary for a handful.
-
-Store the token as a secret, never as a plain var:
+The token is a secret and follows the zero-config pattern (`@CLAUDE.md`): five places
+— the `astro.config.mjs` schema, `.env`, `.dev.vars`, `.env.example` and Workers
+Secrets — and never CI.
 
 ```bash
 npx wrangler secret put APIFY_TOKEN
 ```
 
-### 8.1 Optional: async plus webhook
-
-Removes any timeout question entirely.
-
-1. Cron Worker `POST`s to `/v2/acts/{actor}/runs` with the `webhooks` parameter
-   (Base64-encoded JSON array) pointing at a second Worker route. Returns in
-   ~200 ms.
-2. Apify calls that route when the run finishes.
-3. The receiving Worker reads the dataset and sends the digest.
-
-Caveat from Apify's docs: a webhook created with a **scoped** token is dispatched
-with a token carrying the same limited permissions, so the scope must cover the
-follow-up operation as well, not just creating the webhook.
-
 ---
 
 ## 9. Failure modes
 
-| Symptom                                | Cause                               | Action                                                                                                                                                                                                          |
-| -------------------------------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `401` `user-or-token-not-found`        | Token wrong or deleted              | Re-issue                                                                                                                                                                                                        |
-| `401` `token-not-provided`             | Header missing                      | Fix the request                                                                                                                                                                                                 |
-| `403` `insufficient-permissions`       | Token valid, scope too narrow       | Section 3.1. Not a typo.                                                                                                                                                                                        |
-| `400` `invalid-input` on `startUrls`   | Strings instead of objects          | Section 4.1                                                                                                                                                                                                     |
-| `408`                                  | Run exceeded 300 s                  | Switch to the async pattern in 8.1                                                                                                                                                                              |
-| `400` `run-failed`                     | Run exceeded its `timeout=`         | Observed 2026-10-17 on `apify/cheerio-scraper` with `timeout=1`: Console status TIMED-OUT, 0 results, $0.000 (`otodom-apify-fallback/live-verification.md`). Read as an Apify failure that did not reach otodom |
-| `201` with `_warning` and no `id`      | Offer gone, or page shape changed   | Treat as 404 (5.2)                                                                                                                                                                                              |
-| `201`, items present, all filtered out | Same as above                       | Same                                                                                                                                                                                                            |
-| Two items for one URL                  | Actor's junk sentinel               | Filter (5.1)                                                                                                                                                                                                    |
-| Run charges more than expected         | `maxItems` caps billing, not output | Set `maxTotalChargeUsd`                                                                                                                                                                                         |
-| Actor stops working entirely           | Single maintainer abandoned it      | Fall back to direct fetching per `otodom_fetching.md` 7.1, or migrate actors using the section 6 mapping                                                                                                        |
+| Symptom                                      | Cause                                                    | Action                                                                                                                                                                                                          |
+| -------------------------------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `401` `user-or-token-not-found`              | Token wrong, expired or deleted                          | Re-issue (rotation: `deployment-runbook.md`, "Ingestion starts failing")                                                                                                                                        |
+| `401` `token-not-provided`                   | Header missing                                           | Fix the request                                                                                                                                                                                                 |
+| `403` `insufficient-permissions`             | Token valid, scope too narrow                            | Section 3. Not a typo.                                                                                                                                                                                          |
+| `403` `full-permission-actor-not-approved`   | The one-time approval was never given                    | Section 3, the approval URL                                                                                                                                                                                     |
+| `402`                                        | Usage spent or the account's limit reached               | Raise the limit or wait for the next cycle; `direct_only` meanwhile                                                                                                                                             |
+| `400` `run-failed`                           | Run exceeded its `timeout=`                              | Observed 2026-10-17 on `apify/cheerio-scraper` with `timeout=1`: Console status TIMED-OUT, 0 results, $0.000 (`otodom-apify-fallback/live-verification.md`). Read as an Apify failure that did not reach otodom |
+| `400` `run-failed`, Console status FAILED    | The actor or the `pageFunction` broke                    | Read the run's Log tab in Console. Billed                                                                                                                                                                       |
+| `201` with an `#error` item                  | The crawler could not read the page (e.g. otodom's 403)  | `run_error`, read as `http_denied`. Check the proxy group is `RESIDENTIAL`                                                                                                                                      |
+| `201` with `[]`                              | The run ended with no item                               | `empty_dataset`; the member reads the direct reason                                                                                                                                                             |
+| `408`, `429` (unverified names)              | Apify-side timeout or rate limit                         | `apifyFailure: "http"` with the status; covered by fixtures only                                                                                                                                                |
+| `data_missing` with `detail: "both_sources"` | The page has no `__NEXT_DATA__` on both legs: it changed | `direct_only` until the parser is fixed                                                                                                                                                                         |
 
-Design so anything unexpected raises. A notifier that reports "nothing new"
-forever is worse than one that crashes.
+Design so anything unexpected is a fetch failure, never data: an offer saved from a
+half-read item is worse than a member told to try later.
 
 ---
 
 ## 10. Verification log
 
-Executed 2026-09-19 against the production Apify API.
+### 10.1 The spike, 2026-10-17
 
-| Check                                     | Result                                                 |
-| ----------------------------------------- | ------------------------------------------------------ |
-| Malformed token -> `/users/me`            | `401` `user-or-token-not-found`                        |
-| No token -> `/users/me`                   | `401` `token-not-provided`                             |
-| Under-scoped token -> run actor           | `403` `insufficient-permissions`                       |
-| Under-scoped token -> `apify/hello-world` | `403` (so it was not actor-specific)                   |
-| Working token -> `/users/me`              | `403` - profile read is a separate permission          |
-| `startUrls` as strings                    | `400` `invalid-input`                                  |
-| `startUrls` as objects                    | **`201`, 8.3 s, 6,648 B**                              |
-| Items returned for one URL                | **2** (1 real + 1 `noResults` sentinel)                |
-| Field diff against Otodom, 11 fields      | **all exact**, enums passed through raw                |
-| `description` / `images`                  | 701 chars / 12 - identical to source                   |
-| `dateCreated` vs `ad.createdAt`           | identical                                              |
-| `createdAtFirst` on that offer            | `null` at source - see `otodom_fetching.md` 6          |
-| Nonexistent offer URL                     | **`201`** with 404-page title and `_warning`           |
-| Second run latency                        | 8.5 s                                                  |
-| Actor ID lookup                           | `trev0n~otodom-scraper` -> `ir34sMIv8mrbL0ojO`, public |
+16 requests to `api.apify.com` with the user's go-ahead: 12 paid runs (6 of each
+actor), 2 runs refused before starting, 2 metadata reads. Raw outputs stayed outside
+the repository.
 
-Not verified: behaviour on a bumped offer (needed to observe
-`createdAtFirst` diverging from `dateCreated`), search-URL input mode,
-`extractDetails: false` mode, and the async webhook pattern in 8.1.
+| Check                                                  | Result                                                                 |
+| ------------------------------------------------------ | ---------------------------------------------------------------------- |
+| trev0n, 4 expired + 2 live listings                    | no transaction/property type; an expired listing returned as a success |
+| cheerio-scraper, live flat sale, datacenter            | 201, 9.0 s, full `ad`                                                  |
+| cheerio-scraper, live flat rental, datacenter          | 201, 3.6 s, `adCategory {FLAT, RENT}` → refused as `not_for_sale`      |
+| cheerio-scraper, expired listing, datacenter           | 201 with an `#error` item (403 from otodom, after 1 retry)             |
+| cheerio-scraper, expired listing, `RESIDENTIAL`/`PL`   | 201, 5.8 s, `status: 410` → `not_found`                                |
+| cheerio-scraper, live flat sale ×2, `RESIDENTIAL`/`PL` | 201, 6.9 s and 5.4 s, full `ad`                                        |
+| Whitelisted keys against a direct fetch                | JSON-equal on both live listings                                       |
+| `owner`/`contactDetails`/`agency` in any item          | none                                                                   |
+| First run before the approval                          | 403 `full-permission-actor-not-approved`                               |
 
-Re-run this table before trusting the document. The actor has one maintainer and
-one version; its output is not a contract.
+### 10.2 The committed request module, 2026-10-17 (Phase 3)
+
+Run through `scripts/apify-verify.mjs`, which enforced the budget, the 30 s pacing
+between requests that may reach otodom and the record in
+`context/changes/otodom-apify-fallback/live-calls.md` (Apify 6/15, otodom 1/15, no
+block). Listings are named by their ID token only.
+
+| Case            | Result                                                                                                                                                              |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `invalid-token` | 401 `user-or-token-not-found` before a run started → `apifyFailure: "http"`                                                                                         |
+| `sale`          | direct `ad` (62 keys) and Apify `ad` (14 keys) JSON-equal on every whitelisted key; no key outside the lists; `OfferInsert`s deep-equal                             |
+| `rental`        | refused by the FR-005 gate as `not_for_sale`                                                                                                                        |
+| `expired`       | 410 through Apify, same listing token → `not_found`                                                                                                                 |
+| `redirect`      | an altered slug with the same ID token landed on the same listing → accepted                                                                                        |
+| `run-timeout`   | `timeout=1`: 400 `run-failed` → `apifyFailure: "http"`, not reached otodom; Console: TIMED-OUT, $0.000 — pinned as `apifyRunTimeout()` in `tests/fixtures/apify.ts` |
+
+**Not verified:** a Cloudflare challenge (`cf-mitigated`) seen through the proxy, a
+redirect to another offer or to `/wyniki` seen as `loadedUrl`, a run that times out
+_after_ otodom answered (covered by fixtures only), and the error type names of 402,
+408 and 429.
+
+### 10.3 History: `trev0n/otodom-scraper`, 2026-09-19
+
+The first version of this document verified that actor end to end: `startUrls` must
+be objects (strings give 400 `invalid-input`), one URL returned 2 items (a
+`noResults` sentinel beside the real one), a nonexistent offer came back as 201 with
+the 404 page's title, and `sellerPhone`/`agencyName` carried a private seller's phone
+and name. Section 2.1 says why it was rejected.
+
+A change to `src/lib/otodom/apify-request.ts` makes section 10.2 stale until it is
+verified live again. Every such run is paid and is the user's deliberate action: the
+authorisation of 2026-10-17 covered `otodom-apify-fallback` alone, so a new
+verification needs a new go-ahead and a budget of its own (`@CLAUDE.md`, Paid model
+calls and CI review).

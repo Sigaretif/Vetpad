@@ -27,14 +27,14 @@ Dostajesz tytuł PR-a w <pr_title>, opis w <pr_description> (może go nie być) 
 Każda z poniższych daje 1 w kryterium, pod które podpada, i werdykt \`fail\`, niezależnie od pozostałych ocen:
 
 1. klucz \`service_role\` / \`sb_secret_…\` albo sekret czytany poza \`astro:env/server\` lub osiągalny z wyspy React;
-2. nowa tabela bez \`enable row level security\` i bez jednej polityki na operację w migracji, która ją tworzy, albo polityka z \`for all\` / \`using (true)\`;
+2. nowa tabela bez \`enable row level security\` i bez jednej polityki na operację w migracji, która ją tworzy, albo polityka z \`for all\` / \`using (true)\`. Dwa wyjątki nie są porażką, bo brak polityk zapisu jest tam zamierzony i nie wolno go „naprawiać”: tabela zapisywana tylko przez trigger \`security definer\` oraz tabela zmieniana tylko przez właściciela w Supabase Studio (\`postgres\`, który ma \`bypassrls\`) z polityką \`select\` dla \`authenticated\` i niczym więcej — wzorem jest \`public.ingestion_settings\`. Drugi wyjątek jest wąski: dotyczy ustawienia operacyjnego, którego żaden członek nie może zmieniać (tryb pobierania, przełącznik kosztów), nigdy danych, które członkowie mają zapisywać;
 3. notatki członków albo cokolwiek spoza \`AUDIT_OFFER_COLUMNS\` wysłane do providera modelu;
-4. zapisany numer telefonu lub nazwisko ogłoszeniodawcy albo \`raw\` budowany przez usuwanie pól zamiast z białej listy;
+4. zapisany numer telefonu lub nazwisko ogłoszeniodawcy, \`raw\` budowany przez usuwanie pól zamiast z białej listy albo \`pageFunction\` Apify, który kopiuje \`owner\`, \`contactDetails\` lub \`agency\` albo klucz spoza list \`APIFY_AD_KEYS\`/\`APIFY_LOCATION_KEYS\`/\`APIFY_TARGET_KEYS\`;
 5. atrybut, którego ogłoszenie nie podaje, pokazany jako \`0\`, „nie” albo inna wartość fałszywa;
 6. pusta lub częściowa oferta zapisana po nieudanym pobraniu;
 7. zapisane ogłoszenie, które nie jest sprzedażą mieszkania;
 8. akcja maszyny, która nadpisuje notatkę albo ponownie uruchamia lub usuwa audyt;
-9. test, skrypt albo krok, który wysyła prawdziwe żądanie do providera modelu.
+9. test, skrypt albo krok, który wysyła prawdziwe żądanie do płatnego dostawcy — providera modelu albo Apify (uruchomienie aktora jest płatne, także nieudane). Jedynym nazwanym wyjątkiem jest \`scripts/apify-verify.mjs\` w budżecie zmiany \`otodom-apify-fallback\`, uruchamiany ręcznie, nigdy w CI ani w smoke.
 
 ## Kryteria
 
@@ -44,7 +44,8 @@ Oceń sześć kryteriów w skali 1-10, gdzie 1 to najgorszy wynik, a 10 najlepsz
 
 Czy zmiana zachowuje niezmienniki produktu i obsługuje każdy sposób, w jaki dane mogą zawieść? Obejmuje:
 - nieznane kontra zero, przez \`numericOrUnknown\`;
-- bramkę sprzedaży mieszkania na \`ad.adCategory\`;
+- bramkę sprzedaży mieszkania na \`ad.adCategory\`, tę samą dla \`ad\` z pobrania bezpośredniego i z fallbacku Apify;
+- odpowiedź Apify czytaną wyłącznie przez sprawdzenia \`isRecord\` i typów: element \`#error\` i pusty dataset to porażki pobrania, nigdy dane, a \`error.message\` ani \`#debug\` Apify nie trafiają do logu ani do członka (tylko status, token \`error.type\` i własny powód);
 - nieudany odczyt jako osobny stan, nigdy jako „pusto”, „brak limitów”, „nieaudytowane” ani \`fresh\`;
 - każdy zapis oceniany po błędzie **i** po liczbie wierszy, do których dotarł, bo odrzucony update zwraca 200 z \`[]\`;
 - kolejność płatnej akcji: darmowe sprawdzenia, potem zajęcie wiersza, potem provider, bez ponowienia, z próbą zakończoną na każdej drodze wyjścia;
@@ -58,7 +59,7 @@ Czy zmiana zachowuje niezmienniki produktu i obsługuje każdy sposób, w jaki d
 ### 2. Idiomatyczność (\`idiomaticity\`)
 
 Czy zmiana wygląda jak plik referencyjny, za którym powinna iść? Obejmuje:
-- wzorzec zero-config we wszystkich czterech miejscach (\`envField\` z \`optional: true\`, fabryka zwracająca \`null\`, sprawdzenie \`null\` w każdym miejscu wywołania, wpis \`ConfigStatus\`);
+- wzorzec zero-config we wszystkich czterech miejscach (\`envField\` z \`optional: true\`, fabryka zwracająca \`null\`, sprawdzenie \`null\` w każdym miejscu wywołania, wpis \`ConfigStatus\`) — jak \`ANTHROPIC_API_KEY\` i \`APIFY_TOKEN\` (\`createApifyLeg\` zwraca \`null\` bez tokenu, a \`APIFY_TOKEN\` nigdy nie trafia do CI);
 - trasy formularzy, które czytają \`FormData\` i przekierowują z \`?error=\` / \`&form=\` i ukrytym \`intent\`, oraz strumienie linii JSON tylko dla wysp sterowanych \`fetch\`, jak w \`src/pages/api/audits.ts\`;
 - domyślnie \`.astro\`, wyspy tylko dla stanu lub zdarzeń i z jawnym \`client:*\`;
 - importy przez \`@/\`, klasy łączone \`cn()\`, w widokach tylko tokeny i \`src/components/ui\` (dodawane przez \`npx shadcn add\` z jego rytuałem);
@@ -83,6 +84,7 @@ Czy to najprostsza zmiana, która pasuje do istniejących mechanizmów, bez budo
 Obejmuje też:
 - ręcznie pisaną walidację zamiast nowej biblioteki (\`zod\`/\`valibot\`/\`jest\` wymagają zgody użytkownika);
 - jeden ograniczony \`RegExp\` nad \`__NEXT_DATA__\` zamiast parsera HTML;
+- fallback przez Apify (\`apify/cheerio-scraper\` z \`pageFunction\` w \`src/lib/otodom/apify-request.ts\`) obok bezpośredniego pobierania to mechanizm zatwierdzony, nie „równoległy mechanizm”: oba czyta ta sama taksonomia (\`classifyAnswer\`/\`classifyPayload\`) i ten sam \`mapAdToOffer\`. \`pageFunction\` to jeden stały, recenzowany jak kod string, nigdy budowany z danych wejściowych; drugi mapper albo drugi aktor obok niego to już mechanizm równoległy;
 - jedną odpowiedzialność na moduł w \`src/lib/audit/\`;
 - brak abstrakcji dla jednego wywołującego.
 
@@ -99,14 +101,15 @@ Czy ryzykowne ścieżki są przetestowane tak, jak to repo testuje? Obejmuje:
 - nieudany odczyt obok odczytu, który się udaje i nic nie znajduje;
 - zapisy na zero wierszy sprawdzane jako porażki;
 - kanarki prywatności w fixture'ach, które pozostają syntetyczne, nigdy nagrany payload otodom;
-- provider tylko przez \`tests/fixtures/anthropic.ts\`, a każdy scenariusz liczy żądania do providera i zapisy do bazy.
+- provider tylko przez \`tests/fixtures/anthropic.ts\`, a każdy scenariusz liczy żądania do providera i zapisy do bazy;
+- Apify tylko przez \`tests/fixtures/apify.ts\`, a każdy scenariusz fallbacku liczy żądania do otodom, do Apify i zapisy. Test, który może dotrzeć do prawdziwego Apify, blokuje zmianę.
 
 Poza testami jednostkowymi obejmuje też:
 - krok w \`scripts/smoke.mjs\` dla każdej zmiany powierzchni \`src/pages/api/\`, z odrzuconymi zapisami sprawdzanymi całymi wierszami (\`withSnapshot\`);
 - sprawdzenie w \`scripts/account-deletion.sql\` albo \`scripts/audit-state.sql\` dla każdej nowej reguły triggera lub kolumny wskazującej na \`auth.users\`;
 - fixture w \`/dev/*\` dla każdego nowego stanu karty, formularza, tablicy lub kryteriów.
 
-1: ryzykowna logika bez testów. Przykłady: nowa trasa, migracja lub trigger bez testu i bez kroku smoke, testy mockujące testowany moduł, asercje na sam status HTTP przy zapisie, fixture z danymi prawdziwego ogłoszeniodawcy, test, który może dotrzeć do prawdziwego providera.
+1: ryzykowna logika bez testów. Przykłady: nowa trasa, migracja lub trigger bez testu i bez kroku smoke, testy mockujące testowany moduł, asercje na sam status HTTP przy zapisie, fixture z danymi prawdziwego ogłoszeniodawcy, test, który może dotrzeć do prawdziwego providera albo do Apify.
 10: ścieżki najbardziej narażone na awarię są pokryte we właściwej warstwie — unit, smoke, SQL albo E2E — tak, jak przydziela je \`CLAUDE.md\` § Testing. Każde odrzucenie ma parę z przyjęciem, a wyjście zero-config jest pokryte.
 
 ### 5. Dokumentacja (\`documentation\`)
@@ -126,7 +129,7 @@ Czy zmiana trzyma dane za RLS, a sekrety i dane prywatne tam, gdzie ich miejsce?
 - zawężenie do autorstwa tak, jak wymaga PRD (notatki i wymagania członków zapisuje tylko ich autor przez \`auth.uid()\`; oferty, wyszukiwania i limity zespołu może zapisywać każdy członek);
 - brak ręcznie dodanych grantów i obejść przez \`service_role\`;
 - kolumny podpisywane przez triggery (\`archived_by\`, daty i osoby audytu) nigdy nie brane od klienta;
-- \`ANTHROPIC_API_KEY\` tylko w \`src/lib/audit/provider.ts\` i nigdy nie importowany przez nic, co ładuje render strony albo wyspa;
+- \`ANTHROPIC_API_KEY\` tylko w \`src/lib/audit/provider.ts\`, a \`APIFY_TOKEN\` tylko w \`src/lib/otodom/apify.ts\`; żaden z tych modułów nie jest importowany przez nic, co ładuje render strony albo wyspa;
 - wartości, które każdy członek może zapisać przez Data API, traktowane jako niezaufane (\`source_url\` przez \`normalizeOfferUrl\`, tekst ustaleń renderowany tylko jako tekst, nigdy \`set:html\`, atrybut ani props wyspy);
 - brak PII, query stringów, Postgresowego \`details\`, HTML strony, promptów i odpowiedzi modelu w logach;
 - \`.dev.vars\`/\`.env\` nigdy nie commitowane.

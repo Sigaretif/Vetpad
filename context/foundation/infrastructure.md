@@ -32,14 +32,14 @@ prior platform experience.
 
 Every status below was checked on 2026-09-19.
 
-| Platform | CLI-first | Managed/Serverless | Agent-readable docs | Stable deploy API | MCP / Integration | Total |
-|---|---|---|---|---|---|---|
-| **Cloudflare Workers** | Pass | Pass | Pass | Pass | Pass | 5/5 |
-| **Vercel** | Pass | Pass | Pass | Pass | Pass | 5/5 |
-| **Railway** | Pass | Pass | Pass | Pass | Pass | 5/5 |
-| Render | Partial | Pass | Pass | Pass | Pass | 4/5 |
-| Fly.io | Pass | Partial | Pass | Pass | Partial | 3/5 |
-| Netlify | Partial | Pass | Pass | Pass | Pass | dropped by hard filter |
+| Platform               | CLI-first | Managed/Serverless | Agent-readable docs | Stable deploy API | MCP / Integration | Total                  |
+| ---------------------- | --------- | ------------------ | ------------------- | ----------------- | ----------------- | ---------------------- |
+| **Cloudflare Workers** | Pass      | Pass               | Pass                | Pass              | Pass              | 5/5                    |
+| **Vercel**             | Pass      | Pass               | Pass                | Pass              | Pass              | 5/5                    |
+| **Railway**            | Pass      | Pass               | Pass                | Pass              | Pass              | 5/5                    |
+| Render                 | Partial   | Pass               | Pass                | Pass              | Pass              | 4/5                    |
+| Fly.io                 | Pass      | Partial            | Pass                | Pass              | Partial           | 3/5                    |
+| Netlify                | Partial   | Pass               | Pass                | Pass              | Pass              | dropped by hard filter |
 
 ### Hard filters applied before scoring
 
@@ -143,7 +143,7 @@ the research started tilted toward confirming a decision that had already been m
 1. **The free plan is not a tier this application can use.** The Free plan caps CPU at 10 ms per
    invocation. Astro SSR rendering a dashboard with React islands, plus `JSON.parse` over a full
    `__NEXT_DATA__` payload, will exceed that. The $5/month Workers Paid plan is mandatory from day
-   one — and its *default* CPU limit is 30 seconds, not the headline 5-minute maximum. Reaching the
+   one — and its _default_ CPU limit is 30 seconds, not the headline 5-minute maximum. Reaching the
    maximum requires an explicit `limits` block in `wrangler.jsonc`. Nothing surfaces this until a
    request dies in production.
 2. **The HTML-parsing ban targets the wrong artifact.** `CLAUDE.md` forbids `cheerio`,
@@ -215,7 +215,7 @@ was wrong, but because of two defaults nobody checked.
   immediately. Workers secrets are write-only once set — they can be replaced, not read back.
   Rotation is `wrangler secret put` again, then update the GitHub secret to match.
 - **Rollback**: `npx wrangler rollback` reverts to the previous version; `npx wrangler rollback
-  <version-id>` targets a specific one, and `wrangler versions list` shows the candidates. Time to
+<version-id>` targets a specific one, and `wrangler versions list` shows the candidates. Time to
   revert is seconds. The caveat that matters here: a rollback reverts code, never data. Once
   Supabase migrations exist, a schema change that a rolled-back Worker cannot read is a manual
   recovery, and a `wrangler secret put` is itself a new version, so rolling back code can roll back
@@ -234,18 +234,18 @@ was wrong, but because of two defaults nobody checked.
 
 ## Risk Register
 
-| Risk | Source | Likelihood | Impact | Mitigation |
-|---|---|---|---|---|
-| Default 30 s CPU limit on the Paid plan kills the audit on long listings; nobody notices the default is not the 5-min maximum | Devil's advocate | M | H | Add an explicit `limits` block to `wrangler.jsonc` before first deploy and check the per-request CPU number in the Workers dashboard after the first real audit |
-| Free plan's 10 ms CPU cap makes the free tier unusable; deploy silently fails under load | Devil's advocate | H | M | Treat Workers Paid ($5/mo) as a prerequisite of the first deploy, not an upgrade path |
-| otodom.pl returns 403 to Cloudflare egress IPs, intermittently at first | Research finding + Pre-mortem | M | H | Log every non-200 fetch status distinctly from a parse failure so intermittent blocking is visible as blocking; keep the extraction-service fallback in `context/foundation/ingestion/otodom_apify.md` ready to adopt as a decision, not a scramble |
-| `JSON.parse` over a large `__NEXT_DATA__` payload is the CPU-bound full-page pass the HTML-parsing ban was meant to prevent | Devil's advocate | M | M | Measure CPU time on the largest real listing before merging ingestion; if it is close to the limit, extract the needed subtree with a bounded RegExp rather than parsing the whole blob |
-| A silent 3-minute request is dropped by the browser or an intermediate proxy even though Cloudflare imposes no limit | Unknown unknowns | M | H | Satisfy the PRD's in-progress-visibility requirement with streaming or polling; that same mechanism keeps bytes flowing and removes the exposure |
-| The wait-in-one-request pattern locks the audit to Cloudflare or Vercel; migrating later means rebuilding the audit UX | Unknown unknowns | L | H | Accepted for the MVP. Record it here so a future platform change is scoped as an architecture change from the start |
-| Bumping `compatibility_date` past 2026-08-04 changes `nodejs_compat` behaviour | Unknown unknowns | L | M | Treat any `compatibility_date` change as a change to test against a preview version, never as a routine bump |
-| A preview URL exposes real Supabase data publicly | Research finding | M | M | Put Cloudflare Access in front of preview versions before the first one carries production credentials |
-| Cloudflare MCP servers carry no GA/beta label; one changes or disappears mid-project | Unknown unknowns | L | L | Keep `wrangler` the primary operational path; treat MCP as a convenience, per the CLI-first default |
-| An adapter change forces re-verification of every zero-config integration point | Devil's advocate | L | M | No action for the MVP; the four-place pattern in `CLAUDE.md` is the checklist if it ever happens |
+| Risk                                                                                                                          | Source                        | Likelihood | Impact | Mitigation                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ----------------------------------------------------------------------------------------------------------------------------- | ----------------------------- | ---------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Default 30 s CPU limit on the Paid plan kills the audit on long listings; nobody notices the default is not the 5-min maximum | Devil's advocate              | M          | H      | Add an explicit `limits` block to `wrangler.jsonc` before first deploy and check the per-request CPU number in the Workers dashboard after the first real audit                                                                                                                                                                                                                                                                                                                                                                                         |
+| Free plan's 10 ms CPU cap makes the free tier unusable; deploy silently fails under load                                      | Devil's advocate              | H          | M      | Treat Workers Paid ($5/mo) as a prerequisite of the first deploy, not an upgrade path                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| otodom.pl returns 403 to Cloudflare egress IPs, intermittently at first                                                       | Research finding + Pre-mortem | M          | H      | Log every non-200 fetch status distinctly from a parse failure so intermittent blocking is visible as blocking; keep the extraction-service fallback in `context/foundation/ingestion/otodom_apify.md` ready to adopt as a decision, not a scramble. **Adopted 2026-10-17** (`otodom-apify-fallback`): one Apify run follows a refused direct fetch, the owner switches the mode in `public.ingestion_settings`, and its route tests in `tests/pages/api/offers.test.ts` and `tests/pages/api/offer-refetch.test.ts` count requests to otodom and Apify |
+| `JSON.parse` over a large `__NEXT_DATA__` payload is the CPU-bound full-page pass the HTML-parsing ban was meant to prevent   | Devil's advocate              | M          | M      | Measure CPU time on the largest real listing before merging ingestion; if it is close to the limit, extract the needed subtree with a bounded RegExp rather than parsing the whole blob                                                                                                                                                                                                                                                                                                                                                                 |
+| A silent 3-minute request is dropped by the browser or an intermediate proxy even though Cloudflare imposes no limit          | Unknown unknowns              | M          | H      | Satisfy the PRD's in-progress-visibility requirement with streaming or polling; that same mechanism keeps bytes flowing and removes the exposure                                                                                                                                                                                                                                                                                                                                                                                                        |
+| The wait-in-one-request pattern locks the audit to Cloudflare or Vercel; migrating later means rebuilding the audit UX        | Unknown unknowns              | L          | H      | Accepted for the MVP. Record it here so a future platform change is scoped as an architecture change from the start                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Bumping `compatibility_date` past 2026-08-04 changes `nodejs_compat` behaviour                                                | Unknown unknowns              | L          | M      | Treat any `compatibility_date` change as a change to test against a preview version, never as a routine bump                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| A preview URL exposes real Supabase data publicly                                                                             | Research finding              | M          | M      | Put Cloudflare Access in front of preview versions before the first one carries production credentials                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Cloudflare MCP servers carry no GA/beta label; one changes or disappears mid-project                                          | Unknown unknowns              | L          | L      | Keep `wrangler` the primary operational path; treat MCP as a convenience, per the CLI-first default                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| An adapter change forces re-verification of every zero-config integration point                                               | Devil's advocate              | L          | M      | No action for the MVP; the four-place pattern in `CLAUDE.md` is the checklist if it ever happens                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
 ## Getting Started
 
@@ -272,6 +272,7 @@ it after the first deploy would create a second Worker rather than move the firs
 ## Out of Scope
 
 The following were not evaluated in this research:
+
 - Docker image configuration
 - CI/CD pipeline setup
 - Production-scale architecture (multi-region, HA, DR)

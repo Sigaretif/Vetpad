@@ -961,11 +961,11 @@ The migration must be pushed before the Worker that reads the table is deployed.
 
 #### Automated
 
-- [x] 5.1 Render and unit tests pass: `npm test`
-- [x] 5.2 Lint passes, including `tokensOnlyConfig`: `npm run lint`
-- [x] 5.3 Types check: `npx astro sync && npx astro check`
-- [x] 5.4 Build passes: `npm run build`
-- [x] 5.5 Smoke script parses: `node --check scripts/smoke.mjs`
+- [x] 5.1 Render and unit tests pass: `npm test` — 7ca9618
+- [x] 5.2 Lint passes, including `tokensOnlyConfig`: `npm run lint` — 7ca9618
+- [x] 5.3 Types check: `npx astro sync && npx astro check` — 7ca9618
+- [x] 5.4 Build passes: `npm run build` — 7ca9618
+- [x] 5.5 Smoke script parses: `node --check scripts/smoke.mjs` — 7ca9618
 
 #### Manual
 
@@ -976,10 +976,10 @@ The migration must be pushed before the Worker that reads the table is deployed.
 
 #### Automated
 
-- [ ] 6.1 The old rule is gone: `! grep -n "rather than sitting beside it" CLAUDE.md`
-- [ ] 6.2 The reviewer package's offline checks pass: `npm --prefix packages/code-reviewer/evals run preflight`
-- [ ] 6.3 Repository tests, lint and types still pass: `npm test && npm run lint && npx astro check`
-- [ ] 6.4 No `trev0n` actor left as the recommended route: `! grep -rn "trev0n~otodom-scraper/run-sync" CLAUDE.md README.md context/foundation/deployment-runbook.md`
+- [x] 6.1 The old rule is gone: `! grep -n "rather than sitting beside it" CLAUDE.md`
+- [x] 6.2 The reviewer package's offline checks pass: `npm --prefix packages/code-reviewer/evals run preflight`
+- [x] 6.3 Repository tests, lint and types still pass: `npm test && npm run lint && npx astro check`
+- [x] 6.4 No `trev0n` actor left as the recommended route: `! grep -rn "trev0n~otodom-scraper/run-sync" CLAUDE.md README.md context/foundation/deployment-runbook.md`
 
 #### Manual
 

@@ -45,7 +45,7 @@ research's job, see §1 principle #3).
 
 | #   | Risk (failure scenario)                                                                                                                                                                                                        | Impact | Likelihood | Source (evidence — not anchor)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------ | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Ingestion saves a false or incomplete offer: an unstated attribute reads as "0 zł" or "no", a rental or a house is saved as a flat sale, or a failed/changed-shape fetch leaves a blank or partial record behind               | High   | Medium     | PRD Guardrails, NFR, FR-005; interview Q4; roadmap: upcoming second writers of offer data (re-fetch FR-009, extraction-service fallback, S-04 reading the stored raw payload). Hot-spot dir `src/lib/otodom/` (5 commits/30d) reflects the module's creation, not instability (research, Phase 1)                                                                                                                                                                                                               |
+| 1   | Ingestion saves a false or incomplete offer: an unstated attribute reads as "0 zł" or "no", a rental or a house is saved as a flat sale, or a failed/changed-shape fetch leaves a blank or partial record behind               | High   | Medium     | PRD Guardrails, NFR, FR-005; interview Q4; roadmap: second writers of offer data (re-fetch FR-009 and the extraction-service fallback, both built since — `tests/pages/api/offer-refetch.test.ts`, the fallback scenarios in `tests/pages/api/offers.test.ts`; S-04 reading the stored raw payload). Hot-spot dir `src/lib/otodom/` (5 commits/30d) reflects the module's creation, not instability (research, Phase 1)                                                                                         |
 | 2   | **Denial of Wallet:** the paid AI audit can be triggered repeatedly — a double click, concurrent requests, or a request without a session — and every call is billed by the model provider                                     | High   | High       | interview Q1; roadmap S-04 (next slice on Stream A); PRD NFR (correctness over cost — a slower, pricier model per call)                                                                                                                                                                                                                                                                                                                                                                                         |
 | 3   | A paid audit result is lost: the model answered but the database write failed or the request timed out, the offer falls back to "Not Audited", and the same audit has to be paid for again                                     | High   | Medium     | interview Q1; PRD NFR (~3-minute audit limit, reported as failed with a retry offered); roadmap S-04 Unknowns                                                                                                                                                                                                                                                                                                                                                                                                   |
 | 4   | The audit reports an ungrounded finding: a red flag, cost or mandatory condition with no excerpt, with an excerpt that is not verbatim listing text, or a missing-information finding outside the decision-critical attributes | High   | High       | PRD Guardrails, FR-011, NFR (every finding traceable to a verbatim quotation); roadmap S-04                                                                                                                                                                                                                                                                                                                                                                                                                     |
@@ -182,11 +182,20 @@ criteria reaching the model provider, `(#7)` for a stored URL in
   (FR-011 excerpts must stay verbatim). Allowed `raw` keys are written out in
   the test as a list, not imported from the code under test.
 - **Every new writer of offer data** — the re-fetch (FR-009), the
-  extraction-service fallback, whose `sellerPhone`/`agencyName` carry the
-  seller (`ingestion/otodom_apify.md` §6.1) — gets the same canary test, run on
-  the row it actually sends to the database, not on an intermediate object.
-  For the fallback, its fixture carries `sellerPhone: CANARY_PHONE` and
-  `agencyName: CANARY_NAME`.
+  extraction-service fallback — gets the same canary test, run on the row it
+  actually sends to the database, not on an intermediate object. The fallback
+  (`otodom-apify-fallback`, 2026-10-17) hands back otodom's own `ad`, narrowed
+  inside Apify by the `pageFunction` (`ingestion/otodom_apify.md` §6.1), so its
+  fixture `apifyItem` in `tests/fixtures/apify.ts` keeps `owner`,
+  `contactDetails`, `agency` and the full `target` in the `ad` — a would-be
+  leak — and the canary tests prove both lines of defence apart: the
+  `pageFunction` evaluated on a stub page in `tests/lib/otodom/apify-request.test.ts`,
+  and `mapAdToOffer` on the row an Apify success writes in
+  `tests/pages/api/offers.test.ts` and `tests/pages/api/offer-refetch.test.ts`.
+  Apify itself is met only through `tests/fixtures/apify.ts` and the `fetch`
+  stub; every fallback scenario states how many requests reached otodom, how
+  many reached Apify and how many writes happened, and no test can start a
+  paid run.
 - **Fetch and route boundary:** stub the network at the HTTP edge with
   `stubFetch` from `tests/fixtures/http.ts` and `afterEach(restoreFetch)`;
   pages come from `otodomPage`, `otodomPageProps`, `pageWithNextData` and
@@ -865,7 +874,8 @@ presence.
   - S-08's map link does not exist yet; its render test comes with the S-08
     plan, per §6.2.
   - The next writers of offer data (re-fetch FR-009, extraction-service
-    fallback) get their canary tests when they are built, per §6.1.
+    fallback) get their canary tests when they are built, per §6.1. Both
+    are built now; their canary tests are named in §6.1.
 
 **Phase 2 — Write isolation**
 (`testing-write-isolation`, 2026-10-01)

@@ -2,14 +2,15 @@
 
 Per-portal reference notes on how listing data is fetched: request shapes, field
 mappings, and the `robots.txt` boundaries each portal publishes. The two direct-fetch
-documents were verified live against production on 2026-09-16; `otodom_apify.md` on
-2026-09-19.
+documents were verified live against production on 2026-09-16; `otodom_apify.md` was
+rewritten around the route the change `otodom-apify-fallback` adopted, verified live on
+2026-10-17.
 
-| File                 | Portal    | Status in Vetpad                                                       |
-| -------------------- | --------- | ---------------------------------------------------------------------- |
-| `otodom_fetching.md` | otodom.pl | the MVP's only source (`@context/foundation/prd.md`, FR-004)           |
-| `otodom_apify.md`    | otodom.pl | the fallback if fetching otodom directly from the Worker stops working |
-| `olx_fetching.md`    | olx.pl    | post-MVP; the first source added after v1 (Non-Goals)                  |
+| File                 | Portal    | Status in Vetpad                                                                                                                                     |
+| -------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `otodom_fetching.md` | otodom.pl | the direct fetch (`@context/foundation/prd.md`, FR-004) — the first leg in the seeded mode `direct_with_fallback`, and the only one in `direct_only` |
+| `otodom_apify.md`    | otodom.pl | the fallback beside it, adopted 2026-10-17: `apify/cheerio-scraper` with our `pageFunction`, after a refused direct fetch or alone in `apify_only`   |
+| `olx_fetching.md`    | olx.pl    | post-MVP; the first source added after v1 (Non-Goals)                                                                                                |
 
 ## Read these for the mechanics, not the architecture
 

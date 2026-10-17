@@ -21,17 +21,17 @@ the part that outlives it.
 
 ## Current state
 
-|                       |                                                                                                           |
-| --------------------- | --------------------------------------------------------------------------------------------------------- |
-| Worker                | `vetpad`                                                                                                  |
-| Production URL        | <https://vetpad.vetpad.workers.dev>                                                                       |
-| Cloudflare account    | `917c8d5693d671be4227202d2ceb42ed`                                                                        |
-| Plan                  | **Workers Free** — deliberate, see "When to buy Workers Paid"                                             |
-| Auto-deploy           | Workers Builds, production branch **`master`**                                                            |
-| Secrets in production | `SUPABASE_URL`, `SUPABASE_KEY` (hosted Supabase, publishable key), `ANTHROPIC_API_KEY` (since 2026-10-09) |
-| KV binding            | `SESSION` → namespace `vetpad-session` (auto-provisioned, adapter-injected)                               |
-| Preview URLs          | **disabled** (`preview_urls: false`)                                                                      |
-| Observability         | enabled; `wrangler tail` and Workers Logs both work on Free                                               |
+|                       |                                                                                                                                                                                                                                                                        |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Worker                | `vetpad`                                                                                                                                                                                                                                                               |
+| Production URL        | <https://vetpad.vetpad.workers.dev>                                                                                                                                                                                                                                    |
+| Cloudflare account    | `917c8d5693d671be4227202d2ceb42ed`                                                                                                                                                                                                                                     |
+| Plan                  | **Workers Free** — deliberate, see "When to buy Workers Paid"                                                                                                                                                                                                          |
+| Auto-deploy           | Workers Builds, production branch **`master`**                                                                                                                                                                                                                         |
+| Secrets in production | `SUPABASE_URL`, `SUPABASE_KEY` (hosted Supabase, publishable key), `ANTHROPIC_API_KEY` (since 2026-10-09); `APIFY_TOKEN` is the user's step after `otodom-apify-fallback` deploys — until it is set, every ingestion mode runs as `direct_only` and the banner says so |
+| KV binding            | `SESSION` → namespace `vetpad-session` (auto-provisioned, adapter-injected)                                                                                                                                                                                            |
+| Preview URLs          | **disabled** (`preview_urls: false`)                                                                                                                                                                                                                                   |
+| Observability         | enabled; `wrangler tail` and Workers Logs both work on Free                                                                                                                                                                                                            |
 
 ## How a change reaches production
 
@@ -285,20 +285,79 @@ this repository** that fetches one otodom URL and returns the status code plus
 whether `__NEXT_DATA__` is present, call it once, then
 `npx wrangler delete --force`. It takes ten minutes and turns a guess into a fact.
 
-If it returns 403/429 or a captcha, the fallback is the extraction service in
-`@context/foundation/ingestion/otodom_apify.md` — **verified end to end**, request
-shape and failure modes included. Adopting it is a decision to raise with the user,
-never a default: it is a second vendor, a second secret in six places, and a second
-failure mode. Three things to know before starting:
+If it returns 403/429 or a captcha, the fallback is already there: the extraction
+service in `@context/foundation/ingestion/otodom_apify.md`, **adopted by the user on
+2026-10-17** (change `otodom-apify-fallback`). It sits beside the direct fetch, not in
+its place: `apify/cheerio-scraper` (actor `YrQuEkowkNCLdk4j2`) runs our fixed
+`pageFunction` (`src/lib/otodom/apify-request.ts`) on the same offer page through
+Apify's `RESIDENTIAL` proxy in `PL`, and hands back otodom's own `ad`, which the same
+checks and the same `mapAdToOffer` read. The seller's data is dropped inside Apify by
+the `pageFunction`'s whitelist, and `mapAdToOffer`'s own whitelist stays the second
+line of defence.
 
-- **Server-side field projection is mandatory, not an optimisation.** `sellerPhone`
-  and `agencyName` carry a private seller's phone number and real name. Request
-  `?fields=...` so they never enter the Worker (§ 6.1). `CLAUDE.md` and the PRD both
-  forbid storing them.
-- The actor reports a **missing offer as HTTP 201 with a fake result**, not a 404.
-  Filter it, or the product will save a blank offer — which the PRD forbids outright.
-- One maintainer, one version, no reviews. Re-run the verification table in § 10
-  before trusting the document.
+#### The mode switch — the operational lever
+
+The one row of `public.ingestion_settings` selects how a listing is fetched, for
+adding (FR-004) and re-fetching (FR-009) alike. Only the owner changes it: Supabase
+Studio → **Table Editor** → `ingestion_settings` → `mode`. Members only read it, on
+`/criteria`; no member and no route can write it.
+
+| `mode`                              | What runs                                                                                                                                                                                                       |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `direct_with_fallback` (seeded)     | The direct fetch with a 20 s deadline; after `challenged`, `http_denied`, `timeout`, `network` or `data_missing` (`FALLBACK_TRIGGERS` in `src/lib/otodom/index.ts`), exactly one Apify run with a 40 s deadline |
+| `apify_only`                        | One Apify run, no request of our own to otodom — for while otodom blocks Cloudflare's egress outright                                                                                                           |
+| `direct_only` — **the kill switch** | The direct fetch with the whole 60 s, never an Apify request — for a cost surprise, a broken `pageFunction`, or anything else Apify does wrong                                                                  |
+
+The change takes effect on the next request; nothing is cached. Without
+`APIFY_TOKEN` every mode runs as `direct_only` (`ingestion_mode_reason:
+"apify_unconfigured"`), and so does a failed read of the row (`"mode_read_failed"`,
+with `ingestion_mode_read` saying how it failed) — the direct fetch is free, so a
+failed read never starts a paid run. `/criteria` shows the configured mode beside the
+one that runs (`data-ingestion-mode`, `data-ingestion-mode-effective`), so after a
+change, open it to confirm. If the migration
+`supabase/migrations/20261017193318_create_ingestion_settings.sql` is not on the
+hosted project yet, the read fails and ingestion runs `direct_only` — push it before
+the Worker that reads it (`CLAUDE.md`, Structure).
+
+#### Reading a fallback in the log
+
+Filter on `event: "offer_add"` or `event: "offer_refetch"`. From `started` on, every
+entry carries `ingestion_mode`, `ingestion_mode_effective`, `ingestion_mode_reason` and
+`ingestion_mode_read` (a failed read adds `db_code` and `db_status` to `started`). An
+outcome entry also carries `source` (`direct` or `apify`: which leg the member's
+sentence came from), `fallback_reason` (the direct reason that started the Apify run),
+`apify_status`, `apify_error_type` (Apify's own token, never its message),
+`apify_failure` (our own token: `http`, `empty_dataset`, `malformed_item`,
+`run_error`, `timeout`, `network`), `direct_duration_ms` and `apify_duration_ms`. An
+Apify leg that reached otodom is read through the same reasons as the list above; one
+that did not leaves the direct reason to the member, or — in `apify_only` —
+`reason: "extraction_failed"`. An Apify answer that needs somebody's attention is
+logged at `error` even when the member's sentence came from the direct leg
+(`apifyNeedsAttention` in `src/lib/otodom/failure.ts`).
+
+| Symptom in the entry                                           | Cause                                                                                                                      | Fix                                                                                                                                                                                                                                                                                                                                     |
+| -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apify_error_type: "user-or-token-not-found"` (401)            | the token is unknown, expired or revoked                                                                                   | Re-issue the token (rotation order below)                                                                                                                                                                                                                                                                                               |
+| `apify_error_type: "insufficient-permissions"` (403)           | the token lacks **Run** on actor `YrQuEkowkNCLdk4j2`, or **Actor execution** is not Full access                            | In Console → Settings → API & Integrations, edit the token: add the actor with Run, Actor execution Full access, Default run storages access on                                                                                                                                                                                         |
+| `apify_error_type: "full-permission-actor-not-approved"` (403) | the account never approved cheerio-scraper, which runs user-supplied code                                                  | Approve once at <https://console.apify.com/actors/YrQuEkowkNCLdk4j2?approvePermissions=true>                                                                                                                                                                                                                                            |
+| `apify_status: 402`                                            | the month's usage is spent or the account's usage limit is reached; the platform is suspended until the next cycle         | Raise the limit in Console → Billing → Limits, or wait for the cycle; set `direct_only` meanwhile if the fallback is not needed                                                                                                                                                                                                         |
+| `apify_error_type: "run-failed"` (400)                         | the run ended without a dataset — not a configuration fault                                                                | Open that run in Console → **Runs**. Status **TIMED-OUT** means `timeout=30` (`APIFY_RUN_TIMEOUT_S` in `src/lib/otodom/deadlines.ts`) was too short — compare `apify_duration_ms`; a normal run takes 2–9 s. Status **FAILED** means the actor or the `pageFunction` broke — read the run's **Log** tab. A run of either kind is billed |
+| `reason: "data_missing"` with `detail: "both_sources"`         | the page came without `__NEXT_DATA__` on both legs: a changed page, not a block                                            | Set `direct_only` until the parser is fixed — every further fallback pays to learn the same                                                                                                                                                                                                                                             |
+| `apify_failure: "run_error"`, member reads `http_denied`       | Apify reached otodom and its crawler could not read the page (its `#error` item); a block of the residential proxy as well | Repeated: compare with a direct fetch; `#debug` is never logged, so read the run's Log tab in Console                                                                                                                                                                                                                                   |
+| `apify_failure: "timeout"`                                     | no answer within the Worker's 40 s (`APIFY_CLIENT_DEADLINE_MS`)                                                            | Look for the run in Console → Runs; one longer than `timeout=` should have answered `run-failed` first                                                                                                                                                                                                                                  |
+
+Each Apify run costs about $0.001–0.002 (`RESIDENTIAL`/`PL`, read in Console → Runs →
+Usage); a failed run is billed too, and the Worker never retries one. Set a monthly
+usage limit in Console → Billing → Limits.
+
+#### Rotating the Apify token
+
+In this order, so no request runs without a valid token: issue the new token with the
+same scope (Console → Settings → API & Integrations: Limit token permissions, Run on
+actor `YrQuEkowkNCLdk4j2`, Actor execution Full access, Default run storages access
+on); `npx wrangler secret put APIFY_TOKEN` and paste it (a new Worker version, see
+"Rollback"); update `.env` and `.dev.vars` (rebuild before `npm run preview`); then
+delete the old token. The token never goes into GitHub secrets or CI.
 
 ### The CPU ceiling is reached
 
@@ -372,6 +431,19 @@ Worker version (see "Rollback").
 
 Never call a model provider from a React island — islands ship to the browser and the
 key would ship with them.
+
+### The extraction-service token (FR-004, FR-009)
+
+`APIFY_TOKEN` has **five** places, and CI is never one of them: the `astro.config.mjs`
+schema, `.env`, `.dev.vars`, `.env.example` and Workers Secrets
+(`npx wrangler secret put APIFY_TOKEN`). Astro reads an `access: "secret"` field at
+runtime, so the build needs no value, and a token CI never holds is a paid run no CI
+step can start; putting it into CI is the user's decision. `createApifyLeg` in
+`src/lib/otodom/apify.ts` returns `null` when it is unset and `src/lib/config-status.ts`
+raises the banner, so a deploy without it runs every mode as `direct_only`. The banner
+says only whether the token is set, never that it works — a revoked token shows up as
+`apify_error_type` in the log (see "Ingestion starts failing"). The token is scoped to
+Run on one actor; rotation is described there too.
 
 ## What only a human does
 

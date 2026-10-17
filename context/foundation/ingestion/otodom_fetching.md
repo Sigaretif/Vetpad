@@ -636,9 +636,15 @@ log every non-200 fetch status distinctly from a parse failure, and re-run this
 probe if ingestion starts failing intermittently. A 403 is still handled by the
 fallback below rather than by abandoning ingestion.
 
-If the preflight fails, the fallback is a third-party scraping service. That
-path is fully verified and documented separately in `otodom_apify.md`, including
-the exact request shape and the failure modes the provider hides from you.
+That fallback exists since 2026-10-17 (change `otodom-apify-fallback`) and sits
+beside this path, not in its place: in the seeded mode `direct_with_fallback`, a
+direct fetch that ends in `challenged`, `http_denied`, `timeout`, `network` or
+`data_missing` is followed by one run of `apify/cheerio-scraper` with our own
+`pageFunction` through Apify's residential proxy, which reads this same page and
+hands back the same `ad`. The owner can also run `apify_only` or, as the kill
+switch, `direct_only` (`public.ingestion_settings`). The route, its request shape
+and its failure modes are in `otodom_apify.md`; the code is
+`src/lib/otodom/apify-request.ts` and `src/lib/otodom/apify.ts`.
 
 Storage: a Worker has no filesystem, so the SQLite store in section 8 becomes
 **D1** (SQL, closest to the documented schema) or **KV** (sufficient if you only
@@ -730,7 +736,7 @@ Performed 2026-09-16, plain `curl`, Polish residential IP, no proxy:
 | `createdAtFirst` on a never-bumped offer               | **`null`** - use the `published_at()` fallback from section 6                                     |
 | Cloudflare Workers limits (2026-09-19)                 | Fit with large margin; `fetch()` wait does not consume CPU time                                   |
 | Cloudflare Workers TLS control                         | None - no cipher/ALPN control, so the OLX workaround cannot run there                             |
-| Cloudflare egress IP against Otodom                    | **Not verified** - deliberately; a 403 is handled by the fallback, see section 9.1                |
+| Cloudflare egress IP against Otodom                    | Verified 2026-09-20 (9.1); a refused fetch falls back to Apify (`otodom_apify.md`)                |
 
 Performed 2026-09-22 while building Vetpad's single-offer ingestion (FR-004), with
 `npm run otodom:inspect -- <url>` (`scripts/otodom-inspect.mjs`) — rerun it to
