@@ -162,28 +162,27 @@ Changes are written in the `master` working tree, may be committed there phase b
 
 <!-- BEGIN @przeprogramowani/10x-cli -->
 
-## 10xDevs AI Toolkit - Module 5, Lesson 3 (Code Review in CI)
+## 10xDevs AI Toolkit - Module 5, Lesson 5 (Async & Remote Agents)
 
-Move the review agent into GitHub Actions and turn its verdict into a merge gate. Evaluate prompt and model changes on a fixed case set before shipping them.
+Delegate a bounded, planned change and come back to review it. Control doesn't disappear; it moves to the task contract, the sandbox setup and the review at the end.
 
 ```
-m5l3-requirements -> /10x-new -> /10x-research -> /10x-plan -> review.yml + composite action -> promptfoo evals
+/10x-plan -> /goal + /10x-goal-implement (interactive or claude -p) -> review the commits and the manual checklist
 ```
 
 ### Task Router - Where to start
 
-| Skill / prompt / template                                                 | Use it when                                                                                                                                                                |
-| ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `m5l3-requirements` + `m5l3-cicd` (prompts)                               | Researching and planning the CI review workflow from written requirements.                                                                                                 |
-| `m5l3-review.yml.template`, `m5l3-action.yml.template` (config templates) | Wiring the reviewer into a PR workflow: composite action with title, body and diff inputs, `ai-cr:passed` / `ai-cr:failed` labels and a failing check on a `fail` verdict. |
-| `m5l3-promptfoo` (prompt) + `m5l3-promptfooconfig.yaml.template`          | Comparing models or prompt changes on the same diffs with is-json, llm-rubric and javascript assertions.                                                                   |
-| `/10x-impl-review-ci`                                                     | Reviewing a PR against its `context/changes/<id>/plan.md` in CI with Claude Code Action; its workflow template lives in the skill's `references/`.                         |
+| Skill                             | Use it when                                                                                                                                                             |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/10x-goal-implement <change-id>` | An approved `context/changes/<id>/plan.md` should run unattended. Pair it with `/goal <condition>`; it commits each phase on green and ends with pending manual checks. |
+| `/10x-implement`                  | You want to steer each phase yourself.                                                                                                                                  |
 
 ### Hard rules
 
-- **Pin third-party actions to a full commit SHA** with the tag in a comment.
-- **Gate on the verdict field**, never on free-text output.
-- **Pass multi-line values (diffs) through files or heredoc delimiters**, not single-line `$GITHUB_OUTPUT` writes.
-- **Run the eval set before changing the review prompt or model.**
+- **Delegate only planned work.** No approved `plan.md`, no unattended run.
+- **Bound every run.** The `/goal` condition names the finish state and a turn limit.
+- **A green run is not a finished change.** Review the commits and work through the manual checklist before merging.
+- **Give the sandbox only the secrets and network access the task needs.**
+- **Watch parallel and remote runs from one place.** Run each unattended session in its own herdr workspace so you can see which agents are working, blocked or done and step in from the browser (setup in the M2L6 Deep Dive).
 
 <!-- END @przeprogramowani/10x-cli -->
