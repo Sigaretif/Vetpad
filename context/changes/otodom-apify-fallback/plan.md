@@ -945,7 +945,7 @@ The migration must be pushed before the Worker that reads the table is deployed.
 
 #### Manual
 
-- [ ] 3.12 The user reads `live-calls.md` and `live-verification.md`, fills in each run's cost from Console → Runs → Usage, and confirms the six cases; every case recorded as `SKIPPED`, `BLOCKED` or `STALE` (named by the run) is completed with the same `--case` command — closed before row 6.8
+- [x] 3.12 The user reads `live-calls.md` and `live-verification.md`, fills in each run's cost from Console → Runs → Usage, and confirms the six cases; every case recorded as `SKIPPED`, `BLOCKED` or `STALE` (named by the run) is completed with the same `--case` command — closed before row 6.8 — reviewed 2026-10-17: all six cases match, no SKIPPED/BLOCKED/STALE; run-timeout cost $0.000 read in Console
 
 ### Phase 4: The fallback in both routes
 
@@ -969,7 +969,7 @@ The migration must be pushed before the Worker that reads the table is deployed.
 
 #### Manual
 
-- [ ] 5.6 The user opens `/dev/criteria` under `npm run dev` and looks at the new section in every state once
+- [x] 5.6 The user opens `/dev/criteria` under `npm run dev` and looks at the new section in every state once — looked at and accepted by the user 2026-10-17
 - [x] 5.7 `npm run smoke` passes against a local Supabase (or the CI `smoke` job is green) — local run 2026-10-17, all steps passed
 
 ### Phase 6: Rules, documents, and the steps that are the user's
@@ -983,9 +983,9 @@ The migration must be pushed before the Worker that reads the table is deployed.
 
 #### Manual
 
-- [ ] 6.5 The user runs the code-reviewer evals on the current and the changed `system.ts` against the baseline (paid)
+- [x] 6.5 The user runs the code-reviewer evals on the current and the changed `system.ts` against the baseline (paid) — run locally by the agent on the user's instruction, 2026-10-17, eval `eval-0qd-2026-10-17T21:06:44`: same as the baseline (haiku FAIL on `flaw-effect-deps`, sonnet and opus PASS, all verdicts `fail`; 0.0026 / 0.044 / 0.081 USD)
 - [x] 6.6 `npx supabase db push --dry-run`, then with the user's consent `npx supabase db push`, before the Worker deploys — pushed by the user 2026-10-17
 - [x] 6.7 The user sets `APIFY_TOKEN` with `npx wrangler secret put APIFY_TOKEN` and sets the Apify monthly limit — secret set by the user 2026-10-17; the Free plan offers no custom limit, its hard $5/month cap (platform suspended when spent) is the limit
-- [ ] 6.8 Precondition: row 3.12 is closed. The change reaches production through the user's chosen path (`/git-ship` or `/git-land`), and the deploy follows the runbook
-- [ ] 6.9 `/criteria` in production shows `data-ingestion-mode-effective="direct_with_fallback"` once the secret is set
-- [ ] 6.10 One real fallback run started by the user in `apify_only` on a live flat sale, then the mode restored to `direct_with_fallback`
+- [x] 6.8 Precondition: row 3.12 is closed. The change reaches production through the user's chosen path (`/git-ship` or `/git-land`), and the deploy follows the runbook — /git-land 2026-10-17, CI ci+smoke green, Worker version 57298f00 deployed by Workers Builds
+- [x] 6.9 `/criteria` in production shows `data-ingestion-mode-effective="direct_with_fallback"` once the secret is set — checked by the user 2026-10-17
+- [x] 6.10 One real fallback run started by the user in `apify_only` on a live flat sale, then the mode restored to `direct_with_fallback` — done by the user 2026-10-17: offer saved in apify_only, exactly one Cheerio Scraper run in Console, mode restored

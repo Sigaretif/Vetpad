@@ -53,6 +53,12 @@ The first run of the reviewer prompt as it stands in `../src/prompts/system.ts` 
 
 A change to the prompt or the model is measured against this table.
 
+### Later runs
+
+| Date       | Eval                           | Change measured                                                          | Result vs baseline                                                            |
+| ---------- | ------------------------------ | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| 2026-10-17 | `eval-0qd-2026-10-17T21:06:44` | criteria in `system.ts` updated by `otodom-apify-fallback` (Apify rules) | unchanged: haiku FAIL on `flaw-effect-deps`, sonnet and opus PASS, all `fail` |
+
 ## Privacy and telemetry
 
 Every script sets `PROMPTFOO_DISABLE_TELEMETRY`, `PROMPTFOO_DISABLE_SHARING` and `PROMPTFOO_DISABLE_UPDATE`, and `promptfooconfig.yaml` sets `sharing: false`: nothing goes to promptfoo's servers. `PROMPTFOO_CONFIG_DIR=.promptfoo` keeps promptfoo's database here rather than in `~/.promptfoo`.
