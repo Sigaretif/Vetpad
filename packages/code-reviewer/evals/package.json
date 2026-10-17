@@ -1,0 +1,19 @@
+{
+  "name": "code-reviewer-evals",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "promptfoo evals of the code reviewer, run through the real reviewDiff",
+  "engines": {
+    "node": ">=22.22.0"
+  },
+  "scripts": {
+    "eval": "PROMPTFOO_DISABLE_TELEMETRY=1 PROMPTFOO_DISABLE_SHARING=1 PROMPTFOO_DISABLE_UPDATE=1 PROMPTFOO_CONFIG_DIR=.promptfoo promptfoo eval -c promptfooconfig.yaml --env-file ../.env --no-cache",
+    "view": "PROMPTFOO_DISABLE_TELEMETRY=1 PROMPTFOO_DISABLE_SHARING=1 PROMPTFOO_DISABLE_UPDATE=1 PROMPTFOO_CONFIG_DIR=.promptfoo promptfoo view",
+    "preflight": "PROMPTFOO_DISABLE_TELEMETRY=1 PROMPTFOO_DISABLE_SHARING=1 PROMPTFOO_DISABLE_UPDATE=1 node preflight.mjs",
+    "typecheck": "../node_modules/.bin/tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "promptfoo": "0.124.1"
+  }
+}
