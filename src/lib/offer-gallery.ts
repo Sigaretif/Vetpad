@@ -41,12 +41,18 @@ export function gridSrc(photo: GalleryPhoto): string {
 }
 
 /**
- * The grid image's `srcset`. Each URL is a parser-normalised `href`, so whitespace in it is
- * percent-encoded and cannot split a candidate.
+ * A URL as a `srcset` candidate. A parser-normalised `href` has its whitespace percent-encoded, but
+ * keeps its commas, and the `srcset` parser ends a candidate at a trailing one — the descriptor
+ * after it would be read as a URL of its own. Trailing commas are encoded too.
  */
+function srcsetUrl(href: string): string {
+  return href.replace(/,+$/, (commas) => "%2C".repeat(commas.length));
+}
+
+/** The grid image's `srcset`: the medium and large variants as width candidates. */
 export function gridSrcset(photo: GalleryPhoto): string {
-  const large = `${photo.large} ${LARGE_WIDTH}w`;
-  return photo.medium === null ? large : `${photo.medium} ${MEDIUM_WIDTH}w, ${large}`;
+  const large = `${srcsetUrl(photo.large)} ${LARGE_WIDTH}w`;
+  return photo.medium === null ? large : `${srcsetUrl(photo.medium)} ${MEDIUM_WIDTH}w, ${large}`;
 }
 
 /**

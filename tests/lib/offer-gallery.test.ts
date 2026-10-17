@@ -97,6 +97,16 @@ describe("the grid image's attributes", () => {
     ]);
   });
 
+  it("encodes a trailing comma, which would end the srcset candidate before its descriptor", () => {
+    const [photo] = galleryPhotos([{ thumbnail: THUMB, medium: "https://x.pl/a,,", large: "https://x.pl/b," }]);
+
+    expect(gridSrcset(photo)).toBe("https://x.pl/a%2C%2C 655w, https://x.pl/b%2C 2048w");
+    // A comma inside a URL is no candidate boundary and stays as it is.
+    expect(gridSrcset({ medium: "https://x.pl/a,b", large: LARGE })).toBe(
+      "https://x.pl/a,b 655w, https://cdn.example.com/a/image;s=2048x1536;q=80 2048w",
+    );
+  });
+
   it("sizes a single photo to the whole gallery and several to a third of it", () => {
     expect(gridSizes(1)).toBe("(min-width: 1024px) 694px, 100vw");
     expect(gridSizes(2)).toBe("(min-width: 1024px) 223px, (min-width: 640px) 33vw, 50vw");

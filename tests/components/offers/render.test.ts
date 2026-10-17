@@ -75,13 +75,17 @@ function urlsIn(html: string): string[] {
 /**
  * The candidate URLs of a `srcset`, each followed by a width descriptor. A URL with whitespace in
  * it would split into tokens that are not descriptors, so the descriptor check fails the test
- * rather than letting part of a URL past the whitelist.
+ * rather than letting part of a URL past the whitelist. A URL ending in a comma is checked too:
+ * the browser's parser ends the candidate there and reads the descriptor as a URL.
  */
 function srcsetUrls(srcset: string): string[] {
   const tokens = srcset.trim().split(/\s+/);
   expect(tokens.length % 2).toBe(0);
   return tokens.flatMap((token, index) => {
-    if (index % 2 === 0) return [token];
+    if (index % 2 === 0) {
+      expect(token).not.toMatch(/,$/);
+      return [token];
+    }
     expect(token).toMatch(index === tokens.length - 1 ? /^\d+w$/ : /^\d+w,$/);
     return [];
   });
@@ -369,6 +373,13 @@ describe("OfferGallery: a photo renders only when its thumbnail and large URLs a
     expect(imgAttributesIn(html, "srcset")).toEqual([
       "https://x.pl/a%20b,%209999w 655w, https://picsum.photos/seed/render-test/800/600 2048w",
     ]);
+    expectOnlySafeUrls(html);
+  });
+
+  it("encodes a trailing comma of a medium or large URL in srcset", async () => {
+    const html = await gallery([{ thumbnail: THUMB, medium: "https://x.pl/a,", large: "https://x.pl/b," }]);
+
+    expect(imgAttributesIn(html, "srcset")).toEqual(["https://x.pl/a%2C 655w, https://x.pl/b%2C 2048w"]);
     expectOnlySafeUrls(html);
   });
 
