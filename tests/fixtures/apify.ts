@@ -143,6 +143,14 @@ export function apifyError(status: number, type: string, messageCanary: string =
 }
 
 /**
+ * A run that exceeded its `timeout=`: `run-sync-get-dataset-items` answers 400 `run-failed`, observed
+ * live on 2026-10-17 (Console status TIMED-OUT, no dataset, $0.000) — `live-verification.md`.
+ */
+export function apifyRunTimeout(messageCanary: string = APIFY_MESSAGE_CANARY): Response {
+  return apifyError(400, "run-failed", messageCanary);
+}
+
+/**
  * A service that never answers: the request stays open until the caller's signal aborts, and is
  * then rejected with the signal's reason, as a real `fetch` rejects an aborted request.
  */

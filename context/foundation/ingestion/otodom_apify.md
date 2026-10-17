@@ -381,18 +381,19 @@ follow-up operation as well, not just creating the webhook.
 
 ## 9. Failure modes
 
-| Symptom                                | Cause                               | Action                                                                                                   |
-| -------------------------------------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `401` `user-or-token-not-found`        | Token wrong or deleted              | Re-issue                                                                                                 |
-| `401` `token-not-provided`             | Header missing                      | Fix the request                                                                                          |
-| `403` `insufficient-permissions`       | Token valid, scope too narrow       | Section 3.1. Not a typo.                                                                                 |
-| `400` `invalid-input` on `startUrls`   | Strings instead of objects          | Section 4.1                                                                                              |
-| `408`                                  | Run exceeded 300 s                  | Switch to the async pattern in 8.1                                                                       |
-| `201` with `_warning` and no `id`      | Offer gone, or page shape changed   | Treat as 404 (5.2)                                                                                       |
-| `201`, items present, all filtered out | Same as above                       | Same                                                                                                     |
-| Two items for one URL                  | Actor's junk sentinel               | Filter (5.1)                                                                                             |
-| Run charges more than expected         | `maxItems` caps billing, not output | Set `maxTotalChargeUsd`                                                                                  |
-| Actor stops working entirely           | Single maintainer abandoned it      | Fall back to direct fetching per `otodom_fetching.md` 7.1, or migrate actors using the section 6 mapping |
+| Symptom                                | Cause                               | Action                                                                                                                                                                                                          |
+| -------------------------------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `401` `user-or-token-not-found`        | Token wrong or deleted              | Re-issue                                                                                                                                                                                                        |
+| `401` `token-not-provided`             | Header missing                      | Fix the request                                                                                                                                                                                                 |
+| `403` `insufficient-permissions`       | Token valid, scope too narrow       | Section 3.1. Not a typo.                                                                                                                                                                                        |
+| `400` `invalid-input` on `startUrls`   | Strings instead of objects          | Section 4.1                                                                                                                                                                                                     |
+| `408`                                  | Run exceeded 300 s                  | Switch to the async pattern in 8.1                                                                                                                                                                              |
+| `400` `run-failed`                     | Run exceeded its `timeout=`         | Observed 2026-10-17 on `apify/cheerio-scraper` with `timeout=1`: Console status TIMED-OUT, 0 results, $0.000 (`otodom-apify-fallback/live-verification.md`). Read as an Apify failure that did not reach otodom |
+| `201` with `_warning` and no `id`      | Offer gone, or page shape changed   | Treat as 404 (5.2)                                                                                                                                                                                              |
+| `201`, items present, all filtered out | Same as above                       | Same                                                                                                                                                                                                            |
+| Two items for one URL                  | Actor's junk sentinel               | Filter (5.1)                                                                                                                                                                                                    |
+| Run charges more than expected         | `maxItems` caps billing, not output | Set `maxTotalChargeUsd`                                                                                                                                                                                         |
+| Actor stops working entirely           | Single maintainer abandoned it      | Fall back to direct fetching per `otodom_fetching.md` 7.1, or migrate actors using the section 6 mapping                                                                                                        |
 
 Design so anything unexpected raises. A notifier that reports "nothing new"
 forever is worse than one that crashes.

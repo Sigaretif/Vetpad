@@ -20,6 +20,7 @@ import {
   apifyRentalItem,
   apifyResultsItem,
   apifyRunError,
+  apifyRunTimeout,
   apifySilence,
   isApifyRequest,
   recordApifyHeaders,
@@ -307,6 +308,21 @@ describe("ApifyLeg.fetchAd: a run that never reached otodom says why, once", () 
     });
     expect(JSON.stringify(result)).not.toContain(APIFY_MESSAGE_CANARY);
     // No retry, whatever the status: a 408 or a 429 is not asked again.
+    expect(apifyCalls(stub.requests)).toHaveLength(1);
+  });
+
+  it("reads a run that exceeded its timeout (400 run-failed, observed live) as an http failure before otodom", async () => {
+    const { stub } = serve(() => apifyRunTimeout());
+    const result = await fetchAd();
+
+    expect(result).toStrictEqual({
+      ok: false,
+      reachedOtodom: false,
+      apifyFailure: "http",
+      apifyStatus: 400,
+      apifyErrorType: "run-failed",
+    });
+    expect(JSON.stringify(result)).not.toContain(APIFY_MESSAGE_CANARY);
     expect(apifyCalls(stub.requests)).toHaveLength(1);
   });
 
