@@ -417,7 +417,7 @@ Nie dotyczy. Nowe pliki nie zmieniają istniejących jobów `ci` ani `smoke`.
 
 #### Manual
 
-- [ ] 3.4 Płatny run na opened: komentarz z SHA, ocenami, etykieta i check zgodne z werdyktem
-- [ ] 3.5 Push do PR-a nie uruchamia review
-- [ ] 3.6 Płatny run na ai-cr:review: nowe SHA, aktualna etykieta, ai-cr:review zdjęta
-- [ ] 3.7 Obca etykieta nie anuluje trwającego review
+- [x] 3.4 Płatny run na opened: komentarz z SHA, ocenami, etykieta i check zgodne z werdyktem — 2316e9d
+- [x] 3.5 Push do PR-a nie uruchamia review — 0ab4510
+- [x] 3.6 Płatny run na ai-cr:review: nowe SHA, aktualna etykieta, ai-cr:review zdjęta — 0ab4510
+- [x] 3.7 Obca etykieta nie anuluje trwającego review — 0ab4510
