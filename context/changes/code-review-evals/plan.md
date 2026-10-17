@@ -337,10 +337,10 @@ Nie dotyczy: nowy, niezależny katalog. Akcja CI, pakiet reviewera i aplikacja s
 
 #### Automated
 
-- [x] 3.1 `AGENTS.md` nadal jest symlinkiem do `CLAUDE.md`: `test -L AGENTS.md && [ "$(readlink AGENTS.md)" = CLAUDE.md ]`
-- [x] 3.2 `packages/code-reviewer/src/prompts/system.ts` i `context/changes/ci-cd-code-review/requirements.md` są bez zmian: `git diff --stat` ich nie wymienia
-- [x] 3.3 Bramki aplikacji przechodzą bez zmian: `npm run lint` i `npx astro check`
+- [x] 3.1 `AGENTS.md` nadal jest symlinkiem do `CLAUDE.md`: `test -L AGENTS.md && [ "$(readlink AGENTS.md)" = CLAUDE.md ]` — 0489680
+- [x] 3.2 `packages/code-reviewer/src/prompts/system.ts` i `context/changes/ci-cd-code-review/requirements.md` są bez zmian: `git diff --stat` ich nie wymienia — 0489680
+- [x] 3.3 Bramki aplikacji przechodzą bez zmian: `npm run lint` i `npx astro check` — 0489680
 
 #### Manual
 
-- [x] 3.4 Przegląd treści: wyjątek w `CLAUDE.md` jest jednoznaczny (kto uruchamia, czym, z jakim kluczem, nigdy w CI), a README evali pozwala uruchomić eval komuś spoza tej rozmowy
+- [x] 3.4 Przegląd treści: wyjątek w `CLAUDE.md` jest jednoznaczny (kto uruchamia, czym, z jakim kluczem, nigdy w CI), a README evali pozwala uruchomić eval komuś spoza tej rozmowy — 0489680
