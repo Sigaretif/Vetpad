@@ -135,6 +135,12 @@
 // data-audit-status="stale". The first fixture offer's card carries data-audit-freshness="none" before and after:
 // there is no result to judge. Nothing here runs an audit, and these steps stand after every step that changes the
 // criteria and before cleanup restores the limits, which moves the revision again.
+// Ingestion mode (FR-004, FR-009), straight against Supabase: public.ingestion_settings is one row only the owner
+// changes, in Supabase Studio, so it has a select policy for signed-in members and nothing else. The publishable key
+// alone reads nothing from it and changes nothing (200 with no rows); a member reads the one row but cannot change
+// the mode (200 with no rows), insert a second row (403, 42501) or delete it (200 with no rows) - the row is the same
+// after each attempt. Nothing here or anywhere in smoke reaches Apify: the smoke job has no APIFY_TOKEN, and no step
+// asks a route to fetch a listing.
 // Cleanup runs whatever failed before it: the limits read at the start are written back (signed by the first
 // member, as any restore would be), the audit settings read at the start likewise, and both members' requirements
 // are deleted with the rows counted - none left of the first member's, which the route removed, and one of the
@@ -225,6 +231,8 @@ const AUDIT_EFFORTS = ["low", "medium", "high"];
 const AUDIT_SETTINGS_OK = 'data-audit-settings-state="ok"';
 // The audit settings as they stood before this run, read before the first write and written back by cleanup.
 let auditSettingsBefore = null;
+// The ingestion mode: one row, which only the owner changes in Supabase Studio (public.ingestion_settings).
+const INGESTION_SETTINGS = "ingestion_settings?id=eq.true";
 // The audit attempt this run starts hangs on the second fixture offer. The first one - the offer behind FIXTURE_CARD,
 // whose card the run opens - never gets an audit row, so a step that reads that card sees an offer nobody audited.
 const FIXTURE_AUDIT = `offer_audits?offer_id=eq.${FIXTURE_OFFER_ID}`;
@@ -767,6 +775,11 @@ function observedAuditSettings() {
   return { as: MEMBER, order: "id", path: AUDIT_SETTINGS };
 }
 
+// An observed read for withSnapshot: the ingestion mode row.
+function observedIngestionSettings() {
+  return { as: MEMBER, order: "id", path: INGESTION_SETTINGS };
+}
+
 // A member switches the audit model to the one the settings did not hold at the start, so the write is a real
 // change whatever the local database held, and the signature trigger signs it.
 function changeAuditModel() {
@@ -1186,6 +1199,26 @@ const steps = [
           method: "PATCH",
           prefer: "return=representation",
           body: { effort: "low" },
+        }),
+      ),
+    { status: 200, rows: 0, snapshot: "same" },
+  ],
+  // The ingestion mode is a singleton too, so 0 rows is the denial. Members only read it: the owner changes it in
+  // Supabase Studio, and no write policy exists for anyone.
+  ["anon cannot read the ingestion mode", () => supabaseRest("ingestion_settings?select=id"), { status: 200, rows: 0 }],
+  [
+    "signed-in member reads the ingestion mode",
+    () => supabaseRest(`${INGESTION_SETTINGS}&select=mode`, { as: MEMBER }),
+    { status: 200, rows: 1 },
+  ],
+  [
+    "anon cannot change the ingestion mode",
+    () =>
+      withSnapshot([observedIngestionSettings()], () =>
+        supabaseRest(INGESTION_SETTINGS, {
+          method: "PATCH",
+          prefer: "return=representation",
+          body: { mode: "direct_only" },
         }),
       ),
     { status: 200, rows: 0, snapshot: "same" },
@@ -2046,6 +2079,41 @@ const steps = [
     () =>
       withSnapshot([observedAuditSettings()], () =>
         supabaseRest(AUDIT_SETTINGS, { as: MEMBER, method: "DELETE", prefer: "return=representation" }),
+      ),
+    { status: 200, rows: 0, snapshot: "same" },
+  ],
+  // The ingestion mode: no write policy at all, so a member's update and delete reach no row and an insert is
+  // refused. The PATCH names a mode the check admits, so a refusal is the missing policy and not the check.
+  [
+    "member cannot change the ingestion mode",
+    () =>
+      withSnapshot([observedIngestionSettings()], () =>
+        supabaseRest(INGESTION_SETTINGS, {
+          as: MEMBER,
+          method: "PATCH",
+          prefer: "return=representation",
+          body: { mode: "direct_only" },
+        }),
+      ),
+    { status: 200, rows: 0, snapshot: "same" },
+  ],
+  [
+    "member cannot insert a second ingestion settings row",
+    () =>
+      withSnapshot([observedIngestionSettings()], () =>
+        supabaseRest("ingestion_settings", {
+          as: MEMBER,
+          method: "POST",
+          body: { id: true, mode: "direct_only" },
+        }),
+      ),
+    { status: 403, errorCode: "42501", snapshot: "same" },
+  ],
+  [
+    "member cannot delete the ingestion settings row",
+    () =>
+      withSnapshot([observedIngestionSettings()], () =>
+        supabaseRest(INGESTION_SETTINGS, { as: MEMBER, method: "DELETE", prefer: "return=representation" }),
       ),
     { status: 200, rows: 0, snapshot: "same" },
   ],
