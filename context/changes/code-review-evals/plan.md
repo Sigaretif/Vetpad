@@ -324,23 +324,23 @@ Nie dotyczy: nowy, niezależny katalog. Akcja CI, pakiet reviewera i aplikacja s
 
 #### Automated
 
-- [x] 2.1 Konfiguracja przechodzi walidację: `cd packages/code-reviewer/evals && npx promptfoo validate -c promptfooconfig.yaml`
-- [x] 2.2 Diff jest poprawnym unified diffem, który `git apply --check` przyjmuje na pustym katalogu z plikiem `package.json` w wersji „przed” (albo pliki są oznaczone jako nowe)
-- [x] 2.3 Preflight dalej przechodzi: `cd packages/code-reviewer/evals && npm run preflight`
+- [x] 2.1 Konfiguracja przechodzi walidację: `cd packages/code-reviewer/evals && npx promptfoo validate -c promptfooconfig.yaml` — ee10985
+- [x] 2.2 Diff jest poprawnym unified diffem, który `git apply --check` przyjmuje na pustym katalogu z plikiem `package.json` w wersji „przed” (albo pliki są oznaczone jako nowe) — ee10985
+- [x] 2.3 Preflight dalej przechodzi: `cd packages/code-reviewer/evals && npm run preflight` — ee10985
 
 #### Manual
 
-- [x] 2.4 Przegląd diffu: dokładnie trzy podłożone wady, bez komentarzy, które je zdradzają, bez innych oczywistych błędów, bez danych prawdziwych osób
-- [x] 2.5 Użytkownik uruchamia jeden płatny przebieg `cd packages/code-reviewer/evals && npm run eval`, a potem `npx promptfoo view`. Tabela pokazuje trzy kolumny modeli z wynikami czterech metryk (`flaw-default-props`, `flaw-effect-deps`, `flaw-xss`, `verdict-fail`) i kosztem każdego przebiegu, bez błędów providera ani sędziego
+- [x] 2.4 Przegląd diffu: dokładnie trzy podłożone wady, bez komentarzy, które je zdradzają, bez innych oczywistych błędów, bez danych prawdziwych osób — ee10985
+- [x] 2.5 Użytkownik uruchamia jeden płatny przebieg `cd packages/code-reviewer/evals && npm run eval`, a potem `npx promptfoo view`. Tabela pokazuje trzy kolumny modeli z wynikami czterech metryk (`flaw-default-props`, `flaw-effect-deps`, `flaw-xss`, `verdict-fail`) i kosztem każdego przebiegu, bez błędów providera ani sędziego — ee10985
 
 ### Phase 3: Dokumentacja i reguła
 
 #### Automated
 
-- [ ] 3.1 `AGENTS.md` nadal jest symlinkiem do `CLAUDE.md`: `test -L AGENTS.md && [ "$(readlink AGENTS.md)" = CLAUDE.md ]`
-- [ ] 3.2 `packages/code-reviewer/src/prompts/system.ts` i `context/changes/ci-cd-code-review/requirements.md` są bez zmian: `git diff --stat` ich nie wymienia
-- [ ] 3.3 Bramki aplikacji przechodzą bez zmian: `npm run lint` i `npx astro check`
+- [x] 3.1 `AGENTS.md` nadal jest symlinkiem do `CLAUDE.md`: `test -L AGENTS.md && [ "$(readlink AGENTS.md)" = CLAUDE.md ]`
+- [x] 3.2 `packages/code-reviewer/src/prompts/system.ts` i `context/changes/ci-cd-code-review/requirements.md` są bez zmian: `git diff --stat` ich nie wymienia
+- [x] 3.3 Bramki aplikacji przechodzą bez zmian: `npm run lint` i `npx astro check`
 
 #### Manual
 
-- [ ] 3.4 Przegląd treści: wyjątek w `CLAUDE.md` jest jednoznaczny (kto uruchamia, czym, z jakim kluczem, nigdy w CI), a README evali pozwala uruchomić eval komuś spoza tej rozmowy
+- [x] 3.4 Przegląd treści: wyjątek w `CLAUDE.md` jest jednoznaczny (kto uruchamia, czym, z jakim kluczem, nigdy w CI), a README evali pozwala uruchomić eval komuś spoza tej rozmowy

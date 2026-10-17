@@ -273,6 +273,8 @@ A third workflow, **AI Code Review** (`.github/workflows/review.yml`, through th
 - **Not a required check yet** — `master` has no branch protection, so a failed review does not block a merge. A run skipped because of an unrelated label reports success; see `CLAUDE.md` before making `review` a required check.
 - **Known risk: the key and the PR's code** — the workflow runs `npm ci` and `packages/code-reviewer/src/ci.ts` from the PR's own code while holding `CODE_REVIEWER_API_KEY`, so anyone with write access to the repository could change the reviewer or its dependencies in a PR and exfiltrate the key. PRs from forks get no secrets and the repository has a single owner today, so the risk is low. The fix — running the reviewer from the base branch's code — comes back before the repository gets another collaborator with write access.
 
+The reviewer's prompt and model are measured with promptfoo evals in `packages/code-reviewer/evals` before either changes: a free preflight, a paid run started by hand and never in CI, and the baseline the next change is compared with — see [`packages/code-reviewer/evals/README.md`](packages/code-reviewer/evals/README.md).
+
 ## License
 
 MIT
