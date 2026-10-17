@@ -976,10 +976,10 @@ The migration must be pushed before the Worker that reads the table is deployed.
 
 #### Automated
 
-- [x] 6.1 The old rule is gone: `! grep -n "rather than sitting beside it" CLAUDE.md`
-- [x] 6.2 The reviewer package's offline checks pass: `npm --prefix packages/code-reviewer/evals run preflight`
-- [x] 6.3 Repository tests, lint and types still pass: `npm test && npm run lint && npx astro check`
-- [x] 6.4 No `trev0n` actor left as the recommended route: `! grep -rn "trev0n~otodom-scraper/run-sync" CLAUDE.md README.md context/foundation/deployment-runbook.md`
+- [x] 6.1 The old rule is gone: `! grep -n "rather than sitting beside it" CLAUDE.md` — 63fb73a
+- [x] 6.2 The reviewer package's offline checks pass: `npm --prefix packages/code-reviewer/evals run preflight` — 63fb73a
+- [x] 6.3 Repository tests, lint and types still pass: `npm test && npm run lint && npx astro check` — 63fb73a
+- [x] 6.4 No `trev0n` actor left as the recommended route: `! grep -rn "trev0n~otodom-scraper/run-sync" CLAUDE.md README.md context/foundation/deployment-runbook.md` — 63fb73a
 
 #### Manual
 
