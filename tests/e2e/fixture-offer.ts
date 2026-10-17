@@ -1,4 +1,5 @@
 import { expect, type APIRequestContext } from "@playwright/test";
+import type { OfferImage } from "@/lib/otodom/types";
 import { testUser } from "./helpers";
 
 /**
@@ -40,12 +41,16 @@ export async function memberApi(request: APIRequestContext): Promise<MemberApi> 
   };
 }
 
-/** Saves the offer `offerId` as the member. The id is the caller's, so the cleanup knows it even if this fails. */
+/**
+ * Saves the offer `offerId` as the member. The id is the caller's, so the cleanup knows it even if this fails.
+ * `images` is stored as given; without it the offer has the column's default, no photos.
+ */
 export async function createFixtureOffer(
   request: APIRequestContext,
   member: MemberApi,
   offerId: string,
   title: string,
+  images?: OfferImage[],
 ): Promise<void> {
   const response = await request.post(`${supabase().url}/rest/v1/offers`, {
     headers: member.headers,
@@ -57,6 +62,7 @@ export async function createFixtureOffer(
       title,
       description: "Oferta utworzona przez test E2E i usuwana po nim.",
       raw: {},
+      ...(images === undefined ? {} : { images }),
     },
   });
   await expect(response, "the fixture offer is saved").toBeOK();

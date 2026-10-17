@@ -368,25 +368,25 @@ Bez migracji SQL i bez backfillu: kolumna `images jsonb` przyjmuje nowe pole. Wi
 
 #### Automated
 
-- [x] 3.1 Testy przechodzą: `npm test`
-- [x] 3.2 Typy: `npx astro sync && npx astro check`
-- [x] 3.3 Lint (tokeny, brak `"use client"`): `npm run lint`
-- [x] 3.4 Build: `npm run build`
-- [x] 3.5 `package.json` ma `@radix-ui/react-dialog` w `dependencies` i nie ma `radix-ui` ani `cn`
+- [x] 3.1 Testy przechodzą: `npm test` — 9986511
+- [x] 3.2 Typy: `npx astro sync && npx astro check` — 9986511
+- [x] 3.3 Lint (tokeny, brak `"use client"`): `npm run lint` — 9986511
+- [x] 3.4 Build: `npm run build` — 9986511
+- [x] 3.5 `package.json` ma `@radix-ui/react-dialog` w `dependencies` i nie ma `radix-ui` ani `cn` — 9986511
 
 #### Manual
 
-- [x] 3.6 `/dev/offer-card`: klik otwiera dialog, ←/→ i przyciski zawijają, Esc/„Zamknij” zamykają, fokus wraca; ctrl-/środkowy klik → nowa karta (pod `npm run dev`, restart serwera po `astro sync`)
-- [x] 3.7 `?open=photo-3` otwiera dialog na „3 z 4”
-- [x] 3.8 Bez JS klik miniatury otwiera `large` w nowej karcie
-- [x] 3.9 Drzewo dostępności: dialog „Zdjęcia: …”, licznik w regionie live
+- [x] 3.6 `/dev/offer-card`: klik otwiera dialog, ←/→ i przyciski zawijają, Esc/„Zamknij” zamykają, fokus wraca; ctrl-/środkowy klik → nowa karta (pod `npm run dev`, restart serwera po `astro sync`) — 9986511
+- [x] 3.7 `?open=photo-3` otwiera dialog na „3 z 4” — 9986511
+- [x] 3.8 Bez JS klik miniatury otwiera `large` w nowej karcie — 9986511
+- [x] 3.9 Drzewo dostępności: dialog „Zdjęcia: …”, licznik w regionie live — 9986511
 
 ### Phase 4: E2E i dokumentacja
 
 #### Automated
 
-- [ ] 4.1 Spec przechodzi lokalnie: `npx playwright test tests/e2e/photo-lightbox.spec.ts`
-- [ ] 4.2 Pozostałe specy dalej przechodzą: `npx playwright test`
+- [x] 4.1 Spec przechodzi lokalnie: `npx playwright test tests/e2e/photo-lightbox.spec.ts`
+- [x] 4.2 Pozostałe specy dalej przechodzą: `npx playwright test`
 - [ ] 4.3 `npm test`, `npm run lint`, `npx astro check` przechodzą
 
 #### Manual
