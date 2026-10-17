@@ -1,10 +1,10 @@
 ---
 change_id: code-review-evals
 title: Evale agenta code review (promptfoo)
-status: implemented
+status: archived
 created: 2026-10-17
 updated: 2026-10-17
-archived_at: null
+archived_at: 2026-10-17T15:12:31Z
 ---
 
 ## Notes
