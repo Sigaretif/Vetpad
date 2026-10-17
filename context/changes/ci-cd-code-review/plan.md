@@ -410,10 +410,10 @@ Nie dotyczy. Nowe pliki nie zmieniają istniejących jobów `ci` ani `smoke`.
 
 #### Automated
 
-- [x] 3.1 CLAUDE.md zawiera wyjątek i referencje, blok 10x-cli nietknięty
-- [x] 3.2 README opisuje workflow, sekret i etykiety
-- [x] 3.3 Root gates przechodzą
-- [x] 3.8 CLAUDE.md zawiera regułę utrzymania kryteriów reviewera w system.ts
+- [x] 3.1 CLAUDE.md zawiera wyjątek i referencje, blok 10x-cli nietknięty — 5b74e14
+- [x] 3.2 README opisuje workflow, sekret i etykiety — 5b74e14
+- [x] 3.3 Root gates przechodzą — 5b74e14
+- [x] 3.8 CLAUDE.md zawiera regułę utrzymania kryteriów reviewera w system.ts — 5b74e14
 
 #### Manual
 
