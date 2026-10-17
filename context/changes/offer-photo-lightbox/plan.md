@@ -354,32 +354,32 @@ Bez migracji SQL i bez backfillu: kolumna `images jsonb` przyjmuje nowe pole. Wi
 
 #### Automated
 
-- [x] 2.1 Testy modułu i renderu przechodzą: `npx vitest run tests/lib/offer-gallery.test.ts tests/components/offers/render.test.ts`
-- [x] 2.2 Cały zestaw przechodzi: `npm test`
-- [x] 2.3 Typy: `npx astro sync && npx astro check`
-- [x] 2.4 Lint (tokeny): `npm run lint`
-- [x] 2.5 Build: `npm run build`
+- [x] 2.1 Testy modułu i renderu przechodzą: `npx vitest run tests/lib/offer-gallery.test.ts tests/components/offers/render.test.ts` — 4775dbf
+- [x] 2.2 Cały zestaw przechodzi: `npm test` — 4775dbf
+- [x] 2.3 Typy: `npx astro sync && npx astro check` — 4775dbf
+- [x] 2.4 Lint (tokeny): `npm run lint` — 4775dbf
+- [x] 2.5 Build: `npm run build` — 4775dbf
 
 #### Manual
 
-- [x] 2.6 `/dev/offer-card`: ostre siatki (`medium` w 3 kolumnach, `large` przy jednym zdjęciu), `legacyImagesOffer` ostry z `large`, stany z wrogimi URL-ami bez zmian (sprawdzenie pod `npm run dev`, DevTools → Network)
+- [x] 2.6 `/dev/offer-card`: ostre siatki (`medium` w 3 kolumnach, `large` przy jednym zdjęciu), `legacyImagesOffer` ostry z `large`, stany z wrogimi URL-ami bez zmian (sprawdzenie pod `npm run dev`, DevTools → Network) — 4775dbf
 
 ### Phase 3: Lightbox — dialog i wyspa
 
 #### Automated
 
-- [ ] 3.1 Testy przechodzą: `npm test`
-- [ ] 3.2 Typy: `npx astro sync && npx astro check`
-- [ ] 3.3 Lint (tokeny, brak `"use client"`): `npm run lint`
-- [ ] 3.4 Build: `npm run build`
-- [ ] 3.5 `package.json` ma `@radix-ui/react-dialog` w `dependencies` i nie ma `radix-ui` ani `cn`
+- [x] 3.1 Testy przechodzą: `npm test`
+- [x] 3.2 Typy: `npx astro sync && npx astro check`
+- [x] 3.3 Lint (tokeny, brak `"use client"`): `npm run lint`
+- [x] 3.4 Build: `npm run build`
+- [x] 3.5 `package.json` ma `@radix-ui/react-dialog` w `dependencies` i nie ma `radix-ui` ani `cn`
 
 #### Manual
 
-- [ ] 3.6 `/dev/offer-card`: klik otwiera dialog, ←/→ i przyciski zawijają, Esc/„Zamknij” zamykają, fokus wraca; ctrl-/środkowy klik → nowa karta (pod `npm run dev`, restart serwera po `astro sync`)
-- [ ] 3.7 `?open=photo-3` otwiera dialog na „3 z 4”
-- [ ] 3.8 Bez JS klik miniatury otwiera `large` w nowej karcie
-- [ ] 3.9 Drzewo dostępności: dialog „Zdjęcia: …”, licznik w regionie live
+- [x] 3.6 `/dev/offer-card`: klik otwiera dialog, ←/→ i przyciski zawijają, Esc/„Zamknij” zamykają, fokus wraca; ctrl-/środkowy klik → nowa karta (pod `npm run dev`, restart serwera po `astro sync`)
+- [x] 3.7 `?open=photo-3` otwiera dialog na „3 z 4”
+- [x] 3.8 Bez JS klik miniatury otwiera `large` w nowej karcie
+- [x] 3.9 Drzewo dostępności: dialog „Zdjęcia: …”, licznik w regionie live
 
 ### Phase 4: E2E i dokumentacja
 

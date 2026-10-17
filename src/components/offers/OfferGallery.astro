@@ -1,23 +1,24 @@
 ---
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import OfferPhotoViewer from "@/components/offers/OfferPhotoViewer";
 import Unstated from "@/components/offers/Unstated.astro";
-import { galleryPhotos, gridSizes, gridSrc, gridSrcset } from "@/lib/offer-gallery";
-import { cn } from "@/lib/utils";
+import { galleryPhotos } from "@/lib/offer-gallery";
 
 interface Props {
   /** The stored column as read: any member can PATCH it, so an element may be anything. */
   images: unknown[];
   title: string;
+  /** For the /dev kitchen sinks alone: the photo viewer is open on this photo (0-based). */
+  openAt?: number;
 }
 
-const { title } = Astro.props;
-// Row data lands in href/src/srcset, so only `galleryPhotos` results are rendered: an entry whose
-// thumbnail or large photo is not https is skipped (the thumbnail still gates it, although the grid
-// shows medium/large, so the card has the same photos as the board and the archive), and an
-// element that is not an object is skipped the same way rather than failing the whole card.
+const { title, openAt } = Astro.props;
+// Row data lands in href/src/srcset and in the island's props, so only `galleryPhotos` results
+// reach the island — never the column: an entry whose thumbnail or large photo is not https is
+// skipped (the thumbnail still gates it, although the grid shows medium/large, so the card has the
+// same photos as the board and the archive), and an element that is not an object is skipped the
+// same way rather than failing the whole card.
 const photos = galleryPhotos(Astro.props.images);
-const total = photos.length;
-const sizes = gridSizes(total);
 ---
 
 <section>
@@ -26,34 +27,12 @@ const sizes = gridSizes(total);
       <h2 class="text-xl font-semibold">Zdjęcia</h2>
     </CardHeader>
     <CardContent>
-      {total === 0 ? (
+      {photos.length === 0 ? (
         <p class="text-sm">
           <Unstated>Ogłoszenie nie zawiera zdjęć.</Unstated>
         </p>
       ) : (
-        <ul class:list={cn("grid gap-3", total === 1 ? "grid-cols-1" : "grid-cols-2 sm:grid-cols-3")}>
-          {photos.map((photo, index) => (
-            <li>
-              <a
-                href={photo.large}
-                target="_blank"
-                rel="noopener noreferrer"
-                class="border-border focus-visible:ring-ring/50 block overflow-hidden rounded-lg border transition-[opacity,box-shadow] outline-none hover:opacity-80 focus-visible:ring-[3px]"
-              >
-                <img
-                  src={gridSrc(photo)}
-                  srcset={gridSrcset(photo)}
-                  sizes={sizes}
-                  alt={`Zdjęcie ${index + 1} z ${total}: ${title}`}
-                  loading="lazy"
-                  decoding="async"
-                  referrerpolicy="no-referrer"
-                  class="aspect-[4/3] w-full object-cover"
-                />
-              </a>
-            </li>
-          ))}
-        </ul>
+        <OfferPhotoViewer client:load photos={photos} title={title} openAt={openAt} />
       )}
     </CardContent>
   </Card>

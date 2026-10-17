@@ -99,6 +99,20 @@ function imgSrcsIn(html: string): string[] {
   return Array.from(html.matchAll(/<img\b[^>]*?\ssrc="([^"]*)"/gi), (match) => match[1]);
 }
 
+/** The `props` attribute of every island in the markup, with Astro's `&quot;` escaping undone. */
+function islandPropsIn(html: string): string[] {
+  return Array.from(html.matchAll(/<astro-island\b[^>]*?\sprops="([^"]*)"/g), (match) =>
+    match[1].replaceAll("&quot;", '"').replaceAll("&amp;", "&"),
+  );
+}
+
+/** Every string anywhere in serialised island props, in document order. */
+function stringsIn(value: unknown): string[] {
+  if (typeof value === "string") return [value];
+  if (typeof value !== "object" || value === null) return [];
+  return Object.values(value).flatMap(stringsIn);
+}
+
 function countTags(html: string, tag: string): number {
   return html.match(new RegExp(`<${tag}\\b`, "gi"))?.length ?? 0;
 }
@@ -356,6 +370,46 @@ describe("OfferGallery: a photo renders only when its thumbnail and large URLs a
       "https://x.pl/a%20b,%209999w 655w, https://picsum.photos/seed/render-test/800/600 2048w",
     ]);
     expectOnlySafeUrls(html);
+  });
+
+  it("hands the photo viewer island only the filtered URLs, never a rejected value", async () => {
+    const html = await gallery([
+      null,
+      { thumbnail: JS, medium: MEDIUM, large: LARGE },
+      { thumbnail: THUMB, medium: MEDIUM, large: JS },
+      { thumbnail: THUMB, medium: "http://picsum.photos/seed/render-test/655/491", large: LARGE },
+      { thumbnail: THUMB, medium: JS, large: LARGE },
+      VALID,
+      { thumbnail: THUMB, large: "http://picsum.photos/seed/render-test/800/600" },
+    ]);
+    const props = islandPropsIn(html);
+
+    expect(props).toHaveLength(1);
+    expect(props[0]).not.toContain("javascript:");
+    expect(props[0]).not.toContain("http://");
+    // Three photos survive the filter: two without their rejected medium variant, and VALID.
+    expect(stringsIn(JSON.parse(props[0]))).toEqual([LARGE, LARGE, MEDIUM, LARGE, fullOffer.title]);
+    expect(imgSrcsIn(html)).toEqual([LARGE, LARGE, MEDIUM]);
+    expectOnlySafeUrls(html);
+  });
+
+  it("renders the grid alone on the server, with the viewer closed even when it opens on a photo", async () => {
+    const html = await container.renderToString(OfferGallery, {
+      props: { images: [VALID, VALID_LEGACY], title: fullOffer.title, openAt: 1 },
+    });
+
+    expect(html).toContain("<astro-island");
+    expect(countTags(html, "img")).toBe(2);
+    expect(html).not.toContain('role="dialog"');
+    expect(html).not.toContain("Zdjęcia: ");
+    expect(html).not.toContain("aria-live");
+  });
+
+  it("mounts no photo viewer island for an offer with no photos", async () => {
+    const html = await gallery([{ thumbnail: JS, large: LARGE }]);
+
+    expect(html).toContain(NO_PHOTOS);
+    expect(html).not.toContain("<astro-island");
   });
 });
 
