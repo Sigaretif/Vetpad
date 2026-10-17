@@ -152,26 +152,28 @@ Changes are written in the `master` working tree, may be committed there phase b
 
 <!-- BEGIN @przeprogramowani/10x-cli -->
 
-## 10xDevs AI Toolkit - Module 5, Lesson 2 (Team Agent with SDKs)
+## 10xDevs AI Toolkit - Module 5, Lesson 3 (Code Review in CI)
 
-Build a minimal code-review agent: diff in, structured JSON verdict out. The schema and system prompt are the contract everything later (CI gate, evals) depends on.
+Move the review agent into GitHub Actions and turn its verdict into a merge gate. Evaluate prompt and model changes on a fixed case set before shipping them.
 
 ```
-review schema + system prompt -> review.ts (ready-made agent SDK or AI SDK ToolLoopAgent) -> git diff | npx tsx review.ts
+m5l3-requirements -> /10x-new -> /10x-research -> /10x-plan -> review.yml + composite action -> promptfoo evals
 ```
 
 ### Task Router - Where to start
 
-| Skill / prompt / template                           | Use it when                                                                                                                                        |
-| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `m5l2-review-schema.ts.template` (config templates) | Starting the reviewer. Copy it into your reviewer package: six scored criteria (1-10), verdict and summary as a zod schema plus the system prompt. |
-| `m5l2-agent` (prompts)                              | Setting up the AI SDK entry point and then planning a modular `ToolLoopAgent` reviewer with `/10x-plan`.                                           |
-| `/10x-plan` -> `/10x-implement`                     | Turning the single-file reviewer into reusable modules.                                                                                            |
+| Skill / prompt / template                                                 | Use it when                                                                                                                                                                |
+| ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `m5l3-requirements` + `m5l3-cicd` (prompts)                               | Researching and planning the CI review workflow from written requirements.                                                                                                 |
+| `m5l3-review.yml.template`, `m5l3-action.yml.template` (config templates) | Wiring the reviewer into a PR workflow: composite action with title, body and diff inputs, `ai-cr:passed` / `ai-cr:failed` labels and a failing check on a `fail` verdict. |
+| `m5l3-promptfoo` (prompt) + `m5l3-promptfooconfig.yaml.template`          | Comparing models or prompt changes on the same diffs with is-json, llm-rubric and javascript assertions.                                                                   |
+| `/10x-impl-review-ci`                                                     | Reviewing a PR against its `context/changes/<id>/plan.md` in CI with Claude Code Action; its workflow template lives in the skill's `references/`.                         |
 
 ### Hard rules
 
-- **The schema is the contract.** Change criteria, verdict values or field names in the schema first, then in prompts, gates and evals.
-- **Pin major versions.** The lesson code targets AI SDK 7 (`ai@7`, `@openrouter/ai-sdk-provider@3`) and Node 22+.
-- **Track cost per run.** Log usage from every review and set a hard budget cap before the agent runs unattended.
+- **Pin third-party actions to a full commit SHA** with the tag in a comment.
+- **Gate on the verdict field**, never on free-text output.
+- **Pass multi-line values (diffs) through files or heredoc delimiters**, not single-line `$GITHUB_OUTPUT` writes.
+- **Run the eval set before changing the review prompt or model.**
 
 <!-- END @przeprogramowani/10x-cli -->

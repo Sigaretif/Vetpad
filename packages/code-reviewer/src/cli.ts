@@ -2,7 +2,8 @@
 //   git diff | npx tsx src/cli.ts
 // Everything else (usage, cost, errors) goes to stderr, so stdout stays pipeable.
 import { loadApiKey } from "./env.ts";
-import { ReviewerError, type ReviewMeta } from "./errors.ts";
+import { ReviewerError } from "./errors.ts";
+import { logMeta, reportError } from "./report.ts";
 import { reviewDiff } from "./reviewer.ts";
 
 async function readStdin(): Promise<string> {
@@ -14,17 +15,6 @@ async function readStdin(): Promise<string> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-// One line per run with its cost — after a success and after a failure alike.
-function logMeta(meta: ReviewMeta): void {
-  const line = {
-    subtype: meta.subtype,
-    num_turns: meta.numTurns,
-    total_cost_usd: meta.costUsd,
-    usage: meta.usage,
-  };
-  process.stderr.write(`[code-reviewer] ${JSON.stringify(line)}\n`);
-}
-
 async function main(): Promise<void> {
   const apiKey = loadApiKey();
   const diff = await readStdin();
@@ -33,13 +23,4 @@ async function main(): Promise<void> {
   process.stdout.write(`${JSON.stringify(review, null, 2)}\n`);
 }
 
-main().catch((error: unknown) => {
-  if (error instanceof ReviewerError) {
-    if (error.meta) logMeta(error.meta);
-    process.stderr.write(`[code-reviewer] error (${error.code}): ${error.message}\n`);
-  } else {
-    const message = error instanceof Error ? error.message : String(error);
-    process.stderr.write(`[code-reviewer] error: ${message}\n`);
-  }
-  process.exitCode = 1;
-});
+main().catch(reportError);

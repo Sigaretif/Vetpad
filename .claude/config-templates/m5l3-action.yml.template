@@ -1,0 +1,58 @@
+# m5l3-action.yml — composite action that runs the team's review agent (M5L3).
+# Copy to .github/actions/ai-reviewer/action.yml (local action) or to the root of a
+# dedicated ai-reviewer repository. Consumers reference it pinned to a commit SHA.
+# Expects a built reviewer at <action dir>/dist/review.js that reads the diff from
+# DIFF_FILE, PR_TITLE / PR_BODY from env, and prints JSON matching m5l2-review-schema.
+name: AI Reviewer
+description: Run the team's code review agent on a pull request diff
+
+inputs:
+  api-key:
+    description: LLM provider API key (e.g. OpenRouter)
+    required: true
+  pr-title:
+    description: Pull request title
+    required: true
+  pr-body:
+    description: Pull request description (optional; costs tokens)
+    required: false
+    default: ""
+  diff-file:
+    description: Path to a file with the PR diff (a file avoids step-output size and newline limits)
+    required: true
+  model:
+    description: Model id passed to the reviewer
+    required: false
+    default: z-ai/glm-5.3
+
+outputs:
+  verdict:
+    description: Binding pass/fail verdict from the agent
+    value: ${{ steps.agent.outputs.verdict }}
+  review-file:
+    description: Path to the full JSON review
+    value: ${{ steps.agent.outputs.review-file }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        node-version: 24
+
+    - name: Run agent
+      id: agent
+      shell: bash
+      # Untrusted PR text goes through env, never interpolated into the script.
+      env:
+        LLM_PROVIDER_API_KEY: ${{ inputs.api-key }}
+        PR_TITLE: ${{ inputs.pr-title }}
+        PR_BODY: ${{ inputs.pr-body }}
+        DIFF_FILE: ${{ inputs.diff-file }}
+        REVIEW_MODEL: ${{ inputs.model }}
+      run: |
+        review_file="$RUNNER_TEMP/ai-review.json"
+        node "$GITHUB_ACTION_PATH/dist/review.js" > "$review_file"
+        verdict=$(node -e 'const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); if (!["pass", "fail"].includes(r.verdict)) process.exit(1); console.log(r.verdict)' "$review_file")
+        echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+        echo "review-file=$review_file" >> "$GITHUB_OUTPUT"
