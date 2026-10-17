@@ -395,25 +395,25 @@ Nie dotyczy. Nowe pliki nie zmieniają istniejących jobów `ci` ani `smoke`.
 
 #### Automated
 
-- [x] 2.1 actionlint przechodzi dla review.yml
-- [x] 2.2 Każde uses: przypięte do pełnego SHA z komentarzem tagu
-- [x] 2.3 Brak ${{ inputs.* }} i ${{ github.event.* }} w blokach run:
-- [x] 2.4 ci.yml bez zmian
-- [x] 2.5 Diff z pathspec nie zawiera package-lock.json
-- [x] 2.7 Job review ma timeout-minutes: 10
+- [x] 2.1 actionlint przechodzi dla review.yml — 5cc14ef
+- [x] 2.2 Każde uses: przypięte do pełnego SHA z komentarzem tagu — 5cc14ef
+- [x] 2.3 Brak ${{ inputs.* }} i ${{ github.event.* }} w blokach run: — 5cc14ef
+- [x] 2.4 ci.yml bez zmian — 5cc14ef
+- [x] 2.5 Diff z pathspec nie zawiera package-lock.json — 5cc14ef
+- [x] 2.7 Job review ma timeout-minutes: 10 — 5cc14ef
 
 #### Manual
 
-- [x] 2.6 Sekret CODE_REVIEWER_API_KEY ustawiony w repozytorium
+- [x] 2.6 Sekret CODE_REVIEWER_API_KEY ustawiony w repozytorium — 5cc14ef
 
 ### Phase 3: Dokumentacja reguł i weryfikacja na PR-ze
 
 #### Automated
 
-- [ ] 3.1 CLAUDE.md zawiera wyjątek i referencje, blok 10x-cli nietknięty
-- [ ] 3.2 README opisuje workflow, sekret i etykiety
-- [ ] 3.3 Root gates przechodzą
-- [ ] 3.8 CLAUDE.md zawiera regułę utrzymania kryteriów reviewera w system.ts
+- [x] 3.1 CLAUDE.md zawiera wyjątek i referencje, blok 10x-cli nietknięty
+- [x] 3.2 README opisuje workflow, sekret i etykiety
+- [x] 3.3 Root gates przechodzą
+- [x] 3.8 CLAUDE.md zawiera regułę utrzymania kryteriów reviewera w system.ts
 
 #### Manual
 

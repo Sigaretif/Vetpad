@@ -264,6 +264,14 @@ GitHub Actions runs two jobs on every push and PR to `master`:
 - **ci** — lint, `astro check`, `npm test` and build. `npm test` gets no secrets; configure `SUPABASE_URL`, `SUPABASE_KEY` and `ANTHROPIC_API_KEY` as repository secrets for the build step. The build passes without them.
 - **smoke** — starts a local Supabase via the Supabase CLI, runs `npm run test:db` (both SQL scripts) against its database, builds, serves the production preview on the Cloudflare runtime and runs `npm run smoke` against it. No secrets required, and it is given no model-provider key on purpose: nothing in it can reach the provider.
 
+A third workflow, **AI Code Review** (`.github/workflows/review.yml`, through the composite action `.github/actions/ai-reviewer`), runs the reviewer from `packages/code-reviewer` on a PR to `master` — not on a push:
+
+- **Triggers** — a PR opened or reopened. A push to an open PR does not start a review, so the result speaks for the commit named in its comment; to review the current head again, add the `ai-cr:review` label. The workflow removes that label when it finishes, an error included, so it can be added again to retry.
+- **Result** — a comment with the verdict, the reviewed commit, the six scores and a summary; the label `ai-cr:passed` or `ai-cr:failed`; and a failing `review` check when the verdict is not `pass` or the run produced none. The workflow creates the `ai-cr:*` labels itself.
+- **Secret** — `CODE_REVIEWER_API_KEY`, the reviewer's own Anthropic key, a repository secret separate from the application's `ANTHROPIC_API_KEY` and used by this workflow only. Without it the run fails with no comment. PRs from forks get no secrets, so their review fails the same way.
+- **Cost** — each run is a paid call, capped at `maxBudgetUsd` from `packages/code-reviewer/src/config.ts` (0.5 USD).
+- **Not a required check yet** — `master` has no branch protection, so a failed review does not block a merge. A run skipped because of an unrelated label reports success; see `CLAUDE.md` before making `review` a required check.
+
 ## License
 
 MIT
