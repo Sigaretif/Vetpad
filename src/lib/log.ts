@@ -55,6 +55,17 @@ const FIELDS = [
   "changed",
   "lost_columns",
   "intent",
+  "source",
+  "fallback_reason",
+  "apify_status",
+  "apify_error_type",
+  "apify_failure",
+  "ingestion_mode",
+  "ingestion_mode_effective",
+  "ingestion_mode_reason",
+  "ingestion_mode_read",
+  "direct_duration_ms",
+  "apify_duration_ms",
 ] as const;
 
 const MAX_TEXT_LENGTH = 300;

@@ -767,11 +767,20 @@ describe("fetchOfferAd: a readable page (#1)", () => {
 });
 
 describe("ingestOffer: pasted URL to a mapped offer (#1, FR-005)", () => {
+  // The direct fetch alone, with no Apify leg: what ingestion did before the fallback existed.
+  // The fallback's own cases are in tests/lib/otodom/index.test.ts and the routes' tests.
+  const DIRECT_ONLY = {
+    mode: { configured: "direct_only", effective: "direct_only", reason: null, read: "ok" },
+    apify: null,
+  } as const;
+  /** What every fetched result tells the log: the direct leg, and how long it took. */
+  const DIRECT = { source: "direct", directDurationMs: expect.any(Number) as number };
+
   it("fetches the normalised URL and returns it with the mapped offer", async () => {
     const stub = serve(() => responseAt(otodomPage(flatSaleAd())));
     const result = await ingestOffer(
       "otodom.pl/oferta/mieszkanie-54-m-warszawa-IDKANAR1/?utm_source=kanarek#galeria",
-      new AbortController().signal,
+      DIRECT_ONLY,
     );
     if (!result.ok) throw new Error(`expected an offer, got a refusal: ${result.reason}`);
     expect(result.url).toBe("https://www.otodom.pl/pl/oferta/mieszkanie-54-m-warszawa-IDKANAR1");
@@ -791,14 +800,14 @@ describe("ingestOffer: pasted URL to a mapped offer (#1, FR-005)", () => {
     ],
   ])("refuses %s without a single request", async (_label, url, reason) => {
     const stub = stubFetch(() => undefined);
-    const result = await ingestOffer(url, new AbortController().signal);
+    const result = await ingestOffer(url, DIRECT_ONLY);
     expect(result).toStrictEqual({ ok: false, stage: "url", reason });
     expect(stub.requests).toHaveLength(0);
   });
 
   it("refuses a flat for rent as not for sale, after the fetch", async () => {
     const stub = serve(() => responseAt(otodomPage(rentalFlat())));
-    const result = await ingestOffer(FLAT_SALE_URL, new AbortController().signal);
+    const result = await ingestOffer(FLAT_SALE_URL, DIRECT_ONLY);
     expect(result.ok).toBe(false);
     expect(result).not.toHaveProperty("offer");
     expect(result).toMatchObject({ stage: "map", reason: "not_for_sale" });
@@ -807,19 +816,20 @@ describe("ingestOffer: pasted URL to a mapped offer (#1, FR-005)", () => {
 
   it("refuses a house for sale as not a flat, after the fetch", async () => {
     serve(() => responseAt(otodomPage(saleHouse())));
-    const result = await ingestOffer(FLAT_SALE_URL, new AbortController().signal);
+    const result = await ingestOffer(FLAT_SALE_URL, DIRECT_ONLY);
     expect(result).not.toHaveProperty("offer");
     expect(result).toMatchObject({ ok: false, stage: "map", reason: "not_a_flat" });
   });
 
   it("passes a fetch failure through with its status and what the answer said about itself", async () => {
     serve(() => responseAt("<html></html>", { status: 403 }));
-    expect(await ingestOffer(FLAT_SALE_URL, new AbortController().signal)).toStrictEqual({
+    expect(await ingestOffer(FLAT_SALE_URL, DIRECT_ONLY)).toStrictEqual({
       ok: false,
       stage: "fetch",
       reason: "http_denied",
       status: 403,
       evidence: { contentType: HTML },
+      ...DIRECT,
     });
   });
 
@@ -828,23 +838,25 @@ describe("ingestOffer: pasted URL to a mapped offer (#1, FR-005)", () => {
   it("names the fetch as the stage when the page's data cannot be parsed", async () => {
     const html = pageWithNextData('{"props":{"pageProps":{"ad":{"id":65000001,"tit');
     serve(() => responseAt(html));
-    expect(await ingestOffer(FLAT_SALE_URL, new AbortController().signal)).toStrictEqual({
+    expect(await ingestOffer(FLAT_SALE_URL, DIRECT_ONLY)).toStrictEqual({
       ok: false,
       stage: "fetch",
       reason: "shape_changed",
       detail: "next_data_unparseable",
       status: 200,
       evidence: { contentType: HTML, bodyLength: html.length, markerPresent: true },
+      ...DIRECT,
     });
   });
 
   it("names the mapper as the stage when the listing has no title", async () => {
     serve(() => responseAt(otodomPage(omitKeys(flatSaleAd(), "title"))));
-    expect(await ingestOffer(FLAT_SALE_URL, new AbortController().signal)).toStrictEqual({
+    expect(await ingestOffer(FLAT_SALE_URL, DIRECT_ONLY)).toStrictEqual({
       ok: false,
       stage: "map",
       reason: "shape_changed",
       detail: "id, title, url or description missing",
+      ...DIRECT,
     });
   });
 });

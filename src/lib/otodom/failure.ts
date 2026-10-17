@@ -3,7 +3,8 @@
 // The reasons are the same; only the end of the sentence differs — after a failed add nothing was
 // saved, after a failed re-fetch the saved offer stands as it was. Pure: no client and no secrets.
 
-import type { FetchEvidence, IngestFailureReason } from "@/lib/otodom";
+import type { IngestionSettingsResult, ResolvedIngestionMode } from "@/lib/ingestion-settings";
+import type { FetchEvidence, IngestFailureReason, IngestTrace } from "@/lib/otodom";
 
 /** Which route is speaking: saving a new offer, or re-fetching one that is already saved. */
 export type IngestAction = "add" | "refetch";
@@ -41,9 +42,12 @@ function addFailureMessage(reason: IngestFailureReason, status?: number): string
     case "shape_changed":
       return "Nie udało się odczytać treści ogłoszenia — strona otodom.pl mogła zmienić format. Nic nie zostało zapisane.";
     case "timeout":
-      return "Pobieranie ogłoszenia trwało dłużej niż 45 sekund. Nic nie zostało zapisane — spróbuj ponownie.";
+      return "Pobieranie ogłoszenia trwało zbyt długo. Nic nie zostało zapisane — spróbuj ponownie.";
     case "network":
       return "Nie udało się połączyć z otodom.pl. Nic nie zostało zapisane.";
+    case "extraction_failed":
+      // No way of fetching knows anything about the listing: no vendor, configuration or cost named.
+      return "Nie udało się pobrać ogłoszenia z otodom.pl. Nic nie zostało zapisane — spróbuj ponownie później, a jeśli problem się powtarza, daj znać administratorowi.";
     default: {
       const unhandled: never = reason;
       return unhandled;
@@ -85,9 +89,11 @@ function refetchFailureMessage(reason: IngestFailureReason, status?: number): st
     case "shape_changed":
       return `Nie udało się odczytać treści ogłoszenia — strona otodom.pl mogła zmienić format. ${KEPT}.`;
     case "timeout":
-      return `Pobieranie ogłoszenia trwało dłużej niż 45 sekund. ${KEPT} — spróbuj ponownie.`;
+      return `Pobieranie ogłoszenia trwało zbyt długo. ${KEPT} — spróbuj ponownie.`;
     case "network":
       return `Nie udało się połączyć z otodom.pl. ${KEPT}.`;
+    case "extraction_failed":
+      return `Nie udało się pobrać ogłoszenia z otodom.pl. ${KEPT} — spróbuj ponownie później, a jeśli problem się powtarza, daj znać administratorowi.`;
     default: {
       const unhandled: never = reason;
       return unhandled;
@@ -130,6 +136,7 @@ export const INGEST_OUTCOME: Record<IngestFailureReason, "refused" | "failed"> =
   shape_changed: "failed",
   timeout: "failed",
   network: "failed",
+  extraction_failed: "failed",
 };
 
 /**
@@ -139,6 +146,7 @@ export const INGEST_OUTCOME: Record<IngestFailureReason, "refused" | "failed"> =
  */
 export function fetchFields(evidence: FetchEvidence = {}) {
   return {
+    source: evidence.source,
     landed_host: evidence.landedHost,
     landed_path: evidence.landedPath,
     landed_listing: evidence.landedListing,
@@ -152,4 +160,66 @@ export function fetchFields(evidence: FetchEvidence = {}) {
     error_cause: evidence.errorCause,
     phase: evidence.phase,
   };
+}
+
+/**
+ * Which mode was configured, which ran, why the two differ and how the read of the mode ended,
+ * under the log's field names. Every entry from `started` on carries them.
+ */
+export function modeFields(mode: ResolvedIngestionMode) {
+  return {
+    ingestion_mode: mode.configured ?? undefined,
+    ingestion_mode_effective: mode.effective,
+    ingestion_mode_reason: mode.reason ?? undefined,
+    ingestion_mode_read: mode.read,
+  };
+}
+
+/**
+ * What the database said about a failed read of the mode: its code and status, never its message.
+ * Only the `started` entry carries it — an outcome's `db_code` speaks about its own write.
+ */
+export function modeReadFields(settings: IngestionSettingsResult) {
+  if (settings.state === "ok") return {};
+  return { db_code: settings.failure.dbCode, db_status: settings.failure.dbStatus };
+}
+
+/**
+ * How the listing was fetched, under the log's field names: the leg that produced the outcome,
+ * why the fallback ran, what Apify said about its run — its status, its error's type token and our
+ * own reason, never its words — and how long each leg took.
+ */
+export function traceFields(trace: IngestTrace) {
+  return {
+    source: trace.source,
+    fallback_reason: trace.fallbackReason,
+    apify_status: trace.apifyStatus,
+    apify_error_type: trace.apifyErrorType,
+    apify_failure: trace.apifyFailure,
+    direct_duration_ms: trace.directDurationMs,
+    apify_duration_ms: trace.apifyDurationMs,
+  };
+}
+
+/**
+ * Apify's refusals that mean the application's own setup is wrong — the token is unknown or
+ * revoked, under-scoped, the actor's permissions were never approved, or the account cannot pay —
+ * and that no member's retry repairs.
+ */
+const APIFY_CONFIGURATION_FAULTS: readonly string[] = [
+  "user-or-token-not-found",
+  "insufficient-permissions",
+  "full-permission-actor-not-approved",
+];
+
+/**
+ * Whether what Apify said about its run is somebody's to look at, whatever the member reads: a
+ * configuration fault, or `run-failed` — a run that ended without a dataset, because it went past
+ * its `timeout` or the actor crashed. The second is not a configuration fault; the runbook tells
+ * the two apart.
+ */
+export function apifyNeedsAttention(trace: IngestTrace): boolean {
+  if (trace.apifyStatus === 402) return true;
+  if (trace.apifyErrorType === undefined) return false;
+  return APIFY_CONFIGURATION_FAULTS.includes(trace.apifyErrorType) || trace.apifyErrorType === "run-failed";
 }

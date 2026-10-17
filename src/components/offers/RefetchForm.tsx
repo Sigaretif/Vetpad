@@ -20,7 +20,7 @@ interface Props {
 /**
  * Re-fetches a saved listing on the member's request (FR-009): one button that posts to
  * `POST /api/offer-refetch` (a native POST, so it also works with JavaScript off) and waits — the
- * fetch may take up to 45 s. Nothing is sent until the member presses it.
+ * fetch may take up to about a minute („do około minuty”). Nothing is sent until the member presses it.
  *
  * The island knows the offer by its id alone; nothing else from the row reaches it. `accept_lost`
  * travels in a hidden field, never in the button's `name`/`value`: the button is disabled on

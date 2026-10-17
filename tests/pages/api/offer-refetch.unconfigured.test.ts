@@ -1,6 +1,9 @@
 import type { APIContext } from "astro";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { POST } from "@/pages/api/offer-refetch";
+import { isApifyAvailable } from "@/lib/config-status";
+import { createApifyLeg } from "@/lib/otodom/apify";
+import { apifyCalls } from "../../fixtures/apify";
 import { captureConsole, restoreConsole } from "../../fixtures/console";
 import { restoreFetch, stubFetch } from "../../fixtures/http";
 
@@ -72,6 +75,23 @@ describe("POST /api/offer-refetch without Supabase configured", () => {
     const target = new URL(response.headers.get("Location") ?? "", "http://localhost");
     expect(target.pathname).toBe("/dashboard");
     expect(target.searchParams.get("error")).toContain("Supabase nie jest skonfigurowany");
+    expect(stub.requests).toHaveLength(0);
+  });
+});
+
+// The module loaded with no Apify token at all — not switched off by a test's toggle: the fallback
+// is off, no leg can be built, and the route sends nothing to Apify (or anywhere).
+describe("POST /api/offer-refetch without an Apify token", () => {
+  it("has no Apify leg to build and sends no Apify request: otodom 0, Apify 0, writes 0", async () => {
+    captureConsole();
+    const stub = stubFetch(() => undefined);
+
+    expect(isApifyAvailable()).toBe(false);
+    expect(createApifyLeg()).toBeNull();
+    const response = await POST(context({ offer_id: OFFER_ID }));
+
+    expect(response.status).toBe(302);
+    expect(apifyCalls(stub.requests)).toHaveLength(0);
     expect(stub.requests).toHaveLength(0);
   });
 });

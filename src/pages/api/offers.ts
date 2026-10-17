@@ -1,8 +1,19 @@
 import type { APIRoute } from "astro";
+import { isApifyAvailable } from "@/lib/config-status";
+import { loadIngestionSettings, resolveIngestionMode } from "@/lib/ingestion-settings";
 import { type LogFields, logEvent } from "@/lib/log";
 import { createClient } from "@/lib/supabase";
 import { ingestOffer, normalizeOfferUrl } from "@/lib/otodom";
-import { INGEST_OUTCOME, fetchFields, ingestFailureMessage } from "@/lib/otodom/failure";
+import { createApifyLeg } from "@/lib/otodom/apify";
+import {
+  INGEST_OUTCOME,
+  apifyNeedsAttention,
+  fetchFields,
+  ingestFailureMessage,
+  modeFields,
+  modeReadFields,
+  traceFields,
+} from "@/lib/otodom/failure";
 
 const NOT_CONFIGURED = "Supabase nie jest skonfigurowany — nie można zapisać oferty.";
 const SAVE_FAILED = "Nie udało się zapisać oferty. Nic nie zostało zapisane.";
@@ -20,9 +31,13 @@ interface OfferId {
   id: string;
 }
 
-/** One entry per way out of the route. A failure is an error; everything else is info. */
-function report(outcome: Outcome, fields: Omit<LogFields, "event" | "outcome">): void {
-  logEvent(outcome === "failed" ? "error" : "info", { event: "offer_add", outcome, ...fields });
+/**
+ * One entry per way out of the route. A failure is an error; so is an entry whose Apify run ended
+ * in a way somebody has to look at (`apifyNeedsAttention`), whatever the member reads. Everything
+ * else is info.
+ */
+function report(outcome: Outcome, fields: Omit<LogFields, "event" | "outcome">, attention = false): void {
+  logEvent(outcome === "failed" || attention ? "error" : "info", { event: "offer_add", outcome, ...fields });
 }
 
 /**
@@ -86,22 +101,36 @@ export const POST: APIRoute = async (context) => {
     return context.redirect(`/offers/${existing.data.id}?duplicate=1`);
   }
 
-  // Written before the fetch, which may take 45 s: a call the platform cuts short still leaves a trace.
-  report("started", { ...ids, stage: "fetch" });
-  const result = await ingestOffer(normalized.url, AbortSignal.timeout(45_000));
+  // The mode is read only now, after every free refusal: a request refused anyway — a duplicate
+  // included — never reads it and never pays for an Apify run. A failed read runs as `direct_only`.
+  const settings = await loadIngestionSettings(supabase);
+  const mode = resolveIngestionMode(settings, isApifyAvailable());
+  const apify = mode.effective === "direct_only" ? null : createApifyLeg();
+  const modeIds = { ...ids, ...modeFields(mode) };
+
+  // Written before the fetch, which may take up to INGEST_ACTION_BUDGET_MS (src/lib/otodom/deadlines.ts):
+  // a call the platform cuts short still leaves a trace.
+  report("started", { ...modeIds, ...modeReadFields(settings), stage: "fetch" });
+  const result = await ingestOffer(normalized.url, { mode, apify });
+  const attention = apifyNeedsAttention(result);
+  const traced = { ...modeIds, ...traceFields(result) };
   if (!result.ok) {
-    report(INGEST_OUTCOME[result.reason], {
-      ...ids,
-      stage: result.stage,
-      reason: result.reason,
-      status: result.status,
-      detail: result.detail,
-      ...fetchFields(result.evidence),
-    });
+    report(
+      INGEST_OUTCOME[result.reason],
+      {
+        ...fetchFields(result.evidence),
+        ...traced,
+        stage: result.stage,
+        reason: result.reason,
+        status: result.status,
+        detail: result.detail,
+      },
+      attention,
+    );
     return fail(ingestFailureMessage(result.reason, result.status, "add"));
   }
 
-  const saving = { ...ids, otodom_id: result.offer.otodom_id };
+  const saving = { ...traced, otodom_id: result.offer.otodom_id };
   const inserted = await supabase
     .from("offers")
     .insert({ ...result.offer, source_url: result.url, created_by: user.id })

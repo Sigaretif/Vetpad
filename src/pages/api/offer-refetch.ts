@@ -1,9 +1,20 @@
 import type { APIRoute } from "astro";
 import { AUDIT_OFFER_COLUMNS, listingFingerprint, readAuditOffer } from "@/lib/audit/input";
+import { isApifyAvailable } from "@/lib/config-status";
+import { loadIngestionSettings, resolveIngestionMode } from "@/lib/ingestion-settings";
 import { type LogFields, logEvent } from "@/lib/log";
 import { isLossAccepted, lostFacts, readLostTokens } from "@/lib/offer-refetch";
 import { ingestOffer, normalizeOfferUrl } from "@/lib/otodom";
-import { INGEST_OUTCOME, fetchFields, ingestFailureMessage } from "@/lib/otodom/failure";
+import { createApifyLeg } from "@/lib/otodom/apify";
+import {
+  INGEST_OUTCOME,
+  apifyNeedsAttention,
+  fetchFields,
+  ingestFailureMessage,
+  modeFields,
+  modeReadFields,
+  traceFields,
+} from "@/lib/otodom/failure";
 import { createClient } from "@/lib/supabase";
 import { isUuid } from "@/lib/uuid";
 
@@ -32,9 +43,13 @@ type Fields = Omit<LogFields, "event" | "outcome">;
 /** The client is untyped; a row is read key by key and trusted for none of them. */
 type Row = Record<string, unknown>;
 
-/** One entry per way out of the route, and one before the fetch. A failure is an error; everything else is info. */
-function report(outcome: Outcome, fields: Fields): void {
-  logEvent(outcome === "failed" ? "error" : "info", { event: "offer_refetch", outcome, ...fields });
+/**
+ * One entry per way out of the route, and one before the fetch. A failure is an error; so is an
+ * entry whose Apify run ended in a way somebody has to look at (`apifyNeedsAttention`), whatever
+ * the member reads. Everything else is info.
+ */
+function report(outcome: Outcome, fields: Fields, attention = false): void {
+  logEvent(outcome === "failed" || attention ? "error" : "info", { event: "offer_refetch", outcome, ...fields });
 }
 
 /**
@@ -61,11 +76,11 @@ function textField(form: FormData, name: string): string {
  * `public.offers`. Everything that can be checked for free comes first, then one fetch, then one
  * write judged by its error and by the number of rows it reached:
  *
- *   session → Supabase configured → form → offer id → stored row → stored address → fetch →
- *   same listing → lost facts → update.
+ *   session → Supabase configured → form → offer id → stored row → stored address → ingestion
+ *   mode → fetch → same listing → lost facts → update.
  *
- * Only scraped listing data is replaced. The route reads and writes `public.offers` alone — never
- * a member's note and never an audit: an audit made on the older data is flagged stale by whoever
+ * Only scraped listing data is replaced. The route writes `public.offers` alone and reads it and
+ * the one row of `public.ingestion_settings` — never a member's note and never an audit: an audit made on the older data is flagged stale by whoever
  * reads it (`src/lib/audit/freshness.ts`), not by anything stored here. The update carries the
  * mapper's columns and `fetched_at`; the row's `id`, `source_url`, `created_by` and `created_at`
  * are never sent.
@@ -143,22 +158,36 @@ export const POST: APIRoute = async (context) => {
 
   const ids = { user_id: user.id, offer_id: offerId, listing: listingToken(normalized.url) };
 
-  // Written before the fetch, which may take 45 s: a call the platform cuts short still leaves a trace.
-  report("started", { ...ids, stage: "fetch" });
-  const result = await ingestOffer(normalized.url, AbortSignal.timeout(45_000));
+  // The mode is read only now, after every free refusal: a request refused anyway never reads it
+  // and never pays for an Apify run. A failed read runs as `direct_only`.
+  const settings = await loadIngestionSettings(supabase);
+  const mode = resolveIngestionMode(settings, isApifyAvailable());
+  const apify = mode.effective === "direct_only" ? null : createApifyLeg();
+  const modeIds = { ...ids, ...modeFields(mode) };
+
+  // Written before the fetch, which may take up to INGEST_ACTION_BUDGET_MS (src/lib/otodom/deadlines.ts):
+  // a call the platform cuts short still leaves a trace.
+  report("started", { ...modeIds, ...modeReadFields(settings), stage: "fetch" });
+  const result = await ingestOffer(normalized.url, { mode, apify });
+  const attention = apifyNeedsAttention(result);
+  const traced = { ...modeIds, ...traceFields(result) };
   if (!result.ok) {
-    report(INGEST_OUTCOME[result.reason], {
-      ...ids,
-      stage: result.stage,
-      reason: result.reason,
-      status: result.status,
-      detail: result.detail,
-      ...fetchFields(result.evidence),
-    });
+    report(
+      INGEST_OUTCOME[result.reason],
+      {
+        ...fetchFields(result.evidence),
+        ...traced,
+        stage: result.stage,
+        reason: result.reason,
+        status: result.status,
+        detail: result.detail,
+      },
+      attention,
+    );
     return failOnCard(ingestFailureMessage(result.reason, result.status, "refetch"));
   }
 
-  const fetching = { ...ids, otodom_id: result.offer.otodom_id };
+  const fetching = { ...traced, otodom_id: result.offer.otodom_id };
 
   // The same listing, or nothing is written. Compared as text: PostgREST may send a `bigint` as
   // either a number or a string.

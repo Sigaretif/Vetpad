@@ -931,17 +931,17 @@ The migration must be pushed before the Worker that reads the table is deployed.
 
 #### Automated
 
-- [x] 3.1 Script parses: `node --check scripts/apify-verify.mjs`
-- [x] 3.2 Live case `invalid-token`: `node --env-file-if-exists=.env scripts/apify-verify.mjs --case invalid-token`
-- [x] 3.3 Live case `sale`: `node --env-file-if-exists=.env scripts/apify-verify.mjs --case sale`
-- [x] 3.4 Live case `rental`: `node --env-file-if-exists=.env scripts/apify-verify.mjs --case rental`
-- [x] 3.5 Live case `expired`: `node --env-file-if-exists=.env scripts/apify-verify.mjs --case expired`
-- [x] 3.6 Live case `redirect`: `node --env-file-if-exists=.env scripts/apify-verify.mjs --case redirect`
-- [x] 3.7 Live case `run-timeout`: `node --env-file-if-exists=.env scripts/apify-verify.mjs --case run-timeout`
-- [x] 3.8 The call log exists and obeys the budget and pacing: `node scripts/apify-verify.mjs --check-log`
-- [x] 3.9 Every recorded case matches its expected result, or is `SKIPPED`/`BLOCKED`/`STALE`: `node scripts/apify-verify.mjs --check-expected`
-- [x] 3.10 No listing address in the change folder: `! grep -rE "otodom\.pl/(pl/)?oferta" context/changes/otodom-apify-fallback/`
-- [x] 3.11 Unit tests still pass: `npm test`
+- [x] 3.1 Script parses: `node --check scripts/apify-verify.mjs` — 1cc2820
+- [x] 3.2 Live case `invalid-token`: `node --env-file-if-exists=.env scripts/apify-verify.mjs --case invalid-token` — 1cc2820
+- [x] 3.3 Live case `sale`: `node --env-file-if-exists=.env scripts/apify-verify.mjs --case sale` — 1cc2820
+- [x] 3.4 Live case `rental`: `node --env-file-if-exists=.env scripts/apify-verify.mjs --case rental` — 1cc2820
+- [x] 3.5 Live case `expired`: `node --env-file-if-exists=.env scripts/apify-verify.mjs --case expired` — 1cc2820
+- [x] 3.6 Live case `redirect`: `node --env-file-if-exists=.env scripts/apify-verify.mjs --case redirect` — 1cc2820
+- [x] 3.7 Live case `run-timeout`: `node --env-file-if-exists=.env scripts/apify-verify.mjs --case run-timeout` — 1cc2820
+- [x] 3.8 The call log exists and obeys the budget and pacing: `node scripts/apify-verify.mjs --check-log` — 1cc2820
+- [x] 3.9 Every recorded case matches its expected result, or is `SKIPPED`/`BLOCKED`/`STALE`: `node scripts/apify-verify.mjs --check-expected` — 1cc2820
+- [x] 3.10 No listing address in the change folder: `! grep -rE "otodom\.pl/(pl/)?oferta" context/changes/otodom-apify-fallback/` — 1cc2820
+- [x] 3.11 Unit tests still pass: `npm test` — 1cc2820
 
 #### Manual
 
@@ -951,11 +951,11 @@ The migration must be pushed before the Worker that reads the table is deployed.
 
 #### Automated
 
-- [ ] 4.1 Unit and route tests pass: `npm test`
-- [ ] 4.2 Lint passes: `npm run lint`
-- [ ] 4.3 Types check: `npx astro sync && npx astro check`
-- [ ] 4.4 Build passes with no secrets: `npm run build`
-- [ ] 4.5 No "45" deadline literal is left: `! grep -rnE --exclude=deadlines.ts --exclude=deadlines.test.ts '\b45( sekund|_000| s([^a-z]|$))' src scripts/otodom-inspect.mjs tests` (the deadlines module and its test keep `45_000` as the floor they pin)
+- [x] 4.1 Unit and route tests pass: `npm test`
+- [x] 4.2 Lint passes: `npm run lint`
+- [x] 4.3 Types check: `npx astro sync && npx astro check`
+- [x] 4.4 Build passes with no secrets: `npm run build`
+- [x] 4.5 No "45" deadline literal is left: `! grep -rnE --exclude=deadlines.ts --exclude=deadlines.test.ts '\b45( sekund|_000| s([^a-z]|$))' src scripts/otodom-inspect.mjs tests` (the deadlines module and its test keep `45_000` as the floor they pin)
 
 ### Phase 5: The mode on `/criteria`
 

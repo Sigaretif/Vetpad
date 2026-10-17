@@ -1,16 +1,35 @@
 import type { APIContext } from "astro";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST } from "@/pages/api/offer-refetch";
+import {
+  APIFY_MESSAGE_CANARY,
+  APIFY_TEST_TOKEN,
+  apifyCalls,
+  apifyDataset,
+  apifyEmpty,
+  apifyError,
+  apifyGoneItem,
+  apifyItem,
+  apifyNoMarkerItem,
+  apifyRunError,
+  apifyRunTimeout,
+  apifySilence,
+  isApifyRequest,
+} from "../../fixtures/apify";
 import { type ConsoleCapture, type ConsoleEntry, captureConsole, restoreConsole } from "../../fixtures/console";
 import {
   CHALLENGE_CANARY,
   CHALLENGE_PAGE,
+  type FetchContext,
   PAGE_WITHOUT_NEXT_DATA,
   type RecordedRequest,
+  ingestionSettingsRow,
+  isIngestionSettingsRead,
   isOffersRequest,
   isOtodomRequest,
   jsonResponse,
   otodomPage,
+  pageWithNextData,
   responseAt,
   restoreFetch,
   stubFetch,
@@ -28,11 +47,25 @@ import {
 
 // The route with a configured Supabase client (test values, never a real project's): this mock
 // overrides the zero-config one in tests/setup.ts. Only the network is stubbed below —
-// @/lib/supabase, @/lib/otodom, @/lib/offer-refetch and @/lib/audit/input run as they do in
-// production.
+// @/lib/supabase, @/lib/otodom, the Apify leg, @/lib/offer-refetch and @/lib/audit/input run as
+// they do in production.
+//
+// `apifyToken` switches the extraction service's token on for the scenarios of the fallback. It is
+// off by default and reset before every test, so every other scenario runs with no token — as
+// `direct_only`, with 0 Apify requests — and the token is a test value worth nothing.
+const env = vi.hoisted(() => ({ apifyToken: false }));
 vi.mock("astro:env/server", async () => {
   const { SUPABASE_TEST_KEY, SUPABASE_TEST_URL } = await import("../../fixtures/http");
-  return { SUPABASE_URL: SUPABASE_TEST_URL, SUPABASE_KEY: SUPABASE_TEST_KEY, getSecret: () => undefined };
+  const { APIFY_TEST_TOKEN } = await import("../../fixtures/apify");
+  return {
+    SUPABASE_URL: SUPABASE_TEST_URL,
+    SUPABASE_KEY: SUPABASE_TEST_KEY,
+    ANTHROPIC_API_KEY: undefined,
+    get APIFY_TOKEN() {
+      return env.apifyToken ? APIFY_TEST_TOKEN : undefined;
+    },
+    getSecret: () => undefined,
+  };
 });
 
 // Expected outcomes come from prd.md: FR-009 (a member re-fetches a saved listing on demand; the
@@ -59,6 +92,15 @@ vi.mock("astro:env/server", async () => {
 const everyRequest: RecordedRequest[] = [];
 let scenarios = 0;
 
+// The clock stands still, so each leg's duration in a log entry is exact: 0 unless a test moves it.
+beforeEach(() => {
+  env.apifyToken = false;
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-10-17T10:00:00.000Z"));
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
 afterEach(restoreFetch);
 afterEach(restoreConsole);
 
@@ -119,6 +161,7 @@ function adWithNewPrice(): Ad {
 }
 
 type Answer = () => Response | Promise<Response>;
+type LegAnswer = (context: FetchContext) => Response | Promise<Response>;
 
 function isStoredRead(request: RecordedRequest): boolean {
   return isOffersRequest(request, "GET") && new URL(request.url).searchParams.has("id");
@@ -137,7 +180,11 @@ function echoWrite(request: RecordedRequest): Response {
 
 interface Network {
   /** What otodom serves. Left out, a request to otodom is unplanned and fails the test. */
-  page?: Answer;
+  page?: LegAnswer;
+  /** What Apify answers a run with. Left out, a request to Apify is unplanned and fails the test. */
+  apify?: LegAnswer;
+  /** The answer to the mode's read. Left out, the row holds the seeded default. */
+  settings?: Answer;
   /** The stored row the read finds; `null` for an offer that is not there. */
   stored?: Record<string, unknown> | null;
   /** The read's whole answer, instead of `stored`. */
@@ -147,14 +194,24 @@ interface Network {
 }
 
 /**
- * Plans the route's three requests and nothing else: the read of the stored row, the listing page
- * and the write. Anything further — a note, an audit — is unplanned and fails the test.
+ * Plans the route's requests and nothing else: the read of the stored row, the read of the mode,
+ * the listing page, an Apify run where the scenario plans one, and the write. Anything further —
+ * a note, an audit — is unplanned and fails the test.
  */
-function stubNetwork({ page, stored = STORED_ROW, read, write }: Network) {
+function stubNetwork({
+  page,
+  apify,
+  settings = () => ingestionSettingsRow(),
+  stored = STORED_ROW,
+  read,
+  write,
+}: Network) {
   scenarios += 1;
-  const stub = stubFetch((request) => {
+  const stub = stubFetch((request, context) => {
     everyRequest.push(request);
-    if (isOtodomRequest(request)) return page?.();
+    if (isOtodomRequest(request)) return page?.(context);
+    if (isApifyRequest(request)) return apify?.(context);
+    if (isIngestionSettingsRead(request)) return settings();
     if (isStoredRead(request)) return read ? read() : jsonResponse(stored === null ? [] : [stored], 200);
     if (isOfferWrite(request)) return write ? write() : echoWrite(request);
     return undefined;
@@ -162,7 +219,9 @@ function stubNetwork({ page, stored = STORED_ROW, read, write }: Network) {
   return {
     requests: stub.requests,
     otodom: () => stub.requests.filter(isOtodomRequest),
+    apify: () => apifyCalls(stub.requests),
     writes: () => stub.requests.filter(isOfferWrite),
+    modeReads: () => stub.requests.filter(isIngestionSettingsRead),
   };
 }
 
@@ -231,10 +290,26 @@ function writtenRow(writes: RecordedRequest[]): Record<string, unknown> {
 /** The fields every entry written once the offer and its address are known carries. */
 const IDS = { user_id: USER_ID, offer_id: OFFER_ID, listing: LISTING };
 
+/**
+ * The mode as every scenario without a token reads it: the seeded default, run as `direct_only`
+ * because the application holds no Apify token.
+ */
+const NO_TOKEN_MODE = {
+  ingestion_mode: "direct_with_fallback",
+  ingestion_mode_effective: "direct_only",
+  ingestion_mode_reason: "apify_unconfigured",
+  ingestion_mode_read: "ok",
+};
+/**
+ * What every entry after the fetch carries in that mode: the identifiers, the mode, and the direct
+ * leg, which took no time on a clock that stands still.
+ */
+const AFTER = { ...IDS, ...NO_TOKEN_MODE, source: "direct", direct_duration_ms: 0 };
+
 /** The entry the route leaves before it reaches for otodom.pl, so a fetch the platform cut short still has a trace. */
 const STARTED: ConsoleEntry = {
   method: "info",
-  args: [{ level: "info", event: "offer_refetch", outcome: "started", stage: "fetch", ...IDS }],
+  args: [{ level: "info", event: "offer_refetch", outcome: "started", stage: "fetch", ...IDS, ...NO_TOKEN_MODE }],
 };
 
 function entry(level: "info" | "error", fields: Record<string, string | number | boolean>): ConsoleEntry {
@@ -261,7 +336,7 @@ describe("POST /api/offer-refetch: a successful fetch overwrites the row and say
     expect(fetchedAt).toBeLessThanOrEqual(Date.now());
     expect(captured.entries()).toStrictEqual([
       STARTED,
-      entry("info", { outcome: "saved", stage: "update", ...IDS, otodom_id: OTODOM_ID, changed: false }),
+      entry("info", { outcome: "saved", stage: "update", ...AFTER, otodom_id: OTODOM_ID, changed: false }),
     ]);
   });
 
@@ -278,7 +353,7 @@ describe("POST /api/offer-refetch: a successful fetch overwrites the row and say
     expect(writtenRow(network.writes()).price).toBe(579000);
     expect(captured.entries()).toStrictEqual([
       STARTED,
-      entry("info", { outcome: "saved", stage: "update", ...IDS, otodom_id: OTODOM_ID, changed: true }),
+      entry("info", { outcome: "saved", stage: "update", ...AFTER, otodom_id: OTODOM_ID, changed: true }),
     ]);
   });
 
@@ -311,7 +386,9 @@ describe("POST /api/offer-refetch: a successful fetch overwrites the row and say
     expect(params.get("id")).toBe(`eq.${OFFER_ID}`);
     // Without `select`, PostgREST answers 204 with no body and a filtered write looks like a save.
     expect(params.get("select")).not.toBeNull();
-    expect(network.requests).toHaveLength(3);
+    // The stored row, the mode, the page and the write — and nothing else.
+    expect(network.requests).toHaveLength(4);
+    expect(network.modeReads()).toHaveLength(1);
   });
 
   it("sends the mapper's columns and the fetch date — never the row's identity, address or author", async () => {
@@ -408,7 +485,7 @@ describe("POST /api/offer-refetch: a fact the stored listing states and the fetc
         outcome: "held",
         stage: "lost_facts",
         reason: "lost_facts",
-        ...IDS,
+        ...AFTER,
         otodom_id: OTODOM_ID,
         lost_columns: "rent,rent_currency",
       }),
@@ -436,7 +513,7 @@ describe("POST /api/offer-refetch: a fact the stored listing states and the fetc
       entry("info", {
         outcome: "saved",
         stage: "update",
-        ...IDS,
+        ...AFTER,
         otodom_id: OTODOM_ID,
         changed: true,
         lost_columns: "rent,rent_currency",
@@ -497,7 +574,7 @@ describe("POST /api/offer-refetch: a stored row that does not read does not bloc
     // No `changed` at all: there was nothing to compare with.
     expect(captured.entries()).toStrictEqual([
       STARTED,
-      entry("info", { outcome: "saved", stage: "update", ...IDS, otodom_id: OTODOM_ID }),
+      entry("info", { outcome: "saved", stage: "update", ...AFTER, otodom_id: OTODOM_ID }),
     ]);
   });
 
@@ -514,7 +591,7 @@ describe("POST /api/offer-refetch: a stored row that does not read does not bloc
     expect(network.otodom()).toHaveLength(1);
     expect(network.writes()).toHaveLength(1);
     expect(captured.entries().at(-1)).toStrictEqual(
-      entry("info", { outcome: "saved", stage: "update", ...IDS, otodom_id: OTODOM_ID }),
+      entry("info", { outcome: "saved", stage: "update", ...AFTER, otodom_id: OTODOM_ID }),
     );
   });
 });
@@ -592,7 +669,7 @@ describe("POST /api/offer-refetch: a failed fetch says why and leaves the stored
     [
       "a fetch that timed out",
       () => Promise.reject(new DOMException("The operation timed out.", "TimeoutError")),
-      ["dłużej niż 45 sekund"],
+      [`Pobieranie ogłoszenia trwało zbyt długo. ${KEPT} — spróbuj ponownie.`],
       "error",
       {
         outcome: "failed",
@@ -665,7 +742,7 @@ describe("POST /api/offer-refetch: a failed fetch says why and leaves the stored
     expect(message).not.toContain("Nic nie zostało zapisane");
     expect(network.otodom()).toHaveLength(1);
     expect(network.writes()).toHaveLength(0);
-    expect(captured.entries()).toStrictEqual([STARTED, entry(level, { ...fields, ...IDS })]);
+    expect(captured.entries()).toStrictEqual([STARTED, entry(level, { ...fields, ...AFTER })]);
   });
 
   // The address answers with a whole flat for sale — only not the one this row is.
@@ -681,7 +758,7 @@ describe("POST /api/offer-refetch: a failed fetch says why and leaves the stored
     expect(network.writes()).toHaveLength(0);
     expect(captured.entries()).toStrictEqual([
       STARTED,
-      entry("info", { outcome: "refused", stage: "identity", reason: "other_listing", ...IDS, otodom_id: 65000002 }),
+      entry("info", { outcome: "refused", stage: "identity", reason: "other_listing", ...AFTER, otodom_id: 65000002 }),
     ]);
   });
 });
@@ -842,7 +919,7 @@ describe("POST /api/offer-refetch: the write is judged by its error and by the r
         outcome: "failed",
         stage: "update",
         reason: "offer_gone",
-        ...IDS,
+        ...AFTER,
         otodom_id: OTODOM_ID,
         db_status: 200,
       }),
@@ -869,7 +946,7 @@ describe("POST /api/offer-refetch: the write is judged by its error and by the r
         outcome: "failed",
         stage: "update",
         reason: "update_failed",
-        ...IDS,
+        ...AFTER,
         otodom_id: OTODOM_ID,
         db_code: "23514",
         db_message: dbMessage,
@@ -897,13 +974,587 @@ describe("POST /api/offer-refetch: the write is judged by its error and by the r
         outcome: "failed",
         stage: "update",
         reason: "update_unconfirmed",
-        ...IDS,
+        ...AFTER,
         otodom_id: OTODOM_ID,
         db_message: "TypeError: fetch failed",
         db_status: 0,
       }),
     );
   });
+});
+
+// The fallback (context/changes/otodom-apify-fallback/plan.md, Phase 4): which mode runs, when the
+// one Apify run follows the direct fetch, and which reason the member reads. Every scenario states
+// how many requests reached otodom.pl and Apify, and how many writes reached `offers`, beside what
+// it claims. The token is the fixture's test value; no request leaves the stub.
+
+const FALLBACK_MODE = {
+  ingestion_mode: "direct_with_fallback",
+  ingestion_mode_effective: "direct_with_fallback",
+  ingestion_mode_read: "ok",
+};
+const APIFY_ONLY_MODE = {
+  ingestion_mode: "apify_only",
+  ingestion_mode_effective: "apify_only",
+  ingestion_mode_read: "ok",
+};
+
+const DENIED_403 = `otodom.pl odmówił pobrania ogłoszenia (HTTP 403). ${KEPT} — spróbuj ponownie za chwilę.`;
+const EXTRACTION_FAILED = `Nie udało się pobrać ogłoszenia z otodom.pl. ${KEPT} — spróbuj ponownie później, a jeśli problem się powtarza, daj znać administratorowi.`;
+const TIMED_OUT = `Pobieranie ogłoszenia trwało zbyt długo. ${KEPT} — spróbuj ponownie.`;
+
+const forbidden403: LegAnswer = () => responseAt("<html></html>", { status: 403 });
+const apifySale: LegAnswer = () => apifyDataset([apifyItem()]);
+
+/** The last entry's fields. */
+function lastFields(captured: ConsoleCapture): unknown {
+  const last = captured.entries().at(-1);
+  expect(last?.args).toHaveLength(1);
+  return last?.args[0];
+}
+
+describe("POST /api/offer-refetch: direct_with_fallback with a token runs one Apify run after a refused direct fetch", () => {
+  beforeEach(() => {
+    env.apifyToken = true;
+  });
+
+  const TRIGGERS: [string, LegAnswer, string][] = [
+    ["a 403", forbidden403, "http_denied"],
+    [
+      "a 403 marked cf-mitigated",
+      () => responseAt(CHALLENGE_PAGE, { status: 403, headers: { "cf-mitigated": "challenge" } }),
+      "challenged",
+    ],
+    ["a 429", () => responseAt("<html></html>", { status: 429 }), "http_denied"],
+    [
+      "a landing off otodom",
+      () => responseAt(otodomPage(flatSaleAd()), { url: "https://consent.example/zgoda" }),
+      "http_denied",
+    ],
+    ["a timeout", () => Promise.reject(new DOMException("The operation timed out.", "TimeoutError")), "timeout"],
+    ["a network error", () => Promise.reject(new TypeError("fetch failed")), "network"],
+    ["a page without data", () => responseAt(PAGE_WITHOUT_NEXT_DATA), "data_missing"],
+  ];
+
+  it.each(TRIGGERS)(
+    "overwrites the row with the listing Apify read after %s: otodom 1, Apify 1, writes 1",
+    async (_label, page, fallbackReason) => {
+      const captured = captureConsole();
+      const network = stubNetwork({ page, apify: apifySale });
+
+      const target = location(await refetch());
+
+      expect(target.search).toBe("?refetched=unchanged");
+      expect(network.otodom()).toHaveLength(1);
+      expect(network.apify()).toHaveLength(1);
+      expect(network.writes()).toHaveLength(1);
+      // The mapper keeps the seller out of the row whichever leg brought the ad.
+      const { description: _description, raw, ...columns } = writtenRow(network.writes());
+      const { description: _rawDescription, ...rawRest } = raw as Record<string, unknown>;
+      const serialised = JSON.stringify({ ...columns, raw: rawRest });
+      for (const canary of SELLER_CANARIES) expect(serialised).not.toContain(canary);
+      expect(captured.entries()).toStrictEqual([
+        {
+          method: "info",
+          args: [
+            { level: "info", event: "offer_refetch", outcome: "started", stage: "fetch", ...IDS, ...FALLBACK_MODE },
+          ],
+        },
+        entry("info", {
+          outcome: "saved",
+          stage: "update",
+          ...IDS,
+          ...FALLBACK_MODE,
+          otodom_id: OTODOM_ID,
+          changed: false,
+          source: "apify",
+          fallback_reason: fallbackReason,
+          apify_status: 201,
+          direct_duration_ms: 0,
+          apify_duration_ms: 0,
+        }),
+      ]);
+    },
+  );
+
+  const NO_FALLBACK: [string, LegAnswer, string][] = [
+    ["a 404", () => responseAt("<html></html>", { status: 404 }), "not_found"],
+    ["a 410", () => responseAt("<html></html>", { status: 410 }), "not_found"],
+    ["an expired listing", () => responseAt(otodomPage(flatSaleAd({ shouldShowExpiredAdPage: true }))), "expired"],
+    ["a 503", () => responseAt("<html></html>", { status: 503 }), "upstream_error"],
+    [
+      "a redirect to another offer",
+      () =>
+        responseAt(otodomPage(flatSaleAd()), { url: "https://www.otodom.pl/pl/oferta/kawalerka-po-remoncie-IDKANAR2" }),
+      "unexpected_landing",
+    ],
+    [
+      "a page whose data cannot be parsed",
+      () => responseAt(pageWithNextData('{"props":{"pageProps":{"ad":{"id":65000001,"tit')),
+      "shape_changed",
+    ],
+    ["a listing that became a rental", () => responseAt(otodomPage(rentalFlat())), "not_for_sale"],
+    ["a listing that is no longer a flat", () => responseAt(otodomPage(saleHouse())), "not_a_flat"],
+  ];
+
+  it.each(NO_FALLBACK)("runs no Apify run after %s: otodom 1, Apify 0, writes 0", async (_label, page, reason) => {
+    const captured = captureConsole();
+    const network = stubNetwork({ page });
+
+    cardError(await refetch());
+
+    expect(network.otodom()).toHaveLength(1);
+    expect(network.apify()).toHaveLength(0);
+    expect(network.writes()).toHaveLength(0);
+    const fields = lastFields(captured);
+    expect(fields).toMatchObject({ reason, source: "direct", direct_duration_ms: 0, ...FALLBACK_MODE });
+    for (const key of ["fallback_reason", "apify_status", "apify_failure", "apify_duration_ms"]) {
+      expect(fields).not.toHaveProperty(key);
+    }
+  });
+
+  it("lets Apify's 410 win after a direct 403: the member reads not-found, otodom 1, Apify 1, writes 0", async () => {
+    const captured = captureConsole();
+    const network = stubNetwork({ page: forbidden403, apify: () => apifyDataset([apifyGoneItem()]) });
+
+    expect(cardError(await refetch())).toBe(`Ogłoszenie nie istnieje już na otodom.pl lub wygasło. ${KEPT}.`);
+    expect(network.otodom()).toHaveLength(1);
+    expect(network.apify()).toHaveLength(1);
+    expect(network.writes()).toHaveLength(0);
+    expect(captured.entries().at(-1)).toStrictEqual(
+      entry("info", {
+        outcome: "refused",
+        stage: "fetch",
+        reason: "not_found",
+        status: 410,
+        landed_host: "www.otodom.pl",
+        landed_listing: "IDKANAR1",
+        ...IDS,
+        ...FALLBACK_MODE,
+        source: "apify",
+        fallback_reason: "http_denied",
+        apify_status: 201,
+        direct_duration_ms: 0,
+        apify_duration_ms: 0,
+      }),
+    );
+  });
+
+  it("reads a run that could not read the page as a refusal: otodom 1, Apify 1, writes 0", async () => {
+    const captured = captureConsole();
+    const network = stubNetwork({ page: forbidden403, apify: () => apifyDataset([apifyRunError()]) });
+
+    expect(cardError(await refetch())).toBe(
+      `otodom.pl odmówił pobrania ogłoszenia. ${KEPT} — spróbuj ponownie za chwilę.`,
+    );
+    expect(network.otodom()).toHaveLength(1);
+    expect(network.apify()).toHaveLength(1);
+    expect(network.writes()).toHaveLength(0);
+    expect(captured.entries().at(-1)).toStrictEqual(
+      entry("error", {
+        outcome: "failed",
+        stage: "fetch",
+        reason: "http_denied",
+        ...IDS,
+        ...FALLBACK_MODE,
+        source: "apify",
+        fallback_reason: "http_denied",
+        apify_status: 201,
+        apify_failure: "run_error",
+        direct_duration_ms: 0,
+        apify_duration_ms: 0,
+      }),
+    );
+    expect(captured.text()).not.toContain(APIFY_MESSAGE_CANARY);
+  });
+
+  const NOT_REACHED: [string, LegAnswer, Record<string, string | number>][] = [
+    [
+      "400 run-failed",
+      () => apifyRunTimeout(),
+      { apify_failure: "http", apify_status: 400, apify_error_type: "run-failed" },
+    ],
+    [
+      "401",
+      () => apifyError(401, "user-or-token-not-found"),
+      { apify_failure: "http", apify_status: 401, apify_error_type: "user-or-token-not-found" },
+    ],
+    [
+      "402",
+      () => apifyError(402, "payment-required"),
+      { apify_failure: "http", apify_status: 402, apify_error_type: "payment-required" },
+    ],
+    [
+      "403 insufficient-permissions",
+      () => apifyError(403, "insufficient-permissions"),
+      { apify_failure: "http", apify_status: 403, apify_error_type: "insufficient-permissions" },
+    ],
+    [
+      "403 full-permission-actor-not-approved",
+      () => apifyError(403, "full-permission-actor-not-approved"),
+      { apify_failure: "http", apify_status: 403, apify_error_type: "full-permission-actor-not-approved" },
+    ],
+    [
+      "408",
+      () => apifyError(408, "run-timeout-exceeded"),
+      { apify_failure: "http", apify_status: 408, apify_error_type: "run-timeout-exceeded" },
+    ],
+    [
+      "429",
+      () => apifyError(429, "rate-limit-exceeded"),
+      { apify_failure: "http", apify_status: 429, apify_error_type: "rate-limit-exceeded" },
+    ],
+    ["a network error", () => Promise.reject(new TypeError("fetch failed")), { apify_failure: "network" }],
+    ["an empty dataset", () => apifyEmpty(), { apify_failure: "empty_dataset", apify_status: 201 }],
+    [
+      "a malformed item",
+      () => apifyDataset([{ requestedUrl: STORED_URL, status: "200" }]),
+      { apify_failure: "malformed_item", apify_status: 201 },
+    ],
+  ];
+
+  it.each(NOT_REACHED)(
+    "lets the direct reason win when Apify answers %s: otodom 1, Apify 1, writes 0",
+    async (_label, apify, apifyFields) => {
+      const captured = captureConsole();
+      const network = stubNetwork({ page: forbidden403, apify });
+
+      expect(cardError(await refetch())).toBe(DENIED_403);
+      expect(network.otodom()).toHaveLength(1);
+      expect(network.apify()).toHaveLength(1);
+      expect(network.writes()).toHaveLength(0);
+      expect(captured.entries().at(-1)).toStrictEqual(
+        entry("error", {
+          outcome: "failed",
+          stage: "fetch",
+          reason: "http_denied",
+          status: 403,
+          content_type: HTML,
+          ...IDS,
+          ...FALLBACK_MODE,
+          source: "direct",
+          fallback_reason: "http_denied",
+          ...apifyFields,
+          direct_duration_ms: 0,
+          apify_duration_ms: 0,
+        }),
+      );
+      expect(captured.text()).not.toContain(APIFY_MESSAGE_CANARY);
+      expect(captured.text()).not.toContain(APIFY_TEST_TOKEN);
+    },
+  );
+
+  it("keeps data_missing from both legs and says so: otodom 1, Apify 1, writes 0", async () => {
+    const captured = captureConsole();
+    const network = stubNetwork({
+      page: () => responseAt(PAGE_WITHOUT_NEXT_DATA),
+      apify: () => apifyDataset([apifyNoMarkerItem()]),
+    });
+
+    expect(cardError(await refetch())).toBe(
+      `otodom.pl przysłał stronę bez danych ogłoszenia — mógł zablokować pobranie albo zmienić format strony. ${KEPT}.`,
+    );
+    expect(network.otodom()).toHaveLength(1);
+    expect(network.apify()).toHaveLength(1);
+    expect(network.writes()).toHaveLength(0);
+    expect(lastFields(captured)).toStrictEqual({
+      level: "error",
+      event: "offer_refetch",
+      outcome: "failed",
+      stage: "fetch",
+      reason: "data_missing",
+      detail: "both_sources",
+      status: 200,
+      landed_host: "www.otodom.pl",
+      landed_listing: "IDKANAR1",
+      marker_present: false,
+      ...IDS,
+      ...FALLBACK_MODE,
+      source: "apify",
+      fallback_reason: "data_missing",
+      apify_status: 201,
+      direct_duration_ms: 0,
+      apify_duration_ms: 0,
+    });
+  });
+});
+
+describe("POST /api/offer-refetch: the other modes, the missing token and a failed read of the mode", () => {
+  it("overwrites the row through Apify alone in apify_only: otodom 0, Apify 1, writes 1", async () => {
+    env.apifyToken = true;
+    const captured = captureConsole();
+    const network = stubNetwork({ settings: () => ingestionSettingsRow("apify_only"), apify: apifySale });
+
+    expect(location(await refetch()).search).toBe("?refetched=unchanged");
+    expect(network.otodom()).toHaveLength(0);
+    expect(network.apify()).toHaveLength(1);
+    expect(network.writes()).toHaveLength(1);
+    expect(lastFields(captured)).toStrictEqual({
+      level: "info",
+      event: "offer_refetch",
+      outcome: "saved",
+      stage: "update",
+      ...IDS,
+      ...APIFY_ONLY_MODE,
+      otodom_id: OTODOM_ID,
+      changed: false,
+      source: "apify",
+      apify_status: 201,
+      apify_duration_ms: 0,
+    });
+  });
+
+  it("says extraction_failed when Apify never reaches otodom in apify_only: otodom 0, Apify 1, writes 0", async () => {
+    env.apifyToken = true;
+    const captured = captureConsole();
+    const network = stubNetwork({
+      settings: () => ingestionSettingsRow("apify_only"),
+      apify: () => apifyError(401, "user-or-token-not-found"),
+    });
+
+    expect(cardError(await refetch())).toBe(EXTRACTION_FAILED);
+    expect(network.otodom()).toHaveLength(0);
+    expect(network.apify()).toHaveLength(1);
+    expect(network.writes()).toHaveLength(0);
+    expect(lastFields(captured)).toStrictEqual({
+      level: "error",
+      event: "offer_refetch",
+      outcome: "failed",
+      stage: "fetch",
+      reason: "extraction_failed",
+      ...IDS,
+      ...APIFY_ONLY_MODE,
+      source: "apify",
+      apify_status: 401,
+      apify_error_type: "user-or-token-not-found",
+      apify_failure: "http",
+      apify_duration_ms: 0,
+    });
+  });
+
+  it("fetches directly alone in direct_only, even with a token: otodom 1, Apify 0, writes 0", async () => {
+    env.apifyToken = true;
+    const captured = captureConsole();
+    const network = stubNetwork({ settings: () => ingestionSettingsRow("direct_only"), page: forbidden403 });
+
+    expect(cardError(await refetch())).toBe(DENIED_403);
+    expect(network.otodom()).toHaveLength(1);
+    expect(network.apify()).toHaveLength(0);
+    expect(network.writes()).toHaveLength(0);
+    expect(lastFields(captured)).toMatchObject({
+      reason: "http_denied",
+      ingestion_mode: "direct_only",
+      ingestion_mode_effective: "direct_only",
+      ingestion_mode_read: "ok",
+      source: "direct",
+    });
+    expect(lastFields(captured)).not.toHaveProperty("ingestion_mode_reason");
+  });
+
+  it("runs a configured apify_only as direct_only without a token: otodom 1, Apify 0, writes 1", async () => {
+    const captured = captureConsole();
+    const network = stubNetwork({
+      settings: () => ingestionSettingsRow("apify_only"),
+      page: () => responseAt(otodomPage(flatSaleAd())),
+    });
+
+    expect(location(await refetch()).search).toBe("?refetched=unchanged");
+    expect(network.otodom()).toHaveLength(1);
+    expect(network.apify()).toHaveLength(0);
+    expect(network.writes()).toHaveLength(1);
+    expect(lastFields(captured)).toStrictEqual({
+      level: "info",
+      event: "offer_refetch",
+      outcome: "saved",
+      stage: "update",
+      ...IDS,
+      otodom_id: OTODOM_ID,
+      changed: false,
+      ingestion_mode: "apify_only",
+      ingestion_mode_effective: "direct_only",
+      ingestion_mode_reason: "apify_unconfigured",
+      ingestion_mode_read: "ok",
+      source: "direct",
+      direct_duration_ms: 0,
+    });
+  });
+
+  // With a token and a direct 403 — a trigger — so a read taken for the seeded default would show
+  // as an Apify request.
+  it.each([
+    [
+      "error",
+      () => jsonResponse({ code: "XX000", message: "internal error", details: null, hint: null }, 500),
+      { db_code: "XX000", db_status: 500 },
+    ],
+    ["missing_row", () => jsonResponse([], 200), { db_status: 200 }],
+    ["off_list", () => ingestionSettingsRow("najpierw_apify"), {}],
+  ] as const)(
+    "runs a failed read (%s) as direct_only: otodom 1, Apify 0, writes 0",
+    async (read, settings, dbFields) => {
+      env.apifyToken = true;
+      const captured = captureConsole();
+      const network = stubNetwork({ settings, page: forbidden403 });
+
+      expect(cardError(await refetch())).toBe(DENIED_403);
+      expect(network.otodom()).toHaveLength(1);
+      expect(network.apify()).toHaveLength(0);
+      expect(network.writes()).toHaveLength(0);
+      const failedMode = {
+        ingestion_mode_effective: "direct_only",
+        ingestion_mode_reason: "mode_read_failed",
+        ingestion_mode_read: read,
+      };
+      expect(captured.entries()).toStrictEqual([
+        {
+          method: "info",
+          args: [
+            {
+              level: "info",
+              event: "offer_refetch",
+              outcome: "started",
+              stage: "fetch",
+              ...IDS,
+              ...failedMode,
+              ...dbFields,
+            },
+          ],
+        },
+        entry("error", {
+          outcome: "failed",
+          stage: "fetch",
+          reason: "http_denied",
+          status: 403,
+          content_type: HTML,
+          ...IDS,
+          ...failedMode,
+          source: "direct",
+          direct_duration_ms: 0,
+        }),
+      ]);
+    },
+  );
+
+  it("reads no mode for a request refused before the fetch: otodom 0, Apify 0, writes 0", async () => {
+    env.apifyToken = true;
+    captureConsole();
+    const network = stubNetwork({ stored: { ...STORED_ROW, source_url: "https://www.olx.pl/d/oferta/x-IDKANAR1" } });
+
+    cardError(await refetch());
+
+    expect(network.modeReads()).toHaveLength(0);
+    expect(network.otodom()).toHaveLength(0);
+    expect(network.apify()).toHaveLength(0);
+    expect(network.writes()).toHaveLength(0);
+  });
+});
+
+// The deadlines (src/lib/otodom/deadlines.ts), each one millisecond short and on the dot, against
+// a side that never answers. The values are written out by hand from the plan.
+describe("POST /api/offer-refetch: each leg ends at its deadline, and no timer outlives the action", () => {
+  beforeEach(() => {
+    vi.useRealTimers();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    vi.setSystemTime(new Date("2026-10-17T10:00:00.000Z"));
+  });
+
+  /** Lets the route run until `done` holds, without moving the fake clock. */
+  async function until(done: () => boolean): Promise<void> {
+    for (let turn = 0; turn < 500 && !done(); turn += 1) {
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    expect(done()).toBe(true);
+  }
+
+  function track(promise: Promise<Response>) {
+    const state = { settled: false };
+    const settled = promise.finally(() => {
+      state.settled = true;
+    });
+    return { state, settled };
+  }
+
+  it("falls back at 20 000 ms of a silent direct fetch, and not at 19 999: otodom 1, Apify 1, writes 1", async () => {
+    env.apifyToken = true;
+    const captured = captureConsole();
+    const network = stubNetwork({ page: apifySilence, apify: apifySale });
+    const { state, settled } = track(refetch());
+
+    await until(() => network.otodom().length === 1);
+    await vi.advanceTimersByTimeAsync(19_999);
+    expect(state.settled).toBe(false);
+    expect(network.apify()).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(location(await settled).search).toBe("?refetched=unchanged");
+    expect(network.otodom()).toHaveLength(1);
+    expect(network.apify()).toHaveLength(1);
+    expect(network.writes()).toHaveLength(1);
+    expect(lastFields(captured)).toMatchObject({
+      source: "apify",
+      fallback_reason: "timeout",
+      direct_duration_ms: 20_000,
+      apify_duration_ms: 0,
+    });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.each([
+    ["direct_only with a token", true, () => ingestionSettingsRow("direct_only")],
+    ["no token", false, () => ingestionSettingsRow()],
+    ["a failed read of the mode", true, () => jsonResponse({ code: "XX000", message: "internal error" }, 500)],
+  ] as const)(
+    "gives a silent direct fetch 60 000 ms in %s, and not 59 999: otodom 1, Apify 0, writes 0",
+    async (_label, token, settings) => {
+      env.apifyToken = token;
+      const captured = captureConsole();
+      const network = stubNetwork({ settings, page: apifySilence });
+      const { state, settled } = track(refetch());
+
+      await until(() => network.otodom().length === 1);
+      await vi.advanceTimersByTimeAsync(59_999);
+      expect(state.settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+
+      expect(cardError(await settled)).toBe(TIMED_OUT);
+      expect(network.otodom()).toHaveLength(1);
+      expect(network.apify()).toHaveLength(0);
+      expect(network.writes()).toHaveLength(0);
+      expect(lastFields(captured)).toMatchObject({
+        reason: "timeout",
+        source: "direct",
+        ingestion_mode_effective: "direct_only",
+        direct_duration_ms: 60_000,
+      });
+      expect(vi.getTimerCount()).toBe(0);
+    },
+  );
+
+  it.each([
+    ["direct_with_fallback, after a direct 403", "direct_with_fallback", forbidden403, DENIED_403, 1],
+    ["apify_only", "apify_only", undefined, EXTRACTION_FAILED, 0],
+  ] as const)(
+    "gives a silent Apify run 40 000 ms in %s, and not 39 999",
+    async (_label, mode, page, message, otodom) => {
+      env.apifyToken = true;
+      const captured = captureConsole();
+      const network = stubNetwork({ settings: () => ingestionSettingsRow(mode), page, apify: apifySilence });
+      const { state, settled } = track(refetch());
+
+      await until(() => network.apify().length === 1);
+      await vi.advanceTimersByTimeAsync(39_999);
+      expect(state.settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+
+      expect(cardError(await settled)).toBe(message);
+      expect(network.otodom()).toHaveLength(otodom);
+      expect(network.apify()).toHaveLength(1);
+      expect(network.writes()).toHaveLength(0);
+      expect(lastFields(captured)).toMatchObject({ apify_failure: "timeout", apify_duration_ms: 40_000 });
+      expect(lastFields(captured)).not.toHaveProperty("apify_status");
+      expect(vi.getTimerCount()).toBe(0);
+    },
+  );
 });
 
 // One assertion over every way out of the route: the console must not carry the listing's words,
@@ -924,6 +1575,9 @@ describe("POST /api/offer-refetch: no log entry carries listing, seller or membe
     "mieszkanie-54-m-warszawa",
     "utm_source",
     CHALLENGE_CANARY,
+    // Apify's words — an error's message, a run's `#debug` — and the token.
+    APIFY_MESSAGE_CANARY,
+    APIFY_TEST_TOKEN,
     // A lost column is named, never quoted: its currency stands in for what it held (the amount's
     // digits also begin the listing's otodom id, which an entry does carry).
     "PLN",
@@ -962,6 +1616,34 @@ describe("POST /api/offer-refetch: no log entry carries listing, seller or membe
         }),
         refetch()
       ),
+    ],
+    [
+      "fetch",
+      "an Apify refusal after a direct 403, whose message carries a canary",
+      () => (
+        (env.apifyToken = true),
+        stubNetwork({ page: forbidden403, apify: () => apifyError(401, "user-or-token-not-found") }),
+        refetch()
+      ),
+    ],
+    [
+      "fetch",
+      "an Apify run that could not read the page, whose #debug carries a canary",
+      () => (
+        (env.apifyToken = true),
+        stubNetwork({ page: forbidden403, apify: () => apifyDataset([apifyRunError()]) }),
+        refetch()
+      ),
+    ],
+    [
+      "fetch",
+      "an Apify run past its timeout, whose message carries a canary",
+      () => ((env.apifyToken = true), stubNetwork({ page: forbidden403, apify: () => apifyRunTimeout() }), refetch()),
+    ],
+    [
+      "update",
+      "a listing saved through Apify",
+      () => ((env.apifyToken = true), stubNetwork({ page: forbidden403, apify: apifySale }), refetch()),
     ],
     [
       "map",
@@ -1018,16 +1700,25 @@ describe("POST /api/offer-refetch: no log entry carries listing, seller or membe
 // above — saved, held, refused or failed — it asked for no note and no audit and wrote to
 // neither. It stands last, so it reads the requests of every scenario before it.
 describe("POST /api/offer-refetch: notes and audits are never read or written", () => {
-  it("sent every request of this file to otodom or to `offers`, and none to `offer_notes` or `offer_audits`", () => {
+  it("sent every request of this file to otodom, Apify, `offers` or the mode, and none to `offer_notes` or `offer_audits`", () => {
     // Controls: the scenarios above did run, did reach otodom and did write.
     expect(scenarios).toBeGreaterThan(40);
     expect(everyRequest.filter(isOtodomRequest).length).toBeGreaterThan(10);
     expect(everyRequest.filter(isOfferWrite).length).toBeGreaterThan(5);
 
+    // Widened on purpose by the fallback (otodom-apify-fallback, Phase 4): the read of the mode
+    // and the Apify runs are allowed; notes and audits stay out.
+    expect(everyRequest.filter(isApifyRequest).length).toBeGreaterThan(5);
     for (const request of everyRequest) {
       expect(request.url).not.toContain("offer_notes");
       expect(request.url).not.toContain("offer_audits");
-      expect(isOtodomRequest(request) || isStoredRead(request) || isOfferWrite(request)).toBe(true);
+      expect(
+        isOtodomRequest(request) ||
+          isStoredRead(request) ||
+          isOfferWrite(request) ||
+          isIngestionSettingsRead(request) ||
+          isApifyRequest(request),
+      ).toBe(true);
     }
   });
 });

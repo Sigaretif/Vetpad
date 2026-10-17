@@ -357,6 +357,23 @@ export function emptyOffersTable(request: RecordedRequest): Response | undefined
   return undefined;
 }
 
+// The ingestion mode, as both ingestion routes read it through `loadIngestionSettings`
+// (src/lib/ingestion-settings.ts): `.from("ingestion_settings").select("mode").eq("id", true)
+// .maybeSingle()` is `GET <SUPABASE_URL>/rest/v1/ingestion_settings?select=mode&id=eq.true`. As
+// with every `maybeSingle()` read above, `200 []` becomes `data: null` with no error (the missing
+// singleton row), `[row]` becomes `row`, and `500` with `{ "code", "message", … }` is a result with
+// `error` set, at once.
+
+/** True for the read of the ingestion mode. */
+export function isIngestionSettingsRead(request: RecordedRequest): boolean {
+  return isTableRequest(request, "ingestion_settings", "GET");
+}
+
+/** The singleton row holding `mode`: the seeded default unless a test says otherwise. */
+export function ingestionSettingsRow(mode = "direct_with_fallback"): Response {
+  return jsonResponse([{ mode }], 200);
+}
+
 // Supabase Auth, as the middleware talks to it through `supabase.auth.getUser()` (@supabase/ssr
 // 0.12 and auth-js 2.116, read from node_modules/@supabase/ssr/src/cookies.ts,
 // node_modules/@supabase/auth-js/src/GoTrueClient.ts and node_modules/@supabase/auth-js/src/lib/fetch.ts):
