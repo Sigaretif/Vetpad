@@ -1,4 +1,4 @@
-import { ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_KEY } from "astro:env/server";
+import { ANTHROPIC_API_KEY, APIFY_TOKEN, SUPABASE_URL, SUPABASE_KEY } from "astro:env/server";
 
 export interface ConfigStatus {
   name: string;
@@ -22,6 +22,13 @@ export const configStatuses: ConfigStatus[] = [
     configured: Boolean(ANTHROPIC_API_KEY),
     message: "Brak klucza dostawcy modelu (ANTHROPIC_API_KEY) — audyt AI jest wyłączony.",
   },
+  {
+    // The extraction service behind the fallback fetch of a listing (FR-004, FR-009). Says only
+    // whether the token is set, never whether it works.
+    name: "Apify",
+    configured: Boolean(APIFY_TOKEN),
+    message: "Brak tokenu Apify (APIFY_TOKEN) — zapasowe pobieranie ogłoszeń jest wyłączone.",
+  },
 ];
 
 export const missingConfigs = configStatuses.filter((s) => !s.configured);
@@ -34,4 +41,16 @@ export const missingConfigs = configStatuses.filter((s) => !s.configured);
  */
 export function isAuditAvailable(): boolean {
   return Boolean(ANTHROPIC_API_KEY);
+}
+
+/**
+ * Whether the application holds an Apify token, so a listing may be fetched through the extraction
+ * service when the direct fetch is refused (FR-004, FR-009). A route or a view asks here — never by
+ * importing `@/lib/otodom/apify`, the server-only module that holds the token. Like the banner, it
+ * says only whether the token is set, never that it works: a revoked or under-scoped token is
+ * learned from Apify's answer to a run. Without a token, listings are fetched directly only (the
+ * zero-config state).
+ */
+export function isApifyAvailable(): boolean {
+  return Boolean(APIFY_TOKEN);
 }

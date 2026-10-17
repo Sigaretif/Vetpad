@@ -1,13 +1,14 @@
 // Debugging aid: shows what otodom sent for one offer next to what our mapper made of it,
 // so "this field mapped wrong" can be answered from a URL alone.
 // Hits the live portal, so it never runs in CI and is not part of the test surface.
-// Zero dependencies on purpose: fetch.ts, map.ts and url.ts are loaded directly through
+// Zero dependencies on purpose: deadlines.ts, fetch.ts, map.ts and url.ts are loaded directly through
 // Node's type stripping (Node 22.18+), so this script cannot drift from the app's code.
 //
 //   npm run otodom:inspect -- https://www.otodom.pl/pl/oferta/<slug>
 
 /* global AbortSignal */
 
+import { INGEST_ACTION_BUDGET_MS } from "../src/lib/otodom/deadlines.ts";
 import { fetchOfferAd } from "../src/lib/otodom/fetch.ts";
 import { mapAdToOffer } from "../src/lib/otodom/map.ts";
 import { normalizeOfferUrl } from "../src/lib/otodom/url.ts";
@@ -28,7 +29,6 @@ Exit codes: 0 printed all sections (even when the gate rejects the offer),
             1 the URL was rejected or the fetch failed, 2 usage error.
 Never run in CI: it hits the live portal.`;
 
-const TIMEOUT_MS = 45_000;
 const arg = process.argv[2];
 
 if (arg === undefined || arg === "--help" || arg === "-h") {
@@ -43,7 +43,7 @@ if (!normalized.ok) {
 }
 console.log(`Fetching ${normalized.url}`);
 
-const fetched = await fetchOfferAd(normalized.url, AbortSignal.timeout(TIMEOUT_MS));
+const fetched = await fetchOfferAd(normalized.url, AbortSignal.timeout(INGEST_ACTION_BUDGET_MS));
 if (!fetched.ok) {
   const status = fetched.status === undefined ? "" : ` (HTTP ${fetched.status})`;
   const detail = fetched.detail === undefined ? "" : ` - ${fetched.detail}`;

@@ -25,6 +25,8 @@ export type FetchFailureReason =
  * the listing's title, so an offer is named by its `ID…` token alone.
  */
 export interface FetchEvidence {
+  /** Which way the listing was fetched: `apify` on the evidence of the Apify leg, absent on a direct fetch. */
+  source?: "direct" | "apify";
   landedHost?: string;
   /** Path only, with every slug replaced by `<slug>`; absent for a landing on an offer page on otodom. */
   landedPath?: string;

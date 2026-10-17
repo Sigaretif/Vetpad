@@ -121,3 +121,49 @@ describe("eslint.config.js: the rule reaches every file of the audit (#6)", () =
     expect(JSON.stringify(restrictedImportsEntry(config) ?? null)).not.toContain(AUDIT_MESSAGE);
   });
 });
+
+// The Apify token never leaves the server (CLAUDE.md, Secrets and data access): `apifyServerOnlyConfig`
+// makes an import of `@/lib/otodom/apify` — the one module that holds it — an error in an island, a
+// component, a layout and a page render. An `.astro` sample carries its import in the frontmatter,
+// the only place an `.astro` file has one.
+const APIFY_MESSAGE = "A view must not import the Apify module";
+
+function astroSample(specifier: string): string {
+  return `---\nimport * as probe from "${specifier}";\nconst loaded = Object.keys(probe).length;\n---\n\n<p>{loaded}</p>\n`;
+}
+
+async function lintAs(filePath: string, specifier: string): Promise<ESLint.LintResult> {
+  if (!filePath.endsWith(".astro")) return lint(filePath, specifier);
+  expect(existsSync(path.join(ROOT, filePath))).toBe(true);
+  const results = await eslint.lintText(astroSample(specifier), { filePath: path.join(ROOT, filePath) });
+  expect(results).toHaveLength(1);
+  const result = results[0];
+  expect(result.messages.filter((message) => message.fatal === true)).toEqual([]);
+  return result;
+}
+
+describe("eslint.config.js: no view imports the module that holds the Apify token", () => {
+  it.each([
+    ["src/components/offers/AddOfferForm.tsx", "@/lib/otodom/apify"],
+    ["src/components/offers/RefetchForm.tsx", "../../lib/otodom/apify.ts"],
+    ["src/components/offers/OfferCard.astro", "@/lib/otodom/apify"],
+    ["src/layouts/Layout.astro", "@/lib/otodom/apify"],
+    ["src/pages/criteria.astro", "@/lib/otodom/apify"],
+  ])("rejects, in %s, an import of %s", async (filePath, specifier) => {
+    const messages = restrictedImportMessages(await lintAs(filePath, specifier));
+
+    expect(messages).toHaveLength(1);
+    expect(messages[0].severity).toBe(2);
+    expect(messages[0].message).toContain(APIFY_MESSAGE);
+  });
+
+  // Beside the rejections: the route that builds the leg, where the rule does not reach, and the
+  // request module, which holds no token, in a view.
+  it.each([
+    ["src/pages/api/offers.ts", "@/lib/otodom/apify"],
+    ["src/components/offers/AddOfferForm.tsx", "@/lib/otodom/apify-request"],
+    ["src/pages/criteria.astro", "@/lib/config-status"],
+  ])("allows, in %s, an import of %s", async (filePath, specifier) => {
+    expect(restrictedImportMessages(await lintAs(filePath, specifier))).toEqual([]);
+  });
+});

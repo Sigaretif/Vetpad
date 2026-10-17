@@ -905,12 +905,12 @@ The migration must be pushed before the Worker that reads the table is deployed.
 
 #### Automated
 
-- [x] 1.1 Unit tests pass: `npm test`
-- [x] 1.2 Lint passes: `npm run lint`
-- [x] 1.3 Types check: `npx astro sync && npx astro check`
-- [x] 1.4 Smoke script parses: `node --check scripts/smoke.mjs`
-- [x] 1.5 Migration file exists and matches the naming: `ls supabase/migrations/*_create_ingestion_settings.sql`
-- [x] 1.6 CLAUDE.md's RLS exception names the new migration: `grep -n "create_ingestion_settings" CLAUDE.md`
+- [x] 1.1 Unit tests pass: `npm test` — 2a85105
+- [x] 1.2 Lint passes: `npm run lint` — 2a85105
+- [x] 1.3 Types check: `npx astro sync && npx astro check` — 2a85105
+- [x] 1.4 Smoke script parses: `node --check scripts/smoke.mjs` — 2a85105
+- [x] 1.5 Migration file exists and matches the naming: `ls supabase/migrations/*_create_ingestion_settings.sql` — 2a85105
+- [x] 1.6 CLAUDE.md's RLS exception names the new migration: `grep -n "create_ingestion_settings" CLAUDE.md` — 2a85105
 
 #### Manual
 
@@ -920,12 +920,12 @@ The migration must be pushed before the Worker that reads the table is deployed.
 
 #### Automated
 
-- [ ] 2.1 Unit tests pass, including every pre-existing ingestion and route test unmodified: `npm test`
-- [ ] 2.2 Lint passes, including the new import guard: `npm run lint`
-- [ ] 2.3 Types check: `npx astro sync && npx astro check`
-- [ ] 2.4 Build passes with no secrets: `npm run build`
-- [ ] 2.5 The inspect script loads every import under Node (offline): `node scripts/otodom-inspect.mjs --help`
-- [ ] 2.6 The request and deadlines modules load under Node: `node --input-type=module -e "await import('./src/lib/otodom/apify-request.ts'); await import('./src/lib/otodom/deadlines.ts')"`
+- [x] 2.1 Unit tests pass, including every pre-existing ingestion and route test unmodified: `npm test`
+- [x] 2.2 Lint passes, including the new import guard: `npm run lint`
+- [x] 2.3 Types check: `npx astro sync && npx astro check`
+- [x] 2.4 Build passes with no secrets: `npm run build`
+- [x] 2.5 The inspect script loads every import under Node (offline): `node scripts/otodom-inspect.mjs --help`
+- [x] 2.6 The request and deadlines modules load under Node: `node --input-type=module -e "await import('./src/lib/otodom/apify-request.ts'); await import('./src/lib/otodom/deadlines.ts')"`
 
 ### Phase 3: Live verification within the budget
 

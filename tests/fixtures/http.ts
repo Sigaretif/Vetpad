@@ -26,6 +26,12 @@ export interface FetchContext {
    * what a real `fetch` does, and the only way such a request ever finishes.
    */
   signal?: AbortSignal;
+  /**
+   * The headers the caller sent. Kept out of `RecordedRequest` so a test that compares recorded
+   * requests whole is not changed by them; a handler that has a header to prove records it itself
+   * (tests/fixtures/apify.ts).
+   */
+  headers?: Headers;
 }
 
 /** Answers a request, or returns `undefined` for a request the test did not plan. */
@@ -64,7 +70,8 @@ export function stubFetch(handler: FetchHandler): FetchStub {
     const signal = input instanceof Request ? input.signal : init?.signal;
     if (signal?.aborted) throw signal.reason;
 
-    const response = await handler(request, { signal: signal ?? undefined });
+    const headers = input instanceof Request ? input.headers : new Headers(init?.headers);
+    const response = await handler(request, { signal: signal ?? undefined, headers });
     if (response === undefined) {
       stub.unplanned.push(request);
       throw new Error(`fetch stub: unplanned request ${request.method} ${request.url}`);

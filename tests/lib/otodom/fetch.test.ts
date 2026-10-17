@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { ingestOffer } from "@/lib/otodom";
-import { fetchOfferAd } from "@/lib/otodom/fetch";
+import { classifyAnswer, classifyPayload, fetchOfferAd, type PayloadFacts } from "@/lib/otodom/fetch";
 import type { FetchEvidence, FetchFailureReason, FetchOfferResult } from "@/lib/otodom/types";
 import {
   CHALLENGE_PAGE,
@@ -846,5 +846,152 @@ describe("ingestOffer: pasted URL to a mapped offer (#1, FR-005)", () => {
       reason: "shape_changed",
       detail: "id, title, url or description missing",
     });
+  });
+});
+
+// The two checks `fetchOfferAd` runs, fed directly: the direct fetch and the Apify leg both reach
+// them, so each branch is pinned here on its own, one case each, in check order.
+
+describe("classifyAnswer: the checks of an answer, before its body (#1)", () => {
+  const OFFER = { landedHost: "www.otodom.pl", landedListing: "IDKANAR1" };
+
+  it.each<[string, Parameters<typeof classifyAnswer>[0], FetchFailureReason, FetchEvidence]>([
+    [
+      "cf-mitigated, whatever the status",
+      { status: 200, requestedUrl: FLAT_SALE_URL, landedUrl: FLAT_SALE_URL, cfMitigated: "challenge" },
+      "challenged",
+      { cfMitigated: "challenge", ...OFFER },
+    ],
+    [
+      "a landing off otodom, before the status",
+      { status: 404, requestedUrl: FLAT_SALE_URL, landedUrl: "https://consent.example/zgoda" },
+      "http_denied",
+      { landedHost: "consent.example", landedPath: "/zgoda" },
+    ],
+    ["404", { status: 404, requestedUrl: FLAT_SALE_URL, landedUrl: FLAT_SALE_URL }, "not_found", OFFER],
+    ["410", { status: 410, requestedUrl: FLAT_SALE_URL, landedUrl: FLAT_SALE_URL }, "not_found", OFFER],
+    ["500", { status: 500, requestedUrl: FLAT_SALE_URL, landedUrl: FLAT_SALE_URL }, "upstream_error", OFFER],
+    [
+      "429 with retry-after",
+      { status: 429, requestedUrl: FLAT_SALE_URL, landedUrl: FLAT_SALE_URL, retryAfter: "60" },
+      "http_denied",
+      { retryAfter: "60", ...OFFER },
+    ],
+    [
+      "a status below 200",
+      { status: 199, requestedUrl: FLAT_SALE_URL, landedUrl: "", contentType: HTML },
+      "http_denied",
+      { contentType: HTML },
+    ],
+    [
+      "the results page",
+      { status: 200, requestedUrl: FLAT_SALE_URL, landedUrl: "https://www.otodom.pl/pl/wyniki" },
+      "not_found",
+      { landedHost: "www.otodom.pl", landedPath: "/pl/wyniki" },
+    ],
+    [
+      "elsewhere on otodom",
+      { status: 200, requestedUrl: FLAT_SALE_URL, landedUrl: "https://www.otodom.pl/pl/firmy" },
+      "unexpected_landing",
+      { landedHost: "www.otodom.pl", landedPath: "/pl/firmy" },
+    ],
+    [
+      "a landing that cannot be parsed",
+      { status: 200, requestedUrl: FLAT_SALE_URL, landedUrl: "to nie jest adres" },
+      "unexpected_landing",
+      {},
+    ],
+    [
+      "another offer's page",
+      {
+        status: 200,
+        requestedUrl: FLAT_SALE_URL,
+        landedUrl: "https://www.otodom.pl/pl/oferta/kawalerka-po-remoncie-IDKANAR2",
+      },
+      "unexpected_landing",
+      { landedHost: "www.otodom.pl", landedListing: "IDKANAR2" },
+    ],
+  ])("names %s", (_label, facts, reason, evidence) => {
+    const { failure, answered } = classifyAnswer(facts);
+    expect(failure).toStrictEqual({ ok: false, reason, status: facts.status, evidence });
+    expect(answered).toStrictEqual({ status: facts.status, evidence });
+  });
+
+  // Beside the failures: answers whose body may be read, each with what it carries on.
+  it.each<[string, Parameters<typeof classifyAnswer>[0], FetchEvidence]>([
+    ["this offer's page", { status: 200, requestedUrl: FLAT_SALE_URL, landedUrl: FLAT_SALE_URL }, OFFER],
+    ["an answer that names no landing", { status: 204, requestedUrl: FLAT_SALE_URL, landedUrl: "" }, {}],
+    [
+      "this offer under another slug",
+      {
+        status: 200,
+        requestedUrl: FLAT_SALE_URL,
+        landedUrl: "https://www.otodom.pl/oferta/mieszkanie-3-pokoje-IDKANAR1",
+        contentType: HTML,
+      },
+      { contentType: HTML, ...OFFER },
+    ],
+    [
+      "an offer page whose slug has no token",
+      { status: 200, requestedUrl: FLAT_SALE_URL, landedUrl: "https://www.otodom.pl/pl/oferta/kawalerka-bez-tokenu" },
+      { landedHost: "www.otodom.pl" },
+    ],
+    [
+      "an empty cf-mitigated header",
+      { status: 200, requestedUrl: FLAT_SALE_URL, landedUrl: FLAT_SALE_URL, cfMitigated: "" },
+      OFFER,
+    ],
+  ])("lets the body of %s be read", (_label, facts, evidence) => {
+    expect(classifyAnswer(facts)).toStrictEqual({ failure: null, answered: { status: facts.status, evidence } });
+  });
+});
+
+describe("classifyPayload: the checks of the page's data (#1)", () => {
+  const ANSWERED = { status: 200, evidence: { contentType: HTML, bodyLength: 1234 } };
+  const READABLE: PayloadFacts = {
+    markerPresent: true,
+    parseError: false,
+    pagePropsPresent: true,
+    ad: flatSaleAd(),
+    pagePropsExpired: undefined,
+  };
+
+  it.each<[string, Partial<PayloadFacts>, FetchFailureReason, string | undefined]>([
+    ["no marker", { markerPresent: false, pagePropsPresent: false, ad: undefined }, "data_missing", undefined],
+    [
+      "a marker that did not parse",
+      { parseError: true, pagePropsPresent: false, ad: undefined },
+      "shape_changed",
+      "next_data_unparseable",
+    ],
+    ["no pageProps", { pagePropsPresent: false, ad: undefined }, "shape_changed", "page_props_missing"],
+    ["an ad flagged expired", { ad: flatSaleAd({ shouldShowExpiredAdPage: true }) }, "expired", undefined],
+    ["pageProps flagged expired without an ad", { ad: null, pagePropsExpired: true }, "expired", undefined],
+    ["no ad", { ad: undefined }, "shape_changed", "ad_missing"],
+    ["an ad that is an array", { ad: [flatSaleAd()] }, "shape_changed", "ad_missing"],
+  ])("names %s", (_label, facts, reason, detail) => {
+    const payload = { ...READABLE, ...facts };
+    expect(classifyPayload(payload, ANSWERED)).toStrictEqual({
+      ok: false,
+      reason,
+      ...(detail === undefined ? {} : { detail }),
+      status: 200,
+      evidence: { contentType: HTML, bodyLength: 1234, markerPresent: payload.markerPresent },
+    });
+  });
+
+  // Beside the failures: the ad of a readable page, and one whose own flag is not `true`.
+  it.each<[string, Partial<PayloadFacts>]>([
+    ["a readable page", {}],
+    [
+      "an ad whose expired flag is false, under pageProps flagged expired",
+      {
+        ad: flatSaleAd({ shouldShowExpiredAdPage: false }),
+        pagePropsExpired: true,
+      },
+    ],
+  ])("returns the ad of %s", (_label, facts) => {
+    const payload = { ...READABLE, ...facts };
+    expect(classifyPayload(payload, ANSWERED)).toStrictEqual({ ok: true, ad: payload.ad });
   });
 });

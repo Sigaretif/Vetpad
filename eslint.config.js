@@ -115,8 +115,8 @@ const consoleConfig = defineConfig(
 // notes module. The regex takes the module by any path: the alias (@/lib/notes), a relative one
 // (../notes, ../../lib/notes) and either with a file extension. src/pages/api/audits.ts is named
 // before it exists, so the rule binds the moment the file is created. refetchNoNotesConfig,
-// archiveNoNotesConfig and deleteNoNotesConfig below are the only other blocks that set
-// no-restricted-imports, for files this one does not cover; a block whose files overlap any of them must merge the patterns, since flat config replaces a rule's
+// archiveNoNotesConfig, deleteNoNotesConfig and apifyServerOnlyConfig below are the only other
+// blocks that set no-restricted-imports, for files this one does not cover; a block whose files overlap any of them must merge the patterns, since flat config replaces a rule's
 // options rather than adding to them.
 const auditNoNotesConfig = defineConfig({
   files: ["src/lib/audit/**", "src/pages/api/audits.ts"],
@@ -199,6 +199,30 @@ const deleteNoNotesConfig = defineConfig({
   },
 });
 
+// The Apify token stays on the server (CLAUDE.md, Secrets and data access): `@/lib/otodom/apify` is
+// the one module that holds it, and a page render, a layout or an island must never load it — an
+// island ships to the browser. A view asks `isApifyAvailable()` in `@/lib/config-status` instead.
+// The regex takes the module by any path, the alias or a relative one, with or without a file
+// extension, and leaves `apify-request` alone: that module holds no token. API routes under
+// src/pages/api/ are `.ts` files and are not covered — they are where the leg is built.
+const apifyServerOnlyConfig = defineConfig({
+  files: ["src/components/**", "src/layouts/**", "src/pages/**/*.astro"],
+  rules: {
+    "no-restricted-imports": [
+      "error",
+      {
+        patterns: [
+          {
+            regex: "(?:^|/)otodom/apify(?:\\.[cm]?[jt]sx?)?$",
+            message:
+              "A view must not import the Apify module: it holds the token, which never leaves the server. Ask isApifyAvailable() in @/lib/config-status (CLAUDE.md, Secrets and data access).",
+          },
+        ],
+      },
+    ],
+  },
+});
+
 const scriptsConfig = defineConfig({
   files: ["scripts/**/*.mjs"],
   extends: [tseslint.configs.disableTypeChecked],
@@ -223,6 +247,7 @@ export default defineConfig(
   refetchNoNotesConfig,
   archiveNoNotesConfig,
   deleteNoNotesConfig,
+  apifyServerOnlyConfig,
   scriptsConfig,
   eslintPluginPrettier,
 );
