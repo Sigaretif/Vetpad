@@ -1,10 +1,10 @@
 ---
 change_id: offer-photo-lightbox
 title: Sharp gallery thumbnails and an in-card photo lightbox
-status: impl_reviewed
+status: archived
 created: 2026-10-17
 updated: 2026-10-17
-archived_at: null
+archived_at: 2026-10-17T17:27:35Z
 ---
 
 ## Notes
