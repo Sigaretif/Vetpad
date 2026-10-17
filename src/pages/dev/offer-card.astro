@@ -40,6 +40,7 @@ import {
   freshnessUnknown,
   fullNotes,
   fullOffer,
+  legacyImagesOffer,
   longEmailSaver,
   longNotes,
   longTitleOffer,
@@ -148,13 +149,22 @@ const states: State[] = [
   },
   {
     caption:
-      "Filtr adresów zdjęć (http: i javascript: odrzucone) · autor nieustalony · audyt: błąd odczytu · notatki: błąd odczytu po nieudanym zapisie",
+      "Filtr adresów zdjęć (http: i javascript: odrzucone; zdjęcie z wrogim wariantem średnim z samego dużego) · autor nieustalony · audyt: błąd odczytu · notatki: błąd odczytu po nieudanym zapisie",
     offer: unsafeImagesOffer,
     saver: unknownSaver,
     notes: failedNotes,
     audit: auditReadFailed,
     auditAvailable: true,
     noteError: "Nie udało się zapisać notatki. Spróbuj ponownie.",
+  },
+  {
+    caption:
+      "Zdjęcia zapisane przed wariantem średnim (siatka z dużego zdjęcia do ręcznego ponownego pobrania) · autor: członek zespołu · audyt: brak · notatki: brak (pusty formularz)",
+    offer: legacyImagesOffer,
+    saver: memberSaver,
+    notes: noNotes,
+    audit: auditNone,
+    auditAvailable: true,
   },
   {
     caption:

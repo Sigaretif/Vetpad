@@ -1,8 +1,7 @@
 ---
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import Unstated from "@/components/offers/Unstated.astro";
-import type { OfferImage } from "@/lib/otodom/types";
-import { safeHttpsUrl } from "@/lib/safe-url";
+import { galleryPhotos, gridSizes, gridSrc, gridSrcset } from "@/lib/offer-gallery";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -12,15 +11,13 @@ interface Props {
 }
 
 const { title } = Astro.props;
-// Row data lands in href/src, so only entries whose both URLs are https: are rendered.
-// An element that is not an object (null, a number, a string) has no URLs and is skipped the
-// same way, rather than failing the whole card (as in OfferBoardItem.astro).
-const images = Astro.props.images.flatMap((image) => {
-  const thumbnail = safeHttpsUrl((image as Partial<OfferImage> | null)?.thumbnail);
-  const large = safeHttpsUrl((image as Partial<OfferImage> | null)?.large);
-  return thumbnail !== null && large !== null ? [{ thumbnail, large }] : [];
-});
-const total = images.length;
+// Row data lands in href/src/srcset, so only `galleryPhotos` results are rendered: an entry whose
+// thumbnail or large photo is not https is skipped (the thumbnail still gates it, although the grid
+// shows medium/large, so the card has the same photos as the board and the archive), and an
+// element that is not an object is skipped the same way rather than failing the whole card.
+const photos = galleryPhotos(Astro.props.images);
+const total = photos.length;
+const sizes = gridSizes(total);
 ---
 
 <section>
@@ -35,16 +32,18 @@ const total = images.length;
         </p>
       ) : (
         <ul class:list={cn("grid gap-3", total === 1 ? "grid-cols-1" : "grid-cols-2 sm:grid-cols-3")}>
-          {images.map((image, index) => (
+          {photos.map((photo, index) => (
             <li>
               <a
-                href={image.large}
+                href={photo.large}
                 target="_blank"
                 rel="noopener noreferrer"
                 class="border-border focus-visible:ring-ring/50 block overflow-hidden rounded-lg border transition-[opacity,box-shadow] outline-none hover:opacity-80 focus-visible:ring-[3px]"
               >
                 <img
-                  src={image.thumbnail}
+                  src={gridSrc(photo)}
+                  srcset={gridSrcset(photo)}
+                  sizes={sizes}
                   alt={`Zdjęcie ${index + 1} z ${total}: ${title}`}
                   loading="lazy"
                   decoding="async"

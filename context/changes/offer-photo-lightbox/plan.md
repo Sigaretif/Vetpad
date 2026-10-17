@@ -345,24 +345,24 @@ Bez migracji SQL i bez backfillu: kolumna `images jsonb` przyjmuje nowe pole. Wi
 
 #### Automated
 
-- [x] 1.1 Testy mappera dla `medium` przechodzą: `npx vitest run tests/lib/otodom/map.test.ts`
-- [x] 1.2 Cały zestaw przechodzi: `npm test`
-- [x] 1.3 Typy: `npx astro sync && npx astro check`
-- [x] 1.4 Lint: `npm run lint`
+- [x] 1.1 Testy mappera dla `medium` przechodzą: `npx vitest run tests/lib/otodom/map.test.ts` — a082512
+- [x] 1.2 Cały zestaw przechodzi: `npm test` — a082512
+- [x] 1.3 Typy: `npx astro sync && npx astro check` — a082512
+- [x] 1.4 Lint: `npm run lint` — a082512
 
 ### Phase 2: Ostra siatka — `srcset` i `sizes`
 
 #### Automated
 
-- [ ] 2.1 Testy modułu i renderu przechodzą: `npx vitest run tests/lib/offer-gallery.test.ts tests/components/offers/render.test.ts`
-- [ ] 2.2 Cały zestaw przechodzi: `npm test`
-- [ ] 2.3 Typy: `npx astro sync && npx astro check`
-- [ ] 2.4 Lint (tokeny): `npm run lint`
-- [ ] 2.5 Build: `npm run build`
+- [x] 2.1 Testy modułu i renderu przechodzą: `npx vitest run tests/lib/offer-gallery.test.ts tests/components/offers/render.test.ts`
+- [x] 2.2 Cały zestaw przechodzi: `npm test`
+- [x] 2.3 Typy: `npx astro sync && npx astro check`
+- [x] 2.4 Lint (tokeny): `npm run lint`
+- [x] 2.5 Build: `npm run build`
 
 #### Manual
 
-- [ ] 2.6 `/dev/offer-card`: ostre siatki (`medium` w 3 kolumnach, `large` przy jednym zdjęciu), `legacyImagesOffer` ostry z `large`, stany z wrogimi URL-ami bez zmian (sprawdzenie pod `npm run dev`, DevTools → Network)
+- [x] 2.6 `/dev/offer-card`: ostre siatki (`medium` w 3 kolumnach, `large` przy jednym zdjęciu), `legacyImagesOffer` ostry z `large`, stany z wrogimi URL-ami bez zmian (sprawdzenie pod `npm run dev`, DevTools → Network)
 
 ### Phase 3: Lightbox — dialog i wyspa
 
