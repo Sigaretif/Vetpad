@@ -385,11 +385,11 @@ Bez migracji SQL i bez backfillu: kolumna `images jsonb` przyjmuje nowe pole. Wi
 
 #### Automated
 
-- [x] 4.1 Spec przechodzi lokalnie: `npx playwright test tests/e2e/photo-lightbox.spec.ts`
-- [x] 4.2 Pozostałe specy dalej przechodzą: `npx playwright test`
-- [ ] 4.3 `npm test`, `npm run lint`, `npx astro check` przechodzą
+- [x] 4.1 Spec przechodzi lokalnie: `npx playwright test tests/e2e/photo-lightbox.spec.ts` — a15c7c7
+- [x] 4.2 Pozostałe specy dalej przechodzą: `npx playwright test` — a15c7c7
+- [x] 4.3 `npm test`, `npm run lint`, `npx astro check` przechodzą
 
 #### Manual
 
-- [ ] 4.4 `otodom_fetching.md` i `roadmap.md` spójne (brak wpisu w Parked, wpis w Done)
+- [x] 4.4 `otodom_fetching.md` i `roadmap.md` spójne (brak wpisu w Parked, wpis w Done)
 - [ ] 4.5 Prawdziwa oferta: po ręcznym re-fetchu siatka pobiera `medium`, oferta sprzed zmiany — `large` (FR-009)
