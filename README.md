@@ -1,8 +1,39 @@
-# 10x Astro Starter
+# Vetpad
 
-![](./public/template.png)
+A shared workspace for a small team buying a flat together. A member pastes an otodom.pl listing, Vetpad saves its description, parameters and photos, and the whole team works on it in one place: a shared board measured against the team's own criteria, structured notes from every member, and an AI audit that tells the team what the listing leaves out and what to ask the seller before a viewing.
 
-A modern, opinionated starter template for building fast, accessible web applications.
+![The shared board: three saved offers, two marked with the team limits they break, one whose listing states no price, area or location](./.github/assets/board.png)
+
+_The shared board, rendered from the synthetic fixtures of `/dev/board`._
+
+Vetpad replaces the spreadsheet of blind links. Saved listings keep their content, nobody has to remember why a listing was saved, and the questions for the seller are ready before anyone calls. The product, its requirements and its guardrails are in [`context/foundation/prd.md`](./context/foundation/prd.md).
+
+## What it does
+
+- **Save a listing from its URL** (FR-004, FR-005). Paste an otodom.pl address. Only a sale of a flat is saved. A rental or another property type is refused with nothing stored, and a URL the team already has opens the existing card.
+- **Shared board** (FR-006). Every live offer, sortable by date, price and area, with its audit status and a mark on every team limit it breaks.
+- **Offer card** (FR-007, FR-008, FR-009). The full description, parameters and a photo gallery, a one-click Google Maps search, and an on-demand re-fetch that never touches the notes.
+- **Team criteria** (FR-002, FR-003). Shared hard limits (city, price range, minimum area) plus each member's own additional requirements.
+- **AI audit** (FR-010, FR-011). An on-demand check of a listing against the team's criteria: missing decision-critical information, questions for the seller, mandatory conditions, stated costs and red flags. Every positive finding quotes the listing verbatim. An audit is flagged stale when the listing or the criteria change.
+- **Notes** (FR-012, FR-013). Each member writes a structured note (pros, cons, observations) and reads everyone else's.
+- **Archive and delete** (FR-014, FR-015). Archive an offer without losing it, see who archived it and when, restore it, or delete it after a confirmation.
+
+What Vetpad always holds to:
+
+- An attribute the listing does not state reads „nie podano w ogłoszeniu”. It never reads as „nie”, as `0` or as an empty value.
+- A re-fetch never overwrites a member's note.
+- Every fetch, re-fetch and audit is a deliberate member action. Nothing runs on a schedule.
+- The advertiser's name and phone number never reach the database, and members' notes never reach the model provider.
+
+The interface is in Polish. The code, the documentation and this README are in English.
+
+## Runs with zero configuration
+
+A fresh clone starts, builds, lints, typechecks and passes `npm test` with no `.env`, no `.dev.vars`, no Supabase and no API keys. A missing integration is a supported state, not an error. Every page shows a banner that names what is not configured, and the features that depend on it are switched off. Only `npm run smoke` and `npm run test:db` need a running local Supabase. How each integration is configured:
+
+- **Supabase** (sign-in and all data). See [Supabase Configuration](#supabase-configuration).
+- **Anthropic API key** (the AI audit, optional). See [AI audit configuration](#ai-audit-configuration).
+- **Apify token** (the fallback fetch, optional). See [Fallback ingestion (Apify)](#fallback-ingestion-apify).
 
 ## Tech Stack
 
@@ -13,6 +44,7 @@ A modern, opinionated starter template for building fast, accessible web applica
 - [Supabase](https://supabase.com/) - Authentication and backend-as-a-service
 - [Anthropic TypeScript SDK](https://github.com/anthropics/anthropic-sdk-typescript) (`@anthropic-ai/sdk`) - Client of the model provider behind the AI audit (optional: without a key the audit is switched off)
 - [Cloudflare Workers](https://workers.cloudflare.com/) - Edge deployment runtime
+- [Vitest](https://vitest.dev/) v5 and [Playwright](https://playwright.dev/) - Unit/render tests and browser tests
 
 ## Prerequisites
 
@@ -66,14 +98,32 @@ npm run dev
 ```md
 .
 ├── src/
-│ ├── layouts/ # Astro layouts
-│ ├── pages/ # Astro pages
-│ │ └── api/ # API endpoints
-│ ├── components/ # UI components (Astro & React)
-│ └── assets/ # Static assets
-├── public/ # Public assets
-├── wrangler.jsonc # Cloudflare Workers config
+│ ├── middleware.ts # Resolves the session, protects routes, turns an Auth outage into /503
+│ ├── layouts/ # Layout (config banner) and AppLayout (frame, Topbar)
+│ ├── pages/ # /dashboard, /offers/<id>, /offers/archive, /criteria, /auth/signin, /500, /503
+│ │ ├── api/ # Form and stream endpoints (see Auth routes below)
+│ │ └── dev/ # Dev-only kitchen sinks for the visual gate (404 outside `astro dev`)
+│ ├── components/ # Astro views and React islands (offers/, criteria/, form/, auth/, ui/)
+│ ├── lib/
+│ │ ├── otodom/ # Ingestion: URL normalisation, direct fetch, Apify fallback, mapper
+│ │ ├── audit/ # AI audit: input whitelist, prompt, schema, grounding, provider, store
+│ │ └── *.ts # Board, criteria, notes, members, archive, re-fetch, config status, logging
+│ └── styles/ # Design tokens (global.css)
+├── supabase/ # Migrations (tables with RLS), local seed, config
+├── tests/ # Vitest unit and render tests, and Playwright specs in tests/e2e/
+├── scripts/ # Smoke test, SQL test scripts, otodom inspector, UI screenshots
+├── packages/code-reviewer/ # The AI code reviewer the PR workflow runs, with its evals
+├── context/ # Product docs (foundation/), change plans (changes/, archive/)
+├── public/ # Static assets
+└── wrangler.jsonc # Cloudflare Workers config
 ```
+
+Documentation outside this README:
+
+- [`context/foundation/prd.md`](./context/foundation/prd.md): what the product does and why.
+- [`context/foundation/deployment-runbook.md`](./context/foundation/deployment-runbook.md): deploys, production debugging, rollback.
+- [`context/foundation/user-manual/`](./context/foundation/user-manual/): step-by-step guides for the owner (migrations, ingestion mode, passwords).
+- [`CLAUDE.md`](./CLAUDE.md): the rules every change follows.
 
 ## Supabase Configuration
 
@@ -295,7 +345,3 @@ A third workflow, **AI Code Review** (`.github/workflows/review.yml`, through th
 - **Known risk: the key and the PR's code** — the workflow runs `npm ci` and `packages/code-reviewer/src/ci.ts` from the PR's own code while holding `CODE_REVIEWER_API_KEY`, so anyone with write access to the repository could change the reviewer or its dependencies in a PR and exfiltrate the key. PRs from forks get no secrets and the repository has a single owner today, so the risk is low. The fix — running the reviewer from the base branch's code — comes back before the repository gets another collaborator with write access.
 
 The reviewer's prompt and model are measured with promptfoo evals in `packages/code-reviewer/evals` before either changes: a free preflight, a paid run started by hand and never in CI, and the baseline the next change is compared with — see [`packages/code-reviewer/evals/README.md`](packages/code-reviewer/evals/README.md).
-
-## License
-
-MIT
