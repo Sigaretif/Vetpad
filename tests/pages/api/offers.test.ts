@@ -63,6 +63,8 @@ vi.mock("astro:env/server", async () => {
     SUPABASE_URL: SUPABASE_TEST_URL,
     SUPABASE_KEY: SUPABASE_TEST_KEY,
     ANTHROPIC_API_KEY: undefined,
+    GOOGLE_MAPS_SERVER_KEY: undefined,
+    GOOGLE_MAPS_BROWSER_KEY: undefined,
     get APIFY_TOKEN() {
       return env.apifyToken ? APIFY_TEST_TOKEN : undefined;
     },

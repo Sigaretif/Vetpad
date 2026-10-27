@@ -20,6 +20,8 @@ export default defineConfig({
       SUPABASE_KEY: envField.string({ context: "server", access: "secret", optional: true }),
       ANTHROPIC_API_KEY: envField.string({ context: "server", access: "secret", optional: true }),
       APIFY_TOKEN: envField.string({ context: "server", access: "secret", optional: true }),
+      GOOGLE_MAPS_SERVER_KEY: envField.string({ context: "server", access: "secret", optional: true }),
+      GOOGLE_MAPS_BROWSER_KEY: envField.string({ context: "server", access: "secret", optional: true }),
     },
   },
 });

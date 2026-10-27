@@ -121,8 +121,8 @@ const consoleConfig = defineConfig(
 // points module, `@/lib/commute/points`, first among them — by the alias or a relative path. Both
 // patterns live in this one block: a second block over the same files would replace this one's
 // options rather than add to them. refetchNoNotesConfig,
-// archiveNoNotesConfig, deleteNoNotesConfig and apifyServerOnlyConfig below are the only other
-// blocks that set no-restricted-imports, for files this one does not cover; a block whose files overlap any of them must merge the patterns, since flat config replaces a rule's
+// archiveNoNotesConfig, deleteNoNotesConfig, paidServiceServerOnlyConfig and commuteNoNotesConfig
+// below are the only other blocks that set no-restricted-imports, for files this one does not cover; a block whose files overlap any of them must merge the patterns, since flat config replaces a rule's
 // options rather than adding to them.
 const auditNoNotesConfig = defineConfig({
   files: ["src/lib/audit/**", "src/pages/api/audits.ts"],
@@ -210,13 +210,16 @@ const deleteNoNotesConfig = defineConfig({
   },
 });
 
-// The Apify token stays on the server (CLAUDE.md, Secrets and data access): `@/lib/otodom/apify` is
-// the one module that holds it, and a page render, a layout or an island must never load it — an
-// island ships to the browser. A view asks `isApifyAvailable()` in `@/lib/config-status` instead.
-// The regex takes the module by any path, the alias or a relative one, with or without a file
-// extension, and leaves `apify-request` alone: that module holds no token. API routes under
-// src/pages/api/ are `.ts` files and are not covered — they are where the leg is built.
-const apifyServerOnlyConfig = defineConfig({
+// The keys of the paid services stay on the server (CLAUDE.md, Secrets and data access). Two
+// modules hold one each: `@/lib/otodom/apify` the Apify token, `@/lib/commute/google` the Google
+// Maps server key for the Routes API (FR-016). A page render, a layout or an island must never load
+// either — an island ships to the browser. A view asks `isApifyAvailable()` or `isCommuteAvailable()`
+// in `@/lib/config-status` instead. Each regex takes its module by any path, the alias or a relative
+// one, with or without a file extension, and leaves its neighbours alone: `apify-request` holds no
+// token, and the other commute modules hold no key. API routes under src/pages/api/ are `.ts` files
+// and are not covered — they are where the clients are built. Both patterns live in this one block:
+// a second block over the same files would replace this one's options rather than add to them.
+const paidServiceServerOnlyConfig = defineConfig({
   files: ["src/components/**", "src/layouts/**", "src/pages/**/*.astro"],
   rules: {
     "no-restricted-imports": [
@@ -227,6 +230,34 @@ const apifyServerOnlyConfig = defineConfig({
             regex: "(?:^|/)otodom/apify(?:\\.[cm]?[jt]sx?)?$",
             message:
               "A view must not import the Apify module: it holds the token, which never leaves the server. Ask isApifyAvailable() in @/lib/config-status (CLAUDE.md, Secrets and data access).",
+          },
+          {
+            regex: "(?:^|/)commute/google(?:\\.[cm]?[jt]sx?)?$",
+            message:
+              "A view must not import the Google Routes module: it holds the server key, which never leaves the server. Ask isCommuteAvailable() in @/lib/config-status (CLAUDE.md, Secrets and data access).",
+          },
+        ],
+      },
+    ],
+  },
+});
+
+// Members' notes never leave the system (prd.md, Non-Functional Requirements): the commute modules
+// and the calculation route are the code that talks to Google, so they cannot import the notes
+// module, by any path — on the pattern of auditNoNotesConfig. src/pages/api/commute.ts is named
+// before it exists, so the rule binds the moment the file is created. No other block that sets
+// no-restricted-imports covers these files.
+const commuteNoNotesConfig = defineConfig({
+  files: ["src/lib/commute/**", "src/pages/api/commute.ts"],
+  rules: {
+    "no-restricted-imports": [
+      "error",
+      {
+        patterns: [
+          {
+            regex: "(?:^|/)notes(?:\\.[cm]?[jt]sx?)?$",
+            message:
+              "The commute code must not import the notes module: members' notes never reach Google (CLAUDE.md, Secrets and data access).",
           },
         ],
       },
@@ -258,7 +289,8 @@ export default defineConfig(
   refetchNoNotesConfig,
   archiveNoNotesConfig,
   deleteNoNotesConfig,
-  apifyServerOnlyConfig,
+  paidServiceServerOnlyConfig,
+  commuteNoNotesConfig,
   scriptsConfig,
   eslintPluginPrettier,
 );

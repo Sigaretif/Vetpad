@@ -403,6 +403,24 @@ export function isCommutePointsRequest(request: RecordedRequest, method: string)
   return isTableRequest(request, "commute_points", method);
 }
 
+// The reservation on the team's daily counter, as `reserveCommuteCalls` (src/lib/commute/usage.ts)
+// makes it: `.rpc("reserve_commute_calls", { n })` is `POST <SUPABASE_URL>/rest/v1/rpc/
+// reserve_commute_calls` with the body `{"n":<n>}`. A function returning an integer answers `200`
+// with the bare JSON number. A raised error answers with `{ "code", "message", "details", "hint" }`
+// — `400` for the project's `VP003` and for `22023`, `403` for `42501` with a session — and comes
+// back at once as a result with `error` set; a rejected `fetch` comes back the same way with an
+// empty code. No call is retried.
+
+/** True for the reservation of a calculation's Routes calls. */
+export function isReserveCommuteCallsRequest(request: RecordedRequest): boolean {
+  const url = new URL(request.url);
+  return (
+    url.origin === SUPABASE_TEST_URL &&
+    url.pathname === "/rest/v1/rpc/reserve_commute_calls" &&
+    request.method === "POST"
+  );
+}
+
 // Supabase Auth, as the middleware talks to it through `supabase.auth.getUser()` (@supabase/ssr
 // 0.12 and auth-js 2.116, read from node_modules/@supabase/ssr/src/cookies.ts,
 // node_modules/@supabase/auth-js/src/GoTrueClient.ts and node_modules/@supabase/auth-js/src/lib/fetch.ts):

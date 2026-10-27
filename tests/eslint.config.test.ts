@@ -167,7 +167,7 @@ describe("eslint.config.js: the rule reaches every file of the audit (#6)", () =
   });
 });
 
-// The Apify token never leaves the server (CLAUDE.md, Secrets and data access): `apifyServerOnlyConfig`
+// The Apify token never leaves the server (CLAUDE.md, Secrets and data access): `paidServiceServerOnlyConfig`
 // makes an import of `@/lib/otodom/apify` — the one module that holds it — an error in an island, a
 // component, a layout and a page render. An `.astro` sample carries its import in the frontmatter,
 // the only place an `.astro` file has one.
@@ -210,5 +210,98 @@ describe("eslint.config.js: no view imports the module that holds the Apify toke
     ["src/pages/criteria.astro", "@/lib/config-status"],
   ])("allows, in %s, an import of %s", async (filePath, specifier) => {
     expect(restrictedImportMessages(await lintAs(filePath, specifier))).toEqual([]);
+  });
+});
+
+// The Google Maps server key never leaves the server either (FR-016): the same block,
+// `paidServiceServerOnlyConfig`, makes an import of `@/lib/commute/google` — the one module that
+// holds it — an error in a view. Expected outcomes come from context/changes/commute-times/plan.md
+// (Phase 2, „Lint guards”): one merged block rejects both modules, and each rejected import stands
+// beside an allowed one.
+const GOOGLE_MESSAGE = "A view must not import the Google Routes module";
+
+describe("eslint.config.js: no view imports the module that holds the Google Maps server key", () => {
+  it.each([
+    ["src/components/offers/AddOfferForm.tsx", "@/lib/commute/google"],
+    ["src/components/criteria/CommutePointsEditor.tsx", "../../lib/commute/google.ts"],
+    ["src/components/offers/OfferCard.astro", "@/lib/commute/google"],
+    ["src/layouts/Layout.astro", "@/lib/commute/google"],
+    ["src/pages/offers/[id].astro", "@/lib/commute/google"],
+  ])("rejects, in %s, an import of %s", async (filePath, specifier) => {
+    const messages = restrictedImportMessages(await lintAs(filePath, specifier));
+
+    expect(messages).toHaveLength(1);
+    expect(messages[0].severity).toBe(2);
+    expect(messages[0].message).toContain(GOOGLE_MESSAGE);
+  });
+
+  // Beside the rejections: the points route, where the rule does not reach, and the commute modules
+  // that hold no key — the failure sentences the island reads among them — in a view.
+  it.each([
+    ["src/pages/api/commute-points.ts", "@/lib/commute/google"],
+    ["src/components/criteria/CommutePointsEditor.tsx", "@/lib/commute/failure"],
+    ["src/pages/offers/[id].astro", "@/lib/commute/points"],
+    ["src/pages/offers/[id].astro", "@/lib/config-status"],
+  ])("allows, in %s, an import of %s", async (filePath, specifier) => {
+    expect(restrictedImportMessages(await lintAs(filePath, specifier))).toEqual([]);
+  });
+
+  // Both modules sit in one block: a second block over the same files would have replaced the
+  // first's options instead of adding to them.
+  it("holds both patterns in the configuration computed for a view", async () => {
+    for (const file of ["src/components/offers/AddOfferForm.tsx", "src/pages/offers/[id].astro"]) {
+      const config: unknown = await eslint.calculateConfigForFile(path.join(ROOT, file));
+      const entry = JSON.stringify(restrictedImportsEntry(config) ?? null);
+
+      expect(entry, file).toContain(APIFY_MESSAGE);
+      expect(entry, file).toContain(GOOGLE_MESSAGE);
+    }
+  });
+});
+
+// Members' notes never reach Google (FR-016, prd.md Non-Functional Requirements):
+// `commuteNoNotesConfig` makes an import of the notes module an error in the commute modules and in
+// the calculation route. src/pages/api/commute.ts does not exist before Phase 3, so the cases lint
+// under the commute modules that do; the configuration computed for the route's path is checked
+// beside them, since computing a configuration needs no file.
+const COMMUTE_NOTES_MESSAGE = "The commute code must not import the notes module";
+
+describe("eslint.config.js: the commute code cannot import the notes module (FR-016)", () => {
+  it.each([
+    ["src/lib/commute/points.ts", "@/lib/notes"],
+    ["src/lib/commute/google.ts", "../notes"],
+    ["src/lib/commute/outcome.ts", "../notes.ts"],
+  ])("rejects, in %s, an import of %s", async (filePath, specifier) => {
+    const messages = restrictedImportMessages(await lint(filePath, specifier));
+
+    expect(messages).toHaveLength(1);
+    expect(messages[0].severity).toBe(2);
+    expect(messages[0].message).toContain(COMMUTE_NOTES_MESSAGE);
+  });
+
+  // Beside the rejections: the same import where the rule does not reach, and a module whose name
+  // only ends like the notes module's, where it does.
+  it.each([
+    ["src/pages/api/commute-points.ts", "@/lib/notes"],
+    ["src/lib/commute/points.ts", "@/lib/footnotes"],
+    ["src/lib/commute/google.ts", "@/lib/commute/origin"],
+  ])("allows, in %s, an import of %s", async (filePath, specifier) => {
+    expect(restrictedImportMessages(await lint(filePath, specifier))).toEqual([]);
+  });
+
+  it("holds the pattern, as an error, for the calculation route's path", async () => {
+    const config: unknown = await eslint.calculateConfigForFile(path.join(ROOT, "src/pages/api/commute.ts"));
+    const entry = restrictedImportsEntry(config);
+    const [severity] = Array.isArray(entry) ? (entry as unknown[]) : [];
+
+    expect(severity).toBe(2);
+    expect(JSON.stringify(entry)).toContain(COMMUTE_NOTES_MESSAGE);
+  });
+
+  // Beside it: the points route next to it carries no such pattern.
+  it("does not hold it for the points route", async () => {
+    const config: unknown = await eslint.calculateConfigForFile(path.join(ROOT, "src/pages/api/commute-points.ts"));
+
+    expect(JSON.stringify(restrictedImportsEntry(config) ?? null)).not.toContain(COMMUTE_NOTES_MESSAGE);
   });
 });

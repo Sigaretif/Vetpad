@@ -4,7 +4,7 @@
 // turns every way it can end into the result the direct fetch gives, or into a reason of Apify's.
 //
 // Server-only: the token is read from `astro:env/server`, so no island, layout or page render
-// imports this module (`apifyServerOnlyConfig` in eslint.config.js); a view asks
+// imports this module (`paidServiceServerOnlyConfig` in eslint.config.js); a view asks
 // `isApifyAvailable()` in `@/lib/config-status`. A missing token is a supported state — the factory
 // answers `null` and nothing is sent (CLAUDE.md, the zero-config rule).
 //

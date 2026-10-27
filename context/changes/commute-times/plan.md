@@ -904,33 +904,33 @@ Two additive migrations with no data backfill. Rollback = drop the function and 
 
 #### Automated
 
-- [x] 1.1 Both migrations apply on a fresh local database: `npx supabase db reset`
-- [x] 1.2 Lint passes, including the new audit/points rule: `npm run lint`
-- [x] 1.3 Types check: `npx astro sync && npx astro check`
-- [x] 1.4 Unit, route and render tests pass: `npm test`
-- [x] 1.5 Build passes with no `.env`: `npm run build`
-- [x] 1.6 Smoke passes against local Supabase, including the points RLS steps, the counter's snapshot steps and `data-commute-points-state="ok"`: `npm run smoke`
-- [x] 1.7 The counter's rules hold in the database — Warsaw day boundary, the refusal at the limit, a member cannot write the counter: `npm run test:db`
+- [x] 1.1 Both migrations apply on a fresh local database: `npx supabase db reset` — 9b29e25
+- [x] 1.2 Lint passes, including the new audit/points rule: `npm run lint` — 9b29e25
+- [x] 1.3 Types check: `npx astro sync && npx astro check` — 9b29e25
+- [x] 1.4 Unit, route and render tests pass: `npm test` — 9b29e25
+- [x] 1.5 Build passes with no `.env`: `npm run build` — 9b29e25
+- [x] 1.6 Smoke passes against local Supabase, including the points RLS steps, the counter's snapshot steps and `data-commute-points-state="ok"`: `npm run smoke` — 9b29e25
+- [x] 1.7 The counter's rules hold in the database — Warsaw day boundary, the refusal at the limit, a member cannot write the counter: `npm run test:db` — 9b29e25
 
 #### Manual
 
-- [x] 1.8 On `/criteria` under `npm run dev`: add, edit and delete a point (the dialog confirms); a seventh is refused with its sentence
-- [x] 1.9 `/dev/criteria` and `/dev/forms` render every new state, and `?open=delete-point` opens the dialog
+- [x] 1.8 On `/criteria` under `npm run dev`: add, edit and delete a point (the dialog confirms); a seventh is refused with its sentence — 9b29e25
+- [x] 1.9 `/dev/criteria` and `/dev/forms` render every new state, and `?open=delete-point` opens the dialog — 9b29e25
 
 ### Phase 2: Google integration, offline
 
 #### Automated
 
-- [ ] 2.1 Lint passes, including the merged server-only block and the commute/notes rule: `npm run lint`
-- [ ] 2.2 Types check: `npx astro sync && npx astro check`
-- [ ] 2.3 Tests pass, including `tests/setup.test.ts` with both Google keys unset: `npm test`
-- [ ] 2.4 Build passes with no `.env`, and the banner lists both Google entries: `npm run build`
-- [ ] 2.5 No test reaches Google: `routesCalls` is asserted in every test that builds a client
-- [ ] 2.6 The reservation reader classifies every answer, and the limit constant matches the migration: `npm test` (`tests/lib/commute/usage.test.ts`)
+- [x] 2.1 Lint passes, including the merged server-only block and the commute/notes rule: `npm run lint`
+- [x] 2.2 Types check: `npx astro sync && npx astro check`
+- [x] 2.3 Tests pass, including `tests/setup.test.ts` with both Google keys unset: `npm test`
+- [x] 2.4 Build passes with no `.env`, and the banner lists both Google entries: `npm run build`
+- [x] 2.5 No test reaches Google: `routesCalls` is asserted in every test that builds a client
+- [x] 2.6 The reservation reader classifies every answer, and the limit constant matches the migration: `npm test` (`tests/lib/commute/usage.test.ts`)
 
 #### Manual
 
-- [ ] 2.7 With no `.env`, `npm run dev` shows the banner naming „Google Maps — trasy” and „Google Maps — mapa”
+- [x] 2.7 With no `.env`, `npm run dev` shows the banner naming „Google Maps — trasy” and „Google Maps — mapa”
 
 ### Phase 3: The calculation route `POST /api/commute`
 

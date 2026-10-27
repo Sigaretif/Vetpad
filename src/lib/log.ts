@@ -66,6 +66,20 @@ const FIELDS = [
   "ingestion_mode_read",
   "direct_duration_ms",
   "apify_duration_ms",
+  // The commute calculation (FR-016): counts, kinds and Google's status tokens — never a point's
+  // name or address, an offer's label or coordinates, a polyline or Google's error message.
+  "commute_points",
+  "commute_origin",
+  "commute_routes",
+  "commute_no_route",
+  "commute_address_rejected",
+  "google_http_status",
+  "google_status",
+  "point_index",
+  "commute_mode",
+  "commute_duration_ms",
+  "commute_calls_reserved",
+  "commute_usage_total",
 ] as const;
 
 const MAX_TEXT_LENGTH = 300;
