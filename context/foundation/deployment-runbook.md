@@ -21,17 +21,17 @@ the part that outlives it.
 
 ## Current state
 
-|                       |                                                                                                                                                                                                                                                                        |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Worker                | `vetpad`                                                                                                                                                                                                                                                               |
-| Production URL        | <https://vetpad.vetpad.workers.dev>                                                                                                                                                                                                                                    |
-| Cloudflare account    | `917c8d5693d671be4227202d2ceb42ed`                                                                                                                                                                                                                                     |
-| Plan                  | **Workers Free** — deliberate, see "When to buy Workers Paid"                                                                                                                                                                                                          |
-| Auto-deploy           | Workers Builds, production branch **`master`**                                                                                                                                                                                                                         |
-| Secrets in production | `SUPABASE_URL`, `SUPABASE_KEY` (hosted Supabase, publishable key), `ANTHROPIC_API_KEY` (since 2026-10-09); `APIFY_TOKEN` is the user's step after `otodom-apify-fallback` deploys — until it is set, every ingestion mode runs as `direct_only` and the banner says so |
-| KV binding            | `SESSION` → namespace `vetpad-session` (auto-provisioned, adapter-injected)                                                                                                                                                                                            |
-| Preview URLs          | **disabled** (`preview_urls: false`)                                                                                                                                                                                                                                   |
-| Observability         | enabled; `wrangler tail` and Workers Logs both work on Free                                                                                                                                                                                                            |
+|                       |                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Worker                | `vetpad`                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Production URL        | <https://vetpad.vetpad.workers.dev>                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Cloudflare account    | `917c8d5693d671be4227202d2ceb42ed`                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Plan                  | **Workers Free** — deliberate, see "When to buy Workers Paid"                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Auto-deploy           | Workers Builds, production branch **`master`**                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Secrets in production | `SUPABASE_URL`, `SUPABASE_KEY` (hosted Supabase, publishable key), `ANTHROPIC_API_KEY` (since 2026-10-09); `APIFY_TOKEN` is the user's step after `otodom-apify-fallback` deploys — until it is set, every ingestion mode runs as `direct_only` and the banner says so; `GOOGLE_MAPS_SERVER_KEY` and `GOOGLE_MAPS_BROWSER_KEY` are the user's step after `commute-times` deploys — until they are set, commute times are switched off and the banner names both |
+| KV binding            | `SESSION` → namespace `vetpad-session` (auto-provisioned, adapter-injected)                                                                                                                                                                                                                                                                                                                                                                                     |
+| Preview URLs          | **disabled** (`preview_urls: false`)                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Observability         | enabled; `wrangler tail` and Workers Logs both work on Free                                                                                                                                                                                                                                                                                                                                                                                                     |
 
 ## How a change reaches production
 
@@ -444,6 +444,54 @@ raises the banner, so a deploy without it runs every mode as `direct_only`. The 
 says only whether the token is set, never that it works — a revoked token shows up as
 `apify_error_type` in the log (see "Ingestion starts failing"). The token is scoped to
 Run on one actor; rotation is described there too.
+
+### Google Maps keys (FR-016)
+
+Commute times take two keys, `GOOGLE_MAPS_SERVER_KEY` (Routes API, read by the Worker
+only, in `src/lib/commute/google.ts`) and `GOOGLE_MAPS_BROWSER_KEY` (Maps JavaScript API,
+read in `src/lib/commute/browser-key.ts` and handed to the map on the card — public by
+design, protected by its restrictions). Each has **five** places and CI is never one of
+them: the `astro.config.mjs` schema, `.env`, `.dev.vars`, `.env.example` and Workers
+Secrets (`npx wrangler secret put GOOGLE_MAPS_SERVER_KEY`, then `…_BROWSER_KEY`). Without
+the server key the commute button is disabled and the banner names it; without the browser
+key the table shows without a map. The banner says only whether a key is set, never that it
+works. Creating the project and the keys, their restrictions, Google's quotas (which this
+account cannot lower), the budget alert and the rotation of a key are in
+[`context/foundation/user-manual/set-up-google-maps.md`](./user-manual/set-up-google-maps.md);
+this section does not repeat them.
+
+Before the Worker that needs them deploys, `create_commute_points` and
+`create_commute_usage` reach the hosted project with `npx supabase db push`, under the
+consent rule in "What only a human does".
+
+Every way a calculation ends is one `offer_commute` log entry, with `reason`,
+`google_http_status`, `google_status`, `point_index` and `commute_mode` of the first call that
+failed, and never an address, a name, a coordinate or a route line. A point saved or deleted
+on `/criteria` leaves a `commute_point` entry.
+
+| Symptom                                                                                                                                  | Cause                                                                                                                                                                   | What to do                                                          |
+| ---------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| The map is grey with Google's message; the browser console says `RefererNotAllowedMapError`                                              | The page's address is not in the browser key's referrer restrictions                                                                                                    | Add it (manual, step 4) and wait a few minutes                      |
+| „Google odrzucił klucz aplikacji…”, log `reason: "denied"`, `google_http_status` 401/403                                                 | Routes API disabled, the server key restricted to another API, or billing inactive (the Free Trial ended without **Activate full account**)                             | Manual, steps 1–3 and **Billing**                                   |
+| „Google ogranicza teraz liczbę zapytań o trasy…”, log `reason: "quota"`, 429 / `RESOURCE_EXHAUSTED`                                      | Google's own daily quota (Pacific time) — not the app's limit, which is never a 429                                                                                     | Wait for Google's day to turn; read **Metrics** in the console      |
+| A point's row reads „Google odrzucił adres tego punktu — sprawdź go w kryteriach” while the other rows show                              | Google rejected that point's address in both modes; no address is checked on save                                                                                       | Correct the address on `/criteria` — street with number and city    |
+| „Dzienny limit liczenia dojazdów zespołu został wyczerpany — spróbuj jutro.”, log `reason: "daily_limit"` (info)                         | The team's 300 Routes calls for the Warsaw day are spent; nothing was sent to Google                                                                                    | Wait until midnight Warsaw time, or use the owner's lever below     |
+| „Nie udało się sprawdzić, czy liczenie mieści się w dziennym limicie zespołu…”, log `reason: "usage_unavailable"` (error) with `db_code` | The counter could not be read or written — a Supabase problem, not Google's: a paused project, `create_commute_usage` not pushed to the hosted project, a network fault | Check the hosted project and its migrations; nothing reached Google |
+
+#### The owner's levers on the daily limit
+
+The limit lives in the database, so only the owner moves it, in Supabase Studio as
+`postgres`, which bypasses row-level security — no member can, through the app or the
+Data API.
+
+- **Let the team calculate again today:** **Table Editor** → `commute_usage` → the row
+  whose `day` is today's Warsaw date → lower `calls` (or delete the row, which reads as 0).
+  Every call spent after that still counts toward Google's monthly bill.
+- **Change the limit for good:** a new migration that replaces
+  `public.reserve_commute_calls` with the new literal, together with
+  `COMMUTE_DAILY_CALL_LIMIT` in `src/lib/commute/failure.ts` —
+  `tests/lib/commute/usage.test.ts` fails while the two differ. At 31 days a month, anything
+  above about 320 calls a day can leave Google's free allowance of 10 000 Routes requests.
 
 ## What only a human does
 

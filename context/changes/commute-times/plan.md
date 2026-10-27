@@ -946,30 +946,30 @@ Two additive migrations with no data backfill. Rollback = drop the function and 
 
 #### Automated
 
-- [x] 4.1 Lint passes, including tokens-only for the route swatches: `npm run lint`
-- [x] 4.2 Types check: `npx astro sync && npx astro check`
-- [x] 4.3 Tests pass, including stream, colors and the render states: `npm test`
-- [x] 4.4 Build passes with no `.env`: `npm run build`
-- [x] 4.5 Smoke passes, and the fixture offer's card carries `data-commute-available="false"` and a `data-commute-origin`: `npm run smoke`
+- [x] 4.1 Lint passes, including tokens-only for the route swatches: `npm run lint` — 51d0a3d
+- [x] 4.2 Types check: `npx astro sync && npx astro check` — 51d0a3d
+- [x] 4.3 Tests pass, including stream, colors and the render states: `npm test` — 51d0a3d
+- [x] 4.4 Build passes with no `.env`: `npm run build` — 51d0a3d
+- [x] 4.5 Smoke passes, and the fixture offer's card carries `data-commute-available="false"` and a `data-commute-origin`: `npm run smoke` — 51d0a3d
 
 #### Manual
 
-- [x] 4.6 `/dev/offer-card` shows every commute state; the browser's network panel shows no request to `maps.googleapis.com` or `routes.googleapis.com`
-- [x] 4.7 On a real card under `npm run dev` with no Google keys: the section renders, the button is unavailable with its explanation, and the banner names both keys
-- [x] 4.8 Code reading of `CommuteRunner`/`CommuteMap`: the map mounts only after `done`, and no `key` on `APIProvider` or `Map` depends on the mode or the result
+- [x] 4.6 `/dev/offer-card` shows every commute state; the browser's network panel shows no request to `maps.googleapis.com` or `routes.googleapis.com` — 51d0a3d
+- [x] 4.7 On a real card under `npm run dev` with no Google keys: the section renders, the button is unavailable with its explanation, and the banner names both keys — 51d0a3d
+- [x] 4.8 Code reading of `CommuteRunner`/`CommuteMap`: the map mounts only after `done`, and no `key` on `APIProvider` or `Map` depends on the mode or the result — 51d0a3d
 
 ### Phase 5: Rules and documentation
 
 #### Automated
 
-- [ ] 5.1 Reviewer prompt and evals load: `cd packages/code-reviewer && npm run preflight`
-- [ ] 5.2 Lint, types, tests and build still pass: `npm run lint && npx astro check && npm test && npm run build`
-- [ ] 5.3 No Google key name appears in `.github/` or `packages/code-reviewer/`: `grep -rn "GOOGLE_MAPS" .github packages/code-reviewer` returns nothing
+- [x] 5.1 Reviewer prompt and evals load: `cd packages/code-reviewer && npm run preflight`
+- [x] 5.2 Lint, types, tests and build still pass: `npm run lint && npx astro check && npm test && npm run build`
+- [x] 5.3 No Google key name appears in `.github/` or `packages/code-reviewer/`: `grep -rn "GOOGLE_MAPS" .github packages/code-reviewer` returns nothing
 
 #### Manual
 
-- [ ] 5.4 The user runs the paid reviewer eval (`cd packages/code-reviewer && npm run eval`) on the code before this change and after it, and compares it with the baseline in `packages/code-reviewer/evals/README.md` (CLAUDE.md, "The eval set runs before the reviewer's prompt or model changes")
-- [ ] 5.5 The user reads the CLAUDE.md exception wording and approves it
+- [x] 5.4 The user runs the paid reviewer eval (`cd packages/code-reviewer && npm run eval`) on the code before this change and after it, and compares it with the baseline in `packages/code-reviewer/evals/README.md` (CLAUDE.md, "The eval set runs before the reviewer's prompt or model changes")
+- [x] 5.5 The user reads the CLAUDE.md exception wording and approves it
 
 ### Phase 6: Manual — Google Cloud and one real calculation
 

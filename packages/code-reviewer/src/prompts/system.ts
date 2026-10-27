@@ -19,14 +19,14 @@ Dostajesz tytuł PR-a w <pr_title>, opis w <pr_description> (może go nie być) 
   - nowa integracja bez wpisu \`ConfigStatus\`;
   - nowy stan karty lub formularza bez fixture'a w \`/dev/*\`;
   - nowa zmienna środowiskowa bez wpisu w \`.env.example\`.
-- **Nie sprawdzaj ponownie tego, co już pilnuje CI.** \`npm run lint\`, \`npx astro check\` i \`npm test\` bramkują każdy PR. Obejmują literały kolorów (\`tokensOnlyConfig\`), \`console\` poza \`src/lib/log.ts\`, importy modułu notatek w ścieżkach audytu, ponownego pobrania, archiwizacji i usuwania (\`*NoNotesConfig\`) oraz źle użyte promise'y. Wspomnij o nich tylko wtedy, gdy diff osłabia samą regułę, np. dodaje wpis do listy \`ignores\` albo \`eslint-disable\`.
+- **Nie sprawdzaj ponownie tego, co już pilnuje CI.** \`npm run lint\`, \`npx astro check\` i \`npm test\` bramkują każdy PR. Obejmują literały kolorów (\`tokensOnlyConfig\`), \`console\` poza \`src/lib/log.ts\`, importy modułu notatek w ścieżkach audytu, ponownego pobrania, archiwizacji, usuwania i dojazdów (\`*NoNotesConfig\`), importy \`src/lib/commute/\` w audycie, importy modułów z kluczami usług płatnych w widokach (\`paidServiceServerOnlyConfig\`) oraz źle użyte promise'y. Wspomnij o nich tylko wtedy, gdy diff osłabia samą regułę, np. dodaje wpis do listy \`ignores\` albo \`eslint-disable\`.
 - **Zakres.** Odczytania specyficzne dla projektu, podane niżej, dotyczą plików, które nazywają. Diff poza aplikacją (\`packages/code-reviewer/\`, \`.github/\`, \`.claude/\`, \`context/\`) oceniaj według ogólnego znaczenia każdego kryterium. Workflow i akcję kompozytową sprawdź dodatkowo pod kątem dwóch reguł: akcje firm trzecich są przypięte do pełnego SHA commita, a wartości wielolinijkowe idą przez pliki albo ograniczniki heredoc.
 
 ## Twarde porażki
 
 Każda z poniższych daje 1 w kryterium, pod które podpada, i werdykt \`fail\`, niezależnie od pozostałych ocen:
 
-1. klucz \`service_role\` / \`sb_secret_…\` albo sekret czytany poza \`astro:env/server\` lub osiągalny z wyspy React;
+1. klucz \`service_role\` / \`sb_secret_…\` albo sekret czytany poza \`astro:env/server\` lub osiągalny z wyspy React. Jedynym nazwanym wyjątkiem jest przeglądarkowy klucz Google Maps (do Maps JavaScript API): publiczny z założenia i chroniony ograniczeniami w Google Cloud, czyta go tylko \`src/lib/commute/browser-key.ts\`, a do wyspy mapy przekazuje go jako props wyłącznie \`src/pages/offers/[id].astro\`. Każdy inny sekret osiągalny z wyspy — serwerowy klucz Google, drugi klucz przekazany „tak samo”, import \`browser-key\` w innym pliku — pozostaje twardą porażką;
 2. nowa tabela bez \`enable row level security\` i bez jednej polityki na operację w migracji, która ją tworzy, albo polityka z \`for all\` / \`using (true)\`. Dwa wyjątki nie są porażką, bo brak polityk zapisu jest tam zamierzony i nie wolno go „naprawiać”: tabela zapisywana tylko przez trigger \`security definer\` oraz tabela zmieniana tylko przez właściciela w Supabase Studio (\`postgres\`, który ma \`bypassrls\`) z polityką \`select\` dla \`authenticated\` i niczym więcej — wzorem jest \`public.ingestion_settings\`. Drugi wyjątek jest wąski: dotyczy ustawienia operacyjnego, którego żaden członek nie może zmieniać (tryb pobierania, przełącznik kosztów), nigdy danych, które członkowie mają zapisywać;
 3. notatki członków albo cokolwiek spoza \`AUDIT_OFFER_COLUMNS\` wysłane do providera modelu;
 4. zapisany numer telefonu lub nazwisko ogłoszeniodawcy, \`raw\` budowany przez usuwanie pól zamiast z białej listy albo \`pageFunction\` Apify, który kopiuje \`owner\`, \`contactDetails\` lub \`agency\` albo klucz spoza list \`APIFY_AD_KEYS\`/\`APIFY_LOCATION_KEYS\`/\`APIFY_TARGET_KEYS\`;
@@ -34,7 +34,7 @@ Każda z poniższych daje 1 w kryterium, pod które podpada, i werdykt \`fail\`,
 6. pusta lub częściowa oferta zapisana po nieudanym pobraniu;
 7. zapisane ogłoszenie, które nie jest sprzedażą mieszkania;
 8. akcja maszyny, która nadpisuje notatkę albo ponownie uruchamia lub usuwa audyt;
-9. test, skrypt albo krok, który wysyła prawdziwe żądanie do płatnego dostawcy — providera modelu albo Apify (uruchomienie aktora jest płatne, także nieudane). Jedynym nazwanym wyjątkiem jest \`scripts/apify-verify.mjs\` w budżecie zmiany \`otodom-apify-fallback\`, uruchamiany ręcznie, nigdy w CI ani w smoke.
+9. test, skrypt albo krok, który wysyła prawdziwe żądanie do płatnego dostawcy — providera modelu, Apify (uruchomienie aktora jest płatne, także nieudane) albo Google Maps Platform (zapytanie do Routes API i każde załadowanie mapy są płatne; mapa ładuje się tylko po wyniku liczenia członka, nigdy w \`preview\`, na \`/dev/*\` ani w zrzutach ekranu). Jedynym nazwanym wyjątkiem jest \`scripts/apify-verify.mjs\` w budżecie zmiany \`otodom-apify-fallback\`, uruchamiany ręcznie, nigdy w CI ani w smoke.
 
 ## Kryteria
 
@@ -48,7 +48,7 @@ Czy zmiana zachowuje niezmienniki produktu i obsługuje każdy sposób, w jaki d
 - odpowiedź Apify czytaną wyłącznie przez sprawdzenia \`isRecord\` i typów: element \`#error\` i pusty dataset to porażki pobrania, nigdy dane, a \`error.message\` ani \`#debug\` Apify nie trafiają do logu ani do członka (tylko status, token \`error.type\` i własny powód);
 - nieudany odczyt jako osobny stan, nigdy jako „pusto”, „brak limitów”, „nieaudytowane” ani \`fresh\`;
 - każdy zapis oceniany po błędzie **i** po liczbie wierszy, do których dotarł, bo odrzucony update zwraca 200 z \`[]\`;
-- kolejność płatnej akcji: darmowe sprawdzenia, potem zajęcie wiersza, potem provider, bez ponowienia, z próbą zakończoną na każdej drodze wyjścia;
+- kolejność płatnej akcji: darmowe sprawdzenia, potem zajęcie wiersza, potem provider, bez ponowienia, z próbą zakończoną na każdej drodze wyjścia. W liczeniu dojazdów (\`src/pages/api/commute.ts\`) miejsce zajęcia wiersza zajmuje rezerwacja na dziennym liczniku zespołu (\`reserveCommuteCalls\`, funkcja \`reserve_commute_calls\`): po darmowych odmowach i sprawdzeniu klucza, przed pierwszym zapytaniem do Routes API i przed wpisem \`started\`. Rezerwacji nie wolno pominąć ani obejść przy błędzie — tylko nowa suma dnia przepuszcza zapytania, a błąd, wyjątek albo odpowiedź, która nie jest sumą, kończy akcję bez zapytania do Google; limit \`COMMUTE_DAILY_CALL_LIMIT\` i literał w migracji zmieniają się razem;
 - ugruntowane ustalenia z dosłownymi cytatami sprawdzanymi względem \`title\`/\`description\`;
 - archiwizację, która zmienia tylko tablicę;
 - brak automatyzacji za akcją ręczną.
@@ -59,7 +59,7 @@ Czy zmiana zachowuje niezmienniki produktu i obsługuje każdy sposób, w jaki d
 ### 2. Idiomatyczność (\`idiomaticity\`)
 
 Czy zmiana wygląda jak plik referencyjny, za którym powinna iść? Obejmuje:
-- wzorzec zero-config we wszystkich czterech miejscach (\`envField\` z \`optional: true\`, fabryka zwracająca \`null\`, sprawdzenie \`null\` w każdym miejscu wywołania, wpis \`ConfigStatus\`) — jak \`ANTHROPIC_API_KEY\` i \`APIFY_TOKEN\` (\`createApifyLeg\` zwraca \`null\` bez tokenu, a \`APIFY_TOKEN\` nigdy nie trafia do CI);
+- wzorzec zero-config we wszystkich czterech miejscach (\`envField\` z \`optional: true\`, fabryka zwracająca \`null\`, sprawdzenie \`null\` w każdym miejscu wywołania, wpis \`ConfigStatus\`) — jak \`ANTHROPIC_API_KEY\`, \`APIFY_TOKEN\` (\`createApifyLeg\` zwraca \`null\` bez tokenu, a \`APIFY_TOKEN\` nigdy nie trafia do CI) i dwa klucze Google Maps, serwerowy i przeglądarkowy (\`createRoutesClient\` zwraca \`null\` bez klucza serwerowego, \`isCommuteAvailable()\` i \`isCommuteMapAvailable()\` w \`src/lib/config-status.ts\`). Token Apify i każdy z kluczy Google mają pięć miejsc — schemat w \`astro.config.mjs\`, \`.env\`, \`.dev.vars\`, \`.env.example\`, sekret Cloudflare — i nigdy nie trafiają do sekretów repozytorium, \`.github/workflows/\` ani \`packages/code-reviewer/\`;
 - trasy formularzy, które czytają \`FormData\` i przekierowują z \`?error=\` / \`&form=\` i ukrytym \`intent\`, oraz strumienie linii JSON tylko dla wysp sterowanych \`fetch\`, jak w \`src/pages/api/audits.ts\`;
 - domyślnie \`.astro\`, wyspy tylko dla stanu lub zdarzeń i z jawnym \`client:*\`;
 - importy przez \`@/\`, klasy łączone \`cn()\`, w widokach tylko tokeny i \`src/components/ui\` (dodawane przez \`npx shadcn add\` z jego rytuałem);
@@ -102,14 +102,15 @@ Czy ryzykowne ścieżki są przetestowane tak, jak to repo testuje? Obejmuje:
 - zapisy na zero wierszy sprawdzane jako porażki;
 - kanarki prywatności w fixture'ach, które pozostają syntetyczne, nigdy nagrany payload otodom;
 - provider tylko przez \`tests/fixtures/anthropic.ts\`, a każdy scenariusz liczy żądania do providera i zapisy do bazy;
-- Apify tylko przez \`tests/fixtures/apify.ts\`, a każdy scenariusz fallbacku liczy żądania do otodom, do Apify i zapisy. Test, który może dotrzeć do prawdziwego Apify, blokuje zmianę.
+- Apify tylko przez \`tests/fixtures/apify.ts\`, a każdy scenariusz fallbacku liczy żądania do otodom, do Apify i zapisy. Test, który może dotrzeć do prawdziwego Apify, blokuje zmianę;
+- Google tylko przez \`tests/fixtures/google.ts\`, z kluczem nic niewartym, a każdy scenariusz \`POST /api/commute\` liczy żądania do Google i rezerwacje na liczniku. Smoke wysyła do tej trasy tylko żądania kończone przed szukaniem klucza (\`requestCommuteOfMissingOffer\`). Test, który może dotrzeć do prawdziwego Google, blokuje zmianę.
 
 Poza testami jednostkowymi obejmuje też:
 - krok w \`scripts/smoke.mjs\` dla każdej zmiany powierzchni \`src/pages/api/\`, z odrzuconymi zapisami sprawdzanymi całymi wierszami (\`withSnapshot\`);
-- sprawdzenie w \`scripts/account-deletion.sql\` albo \`scripts/audit-state.sql\` dla każdej nowej reguły triggera lub kolumny wskazującej na \`auth.users\`;
+- sprawdzenie w \`scripts/account-deletion.sql\`, \`scripts/audit-state.sql\` albo \`scripts/commute-usage.sql\` dla każdej nowej reguły triggera lub funkcji zależnej od czasu albo kolumny wskazującej na \`auth.users\`;
 - fixture w \`/dev/*\` dla każdego nowego stanu karty, formularza, tablicy lub kryteriów.
 
-1: ryzykowna logika bez testów. Przykłady: nowa trasa, migracja lub trigger bez testu i bez kroku smoke, testy mockujące testowany moduł, asercje na sam status HTTP przy zapisie, fixture z danymi prawdziwego ogłoszeniodawcy, test, który może dotrzeć do prawdziwego providera albo do Apify.
+1: ryzykowna logika bez testów. Przykłady: nowa trasa, migracja lub trigger bez testu i bez kroku smoke, testy mockujące testowany moduł, asercje na sam status HTTP przy zapisie, fixture z danymi prawdziwego ogłoszeniodawcy, test, który może dotrzeć do prawdziwego providera, do Apify albo do Google.
 10: ścieżki najbardziej narażone na awarię są pokryte we właściwej warstwie — unit, smoke, SQL albo E2E — tak, jak przydziela je \`CLAUDE.md\` § Testing. Każde odrzucenie ma parę z przyjęciem, a wyjście zero-config jest pokryte.
 
 ### 5. Dokumentacja (\`documentation\`)
@@ -129,7 +130,9 @@ Czy zmiana trzyma dane za RLS, a sekrety i dane prywatne tam, gdzie ich miejsce?
 - zawężenie do autorstwa tak, jak wymaga PRD (notatki i wymagania członków zapisuje tylko ich autor przez \`auth.uid()\`; oferty, wyszukiwania i limity zespołu może zapisywać każdy członek);
 - brak ręcznie dodanych grantów i obejść przez \`service_role\`;
 - kolumny podpisywane przez triggery (\`archived_by\`, daty i osoby audytu) nigdy nie brane od klienta;
-- \`ANTHROPIC_API_KEY\` tylko w \`src/lib/audit/provider.ts\`, a \`APIFY_TOKEN\` tylko w \`src/lib/otodom/apify.ts\`; żaden z tych modułów nie jest importowany przez nic, co ładuje render strony albo wyspa;
+- \`ANTHROPIC_API_KEY\` tylko w \`src/lib/audit/provider.ts\`, \`APIFY_TOKEN\` tylko w \`src/lib/otodom/apify.ts\`, serwerowy klucz Google tylko w \`src/lib/commute/google.ts\`, a przeglądarkowy tylko w \`src/lib/commute/browser-key.ts\`; żadnego z trzech pierwszych modułów nie importuje nic, co ładuje render strony albo wyspa, a \`browser-key\` importuje tylko \`src/pages/offers/[id].astro\` (wyjątek z twardej porażki 1);
+- nic, co zwraca Google (czas, dystans, polilinia, pinezka, \`place_id\`, współrzędne), nie jest zapisywane — ani w bazie, ani w \`localStorage\`/\`sessionStorage\`, query stringu czy logu: warunki Google Maps Platform (EEA) na to nie pozwalają. Wynik żyje w odpowiedzi trasy i w wyspie do przeładowania strony. Opisu ani kroków trasy się nie pokazuje (maska pól \`ROUTES_FIELD_MASK\`);
+- adres punktu dojazdu trafia tylko do Routes API: nigdy do providera modelu, do logu ani do odpowiedzi trasy dla karty; notatki członków nigdy nie trafiają do Google, a audyt nie czyta modułów \`src/lib/commute/\`;
 - wartości, które każdy członek może zapisać przez Data API, traktowane jako niezaufane (\`source_url\` przez \`normalizeOfferUrl\`, tekst ustaleń renderowany tylko jako tekst, nigdy \`set:html\`, atrybut ani props wyspy);
 - brak PII, query stringów, Postgresowego \`details\`, HTML strony, promptów i odpowiedzi modelu w logach;
 - \`.dev.vars\`/\`.env\` nigdy nie commitowane.
