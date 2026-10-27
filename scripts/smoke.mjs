@@ -93,6 +93,12 @@
 // sends an audit request for an offer that exists, so no step can reach the model provider and none can cost
 // anything - the helper refuses the two fixture offers' ids outright. What a real audit does is covered against a
 // stubbed provider in tests/pages/api/audits.test.ts.
+// The commute calculation (FR-016): POST /api/commute turns an anonymous caller away, and a forged session too - a
+// redirect to /auth/signin, the only one the route makes. Signed in, an id that is not a uuid and an offer that does
+// not exist both end as `offer_not_found` in the NDJSON stream, decided before the route looks for a Google key or
+// reserves anything on the team's daily counter. That is as far as smoke goes: the helper refuses the two fixture
+// offers' ids outright, so no step can reach Google or spend the counter, whatever key a local .env holds. What a
+// real calculation does is covered against a stubbed Google in tests/pages/api/commute.test.ts.
 // The audit on the card and the board (FR-006, FR-010), read from the pages and never run: the card of the first
 // fixture offer, which never gets an attempt, carries data-audit-state="none" - whatever data-audit-available says
 // beside it, since CI has no provider key and a local run may have one. The card of the second fixture offer is the
@@ -166,8 +172,8 @@
 // A session Auth refuses is a sign-out, never an outage (src/middleware.ts): before signing in, it sends a forged
 // session cookie - named after the SUPABASE_URL host, with a token that has not expired and a signature that is not
 // real - on GET /dashboard, on POST /api/offers, on POST /api/audit-settings, on POST /api/audits, on
-// POST /api/offer-refetch, on POST /api/offer-archive and on POST /api/offer-delete, and each must
-// redirect to /auth/signin, not answer with the 503 page. The cookie goes instead of the cookie jar and nothing the server
+// POST /api/commute, on POST /api/offer-refetch, on POST /api/offer-archive and on POST /api/offer-delete, and each
+// must redirect to /auth/signin, not answer with the 503 page. The cookie goes instead of the cookie jar and nothing the server
 // answers is stored in it. An outage itself cannot be played against a live Auth; tests/middleware.test.ts covers
 // it. The error pages answer under their own addresses with their own status and marker: /503 with 503 and
 // data-error-page="503", /500 with 500 and data-error-page="500".
@@ -322,7 +328,7 @@ const ARCHIVE_SECTION = "data-archive-state=";
 const FIXTURE_ARCHIVED_ENTRY = `data-archived-offer="${FIXTURE_OFFER_ID}"`;
 const OFFER_ARCHIVED = 'data-offer-archived="true"';
 const OFFER_LIVE = 'data-offer-archived="false"';
-// What POST /api/audits answers with whenever it does not redirect: one JSON object per line.
+// What POST /api/audits and POST /api/commute answer with whenever they do not redirect: one JSON object per line.
 const AUDIT_STREAM_TYPE = "application/x-ndjson; charset=utf-8";
 // The team's commute points (FR-016). The run sets aside the points the local database held, works with its own,
 // and puts the ones it set aside back at cleanup.
@@ -987,6 +993,34 @@ async function requestAuditOfMissingOffer(offerId) {
   return { ...response, auditEnded: last.type === "failed" ? last.reason : "done" };
 }
 
+// A signed-in member - or, with `send`, an anonymous caller or a forged session - asks for a commute calculation from
+// an offer that cannot have one, and the answer's last line is read as `commuteEnded`: the reason of a `failed`
+// line, or "done". Smoke never asks for a calculation from an offer that exists: wherever a Google key is
+// configured, it would reserve calls on the team's daily counter and send requests to Google, and those are paid
+// for. The two fixture offers are therefore refused here, before anything is sent. Throws when the answer is a 200
+// that is not the stream the route promises, which fails the step that asked for it.
+async function requestCommuteOfMissingOffer(offerId, send = request) {
+  if (offerId === FIXTURE_OFFER_ID || offerId === FIXTURE_OFFER_ID_2) {
+    throw new Error("smoke never requests a commute calculation from an existing offer: it could reach Google");
+  }
+  const response = await send("/api/commute", { method: "POST", form: { offer_id: offerId } });
+  if (response.status !== 200) return response;
+  if (response.contentType !== AUDIT_STREAM_TYPE) {
+    throw new Error(
+      `the commute calculation answered 200 with ${response.contentType || "no content type"}, not NDJSON`,
+    );
+  }
+  const lines = response.body
+    .split("\n")
+    .filter((line) => line !== "")
+    .map((line) => JSON.parse(line));
+  const last = lines.at(-1);
+  if (last?.type !== "done" && last?.type !== "failed") {
+    throw new Error("the commute calculation's answer does not end with a `done` or a `failed` line");
+  }
+  return { ...response, commuteEnded: last.type === "failed" ? last.reason : "done" };
+}
+
 // A signed-in member - or, with `send`, a forged session - asks for a re-fetch of an offer that cannot be
 // re-fetched. Smoke never asks for a re-fetch of an offer that exists: the route would go on to fetch the stored
 // address, and no step may reach otodom.pl. The two fixture offers are therefore refused here, before anything is
@@ -1411,6 +1445,12 @@ const steps = [
     () => request("/api/audits", { method: "POST", form: { offer_id: randomUUID() } }),
     { status: 302, location: "/auth/signin" },
   ],
+  // The same for a commute calculation: a well-formed id of no offer, so the redirect is the missing session.
+  [
+    "commute calculation redirects anonymous user",
+    () => requestCommuteOfMissingOffer(randomUUID()),
+    { status: 302, location: "/auth/signin" },
+  ],
   // The same for a re-fetch: a well-formed id of no offer, so the redirect is the missing session.
   [
     "offer re-fetch redirects anonymous user",
@@ -1464,6 +1504,11 @@ const steps = [
   [
     "audit run redirects a forged session to sign-in",
     () => requestWithForgedSession("/api/audits", { method: "POST", form: { offer_id: randomUUID() } }),
+    { status: 302, location: "/auth/signin" },
+  ],
+  [
+    "commute calculation redirects a forged session to sign-in",
+    () => requestCommuteOfMissingOffer(randomUUID(), requestWithForgedSession),
     { status: 302, location: "/auth/signin" },
   ],
   [
@@ -1553,6 +1598,18 @@ const steps = [
     "audit run refuses an offer that does not exist",
     () => requestAuditOfMissingOffer(randomUUID()),
     { status: 200, auditEnded: "offer_not_found" },
+  ],
+  // The commute route, as far as it goes without an offer: both answers are decided before a Google key is looked
+  // for and before the daily counter is touched, and neither request names an offer that exists.
+  [
+    "commute calculation refuses an id that is not a uuid",
+    () => requestCommuteOfMissingOffer("not-a-uuid"),
+    { status: 200, commuteEnded: "offer_not_found" },
+  ],
+  [
+    "commute calculation refuses an offer that does not exist",
+    () => requestCommuteOfMissingOffer(randomUUID()),
+    { status: 200, commuteEnded: "offer_not_found" },
   ],
   // The re-fetch route, as far as it goes without an offer: both answers are decided before anything is fetched,
   // and neither request names an offer that exists.
@@ -2956,6 +3013,11 @@ function auditEnding({ auditEnded }) {
   return auditEnded === undefined ? "" : `, audit ended: ${auditEnded}`;
 }
 
+// How a commute calculation ended, for the report line; empty when the step sends none.
+function commuteEnding({ commuteEnded }) {
+  return commuteEnded === undefined ? "" : `, commute ended: ${commuteEnded}`;
+}
+
 function includesAll(body, expected) {
   return [expected].flat().every((text) => (body ?? "").includes(text));
 }
@@ -2981,16 +3043,17 @@ for (const [name, run, expected] of steps) {
     (expected.snapshot === undefined || actual.snapshot === expected.snapshot) &&
     (expected.higher === undefined || actual.higher === expected.higher) &&
     (expected.place === undefined || actual.place === expected.place) &&
-    (expected.auditEnded === undefined || actual.auditEnded === expected.auditEnded);
+    (expected.auditEnded === undefined || actual.auditEnded === expected.auditEnded) &&
+    (expected.commuteEnded === undefined || actual.commuteEnded === expected.commuteEnded);
   const rows = actual.rows === undefined ? undefined : `${actual.rows} row(s)`;
   const detail =
     actual.error ??
-    `${actual.status} ${actual.errorCode ?? rows ?? actual.location}${revisionMoved(actual)}${snapshotResult(actual)}${boardOrder(actual)}${offerPlace(actual)}${auditEnding(actual)}`;
+    `${actual.status} ${actual.errorCode ?? rows ?? actual.location}${revisionMoved(actual)}${snapshotResult(actual)}${boardOrder(actual)}${offerPlace(actual)}${auditEnding(actual)}${commuteEnding(actual)}`;
   console.log(`${ok ? "PASS" : "FAIL"}  ${name}  -> ${detail}`);
   if (!ok) {
     failed++;
     console.log(
-      `      expected ${[expected.status].flat().join(" or ")} ${expected.errorCode ?? expected.location ?? expected.locationPrefix ?? expected.bodyIncludes ?? expectedRows(expected)}${expected.locationIncludes === undefined ? "" : ` with ${expected.locationIncludes}`}${revisionMoved(expected)}${snapshotResult(expected)}${boardOrder(expected)}${offerPlace(expected)}${auditEnding(expected)}`,
+      `      expected ${[expected.status].flat().join(" or ")} ${expected.errorCode ?? expected.location ?? expected.locationPrefix ?? expected.bodyIncludes ?? expectedRows(expected)}${expected.locationIncludes === undefined ? "" : ` with ${expected.locationIncludes}`}${revisionMoved(expected)}${snapshotResult(expected)}${boardOrder(expected)}${offerPlace(expected)}${auditEnding(expected)}${commuteEnding(expected)}`,
     );
   }
 }

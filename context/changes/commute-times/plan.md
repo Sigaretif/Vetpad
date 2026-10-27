@@ -921,26 +921,26 @@ Two additive migrations with no data backfill. Rollback = drop the function and 
 
 #### Automated
 
-- [x] 2.1 Lint passes, including the merged server-only block and the commute/notes rule: `npm run lint`
-- [x] 2.2 Types check: `npx astro sync && npx astro check`
-- [x] 2.3 Tests pass, including `tests/setup.test.ts` with both Google keys unset: `npm test`
-- [x] 2.4 Build passes with no `.env`, and the banner lists both Google entries: `npm run build`
-- [x] 2.5 No test reaches Google: `routesCalls` is asserted in every test that builds a client
-- [x] 2.6 The reservation reader classifies every answer, and the limit constant matches the migration: `npm test` (`tests/lib/commute/usage.test.ts`)
+- [x] 2.1 Lint passes, including the merged server-only block and the commute/notes rule: `npm run lint` — 3142227
+- [x] 2.2 Types check: `npx astro sync && npx astro check` — 3142227
+- [x] 2.3 Tests pass, including `tests/setup.test.ts` with both Google keys unset: `npm test` — 3142227
+- [x] 2.4 Build passes with no `.env`, and the banner lists both Google entries: `npm run build` — 3142227
+- [x] 2.5 No test reaches Google: `routesCalls` is asserted in every test that builds a client — 3142227
+- [x] 2.6 The reservation reader classifies every answer, and the limit constant matches the migration: `npm test` (`tests/lib/commute/usage.test.ts`) — 3142227
 
 #### Manual
 
-- [x] 2.7 With no `.env`, `npm run dev` shows the banner naming „Google Maps — trasy” and „Google Maps — mapa”
+- [x] 2.7 With no `.env`, `npm run dev` shows the banner naming „Google Maps — trasy” and „Google Maps — mapa” — 3142227
 
 ### Phase 3: The calculation route `POST /api/commute`
 
 #### Automated
 
-- [ ] 3.1 Route tests pass with a Google request count in every scenario: `npm test`
-- [ ] 3.2 Lint and types pass: `npm run lint && npx astro sync && npx astro check`
-- [ ] 3.3 Build passes: `npm run build`
-- [ ] 3.4 Smoke passes, including the four `/api/commute` steps: `npm run smoke`
-- [ ] 3.5 Route tests cover `daily_limit` and `usage_unavailable` with Google 0, and every scenario past the key check makes exactly one reservation before Google: `npm test`
+- [x] 3.1 Route tests pass with a Google request count in every scenario: `npm test`
+- [x] 3.2 Lint and types pass: `npm run lint && npx astro sync && npx astro check`
+- [x] 3.3 Build passes: `npm run build`
+- [x] 3.4 Smoke passes, including the four `/api/commute` steps: `npm run smoke`
+- [x] 3.5 Route tests cover `daily_limit` and `usage_unavailable` with Google 0, and every scenario past the key check makes exactly one reservation before Google: `npm test`
 
 ### Phase 4: The commute section on the card
 

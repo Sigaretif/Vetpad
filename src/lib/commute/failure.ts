@@ -22,6 +22,7 @@ export const COMMUTE_DAILY_CALL_LIMIT = 300;
 /** Every way a calculation can end without a result, in the order the route can meet them. */
 export const COMMUTE_FAILURE_REASONS = [
   "offer_not_found",
+  "offer_unreadable",
   "offer_archived",
   "no_origin",
   "points_unreadable",
@@ -50,6 +51,8 @@ export function commuteFailureMessage(reason: CommuteFailureReason): string {
   switch (reason) {
     case "offer_not_found":
       return "Ta oferta już nie istnieje — mogła zostać usunięta. Dojazdy nie zostały policzone.";
+    case "offer_unreadable":
+      return "Nie udało się wczytać oferty, więc dojazdy nie zostały policzone. Spróbuj ponownie za chwilę.";
     case "offer_archived":
       return "Ta oferta jest w archiwum, więc dojazdy nie zostały policzone. Przywróć ofertę, żeby je policzyć.";
     case "no_origin":
@@ -97,6 +100,7 @@ export function commuteFailureMessage(reason: CommuteFailureReason): string {
  */
 export const COMMUTE_OUTCOME: Record<CommuteFailureReason, "refused" | "failed"> = {
   offer_not_found: "refused",
+  offer_unreadable: "failed",
   offer_archived: "refused",
   no_origin: "refused",
   points_unreadable: "failed",
