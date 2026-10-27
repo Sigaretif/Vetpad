@@ -1,10 +1,10 @@
 ---
 change_id: commute-times
 title: Czasy dojazdu z oferty do wspólnych punktów zespołu (FR-016)
-status: implemented
+status: archived
 created: 2026-10-26
 updated: 2026-10-27
-archived_at: null
+archived_at: 2026-10-27T14:48:08Z
 ---
 
 ## Notes
