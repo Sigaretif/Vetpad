@@ -975,10 +975,10 @@ Two additive migrations with no data backfill. Rollback = drop the function and 
 
 #### Manual
 
-- [x] 6.1 Google Cloud is set up per `context/foundation/user-manual/set-up-google-maps.md` steps 1–6
-- [x] 6.2 Both keys are in `.env` and `.dev.vars` locally, and the banner no longer names Google Maps
-- [x] 6.3 `create_commute_points` and `create_commute_usage` are pushed to the hosted project after a dry-run the user approved
+- [x] 6.1 Google Cloud is set up per `context/foundation/user-manual/set-up-google-maps.md` steps 1–6 — 5681165
+- [x] 6.2 Both keys are in `.env` and `.dev.vars` locally, and the banner no longer names Google Maps — 5681165
+- [x] 6.3 `create_commute_points` and `create_commute_usage` are pushed to the hosted project after a dry-run the user approved — 5681165
 - [ ] 6.4 Both Cloudflare secrets are set (manual step 7) and production's banner no longer names Google Maps
-- [x] 6.5 One real calculation, pressed by the user, shows both modes, the departure day, the start sentence, the attribution and the map with coloured routes and pins
-- [x] 6.6 After a reload the result is gone, and Google Metrics shows exactly 2N Routes requests and one map load for that press, the mode switches included
-- [x] 6.7 The log entries for that press (`npm run dev` console or `wrangler tail`) hold no address, name, coordinate or polyline
+- [x] 6.5 One real calculation, pressed by the user, shows both modes, the departure day, the start sentence, the attribution and the map with coloured routes and pins — 5681165
+- [x] 6.6 After a reload the result is gone, and Google Metrics shows exactly 2N Routes requests and one map load for that press, the mode switches included — 5681165
+- [x] 6.7 The log entries for that press (`npm run dev` console or `wrangler tail`) hold no address, name, coordinate or polyline — 5681165
