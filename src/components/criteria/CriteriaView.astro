@@ -1,13 +1,15 @@
 ---
-import { CircleAlert } from "lucide-react";
+import { CircleAlert, Info } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { ServerError } from "@/components/form/ServerError";
 import AuditSettingsForm from "@/components/criteria/AuditSettingsForm";
+import CommutePointsEditor from "@/components/criteria/CommutePointsEditor";
 import { RequirementsCard } from "@/components/criteria/RequirementsCard";
 import RequirementsEditor from "@/components/criteria/RequirementsEditor";
 import TeamLimitsForm from "@/components/criteria/TeamLimitsForm";
 import { AUDIT_EFFORT_LABELS, AUDIT_MODEL_LABELS, type AuditSettingsResult } from "@/lib/audit/settings";
+import type { CommutePointsResult } from "@/lib/commute/points";
 import type { CriteriaResult } from "@/lib/criteria";
 import { INGESTION_MODE_LABELS, type ResolvedIngestionMode } from "@/lib/ingestion-settings";
 import { formatTimestamp } from "@/lib/format";
@@ -30,6 +32,13 @@ import { formatArea, formatMoney } from "@/lib/otodom/labels";
  * shown as the defaults, and renders no form either. With a successful one the section also
  * carries the stored values as `data-audit-model` and `data-audit-effort`, for the same script.
  *
+ * The team's commute points (FR-016) are a read of their own as well: the section lists every point
+ * with its edit and delete actions and the form that adds one, and carries
+ * `data-commute-points-state`. A failed read is never "no points": it renders no form, because the
+ * add form would offer a seventh point to a team that may already have six, and an empty list would
+ * say the team has none. `?point=gone` from `POST /api/commute-points` picks a sentence through a
+ * whitelist and is never rendered itself.
+ *
  * Last, the ingestion mode (FR-004, FR-009), read-only: the owner changes it in Supabase, so the
  * section has no form. It carries its read as `data-ingestion-settings-state`, the configured mode
  * as `data-ingestion-mode` (only after a successful read) and the mode that actually runs as
@@ -40,38 +49,56 @@ import { formatArea, formatMoney } from "@/lib/otodom/labels";
 interface Props {
   criteria: CriteriaResult;
   auditSettings: AuditSettingsResult;
+  commutePoints: CommutePointsResult;
   /** The configured and the effective ingestion mode, from `resolveIngestionMode`. */
   ingestion: ResolvedIngestionMode;
   /** The page's `?error=`, and which form it belongs to (`?form=`); `null` when none is named. */
   serverError?: string | null;
-  serverErrorFor?: "limits" | "requirements" | "audit" | null;
+  serverErrorFor?: "limits" | "requirements" | "audit" | "points" | null;
+  /** The page's `?point=`, as the address carries it: only `gone` renders anything. */
+  pointResult?: string | null;
   startEditing?: boolean;
-  /** Appended to the sections' ids (`#limity`/`#wymagania`/`#audyt`/`#pobieranie`): the routes redirect to the first three; the kitchen sink passes unique values. */
+  /** For the /dev kitchen sinks alone: the point whose edit form is open on the first render. */
+  editingPointId?: string | null;
+  /** Appended to the sections' ids (`#limity`/`#wymagania`/`#punkty`/`#audyt`/`#pobieranie`): the routes redirect to the first four; the kitchen sink passes unique values. */
   anchorSuffix?: string;
 }
 
 const {
   criteria,
   auditSettings,
+  commutePoints,
   ingestion,
   serverError = null,
   serverErrorFor = null,
+  pointResult = null,
   startEditing = false,
+  editingPointId = null,
   anchorSuffix = "",
 } = Astro.props;
 
 const limitsId = `limity${anchorSuffix}`;
 const requirementsId = `wymagania${anchorSuffix}`;
+const pointsId = `punkty${anchorSuffix}`;
 const auditId = `audyt${anchorSuffix}`;
 const ingestionId = `pobieranie${anchorSuffix}`;
 const limitsError = serverErrorFor === "limits" ? serverError : null;
 const requirementsError = serverErrorFor === "requirements" ? serverError : null;
-// The audit section renders in every state of the view, so its message is always shown there.
+// The audit and the points sections render in every state of the view, so their messages are always shown there.
 const auditError = serverErrorFor === "audit" ? serverError : null;
+const pointsError = serverErrorFor === "points" ? serverError : null;
 // A message that names no form is still shown once, above the criteria forms, rather than lost.
 const unattributedError = serverErrorFor === null ? serverError : null;
 // With the criteria unread neither criteria form renders, so their messages are shown above the alert.
-const criteriaError = serverErrorFor === "audit" ? null : serverError;
+const criteriaError = serverErrorFor === "audit" || serverErrorFor === "points" ? null : serverError;
+
+// What a deletion of a point ended with, from `?point=`, which anyone can type by hand: the value only
+// picks a sentence, and a value that is not on the list renders nothing.
+const POINT_RESULTS = { gone: "Tego punktu już nie było — niczego nie usunięto." };
+const pointNotice =
+  pointResult !== null && Object.hasOwn(POINT_RESULTS, pointResult)
+    ? (pointResult as keyof typeof POINT_RESULTS)
+    : null;
 
 const NO_LIMIT = "bez limitu";
 
@@ -220,6 +247,49 @@ const labelClass = "text-muted-foreground mb-1 text-xs font-medium tracking-wide
       </Alert>
     </>
   )}
+
+  <section
+    id={pointsId}
+    aria-labelledby={`${pointsId}-naglowek`}
+    data-criteria-section="points"
+    data-commute-points-state={commutePoints.state}
+    class:list={sectionClass}
+  >
+    <div class="flex flex-col gap-1">
+      <h2 id={`${pointsId}-naglowek`} class="text-xl font-semibold">
+        Punkty dojazdu
+      </h2>
+      <p class="text-muted-foreground text-sm">
+        Miejsca, do których zespół liczy czas dojazdu z oferty na jej karcie. Wspólne dla całego zespołu — każdy członek
+        może je dodać, zmienić i usunąć.
+      </p>
+    </div>
+
+    {pointNotice !== null && (
+      <Alert>
+        <Info />
+        <AlertDescription data-point-result={pointNotice}>{POINT_RESULTS[pointNotice]}</AlertDescription>
+      </Alert>
+    )}
+
+    {commutePoints.state === "ok" ? (
+      <CommutePointsEditor
+        client:load
+        points={commutePoints.points}
+        serverError={pointsError}
+        editingId={editingPointId}
+      />
+    ) : (
+      <>
+        {/* As for the criteria: a failed save that landed on a failed read is still reported. */}
+        <ServerError message={pointsError} />
+        <Alert variant="destructive">
+          <CircleAlert />
+          <AlertDescription>Nie udało się wczytać punktów dojazdu.</AlertDescription>
+        </Alert>
+      </>
+    )}
+  </section>
 
   <section
     id={auditId}

@@ -4,6 +4,7 @@ import { experimental_AstroContainer as AstroContainer } from "astro/container";
 import { beforeAll, describe, expect, it } from "vitest";
 import CriteriaView from "@/components/criteria/CriteriaView.astro";
 import type { AuditSettingsResult } from "@/lib/audit/settings";
+import type { CommutePointsResult } from "@/lib/commute/points";
 import type { CriteriaResult } from "@/lib/criteria";
 import type { ResolvedIngestionMode } from "@/lib/ingestion-settings";
 
@@ -52,6 +53,9 @@ const INGESTION_UNCONFIGURED: ResolvedIngestionMode = {
   read: "ok",
 };
 
+/** The team has added no point: a successful read, the default of `view()`. */
+const NO_POINTS: CommutePointsResult = { state: "ok", points: [] };
+
 let container: AstroContainer;
 
 beforeAll(async () => {
@@ -62,9 +66,11 @@ beforeAll(async () => {
 interface ViewProps {
   criteria?: CriteriaResult;
   auditSettings: AuditSettingsResult;
+  commutePoints?: CommutePointsResult;
   ingestion?: ResolvedIngestionMode;
   serverError?: string;
-  serverErrorFor?: "limits" | "requirements" | "audit";
+  serverErrorFor?: "limits" | "requirements" | "audit" | "points";
+  pointResult?: string;
 }
 
 /**
@@ -72,8 +78,15 @@ interface ViewProps {
  * carries its props serialised for hydration — the server error among them — so the tags'
  * attributes are dropped: a message is counted where a member reads it, not where it is stored.
  */
-async function view({ criteria = CRITERIA, ingestion = INGESTION_UNCONFIGURED, ...props }: ViewProps): Promise<string> {
-  const html = await container.renderToString(CriteriaView, { props: { criteria, ingestion, ...props } });
+async function view({
+  criteria = CRITERIA,
+  commutePoints = NO_POINTS,
+  ingestion = INGESTION_UNCONFIGURED,
+  ...props
+}: ViewProps): Promise<string> {
+  const html = await container.renderToString(CriteriaView, {
+    props: { criteria, commutePoints, ingestion, ...props },
+  });
   return html.replace(/<astro-island\b[^>]*>/g, "<astro-island>");
 }
 
@@ -396,4 +409,190 @@ describe("CriteriaView: a failed read of the ingestion mode is never shown as a 
     expect(html).toContain('data-audit-settings-state="ok"');
     expect(auditSection(html)).not.toContain(MODE_READ_FAILED);
   });
+});
+
+// The commute points section (FR-016). Expected outcomes are written by hand from
+// context/changes/commute-times/plan.md (Phase 1, „View and island”): a section `id="punkty"`
+// carrying `data-commute-points-state="ok"|"error"`; every point listed by name and address, with
+// „Edytuj” and „Usuń”; the add form while the team has fewer than six, a sentence at six; a failed
+// read renders a destructive alert and no form; `?point=gone` picks a sentence through a whitelist.
+// Names and addresses render as text only.
+
+const POINTS_READ_FAILED = "Nie udało się wczytać punktów dojazdu.";
+const POINTS_FORM_ACTION = 'action="/api/commute-points"';
+const ADD_POINT = "Dodaj punkt";
+const CAP_REACHED = "to limit. Usuń któryś, żeby dodać nowy.";
+const POINT_GONE = "Tego punktu już nie było — niczego nie usunięto.";
+
+function commutePoint(index: number, name = `Punkt ${index}`, address = `ul. Testowa ${index}`) {
+  return { id: `0b9f0c2e-7d1a-4c55-9a53-00000000000${index}`, name, address };
+}
+
+const THREE_POINTS: CommutePointsResult = { state: "ok", points: [1, 2, 3].map((index) => commutePoint(index)) };
+const SIX_POINTS: CommutePointsResult = {
+  state: "ok",
+  points: [1, 2, 3, 4, 5, 6].map((index) => commutePoint(index)),
+};
+const POINTS_FAILED: CommutePointsResult = { state: "error" };
+
+/** The points section alone: from its opening tag to its closing one. */
+function pointsSection(html: string): string {
+  const start = html.indexOf('<section id="punkty"');
+  if (start === -1) throw new Error("expected the view to render the commute points section");
+  const end = html.indexOf("</section>", start);
+  if (end === -1) throw new Error("expected the commute points section to be closed");
+  return html.slice(start, end);
+}
+
+describe("CriteriaView: the commute points after a successful read (FR-016)", () => {
+  it("marks the section ok and lists every point by name and address, oldest first", async () => {
+    const section = pointsSection(await view({ auditSettings: CHOSEN, commutePoints: THREE_POINTS }));
+
+    expect(section).toContain('data-criteria-section="points"');
+    expect(section).toContain('data-commute-points-state="ok"');
+    expect(section).toContain("Punkty dojazdu");
+    for (const index of [1, 2, 3]) {
+      expect(section).toContain(`>Punkt ${index}</h3>`);
+      expect(section).toContain(`ul. Testowa ${index}`);
+    }
+    expect(section.indexOf("Punkt 1")).toBeLessThan(section.indexOf("Punkt 2"));
+    expect(section.indexOf("Punkt 2")).toBeLessThan(section.indexOf("Punkt 3"));
+    expect(count(section, "Edytuj")).toBe(3);
+    expect(count(section, ">Usuń<")).toBe(3);
+  });
+
+  it("offers the add form while the team has fewer than six points", async () => {
+    const section = pointsSection(await view({ auditSettings: CHOSEN, commutePoints: THREE_POINTS }));
+
+    expect(count(section, POINTS_FORM_ACTION)).toBe(1);
+    expect(section).toContain(ADD_POINT);
+    expect(section).toMatch(/<input\b(?=[^>]*type="hidden")(?=[^>]*name="intent")(?=[^>]*value="save")[^>]*>/);
+    expect(section).not.toContain(CAP_REACHED);
+  });
+
+  it("tells the member what the address field is sent to Google as, since nothing checks it on save", async () => {
+    const section = pointsSection(await view({ auditSettings: CHOSEN, commutePoints: THREE_POINTS }));
+
+    expect(section).toContain("Ulica z numerem i miasto — Google szuka dokładnie tego, co tu wpiszesz.");
+  });
+
+  it("renders no delete form before the dialog opens: nothing is deleted with one click", async () => {
+    const section = pointsSection(await view({ auditSettings: CHOSEN, commutePoints: THREE_POINTS }));
+
+    expect(section).not.toContain('value="delete"');
+  });
+
+  it("says the cap is reached at six points, and offers no add form", async () => {
+    const section = pointsSection(await view({ auditSettings: CHOSEN, commutePoints: SIX_POINTS }));
+
+    expect(section).toContain('data-commute-points-state="ok"');
+    expect(section).toContain(CAP_REACHED);
+    expect(section).not.toContain(POINTS_FORM_ACTION);
+    expect(section).not.toContain(ADD_POINT);
+  });
+
+  it("says the team has no point yet and offers the add form", async () => {
+    const section = pointsSection(await view({ auditSettings: CHOSEN, commutePoints: NO_POINTS }));
+
+    expect(section).toContain('data-commute-points-state="ok"');
+    expect(section).toContain("Zespół nie dodał jeszcze żadnego punktu.");
+    expect(count(section, POINTS_FORM_ACTION)).toBe(1);
+  });
+
+  it("renders a hostile name and address as text, never as markup", async () => {
+    const hostile = commutePoint(1, '<img src=x onerror="alert(1)">', "<script>alert(2)</script>");
+    const html = await view({ auditSettings: CHOSEN, commutePoints: { state: "ok", points: [hostile] } });
+    const section = pointsSection(html);
+
+    expect(html).not.toContain("<img src=x");
+    expect(html).not.toContain("<script>alert(2)");
+    expect(section).toContain("&lt;img src=x");
+    expect(section).toContain("&lt;script&gt;alert(2)&lt;/script&gt;");
+  });
+});
+
+describe("CriteriaView: a failed read of the points is never „no points”", () => {
+  it("control: a successful read renders the add form and no read error", async () => {
+    const section = pointsSection(await view({ auditSettings: CHOSEN, commutePoints: NO_POINTS }));
+
+    expect(count(section, POINTS_FORM_ACTION)).toBe(1);
+    expect(section).not.toContain(POINTS_READ_FAILED);
+  });
+
+  it("marks the section error, says the read failed, and renders no form and no empty list", async () => {
+    const html = await view({ auditSettings: CHOSEN, commutePoints: POINTS_FAILED });
+    const section = pointsSection(html);
+
+    expect(section).toContain('data-commute-points-state="error"');
+    expect(section).toContain(POINTS_READ_FAILED);
+    expect(html).not.toContain(POINTS_FORM_ACTION);
+    expect(section).not.toContain("Zespół nie dodał jeszcze żadnego punktu.");
+    expect(section).not.toContain(CAP_REACHED);
+  });
+
+  it("leaves the other sections in place when only the points read failed", async () => {
+    const html = await view({ auditSettings: CHOSEN, commutePoints: POINTS_FAILED });
+
+    expect(html).toContain('data-criteria-state="ok"');
+    expect(html).toContain('data-audit-settings-state="ok"');
+    expect(html).toContain('action="/api/criteria"');
+  });
+
+  it("renders the section whatever the criteria read did", async () => {
+    const html = await view({ criteria: CRITERIA_FAILED, auditSettings: CHOSEN, commutePoints: THREE_POINTS });
+
+    expect(html).toContain('data-criteria-state="error"');
+    expect(pointsSection(html)).toContain('data-commute-points-state="ok"');
+    expect(pointsSection(html)).not.toContain(CRITERIA_READ_FAILED);
+  });
+});
+
+describe("CriteriaView: a failed points save and a point already gone", () => {
+  const SAVE_POINT_FAILED = "Nie udało się zapisać punktu dojazdu. Spróbuj ponownie.";
+
+  it("shows a failed save once, inside the points section", async () => {
+    const html = await view({
+      auditSettings: CHOSEN,
+      commutePoints: THREE_POINTS,
+      serverError: SAVE_POINT_FAILED,
+      serverErrorFor: "points",
+    });
+
+    expect(count(html, SAVE_POINT_FAILED)).toBe(1);
+    expect(pointsSection(html)).toContain(SAVE_POINT_FAILED);
+  });
+
+  it("still shows it when the points read failed too, and not above the criteria alert", async () => {
+    const html = await view({
+      criteria: CRITERIA_FAILED,
+      auditSettings: CHOSEN,
+      commutePoints: POINTS_FAILED,
+      serverError: SAVE_POINT_FAILED,
+      serverErrorFor: "points",
+    });
+
+    expect(count(html, SAVE_POINT_FAILED)).toBe(1);
+    expect(pointsSection(html)).toContain(SAVE_POINT_FAILED);
+    expect(pointsSection(html)).toContain(POINTS_READ_FAILED);
+  });
+
+  it("says the point was already gone for ?point=gone", async () => {
+    const section = pointsSection(
+      await view({ auditSettings: CHOSEN, commutePoints: THREE_POINTS, pointResult: "gone" }),
+    );
+
+    expect(section).toContain('data-point-result="gone"');
+    expect(section).toContain(POINT_GONE);
+  });
+
+  it.each([["deleted"], ["<b>x</b>"], [""]])(
+    "renders nothing for ?point=%s, which is not on the list",
+    async (value) => {
+      const html = await view({ auditSettings: CHOSEN, commutePoints: THREE_POINTS, pointResult: value });
+
+      expect(html).not.toContain("data-point-result");
+      expect(html).not.toContain(POINT_GONE);
+      if (value !== "") expect(html).not.toContain(value);
+    },
+  );
 });

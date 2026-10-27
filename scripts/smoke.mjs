@@ -141,6 +141,24 @@
 // the mode (200 with no rows), insert a second row (403, 42501) or delete it (200 with no rows) - the row is the same
 // after each attempt. Nothing here or anywhere in smoke reaches Apify: the smoke job has no APIFY_TOKEN, and no step
 // asks a route to fetch a listing.
+// Commute points (FR-016), through the route and straight against Supabase, beside the criteria steps and touching
+// no criteria row: the points the local database held are read and set aside (the delete counted against the read),
+// POST /api/commute-points turns an anonymous caller and a forged session away and ends a blank name and a body that
+// is not a form on /criteria?error=…&form=points#punkty, and the first member then creates a point through it, which
+// the second member reads. The publishable key alone reads none and adds, changes or deletes none (401 with 42501,
+// 200 with no rows), each judged by the point's whole row. Any member writes any point, by design: the second
+// member's edit of the first member's point is the control step for the points' snapshots (reported as changed),
+// /criteria shows it under data-commute-points-state="ok", and the first member's edit through the route changes it
+// again. The run fills the team up to six through the Data API, and a seventh insert is refused with the project's
+// own SQLSTATE, VP002, every point the same row afterwards; the route refuses it too, and /criteria then offers no
+// add form (data-commute-points-full). The second member deletes the first member's point and no other, and the
+// route answers a delete of that point with ?point=gone. The run's five remaining points are deleted, counted, and
+// the points set aside at the start are put back.
+// The commute usage counter (FR-016), straight against Supabase: the publishable key alone reads no day and its
+// call of reserve_commute_calls is refused (401, 42501); a member reads the counter but cannot change, insert or
+// delete a day (200 with no rows, 403 with 42501), and a reservation of 0 or 13 calls is refused (400, 22023) - the
+// counter is the same after each, an empty counter included. Smoke never makes a successful reservation, so a run
+// leaves the counter as it found it; the day boundary and the limit are judged by scripts/commute-usage.sql.
 // Cleanup runs whatever failed before it: the limits read at the start are written back (signed by the first
 // member, as any restore would be), the audit settings read at the start likewise, and both members' requirements
 // are deleted with the rows counted - none left of the first member's, which the route removed, and one of the
@@ -306,6 +324,18 @@ const OFFER_ARCHIVED = 'data-offer-archived="true"';
 const OFFER_LIVE = 'data-offer-archived="false"';
 // What POST /api/audits answers with whenever it does not redirect: one JSON object per line.
 const AUDIT_STREAM_TYPE = "application/x-ndjson; charset=utf-8";
+// The team's commute points (FR-016). The run sets aside the points the local database held, works with its own,
+// and puts the ones it set aside back at cleanup.
+const COMMUTE_POINTS_OK = 'data-commute-points-state="ok"';
+const COMMUTE_POINTS_FULL = "data-commute-points-full";
+const COMMUTE_POINTS_ALL = "commute_points?id=not.is.null";
+const SMOKE_POINT_NAME = `smoke-punkt-${FIXTURE_OFFER_ID.slice(0, 8)}`;
+const SMOKE_POINT_ADDRESS = `smoke: ul. Testowa 1, Warszawa ${FIXTURE_OFFER_ID.slice(0, 8)}`;
+const SMOKE_POINT_EDITED = `smoke: ul. Testowa 2, Warszawa ${FIXTURE_OFFER_ID.slice(0, 8)}`;
+const SMOKE_POINT_ROUTE_EDIT = `smoke: ul. Testowa 3, Warszawa ${FIXTURE_OFFER_ID.slice(0, 8)}`;
+// The team's daily allowance of Google Routes calls (FR-016): read and judged, never spent.
+const COMMUTE_USAGE_ALL = "commute_usage?day=not.is.null";
+const RESERVE_COMMUTE_CALLS = "rpc/reserve_commute_calls";
 
 function cookieHeader() {
   return [...jar.entries()].map(([k, v]) => `${k}=${v}`).join("; ");
@@ -677,9 +707,11 @@ async function readSnapshot(observed, { requireRows }) {
 // Runs one step between two reads of the observed rows, and reports whether every row is the same afterwards,
 // column for column. An empty read before the step is an error, never "same": it would prove nothing. Composes
 // with withRevision in either order. `runUnobserved` is for a cleanup step: the step still fails when there is
-// nothing to observe, but only after `run` has done its work.
-async function withSnapshot(observed, run, { runUnobserved = false } = {}) {
-  const before = await readSnapshot(observed, { requireRows: true }).catch(async (error) => {
+// nothing to observe, but only after `run` has done its work. `allowEmpty` is for a table that may hold no row
+// and that no step of this run may write - the commute usage counter: there an empty read is the state the step
+// must leave as it found it, and a write that landed would show as a row.
+async function withSnapshot(observed, run, { runUnobserved = false, allowEmpty = false } = {}) {
+  const before = await readSnapshot(observed, { requireRows: !allowEmpty }).catch(async (error) => {
     if (runUnobserved) await run();
     throw error;
   });
@@ -1011,6 +1043,108 @@ async function requestOfferDelete(offerId, { returnTo, as, send = request } = {}
 
 // The first member asks to delete their own note on an offer the way the dialog beside „Edytuj" does (FR-015):
 // the offer and the intent, and nothing that names a note or an author.
+// The commute points as they stood before the run, oldest first, kept for cleanup to put back; and the id of the
+// point the first member creates through the route.
+let pointsBefore = null;
+let smokePointId = null;
+
+// Reads every commute point as a member, oldest first, and keeps them for cleanup to put back.
+async function readPointsBefore() {
+  const response = await supabaseRest(`${COMMUTE_POINTS_ALL}&select=name,address&order=created_at.asc,id.asc`, {
+    as: MEMBER,
+  });
+  if (response.status === 200 && response.rows !== undefined) pointsBefore = JSON.parse(response.body);
+  return response;
+}
+
+// Deletes every point the local database held, so the run can fill the team up to the cap with points of its own.
+// The deleted rows are counted against the read before it: a delete that reached fewer would leave a point the
+// run did not make.
+async function setPointsAside() {
+  if (pointsBefore === null) {
+    return { status: 0, location: "", error: "the commute points were never read at the start, so none are set aside" };
+  }
+  const response = await supabaseRest(COMMUTE_POINTS_ALL, {
+    as: MEMBER,
+    method: "DELETE",
+    prefer: "return=representation",
+  });
+  if (response.status === 200 && response.rows !== pointsBefore.length) {
+    return { ...response, error: `set aside ${response.rows} of ${pointsBefore.length} commute point(s)` };
+  }
+  return response;
+}
+
+// Puts the points read at the start back, in their order. Their ids and dates are new: what the team had is
+// restored, not when it was added.
+async function restorePointsBefore() {
+  if (pointsBefore === null) {
+    return {
+      status: 0,
+      location: "",
+      error: "the commute points were never read at the start, so none can be restored",
+    };
+  }
+  if (pointsBefore.length === 0) return { status: 201, location: "", rows: 0 };
+  return supabaseRest("commute_points", {
+    as: MEMBER,
+    method: "POST",
+    prefer: "return=representation",
+    body: pointsBefore,
+  });
+}
+
+// The point the first member created through the route, found by its name; keeps its id for the steps below.
+async function findSmokePoint() {
+  const response = await supabaseRest(
+    `commute_points?name=eq.${encodeURIComponent(SMOKE_POINT_NAME)}&select=id,name,address`,
+    { as: MEMBER },
+  );
+  if (response.status === 200 && response.rows === 1) [{ id: smokePointId }] = JSON.parse(response.body);
+  return response;
+}
+
+// The Data API path of the run's point. Throws when the route's point was never found, which fails the step.
+function smokePointPath() {
+  if (smokePointId === null) throw new Error("the smoke commute point was never found");
+  return `commute_points?id=eq.${smokePointId}`;
+}
+
+// An observed read for withSnapshot: the run's point, or every point but it.
+function observedSmokePoint() {
+  return { as: MEMBER, order: "id", path: () => smokePointPath() };
+}
+
+function observedOtherPoints() {
+  return {
+    as: MEMBER,
+    order: "id",
+    path: () => {
+      smokePointPath();
+      return `commute_points?id=neq.${smokePointId}`;
+    },
+  };
+}
+
+// The run fills the team up to the cap: five points of its own beside the one the route made, in one insert.
+function fillPointsToCap() {
+  const body = [2, 3, 4, 5, 6].map((index) => ({
+    name: `${SMOKE_POINT_NAME}-${index}`,
+    address: `smoke: ul. Testowa ${index}, Warszawa`,
+  }));
+  return supabaseRest("commute_points", { as: MEMBER, method: "POST", prefer: "return=representation", body });
+}
+
+// A member asks the points route for something, as the editor's forms do; `send` a forged session.
+function requestCommutePoint(form, send = request) {
+  return send("/api/commute-points", { method: "POST", form });
+}
+
+// An observed read for withSnapshot: every day of the commute usage counter, which may be none.
+function observedCommuteUsage() {
+  return { as: MEMBER, order: "day", path: COMMUTE_USAGE_ALL };
+}
+
 function requestNoteDelete(offerId) {
   return request("/api/notes", { method: "POST", form: { offer_id: offerId, intent: "delete" } });
 }
@@ -2066,6 +2200,170 @@ const steps = [
       }),
     { status: 200, rows: 1 },
   ],
+  // The team's commute points (FR-016): a table any member writes whole - add, edit, delete any point - and nobody
+  // without a session reads or writes. They are not criteria: no step here moves the criteria revision, and none
+  // touches a criteria row. The points the local database held are read first, set aside so the run can reach the
+  // cap of six with points of its own, and put back at the end of the block.
+  ["commute points before the run are read", () => readPointsBefore(), { status: 200 }],
+  ["commute points before the run are set aside", () => setPointsAside(), { status: 200 }],
+  [
+    "no commute point is left before the run's own",
+    () => supabaseRest(`${COMMUTE_POINTS_ALL}&select=id`, { as: MEMBER }),
+    { status: 200, rows: 0 },
+  ],
+  [
+    "points save redirects anonymous user",
+    () =>
+      request("/api/commute-points", {
+        method: "POST",
+        form: { name: SMOKE_POINT_NAME, address: SMOKE_POINT_ADDRESS },
+        cookie: "",
+      }),
+    { status: 302, location: "/auth/signin" },
+  ],
+  [
+    "points save redirects a forged session to sign-in",
+    () => requestCommutePoint({ name: SMOKE_POINT_NAME, address: SMOKE_POINT_ADDRESS }, requestWithForgedSession),
+    { status: 302, location: "/auth/signin" },
+  ],
+  [
+    "points save rejects a blank name",
+    () => requestCommutePoint({ name: "  ", address: SMOKE_POINT_ADDRESS }),
+    { status: 302, locationPrefix: "/criteria?error=", locationIncludes: "&form=points#punkty" },
+  ],
+  [
+    "points save rejects a body that is not a form",
+    () => request("/api/commute-points", { method: "POST", json: { name: SMOKE_POINT_NAME } }),
+    { status: 302, locationPrefix: "/criteria?error=", locationIncludes: "&form=points#punkty" },
+  ],
+  [
+    "member creates a commute point through the route",
+    () => requestCommutePoint({ intent: "save", id: "", name: SMOKE_POINT_NAME, address: SMOKE_POINT_ADDRESS }),
+    { status: 302, location: "/criteria#punkty" },
+  ],
+  ["member's commute point is stored once", () => findSmokePoint(), { status: 200, rows: 1 }],
+  [
+    "another member reads the commute point",
+    async () => supabaseRest(`${smokePointPath()}&select=address`, { as: OTHER_MEMBER }),
+    { status: 200, rows: 1, bodyIncludes: SMOKE_POINT_ADDRESS },
+  ],
+  // RLS from the publishable key's side, only now that a point exists: before it, `[]` would prove nothing.
+  ["anon cannot read commute points", () => supabaseRest(`${COMMUTE_POINTS_ALL}&select=id`), { status: 200, rows: 0 }],
+  [
+    "anon cannot add a commute point",
+    () =>
+      withSnapshot([observedSmokePoint()], () =>
+        supabaseRest("commute_points", { method: "POST", body: { name: "smoke-anon", address: "smoke: anon" } }),
+      ),
+    { status: 401, errorCode: "42501", snapshot: "same" },
+  ],
+  [
+    "anon cannot change a commute point",
+    () =>
+      withSnapshot([observedSmokePoint()], () =>
+        supabaseRest(smokePointPath(), {
+          method: "PATCH",
+          prefer: "return=representation",
+          body: { address: "smoke: anon" },
+        }),
+      ),
+    { status: 200, rows: 0, snapshot: "same" },
+  ],
+  [
+    "anon cannot delete a commute point",
+    () =>
+      withSnapshot([observedSmokePoint()], () =>
+        supabaseRest(smokePointPath(), { method: "DELETE", prefer: "return=representation" }),
+      ),
+    { status: 200, rows: 0, snapshot: "same" },
+  ],
+  // Flat roles: another member changes the first member's point, by design. It is also the control for the points'
+  // snapshots - a real change must be reported as one, or the "same" steps around it would pass on a comparison that
+  // sees nothing.
+  [
+    "control: another member edits the member's commute point and it is reported as changed",
+    () =>
+      withSnapshot([observedSmokePoint()], () =>
+        supabaseRest(smokePointPath(), {
+          as: OTHER_MEMBER,
+          method: "PATCH",
+          prefer: "return=representation",
+          body: { address: SMOKE_POINT_EDITED },
+        }),
+      ),
+    { status: 200, rows: 1, snapshot: "changed" },
+  ],
+  [
+    "criteria page shows the commute point as another member left it",
+    () => request("/criteria"),
+    { status: 200, bodyIncludes: [COMMUTE_POINTS_OK, SMOKE_POINT_NAME, SMOKE_POINT_EDITED] },
+  ],
+  [
+    "member edits the commute point through the route",
+    () =>
+      withSnapshot([observedSmokePoint()], () =>
+        requestCommutePoint({
+          intent: "save",
+          id: smokePointId ?? "",
+          name: SMOKE_POINT_NAME,
+          address: SMOKE_POINT_ROUTE_EDIT,
+        }),
+      ),
+    { status: 302, location: "/criteria#punkty", snapshot: "changed" },
+  ],
+  // The cap of six, held by the database: the run fills the team up to it through the Data API, and a seventh
+  // insert is refused with the project's own SQLSTATE, VP002, with every point the same row afterwards.
+  ["member fills the team's commute points up to six", () => fillPointsToCap(), { status: 201, rows: 5 }],
+  [
+    "a seventh commute point is refused",
+    () =>
+      withSnapshot([observedSmokePoint(), observedOtherPoints()], () =>
+        supabaseRest("commute_points", {
+          as: OTHER_MEMBER,
+          method: "POST",
+          body: { name: "smoke-siodmy", address: "smoke: siódmy punkt" },
+        }),
+      ),
+    { status: 400, errorCode: "VP002", snapshot: "same" },
+  ],
+  [
+    "a seventh commute point is refused through the route",
+    () => requestCommutePoint({ name: "smoke-siodmy", address: "smoke: siódmy punkt" }),
+    { status: 302, locationPrefix: "/criteria?error=", locationIncludes: "&form=points#punkty" },
+  ],
+  [
+    "criteria page offers no add form at six points",
+    () => request("/criteria"),
+    { status: 200, bodyIncludes: [COMMUTE_POINTS_OK, COMMUTE_POINTS_FULL] },
+  ],
+  // Another member deletes the first member's point, by design; the delete is filtered by its id and reaches no
+  // other point.
+  [
+    "another member deletes the member's commute point and no other",
+    () =>
+      withSnapshot([observedOtherPoints()], () =>
+        supabaseRest(smokePointPath(), { as: OTHER_MEMBER, method: "DELETE", prefer: "return=representation" }),
+      ),
+    { status: 200, rows: 1, snapshot: "same" },
+  ],
+  [
+    "deleting the deleted commute point through the route says it was already gone",
+    () => requestCommutePoint({ intent: "delete", id: smokePointId ?? "" }),
+    { status: 302, location: "/criteria?point=gone#punkty" },
+  ],
+  // Cleanup of the block: the five points the run added are deleted, counted, and the points set aside at the start
+  // are put back.
+  [
+    "run's commute points are deleted",
+    () => supabaseRest(COMMUTE_POINTS_ALL, { as: MEMBER, method: "DELETE", prefer: "return=representation" }),
+    { status: 200, rows: 5 },
+  ],
+  ["commute points before the run are restored", () => restorePointsBefore(), { status: 201 }],
+  [
+    "criteria page reads the commute points after the run",
+    () => request("/criteria"),
+    { status: 200, bodyIncludes: COMMUTE_POINTS_OK },
+  ],
   // AI audit, straight against Supabase. The settings first: the row is watched whole around every attempt on it,
   // signature and date included. The insert carries a model and an effort the table would take, so the refusal is
   // the missing insert policy and not a check.
@@ -2123,6 +2421,88 @@ const steps = [
         supabaseRest(INGESTION_SETTINGS, { as: MEMBER, method: "DELETE", prefer: "return=representation" }),
       ),
     { status: 200, rows: 0, snapshot: "same" },
+  ],
+  // The commute usage counter (FR-016): members read it, and only `reserve_commute_calls` writes it. The local
+  // counter may hold no day at all - smoke never makes a successful reservation, so a run leaves it as it found it -
+  // which is why these snapshots allow an empty read: an insert that landed would show as a row. The denial of
+  // update and delete with the counter's rows present, and the limit itself, are judged by scripts/commute-usage.sql.
+  [
+    "anon cannot read the commute usage",
+    () => supabaseRest(`${COMMUTE_USAGE_ALL}&select=day`),
+    { status: 200, rows: 0 },
+  ],
+  [
+    "signed-in member reads the commute usage",
+    () => supabaseRest(`${COMMUTE_USAGE_ALL}&select=day,calls`, { as: MEMBER }),
+    { status: 200 },
+  ],
+  [
+    "anon cannot reserve commute calls",
+    () =>
+      withSnapshot(
+        [observedCommuteUsage()],
+        () => supabaseRest(RESERVE_COMMUTE_CALLS, { method: "POST", body: { n: 2 } }),
+        {
+          allowEmpty: true,
+        },
+      ),
+    { status: 401, errorCode: "42501", snapshot: "same" },
+  ],
+  [
+    "member cannot change the commute usage",
+    () =>
+      withSnapshot(
+        [observedCommuteUsage()],
+        () =>
+          supabaseRest(COMMUTE_USAGE_ALL, {
+            as: MEMBER,
+            method: "PATCH",
+            prefer: "return=representation",
+            body: { calls: 0 },
+          }),
+        { allowEmpty: true },
+      ),
+    { status: 200, rows: 0, snapshot: "same" },
+  ],
+  [
+    "member cannot insert a commute usage day",
+    () =>
+      withSnapshot(
+        [observedCommuteUsage()],
+        () => supabaseRest("commute_usage", { as: MEMBER, method: "POST", body: { day: "2000-01-01", calls: 0 } }),
+        { allowEmpty: true },
+      ),
+    { status: 403, errorCode: "42501", snapshot: "same" },
+  ],
+  [
+    "member cannot delete the commute usage",
+    () =>
+      withSnapshot(
+        [observedCommuteUsage()],
+        () => supabaseRest(COMMUTE_USAGE_ALL, { as: MEMBER, method: "DELETE", prefer: "return=representation" }),
+        { allowEmpty: true },
+      ),
+    { status: 200, rows: 0, snapshot: "same" },
+  ],
+  [
+    "member's reservation of 0 commute calls is refused",
+    () =>
+      withSnapshot(
+        [observedCommuteUsage()],
+        () => supabaseRest(RESERVE_COMMUTE_CALLS, { as: MEMBER, method: "POST", body: { n: 0 } }),
+        { allowEmpty: true },
+      ),
+    { status: 400, errorCode: "22023", snapshot: "same" },
+  ],
+  [
+    "member's reservation of 13 commute calls is refused",
+    () =>
+      withSnapshot(
+        [observedCommuteUsage()],
+        () => supabaseRest(RESERVE_COMMUTE_CALLS, { as: MEMBER, method: "POST", body: { n: 13 } }),
+        { allowEmpty: true },
+      ),
+    { status: 400, errorCode: "22023", snapshot: "same" },
   ],
   // The control for the settings, as for notes and requirements: a real change must be reported as one, or the
   // "same" steps around this one would pass on a comparison that sees nothing. It also puts a signature on the row

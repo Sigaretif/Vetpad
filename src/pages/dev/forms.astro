@@ -9,6 +9,8 @@ import DeleteOfferForm from "@/components/offers/DeleteOfferForm";
 import TeamLimitsForm from "@/components/criteria/TeamLimitsForm";
 import RequirementsEditor from "@/components/criteria/RequirementsEditor";
 import AuditSettingsForm from "@/components/criteria/AuditSettingsForm";
+import CommutePointsEditor from "@/components/criteria/CommutePointsEditor";
+import DeletePointForm from "@/components/criteria/DeletePointForm";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/form/FormField";
 import { PasswordToggle } from "@/components/form/PasswordToggle";
@@ -26,7 +28,7 @@ import {
   AUDIT_MODEL_LABELS,
   DEFAULT_AUDIT_SETTINGS,
 } from "@/lib/audit/settings";
-import { fullLimits } from "@/pages/dev/_criteria-fixtures";
+import { fullLimits, sixCommutePoints, someCommutePoints } from "@/pages/dev/_criteria-fixtures";
 import {
   Archive,
   ArchiveRestore,
@@ -46,8 +48,8 @@ import {
 import { createElement } from "react";
 
 // Visual gate for the shared form composites: every named state of SignInForm, AddOfferForm,
-// NoteEditor, TeamLimitsForm, RequirementsEditor, AuditSettingsForm, RefetchForm, ArchiveForm and
-// DeleteOfferForm at once, in `astro dev` only. Anywhere else
+// NoteEditor, TeamLimitsForm, RequirementsEditor, AuditSettingsForm, RefetchForm, ArchiveForm,
+// DeleteOfferForm, CommutePointsEditor and DeletePointForm at once, in `astro dev` only. Anywhere else
 // (a production build, `npm run preview`) it answers 404 — `scripts/smoke.mjs` checks that on the
 // production preview. The status is set on
 // Astro.response, not returned, because a top-level `return` crashes
@@ -105,6 +107,9 @@ const noteOfferId = "00000000-0000-4000-8000-000000000001";
 const REFETCH_TIMED_OUT = ingestFailureMessage("timeout", undefined, "refetch");
 // A failed archiving, in the words of POST /api/offer-archive.
 const ARCHIVE_FAILED = "Nie udało się zarchiwizować oferty. Oferta pozostała na tablicy — spróbuj ponownie.";
+// A failed save of a commute point, and the seventh one, in the words of POST /api/commute-points.
+const POINT_SAVE_FAILED = "Nie udało się zapisać punktu dojazdu. Spróbuj ponownie.";
+const TOO_MANY_POINTS = "Zespół ma już 6 punktów — usuń któryś, żeby dodać nowy.";
 // A failed deletion of the offer and of the note, in the words of POST /api/offer-delete and POST /api/notes.
 const DELETE_FAILED =
   "Nie udało się usunąć oferty. Oferta, jej notatki i wynik audytu pozostały bez zmian — spróbuj ponownie.";
@@ -136,9 +141,10 @@ const noteClass = "text-muted-foreground text-sm";
     <p class="text-muted-foreground text-sm">
       Strona testowa (tylko <code>astro dev</code>): <code>SignInForm</code>, <code>AddOfferForm</code>,{" "}
       <code>NoteEditor</code>, <code>TeamLimitsForm</code>, <code>RequirementsEditor</code>,{" "}
-      <code>AuditSettingsForm</code>, <code>RefetchForm</code>, <code>ArchiveForm</code> i <code>DeleteOfferForm</code>{" "}
-      w każdym nazwanym stanie, złożonym z tych samych kompozytów (<code>src/components/form/</code>), których używają
-      formularze w produkcji. Zmiana wyglądu formularza przechodzi przez zrzut tej strony.
+      <code>AuditSettingsForm</code>, <code>RefetchForm</code>, <code>ArchiveForm</code>, <code>DeleteOfferForm</code>,{" "}
+      <code>CommutePointsEditor</code> i <code>DeletePointForm</code> w każdym nazwanym stanie, złożonym z tych samych
+      kompozytów (<code>src/components/form/</code>), których używają formularze w produkcji. Zmiana wyglądu formularza
+      przechodzi przez zrzut tej strony.
     </p>
 
     <div class:list={stateClass} data-state="default">
@@ -699,6 +705,16 @@ const noteClass = "text-muted-foreground text-sm";
             Przywróć
           </SubmitButton>
         </div>
+        <div class:list={columnClass} data-form="commute-points">
+          <p class:list={labelClass}>CommutePointsEditor</p>
+          <SubmitButton pending pendingText="Zapisuję…" icon={plusIcon}>
+            Dodaj punkt
+          </SubmitButton>
+          <p class:list={noteClass}>
+            Ten sam <code>SubmitButton</code> w formularzu dodawania i edycji punktu; stan wysyłki usuwania jest w
+            sekcji „punkty dojazdu” poniżej.
+          </p>
+        </div>
       </div>
     </div>
 
@@ -798,6 +814,67 @@ const noteClass = "text-muted-foreground text-sm";
           <p class:list={labelClass}>NoteEditor · nieudane usunięcie</p>
           <NoteEditor client:load offerId={noteOfferId} note={savedNote} deleteError={NOTE_DELETE_FAILED} />
           <p class:list={noteClass}>Błąd usunięcia stoi nad notatką i nie otwiera trybu edycji.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class:list={stateClass} data-state="commute-points">
+      <p class:list={captionClass}>Stan: punkty dojazdu (CommutePointsEditor, DeletePointForm)</p>
+      <p class:list={noteClass}>
+        Dialog usuwania punktu jest modalny, więc żadna sekcja nie otwiera go sama. Otwiera go przycisk „Usuń” albo
+        adres:{" "}
+        <a class="text-link underline" href="?open=delete-point#punkty-stany">
+          ?open=delete-point
+        </a>{" "}
+        i{" "}
+        <a class="text-link underline" href="?open=delete-point-pending#punkty-stany">
+          ?open=delete-point-pending
+        </a>{" "}
+        (stan wysyłki, nic nie wysyła). Formularze są prawdziwymi wyspami — zapis stąd zmienia punkty w lokalnej bazie.
+      </p>
+      <div id="punkty-stany" class:list={gridClass}>
+        <div class:list={columnClass} data-form="commute-points">
+          <p class:list={labelClass}>CommutePointsEditor · dodawanie (brak punktów)</p>
+          <CommutePointsEditor client:load points={[]} />
+        </div>
+        <div class:list={columnClass} data-form="commute-points">
+          <p class:list={labelClass}>CommutePointsEditor · edycja punktu</p>
+          <CommutePointsEditor
+            client:load
+            points={someCommutePoints.slice(0, 2)}
+            editingId={someCommutePoints[0]?.id ?? null}
+          />
+        </div>
+        <div class:list={columnClass} data-form="commute-points">
+          <p class:list={labelClass}>CommutePointsEditor · błąd serwera</p>
+          <CommutePointsEditor client:load points={someCommutePoints.slice(0, 2)} serverError={POINT_SAVE_FAILED} />
+        </div>
+        <div class:list={columnClass} data-form="commute-points">
+          <p class:list={labelClass}>CommutePointsEditor · limit sześciu po odmowie bazy</p>
+          <CommutePointsEditor client:load points={sixCommutePoints} serverError={TOO_MANY_POINTS} />
+        </div>
+        <div class:list={columnClass} data-form="delete-point">
+          <p class:list={labelClass}>DeletePointForm · default</p>
+          <DeletePointForm
+            client:load
+            pointId={someCommutePoints[0]?.id ?? ""}
+            pointName={someCommutePoints[0]?.name ?? ""}
+            defaultOpen={openDialog === "delete-point"}
+          />
+          <p class:list={noteClass}>Przycisk otwiera dialog; dopiero potwierdzenie wysyła formularz.</p>
+        </div>
+        <div class:list={columnClass} data-form="delete-point">
+          <p class:list={labelClass}>DeletePointForm · loading</p>
+          <DeletePointForm
+            client:load
+            pointId={someCommutePoints[0]?.id ?? ""}
+            pointName={someCommutePoints[0]?.name ?? ""}
+            preview="pending"
+            defaultOpen={openDialog === "delete-point-pending"}
+          />
+          <p class:list={noteClass}>
+            Dialog w stanie wysyłki: „Usuwam…”, „Anuluj” wyłączony. Ten egzemplarz niczego nie wysyła.
+          </p>
         </div>
       </div>
     </div>

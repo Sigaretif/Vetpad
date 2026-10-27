@@ -2,6 +2,7 @@
 import AppLayout from "@/layouts/AppLayout.astro";
 import CriteriaView from "@/components/criteria/CriteriaView.astro";
 import type { AuditSettingsResult } from "@/lib/audit/settings";
+import type { CommutePointsResult } from "@/lib/commute/points";
 import type { CriteriaResult } from "@/lib/criteria";
 import type { ResolvedIngestionMode } from "@/lib/ingestion-settings";
 import {
@@ -13,14 +14,18 @@ import {
   directWithFallbackIngestion,
   emptyCriteria,
   failedAuditSettings,
+  failedCommutePointsResult,
   failedCriteria,
   failedIngestion,
   fullCriteria,
   longCriteria,
   longEmailAuditSettings,
   memberAuditSettings,
+  noCommutePointsResult,
   partialCriteria,
   selfAuditSettings,
+  sixCommutePointsResult,
+  someCommutePointsResult,
   unknownAuthorAuditSettings,
   unknownAuthorCriteria,
   unconfiguredIngestion,
@@ -40,15 +45,18 @@ interface State {
   caption: string;
   criteria: CriteriaResult;
   auditSettings: AuditSettingsResult;
+  /** The team's commute points; a state that is not about them shows three. */
+  commutePoints?: CommutePointsResult;
   ingestion: ResolvedIngestionMode;
   serverError?: string;
-  serverErrorFor?: "limits" | "requirements" | "audit";
+  serverErrorFor?: "limits" | "requirements" | "audit" | "points";
+  pointResult?: string;
   startEditing?: boolean;
 }
 
 // Each state renders the whole view; `-<state>` keeps the sections' ids unique on one page. The
-// islands post to the real routes, so a save here changes the local database's criteria and its
-// audit settings.
+// islands post to the real routes, so a save here changes the local database's criteria, its
+// commute points and its audit settings.
 const states: State[] = [
   {
     state: "full",
@@ -157,6 +165,49 @@ const states: State[] = [
     ingestion: unconfiguredIngestion,
   },
   {
+    state: "points-none",
+    caption: "Punkty dojazdu: zespół nie dodał żadnego — pusta lista i otwarty formularz dodawania",
+    criteria: fullCriteria,
+    auditSettings: memberAuditSettings,
+    commutePoints: noCommutePointsResult,
+    ingestion: directWithFallbackIngestion,
+  },
+  {
+    state: "points-some",
+    caption: "Punkty dojazdu: trzy, ostatni z długą nazwą i długim adresem · formularz dodawania pod listą",
+    criteria: fullCriteria,
+    auditSettings: memberAuditSettings,
+    commutePoints: someCommutePointsResult,
+    ingestion: directWithFallbackIngestion,
+  },
+  {
+    state: "points-full",
+    caption: "Punkty dojazdu: sześć — limit, zamiast formularza dodawania zdanie o limicie",
+    criteria: fullCriteria,
+    auditSettings: memberAuditSettings,
+    commutePoints: sixCommutePointsResult,
+    ingestion: directWithFallbackIngestion,
+  },
+  {
+    state: "points-read-error",
+    caption: "Punkty dojazdu: nieudany odczyt po nieudanym zapisie — bez formularzy i bez pustej listy",
+    criteria: fullCriteria,
+    auditSettings: memberAuditSettings,
+    commutePoints: failedCommutePointsResult,
+    ingestion: directWithFallbackIngestion,
+    serverError: "Nie udało się zapisać punktu dojazdu. Spróbuj ponownie.",
+    serverErrorFor: "points",
+  },
+  {
+    state: "points-gone",
+    caption: "Punkty dojazdu: ?point=gone — usuwanego punktu już nie było",
+    criteria: fullCriteria,
+    auditSettings: memberAuditSettings,
+    commutePoints: someCommutePointsResult,
+    ingestion: directWithFallbackIngestion,
+    pointResult: "gone",
+  },
+  {
     state: "ingestion-read-error",
     caption: "Tryb pobierania: nieudany odczyt — bez nazwy trybu, pobieranie tylko bezpośrednio",
     criteria: fullCriteria,
@@ -174,7 +225,7 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
     <p class="text-muted-foreground text-sm">
       Strona testowa (tylko <code>astro dev</code>): widok <code>/criteria</code> w każdym stanie, z danych testowych.
       Zmiana wyglądu kryteriów przechodzi przez zrzut tej strony. Formularze są prawdziwymi wyspami — zapis stąd zmienia
-      kryteria i ustawienia audytu w lokalnej bazie. Fokus i hover mają własne zrzuty na sekcji „full” (
+      kryteria, punkty dojazdu i ustawienia audytu w lokalnej bazie. Fokus i hover mają własne zrzuty na sekcji „full” (
       <code>criteria-focus-city</code>, <code>criteria-focus-requirements-edit</code>,{" "}
       <code>criteria-hover-limits-submit</code>, <code>criteria-focus-audit-model</code>,{" "}
       <code>criteria-hover-audit-submit</code>); stany disabled i loading formularzy są na <code>/dev/forms</code>.
@@ -186,9 +237,11 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
         <CriteriaView
           criteria={state.criteria}
           auditSettings={state.auditSettings}
+          commutePoints={state.commutePoints ?? someCommutePointsResult}
           ingestion={state.ingestion}
           serverError={state.serverError}
           serverErrorFor={state.serverErrorFor}
+          pointResult={state.pointResult}
           startEditing={state.startEditing}
           anchorSuffix={`-${state.state}`}
         />

@@ -93,6 +93,51 @@ describe("eslint.config.js: the audit cannot import the notes module (#6)", () =
   });
 });
 
+// The team's commute points never reach the model provider either (prd.md, FR-016): the same block
+// rejects every module under src/lib/commute/ in the audit's code. Expected outcomes come from
+// context/changes/commute-times/plan.md (Phase 1, „Lint: the audit never reads points”): a
+// rejected `@/lib/commute/points` stands beside an allowed `@/lib/criteria`, the module the audit
+// does read its criteria through.
+const COMMUTE_MESSAGE = "The audit must not import the commute modules";
+
+describe("eslint.config.js: the audit cannot import the commute points module (FR-016)", () => {
+  it.each([
+    ["src/lib/audit/input.ts", "@/lib/commute/points"],
+    ["src/lib/audit/input.ts", "../commute/points"],
+    ["src/lib/audit/input.ts", "../commute/points.ts"],
+    ["src/lib/audit/input.ts", "@/lib/commute/google"],
+    [AUDIT_ROUTE, "@/lib/commute/points"],
+    [AUDIT_ROUTE, "../../lib/commute/points.ts"],
+  ])("rejects, in %s, an import of %s", async (filePath, specifier) => {
+    const messages = restrictedImportMessages(await lint(filePath, specifier));
+
+    expect(messages).toHaveLength(1);
+    expect(messages[0].severity).toBe(2);
+    expect(messages[0].message).toContain(COMMUTE_MESSAGE);
+  });
+
+  // Beside the rejections: the criteria the audit does read, in the same file; the points module
+  // where the rule does not reach; and a module whose name only ends like the directory's.
+  it.each([
+    ["src/lib/audit/input.ts", "@/lib/criteria"],
+    [AUDIT_ROUTE, "@/lib/criteria"],
+    ["src/lib/members.ts", "@/lib/commute/points"],
+    ["src/lib/audit/input.ts", "@/lib/telecommute"],
+  ])("allows, in %s, an import of %s", async (filePath, specifier) => {
+    expect(restrictedImportMessages(await lint(filePath, specifier))).toEqual([]);
+  });
+
+  // The notes pattern and the commute pattern sit in one block: a second block over the same files
+  // would have replaced the first's options instead of adding to them.
+  it("holds both patterns in the configuration computed for an audit file", async () => {
+    const config: unknown = await eslint.calculateConfigForFile(path.join(ROOT, "src/lib/audit/input.ts"));
+    const entry = JSON.stringify(restrictedImportsEntry(config) ?? null);
+
+    expect(entry).toContain(AUDIT_MESSAGE);
+    expect(entry).toContain(COMMUTE_MESSAGE);
+  });
+});
+
 describe("eslint.config.js: the rule reaches every file of the audit (#6)", () => {
   // Flat config replaces a rule's options instead of merging them: a later block that set
   // no-restricted-imports for one of these files would silently take the audit's pattern away.

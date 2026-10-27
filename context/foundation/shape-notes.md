@@ -351,6 +351,12 @@ Multi-user, single shared space.
 - **No map plotting or commute-time routing.** A generated Google Maps search
   link is the whole of the location feature — no shared map of pins, no travel
   time to the team's workplaces.
+  _Narrowed on 2026-10-26, by the user's decision and without a shaping round:
+  the seed's "automated commute-time routing to our workplaces" comes in as
+  FR-016 with the word "automated" taken out — a member asks for the commute
+  times of one offer to the team's named points, on that offer's card. The rest
+  of this cut stands: nothing is routed on its own, nothing notifies, and there
+  is no map of all offers. The PRD's Non-Goals hold the current wording._
 - **No cost scenarios or viewing/contact planner.** Vetpad prepares the team for
   a viewing; it does not schedule one, track seller contact, or model total cost
   of ownership.

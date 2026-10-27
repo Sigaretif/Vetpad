@@ -1,10 +1,11 @@
-// Criteria, audit settings and the ingestion mode for the /dev/criteria kitchen sink (and the limits, requirements
+// Criteria, audit settings, the commute points and the ingestion mode for the /dev/criteria kitchen sink (and the limits, requirements
 // and audit settings columns of /dev/forms): one per named state of the view, so the visual gate
 // renders without Supabase (zero-config). The `_` prefix keeps this file out of routing. Savers come from the offer
 // fixtures — `example.com` addresses that name a role, never a person — and requirements talk
 // about the flat only: no people, no phone numbers, no company names.
 
 import { DEFAULT_AUDIT_SETTINGS, type AuditSettingsResult } from "@/lib/audit/settings";
+import type { CommutePoint, CommutePointsResult } from "@/lib/commute/points";
 import type { CriteriaResult, RequirementsView, TeamLimits } from "@/lib/criteria";
 import type { ResolvedIngestionMode } from "@/lib/ingestion-settings";
 import type { Saver } from "@/lib/members";
@@ -246,3 +247,42 @@ export const failedIngestion: ResolvedIngestionMode = {
   reason: "mode_read_failed",
   read: "error",
 };
+
+// The team's commute points (FR-016) as `loadCommutePoints` hands them to the view: none, some, the
+// cap of six, and a failed read. Places are named by their role, and every address is made up — no
+// person, no real home.
+
+const point = (index: number, name: string, address: string): CommutePoint => ({
+  id: `00000000-0000-4000-8000-0000000000${String(index).padStart(2, "0")}`,
+  name,
+  address,
+});
+
+/** Three points, the last with a long name and a long address: both must wrap at 375 px. */
+export const someCommutePoints: CommutePoint[] = [
+  point(1, "Biuro", "ul. Przykładowa 12, 00-001 Warszawa"),
+  point(2, "Szkoła", "ul. Testowa 3, 02-002 Warszawa"),
+  point(
+    3,
+    "Bardzo-długa-nazwa-punktu-bez-spacji-do-sprawdzenia-zawijania",
+    "ul. Bardzo Długiej Nazwy Ulicy Do Sprawdzenia Zawijania W Wąskim Widoku Na Telefonie 123/45, 00-950 Warszawa",
+  ),
+];
+
+/** Six points: the cap, so the add form gives way to a sentence. */
+export const sixCommutePoints: CommutePoint[] = [
+  ...someCommutePoints,
+  point(4, "Siłownia", "ul. Sportowa 7, 03-003 Warszawa"),
+  point(5, "Dworzec", "pl. Kolejowy 1, 04-004 Warszawa"),
+  point(6, "Rodzice", "ul. Rodzinna 9, 05-005 Warszawa"),
+];
+
+/** The team has added no point yet: the list is empty and the add form is open. */
+export const noCommutePointsResult: CommutePointsResult = { state: "ok", points: [] };
+
+export const someCommutePointsResult: CommutePointsResult = { state: "ok", points: someCommutePoints };
+
+export const sixCommutePointsResult: CommutePointsResult = { state: "ok", points: sixCommutePoints };
+
+/** A failed read: the section renders no form, and never an empty list. */
+export const failedCommutePointsResult: CommutePointsResult = { state: "error" };

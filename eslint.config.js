@@ -114,7 +114,13 @@ const consoleConfig = defineConfig(
 // the code holds it — the audit, the only code that talks to the model provider, cannot import the
 // notes module. The regex takes the module by any path: the alias (@/lib/notes), a relative one
 // (../notes, ../../lib/notes) and either with a file extension. src/pages/api/audits.ts is named
-// before it exists, so the rule binds the moment the file is created. refetchNoNotesConfig,
+// before it exists, so the rule binds the moment the file is created.
+// The same block keeps the team's commute points away from the model provider (prd.md, FR-016): a
+// point's address goes only to Google Routes, and the audit reads its criteria through
+// `loadAuditCriteria` alone. Its second pattern rejects every module under src/lib/commute/ — the
+// points module, `@/lib/commute/points`, first among them — by the alias or a relative path. Both
+// patterns live in this one block: a second block over the same files would replace this one's
+// options rather than add to them. refetchNoNotesConfig,
 // archiveNoNotesConfig, deleteNoNotesConfig and apifyServerOnlyConfig below are the only other
 // blocks that set no-restricted-imports, for files this one does not cover; a block whose files overlap any of them must merge the patterns, since flat config replaces a rule's
 // options rather than adding to them.
@@ -129,6 +135,11 @@ const auditNoNotesConfig = defineConfig({
             regex: "(?:^|/)notes(?:\\.[cm]?[jt]sx?)?$",
             message:
               "The audit must not import the notes module: members' notes never reach the model provider (CLAUDE.md, Secrets and data access).",
+          },
+          {
+            regex: "(?:^|/)commute/",
+            message:
+              "The audit must not import the commute modules: a commute point's address never reaches the model provider (prd.md, FR-016).",
           },
         ],
       },

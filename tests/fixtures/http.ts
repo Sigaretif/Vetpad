@@ -374,6 +374,35 @@ export function ingestionSettingsRow(mode = "direct_with_fallback"): Response {
   return jsonResponse([{ mode }], 200);
 }
 
+// The team's commute points, as the points module (src/lib/commute/points.ts) and its route
+// (src/pages/api/commute-points.ts) talk to it, read from the same file:
+//
+// - The read, `.from("commute_points").select("id, name, address").order("created_at",
+//   { ascending: true }).order("id", { ascending: true })`:
+//   `GET <SUPABASE_URL>/rest/v1/commute_points?select=id,name,address&order=created_at.asc,id.asc`.
+//   PostgREST answers `200` with an array of rows, `[]` when the team has none. A `500` with
+//   `{ "code", "message", … }` is a result with `error` set, at once; a `200` whose body is not an
+//   array is handed to the calling code as it came.
+// - The add, `.insert({ name, address }).select("id")`: `POST <SUPABASE_URL>/rest/v1/commute_points
+//   ?select=id` with `Prefer: return=representation`; the body is the JSON of that object. Without
+//   `single()` PostgREST answers `201` with an array, `[{ "id": … }]`. The trigger's cap answers
+//   `400` with `{ "code": "VP002", … }` (the project's own SQLSTATE), a value outside the table's
+//   checks `400` with `{ "code": "23514", … }`, and a write RLS refuses `403` with
+//   `{ "code": "42501", … }`.
+// - The change, `.update({ name, address }).eq("id", id).select("id")`: `PATCH <SUPABASE_URL>/rest/v1/
+//   commute_points?id=eq.<id>&select=id`. `200` with the rows it changed — `[]` when the point is
+//   gone, which is not an error.
+// - The delete, `.delete().eq("id", id).select("id")`: `DELETE <SUPABASE_URL>/rest/v1/commute_points
+//   ?id=eq.<id>&select=id` with `Prefer: return=representation` and no body. `200` with the rows it
+//   deleted, `[]` when it reached none.
+// - No write is retried: `500` and a rejected `fetch` (status `0`) come back at once as a result
+//   with `error` set.
+
+/** True for a request to the `public.commute_points` endpoint of the stubbed Supabase. */
+export function isCommutePointsRequest(request: RecordedRequest, method: string): boolean {
+  return isTableRequest(request, "commute_points", method);
+}
+
 // Supabase Auth, as the middleware talks to it through `supabase.auth.getUser()` (@supabase/ssr
 // 0.12 and auth-js 2.116, read from node_modules/@supabase/ssr/src/cookies.ts,
 // node_modules/@supabase/auth-js/src/GoTrueClient.ts and node_modules/@supabase/auth-js/src/lib/fetch.ts):
