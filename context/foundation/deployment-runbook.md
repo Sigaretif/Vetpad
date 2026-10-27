@@ -65,22 +65,25 @@ curl -s -o /dev/null -w "/dashboard %{http_code} -> %{redirect_url}\n" "$B/dashb
 curl -s -o /tmp/p.html "$B/"
 grep -q "Supabase nie jest skonfigurowany" /tmp/p.html && echo "banner: VISIBLE — secrets missing" || echo "banner: gone"
 grep -q "ANTHROPIC_API_KEY" /tmp/p.html && echo "provider banner: VISIBLE — key missing" || echo "provider banner: gone"
+grep -q "GOOGLE_MAPS_" /tmp/p.html && echo "maps banner: VISIBLE — a Google key missing" || echo "maps banner: gone"
 grep -qiE "1102|exceeded resource limits" /tmp/p.html && echo "!!! 1102" || echo "1102: none"
 curl -s -o /dev/null -w "wrong-password -> %{redirect_url}\n" -X POST "$B/api/auth/signin" \
   -H "Origin: $B" --data-urlencode "email=x@y.z" --data-urlencode "password=wrong"
 curl -s -o /dev/null -w "audit without a session %{http_code} -> %{redirect_url}\n" -X POST "$B/api/audits" \
   -H "Origin: $B" --data-urlencode "offer_id=00000000-0000-4000-8000-000000000000"
+curl -s -o /dev/null -w "commute without a session %{http_code} -> %{redirect_url}\n" -X POST "$B/api/commute" \
+  -H "Origin: $B" --data-urlencode "offer_id=00000000-0000-4000-8000-000000000000"
 # SUPABASE_URL / SUPABASE_KEY: the hosted project URL and its publishable key
 curl -s "$SUPABASE_URL/auth/v1/settings" -H "apikey: $SUPABASE_KEY" | grep -o '"disable_signup":[a-z]*'
 ```
 
-Expected: `200`, `200`, `404`, `302 -> /auth/signin`, both banners gone, no 1102, the
+Expected: `200`, `200`, `404`, `302 -> /auth/signin`, every banner gone, no 1102, the
 wrong password redirect carrying `?error=Nieprawid%C5%82owy%20e-mail%20lub%20has%C5%82o.`
-(the application's own sentence for credentials Auth refused), the audit route answering
-`302 -> /auth/signin`, and `"disable_signup":true`.
+(the application's own sentence for credentials Auth refused), the audit and commute routes
+each answering `302 -> /auth/signin`, and `"disable_signup":true`.
 
-The audit request carries no session, so the route ends it before it looks for an offer
-or a key: it costs nothing and never reaches the model provider. Nothing in this pass
+The audit and commute requests carry no session, so each route ends them before it looks
+for an offer or a key: they cost nothing and never reach the model provider or Google. Nothing in this pass
 runs an audit — a real one is a deliberate, paid, manual action (`CLAUDE.md`, Testing).
 
 Registration is checked by **reading** the Auth settings, never by a trial

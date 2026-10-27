@@ -962,23 +962,23 @@ Two additive migrations with no data backfill. Rollback = drop the function and 
 
 #### Automated
 
-- [x] 5.1 Reviewer prompt and evals load: `cd packages/code-reviewer && npm run preflight`
-- [x] 5.2 Lint, types, tests and build still pass: `npm run lint && npx astro check && npm test && npm run build`
-- [x] 5.3 No Google key name appears in `.github/` or `packages/code-reviewer/`: `grep -rn "GOOGLE_MAPS" .github packages/code-reviewer` returns nothing
+- [x] 5.1 Reviewer prompt and evals load: `cd packages/code-reviewer && npm run preflight` — 9d3f19a
+- [x] 5.2 Lint, types, tests and build still pass: `npm run lint && npx astro check && npm test && npm run build` — 9d3f19a
+- [x] 5.3 No Google key name appears in `.github/` or `packages/code-reviewer/`: `grep -rn "GOOGLE_MAPS" .github packages/code-reviewer` returns nothing — 9d3f19a
 
 #### Manual
 
-- [x] 5.4 The user runs the paid reviewer eval (`cd packages/code-reviewer && npm run eval`) on the code before this change and after it, and compares it with the baseline in `packages/code-reviewer/evals/README.md` (CLAUDE.md, "The eval set runs before the reviewer's prompt or model changes")
-- [x] 5.5 The user reads the CLAUDE.md exception wording and approves it
+- [x] 5.4 The user runs the paid reviewer eval (`cd packages/code-reviewer && npm run eval`) on the code before this change and after it, and compares it with the baseline in `packages/code-reviewer/evals/README.md` (CLAUDE.md, "The eval set runs before the reviewer's prompt or model changes") — 9d3f19a
+- [x] 5.5 The user reads the CLAUDE.md exception wording and approves it — 9d3f19a
 
 ### Phase 6: Manual — Google Cloud and one real calculation
 
 #### Manual
 
-- [ ] 6.1 Google Cloud is set up per `context/foundation/user-manual/set-up-google-maps.md` steps 1–6
-- [ ] 6.2 Both keys are in `.env` and `.dev.vars` locally, and the banner no longer names Google Maps
-- [ ] 6.3 `create_commute_points` and `create_commute_usage` are pushed to the hosted project after a dry-run the user approved
+- [x] 6.1 Google Cloud is set up per `context/foundation/user-manual/set-up-google-maps.md` steps 1–6
+- [x] 6.2 Both keys are in `.env` and `.dev.vars` locally, and the banner no longer names Google Maps
+- [x] 6.3 `create_commute_points` and `create_commute_usage` are pushed to the hosted project after a dry-run the user approved
 - [ ] 6.4 Both Cloudflare secrets are set (manual step 7) and production's banner no longer names Google Maps
-- [ ] 6.5 One real calculation, pressed by the user, shows both modes, the departure day, the start sentence, the attribution and the map with coloured routes and pins
-- [ ] 6.6 After a reload the result is gone, and Google Metrics shows exactly 2N Routes requests and one map load for that press, the mode switches included
-- [ ] 6.7 The log entries for that press (`npm run dev` console or `wrangler tail`) hold no address, name, coordinate or polyline
+- [x] 6.5 One real calculation, pressed by the user, shows both modes, the departure day, the start sentence, the attribution and the map with coloured routes and pins
+- [x] 6.6 After a reload the result is gone, and Google Metrics shows exactly 2N Routes requests and one map load for that press, the mode switches included
+- [x] 6.7 The log entries for that press (`npm run dev` console or `wrangler tail`) hold no address, name, coordinate or polyline

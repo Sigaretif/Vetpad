@@ -3,7 +3,7 @@ project: Vetpad
 version: 1
 status: draft
 created: 2026-09-21
-updated: 2026-10-17
+updated: 2026-10-27
 prd_version: 1
 main_goal: market-feedback
 top_blocker: time
@@ -254,7 +254,7 @@ None. Every absent or partial layer in the Baseline is first needed by a user-fa
 - **Price or description history** — Why parked: PRD §Non-Goals; a re-fetch overwrites, the team sees only that an audit went stale.
 - **Photo or Vision analysis** — Why parked: PRD §Non-Goals; the audit reads text and parameters only.
 - **Cross-portal or relisting duplicate matching** — Why parked: PRD §Non-Goals; identity is the URL with query parameters stripped.
-- **Map plotting or commute-time routing** — Why parked: PRD §Non-Goals; the map-search link is the whole location feature.
+- **Map plotting or commute routing beyond FR-016** — Why parked: PRD §Non-Goals; no map of all offers, no commute times on the board, nothing calculated on its own. Commute times from one offer to the team's points (FR-016, added to the PRD 2026-10-26) are delivered outside M-1 by the change `commute-times`.
 - **Cost scenarios or a viewing/contact planner** — Why parked: PRD §Non-Goals.
 - **Mobile usability** — Why parked: PRD §Non-Goals; desktop browsers only.
 - **Multi-tenancy** — Why parked: PRD §Non-Goals; one shared space, three pre-seeded accounts.

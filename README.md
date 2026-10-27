@@ -45,6 +45,7 @@ A fresh clone starts, builds, lints, typechecks and passes `npm test` with no `.
 - [Tailwind CSS](https://tailwindcss.com/) v4 - Utility-first CSS framework
 - [Supabase](https://supabase.com/) - Authentication and backend-as-a-service
 - [Anthropic TypeScript SDK](https://github.com/anthropics/anthropic-sdk-typescript) (`@anthropic-ai/sdk`) - Client of the model provider behind the AI audit (optional: without a key the audit is switched off)
+- [Google Maps Platform](https://developers.google.com/maps) via [`@vis.gl/react-google-maps`](https://visgl.github.io/react-google-maps/) - Routes API on the server and one map on the offer card for commute times (optional: without the keys commute times are switched off)
 - [Cloudflare Workers](https://workers.cloudflare.com/) - Edge deployment runtime
 - [Vitest](https://vitest.dev/) v5 and [Playwright](https://playwright.dev/) - Unit/render tests and browser tests
 
