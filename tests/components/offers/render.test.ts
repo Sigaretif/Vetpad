@@ -9,11 +9,13 @@ import NoteDeleteNotice from "@/components/offers/NoteDeleteNotice.astro";
 import OfferAudit from "@/components/offers/OfferAudit.astro";
 import OfferBoardItem from "@/components/offers/OfferBoardItem.astro";
 import OfferCard from "@/components/offers/OfferCard.astro";
+import OfferCommute from "@/components/offers/OfferCommute.astro";
 import OfferGallery from "@/components/offers/OfferGallery.astro";
 import OfferView from "@/components/offers/OfferView.astro";
 import RefetchNotice from "@/components/offers/RefetchNotice.astro";
 import type { AuditFreshness } from "@/lib/audit/freshness";
 import type { StoredFindings } from "@/lib/audit/schema";
+import { COMMUTE_FAILURE_REASONS, commuteFailureMessage } from "@/lib/commute/failure";
 import type { AuditAttempt, OfferAudit as OfferAuditData, StoredAudit } from "@/lib/audit/store";
 import type { Saver } from "@/lib/members";
 import type { OfferArchiveState } from "@/lib/offer-archive";
@@ -21,12 +23,18 @@ import type { OfferImage, OfferRow } from "@/lib/otodom/types";
 import {
   archivedByDeletedOffer,
   archivedOffer,
+  commutePoints,
+  commuteResult,
+  commuteResultNoRoute,
+  commuteResultRejected,
+  failedCommutePoints,
   failedNotes,
   fullNotes,
   fullOffer,
   malformedImagesOffer,
   memberSaver,
   noAudits,
+  noCommutePoints,
   noLimits,
   noNotes,
   othersOnlyNotes,
@@ -2031,4 +2039,295 @@ describe("NoteDeleteNotice: the address only picks one of two sentences, and nev
       expect(html).not.toContain("data-note-result");
     },
   );
+});
+
+// The commute section of the card (FR-016). Expected outcomes are written by hand from
+// context/changes/commute-times/plan.md (Phase 4, „Section and card wiring” and „Islands”): five
+// attributes, none standing in for another; the runner only where a calculation can be asked for,
+// and one sentence wherever it cannot; a result shown only by the island, with the departure day,
+// the start, Google's attribution and a placeholder where the map would be — the kitchen sink and
+// these renders mount no map, and no markup reaches maps.googleapis.com. A point's name is text.
+
+const COMMUTE_RUN = "Policz dojazdy";
+const COMMUTE_NO_KEY = commuteFailureMessage("not_configured");
+const PREVIEW_KEY = "podglad-bez-mapy";
+
+/** The commute section as the browser shows it before any script runs; the island's tag loses its serialised props. */
+async function commuteSection(props: Record<string, unknown> = {}): Promise<{ html: string; raw: string }> {
+  const raw = await container.renderToString(OfferCommute, {
+    props: {
+      offerId: fullOffer.id,
+      points: commutePoints,
+      origin: "coordinates",
+      available: true,
+      mapKey: null,
+      ...props,
+    },
+  });
+  const start = raw.indexOf('<section id="dojazdy"');
+  if (start === -1) throw new Error("expected the commute section to render");
+  const end = raw.lastIndexOf("</section>");
+  return { raw, html: raw.slice(start, end).replace(/<astro-island\b[^>]*>/g, "<astro-island>") };
+}
+
+describe("OfferCommute: five attributes, none standing in for another (FR-016)", () => {
+  it("says the key, the map key, the start, the archive and the points' read as they were passed", async () => {
+    const { html } = await commuteSection();
+
+    expect(html).toContain('data-commute-available="true"');
+    expect(html).toContain('data-commute-map="false"');
+    expect(html).toContain('data-commute-origin="coordinates"');
+    expect(html).toContain('data-commute-archived="false"');
+    expect(html).toContain('data-commute-points-state="ok"');
+  });
+
+  it.each<[string, Record<string, unknown>, string]>([
+    ["no Routes key", { available: false }, 'data-commute-available="false"'],
+    ["a browser key", { mapKey: PREVIEW_KEY }, 'data-commute-map="true"'],
+    ["a start by address", { origin: "address" }, 'data-commute-origin="address"'],
+    ["no start", { origin: null }, 'data-commute-origin="none"'],
+    ["an archived offer", { archived: true }, 'data-commute-archived="true"'],
+    ["a failed read of the points", { points: failedCommutePoints }, 'data-commute-points-state="error"'],
+    ["a team without points", { points: noCommutePoints }, 'data-commute-points-state="ok"'],
+  ])("changes only its own attribute for %s", async (_case, props, marker) => {
+    const { html } = await commuteSection(props);
+    const changed = marker.split("=")[0];
+
+    expect(html).toContain(marker);
+    for (const attribute of [
+      'data-commute-available="true"',
+      'data-commute-map="false"',
+      'data-commute-origin="coordinates"',
+      'data-commute-archived="false"',
+      'data-commute-points-state="ok"',
+    ]) {
+      if (!attribute.startsWith(changed)) expect(html).toContain(attribute);
+    }
+  });
+
+  it("reads a points read nobody passed as a failed one, and a start nobody passed as none", async () => {
+    const { html } = await commuteSection({ points: undefined, origin: undefined });
+
+    expect(html).toContain('data-commute-points-state="error"');
+    expect(html).toContain('data-commute-origin="none"');
+    expect(buttonsIn(html)).toEqual([]);
+  });
+});
+
+describe("OfferCommute: the button only where a calculation can be asked for (FR-016)", () => {
+  it("offers the calculation for a live offer with a start and points", async () => {
+    const { html } = await commuteSection();
+
+    expect(buttonsIn(html)).toEqual([{ label: COMMUTE_RUN, disabled: false }]);
+    expect(visibleText(html)).toContain("do 3 punktów zespołu");
+    expect(visibleText(html)).not.toContain(COMMUTE_NO_KEY);
+  });
+
+  it("disables it without the Routes key, and says why", async () => {
+    const { html } = await commuteSection({ available: false });
+
+    expect(buttonsIn(html)).toEqual([{ label: COMMUTE_RUN, disabled: true }]);
+    expect(visibleText(html)).toContain(COMMUTE_NO_KEY);
+  });
+
+  it.each<[string, Record<string, unknown>, string]>([
+    ["an archived offer", { archived: true }, "dojazdy będzie można policzyć po jej przywróceniu"],
+    ["an offer with no start", { origin: null }, "nie ma skąd liczyć dojazdów"],
+    ["a failed read of the points", { points: failedCommutePoints }, "Nie udało się wczytać punktów dojazdu zespołu"],
+    ["a team without points", { points: noCommutePoints }, "Zespół nie ma jeszcze punktów dojazdu"],
+  ])("renders no button for %s, and one sentence instead", async (_case, props, sentence) => {
+    const { html } = await commuteSection(props);
+
+    expect(buttonsIn(html)).toEqual([]);
+    expect(html).not.toContain("<astro-island");
+    expect(visibleText(html)).toContain(sentence);
+  });
+
+  it("links a team without points to the points on /criteria", async () => {
+    const { html } = await commuteSection({ points: noCommutePoints });
+
+    expect(urlsIn(html)).toEqual(["/criteria#punkty"]);
+  });
+
+  it("says an archived offer must be restored before its start or its points are looked at", async () => {
+    const { html } = await commuteSection({ archived: true, origin: null, points: failedCommutePoints });
+    const text = visibleText(html);
+
+    expect(text).toContain("po jej przywróceniu");
+    expect(text).not.toContain("nie ma skąd liczyć");
+    expect(text).not.toContain("Nie udało się wczytać punktów");
+  });
+});
+
+describe("CommuteRunner: a result, as the kitchen sink opens it (FR-016)", () => {
+  it("shows the public-transport table with the departure day, the start and Google's attribution", async () => {
+    const { html } = await commuteSection({
+      mapKey: PREVIEW_KEY,
+      runnerPreview: { kind: "result", result: commuteResult, mode: "transit" },
+    });
+    const text = visibleText(html);
+
+    expect(text).toContain("odjazd: środa 28 października 2026, 8:00");
+    for (const value of [
+      "Biuro",
+      "34 min",
+      "7,4 km",
+      "Szkoła",
+      "12 min",
+      "1,9 km",
+      "Dworzec",
+      "1 h 11 min",
+      "21,5 km",
+    ]) {
+      expect(text).toContain(value);
+    }
+    expect(text).toContain("Start: współrzędne z ogłoszenia — to szacunek okolicy, nie budynku.");
+    expect(html).toMatch(/<span translate="no">Google Maps<\/span>/);
+    expect(html).toContain('aria-pressed="true"');
+    expect(buttonsIn(html).map((button) => button.label)).toEqual(["Policz ponownie", "Komunikacja", "Samochód"]);
+    // Every row its colour, in the points' order.
+    expect(html).toContain("bg-route-1");
+    expect(html).toContain("bg-route-3");
+    // The map's place, never the map.
+    expect(html).toContain("data-commute-map-placeholder");
+  });
+
+  it("shows the car's times in the drive mode, without the departure day", async () => {
+    const { html } = await commuteSection({
+      mapKey: PREVIEW_KEY,
+      runnerPreview: { kind: "result", result: commuteResult, mode: "drive" },
+    });
+    const text = visibleText(html);
+
+    expect(text).toContain("18 min");
+    expect(text).toContain("8,1 km");
+    expect(text).not.toContain("34 min");
+    expect(text).not.toContain("odjazd:");
+  });
+
+  it("tells a row without a route and a row Google rejected, beside the rows it reached", async () => {
+    const noRoute = visibleText(
+      (await commuteSection({ runnerPreview: { kind: "result", result: commuteResultNoRoute, mode: "transit" } })).html,
+    );
+    const rejected = await commuteSection({
+      runnerPreview: { kind: "result", result: commuteResultRejected, mode: "drive" },
+    });
+
+    expect(noRoute).toContain("brak trasy");
+    expect(noRoute).toContain("34 min");
+    expect(noRoute).toContain("Start: lokalizacja i ulica z ogłoszenia");
+    expect(visibleText(rejected.html)).toContain("Google odrzucił adres tego punktu — sprawdź go w kryteriach");
+    expect(visibleText(rejected.html)).toContain("18 min");
+    expect(urlsIn(rejected.html)).toContain("/criteria#punkty");
+  });
+
+  it("says the map is unavailable without a browser key, and still shows the table", async () => {
+    const { html } = await commuteSection({
+      runnerPreview: { kind: "result", result: commuteResult, mode: "transit" },
+    });
+
+    expect(visibleText(html)).toContain("Mapa jest niedostępna");
+    expect(visibleText(html)).toContain("34 min");
+    expect(html).not.toContain("data-commute-map-placeholder");
+  });
+
+  it("renders a point's name holding HTML as the text it is", async () => {
+    const hostile = {
+      ...commuteResult,
+      rows: [
+        { ...commuteResult.rows[0], name: HOSTILE.label },
+        { ...commuteResult.rows[1], name: HOSTILE.excerpt },
+      ],
+    };
+    const { html } = await commuteSection({ runnerPreview: { kind: "result", result: hostile, mode: "transit" } });
+
+    expect(visibleText(html)).toContain(HOSTILE.label);
+    expect(visibleText(html)).toContain(HOSTILE.excerpt);
+    expect(html).not.toContain("<img");
+    expect(html).not.toContain("<script>alert");
+    expect(html).not.toContain("<b>");
+    expect(html).not.toContain('onerror="');
+  });
+
+  it("shows the run in progress with the button disabled", async () => {
+    const { html } = await commuteSection({ runnerPreview: { kind: "running" } });
+
+    expect(buttonsIn(html)).toEqual([{ label: "Liczenie dojazdów…", disabled: true }]);
+  });
+
+  it.each(COMMUTE_FAILURE_REASONS)("shows the sentence of %s and the button again", async (reason) => {
+    const { html } = await commuteSection({ runnerPreview: { kind: "failed", reason } });
+
+    expect(visibleText(html)).toContain(commuteFailureMessage(reason));
+    expect(buttonsIn(html)).toEqual([{ label: COMMUTE_RUN, disabled: false }]);
+  });
+
+  it("offers a refresh and no retry after an answer that is not the stream", async () => {
+    const { html } = await commuteSection({ runnerPreview: { kind: "unreadable", status: 503 } });
+
+    expect(visibleText(html)).toContain("kod odpowiedzi 503");
+    expect(html).not.toContain("/auth/signin");
+    expect(buttonsIn(html)).toEqual([{ label: "Odśwież stronę", disabled: false }]);
+  });
+});
+
+describe("OfferCommute: no state loads Google's map (FR-016)", () => {
+  const states: [string, Record<string, unknown>][] = [
+    ["idle", { mapKey: PREVIEW_KEY }],
+    ["no key", { available: false }],
+    ["archived", { archived: true }],
+    ["no start", { origin: null }],
+    ["no points", { points: noCommutePoints }],
+    ["points read error", { points: failedCommutePoints }],
+    ["running", { mapKey: PREVIEW_KEY, runnerPreview: { kind: "running" } }],
+    ["transit", { mapKey: PREVIEW_KEY, runnerPreview: { kind: "result", result: commuteResult, mode: "transit" } }],
+    ["drive", { mapKey: PREVIEW_KEY, runnerPreview: { kind: "result", result: commuteResult, mode: "drive" } }],
+    [
+      "no route",
+      { mapKey: PREVIEW_KEY, runnerPreview: { kind: "result", result: commuteResultNoRoute, mode: "transit" } },
+    ],
+    [
+      "rejected",
+      { mapKey: PREVIEW_KEY, runnerPreview: { kind: "result", result: commuteResultRejected, mode: "drive" } },
+    ],
+    ["no map key", { runnerPreview: { kind: "result", result: commuteResult, mode: "transit" } }],
+    ...COMMUTE_FAILURE_REASONS.map((reason): [string, Record<string, unknown>] => [
+      `failed ${reason}`,
+      { mapKey: PREVIEW_KEY, runnerPreview: { kind: "failed", reason } },
+    ]),
+    ["unreadable", { mapKey: PREVIEW_KEY, runnerPreview: { kind: "unreadable", status: 503 } }],
+  ];
+
+  it.each(states)("holds no Google address in the %s state, props included", async (_case, props) => {
+    const { raw } = await commuteSection(props);
+
+    expect(raw).not.toContain("maps.googleapis.com");
+    expect(raw).not.toContain("routes.googleapis.com");
+    expect(raw).not.toContain("<script src");
+  });
+});
+
+describe("OfferView: the commute section stands under the notes (FR-016)", () => {
+  it("renders it after the notes, with the offer's archive state", async () => {
+    const html = await container.renderToString(OfferView, {
+      props: {
+        offer: archivedOffer,
+        saver: memberSaver,
+        notes: noNotes,
+        audit: { state: "ok", attempt: { kind: "none" }, result: null },
+        auditAvailable: true,
+        freshness: null,
+        commutePoints,
+        commuteOrigin: "coordinates",
+        commuteAvailable: true,
+        commuteMapKey: null,
+      },
+    });
+    const notesAt = html.indexOf('<section id="notatki"');
+    const commuteAt = html.indexOf('<section id="dojazdy"');
+
+    expect(notesAt).toBeGreaterThan(-1);
+    expect(commuteAt).toBeGreaterThan(notesAt);
+    expect(html).toContain('data-commute-archived="true"');
+  });
 });

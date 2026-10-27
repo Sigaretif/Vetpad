@@ -273,6 +273,10 @@ const FIXTURE_CARD_2 = `/offers/${FIXTURE_OFFER_ID_2}`;
 // What the card's audit section says about the audit's data (src/lib/audit/store.ts, auditDataState). A failed
 // read renders "error"; whether a provider key exists is a separate attribute, data-audit-available.
 const AUDIT_NONE = 'data-audit-state="none"';
+// The card's commute section (FR-016): the smoke job holds no Google key, so the section says the calculation is not
+// available - the zero-config proof that a missing key is shown, not crashed on - and the fixture offer, saved
+// without coordinates or a location, has no start. Neither attribute stands in for the other.
+const COMMUTE_CARD_MARKERS = ['data-commute-available="false"', 'data-commute-origin="none"'];
 const AUDIT_RUNNING = 'data-audit-state="running"';
 const AUDIT_FAILED = 'data-audit-state="failed"';
 // The board's marker for a successful read of the audits; a failed read renders data-audits-state="error".
@@ -2655,6 +2659,11 @@ const steps = [
     "offer card of an offer nobody audited says so",
     () => request(FIXTURE_CARD),
     { status: 200, bodyIncludes: AUDIT_NONE },
+  ],
+  [
+    "offer card's commute section says no Routes key and no start",
+    () => request(FIXTURE_CARD),
+    { status: 200, bodyIncludes: COMMUTE_CARD_MARKERS },
   ],
   [
     "control: offer card of the second fixture offer shows its running attempt",

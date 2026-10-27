@@ -5,12 +5,17 @@ import ArchiveNotice from "@/components/offers/ArchiveNotice.astro";
 import NoteDeleteNotice from "@/components/offers/NoteDeleteNotice.astro";
 import DuplicateNotice from "@/components/offers/DuplicateNotice.astro";
 import type { AuditRunnerPreview } from "@/components/offers/AuditRunner";
+import type { CommutePreview } from "@/components/offers/CommuteRunner";
 import OfferAudit from "@/components/offers/OfferAudit.astro";
+import OfferCommute from "@/components/offers/OfferCommute.astro";
 import OfferGallery from "@/components/offers/OfferGallery.astro";
 import OfferNotFound from "@/components/offers/OfferNotFound.astro";
 import OfferView from "@/components/offers/OfferView.astro";
 import type { AuditFreshness } from "@/lib/audit/freshness";
 import type { OfferAudit as OfferAuditData } from "@/lib/audit/store";
+import { COMMUTE_FAILURE_REASONS } from "@/lib/commute/failure";
+import { commuteOrigin, readCommuteOffer, type CommuteOrigin } from "@/lib/commute/origin";
+import type { CommutePointsResult } from "@/lib/commute/points";
 import type { Saver } from "@/lib/members";
 import type { OfferNotes } from "@/lib/notes";
 import type { OfferArchiveState } from "@/lib/offer-archive";
@@ -36,7 +41,13 @@ import {
   auditResultBroken,
   auditRerunning,
   auditRunning,
+  commutePoints,
+  commuteResult,
+  commuteResultNoRoute,
+  commuteResultRejected,
+  commuteResultSix,
   deletedSaver,
+  failedCommutePoints,
   failedNotes,
   freshAudit,
   freshnessUnknown,
@@ -48,6 +59,7 @@ import {
   longTitleOffer,
   malformedImagesOffer,
   memberSaver,
+  noCommutePoints,
   noNotes,
   othersOnlyNotes,
   outsideCityOffer,
@@ -547,6 +559,168 @@ const auditStates: AuditState[] = [
 const viewerPhotoCount = galleryPhotos(fullOffer.images).length;
 const viewerOpenAt = clampOpenAt(Astro.url.searchParams.get("open"), viewerPhotoCount) ?? undefined;
 
+/** The kind of start the card page would pass for an offer: `commuteOrigin` of its row. */
+function startOf(offer: OfferRow): CommuteOrigin["kind"] | null {
+  const read = readCommuteOffer(offer);
+  return read === null ? null : (commuteOrigin(read)?.kind ?? null);
+}
+
+interface CommuteState {
+  /** `data-state` of the wrapper. */
+  state: string;
+  caption: string;
+  points: CommutePointsResult;
+  origin: CommuteOrigin["kind"] | null;
+  available: boolean;
+  /** Whether the page would hold a browser key. Never a real key: the kitchen sink mounts no map. */
+  map: boolean;
+  archived?: boolean;
+  preview?: CommutePreview;
+}
+
+// Stands in for a browser key on the kitchen sink, so the result states show where the map would
+// be. It is never a key, and never reaches Google: it is passed only beside `preview`, with which the
+// island mounts no map at all — an idle state, whose button can post, gets no key.
+const PREVIEW_MAP_KEY = "podglad-bez-mapy";
+
+// The commute section on its own, in a column as wide as the team column (24rem), through the
+// production component. Every state that shows the island's run or result opens it through its
+// `preview` prop: nothing is sent, and the map's place is taken by a placeholder — this page loads
+// no Google script in any state. The idle states' button posts, on a click, to /api/commute for a
+// fixture offer that does not exist: the route answers `offer_not_found` before it looks for a key.
+const commuteStates: CommuteState[] = [
+  {
+    state: "commute-idle",
+    caption: "gotowe do liczenia — przycisk",
+    points: commutePoints,
+    origin: "coordinates",
+    available: true,
+    map: true,
+  },
+  {
+    state: "commute-unavailable",
+    caption: "brak klucza Google Maps do tras — przycisk wyłączony z wyjaśnieniem",
+    points: commutePoints,
+    origin: "coordinates",
+    available: false,
+    map: false,
+  },
+  {
+    state: "commute-archived",
+    caption: "oferta w archiwum — zdanie zamiast przycisku",
+    points: commutePoints,
+    origin: "coordinates",
+    available: true,
+    map: true,
+    archived: true,
+  },
+  {
+    state: "commute-no-origin",
+    caption: "ogłoszenie bez współrzędnych i lokalizacji — zdanie zamiast przycisku",
+    points: commutePoints,
+    origin: null,
+    available: true,
+    map: true,
+  },
+  {
+    state: "commute-no-points",
+    caption: "zespół bez punktów — odnośnik do kryteriów",
+    points: noCommutePoints,
+    origin: "coordinates",
+    available: true,
+    map: true,
+  },
+  {
+    state: "commute-points-error",
+    caption: "nieudany odczyt punktów — bez przycisku",
+    points: failedCommutePoints,
+    origin: "coordinates",
+    available: true,
+    map: true,
+  },
+  {
+    state: "commute-running",
+    caption: "liczenie w toku",
+    points: commutePoints,
+    origin: "coordinates",
+    available: true,
+    map: true,
+    preview: { kind: "running" },
+  },
+  {
+    state: "commute-result-transit",
+    caption: "wynik — komunikacja, start ze współrzędnych, miejsce mapy",
+    points: commutePoints,
+    origin: "coordinates",
+    available: true,
+    map: true,
+    preview: { kind: "result", result: commuteResult, mode: "transit" },
+  },
+  {
+    state: "commute-result-drive",
+    caption: "wynik — samochód",
+    points: commutePoints,
+    origin: "coordinates",
+    available: true,
+    map: true,
+    preview: { kind: "result", result: commuteResult, mode: "drive" },
+  },
+  {
+    state: "commute-result-six",
+    caption: "wynik — sześć punktów, każdy kolor trasy raz, długa nazwa",
+    points: commutePoints,
+    origin: "coordinates",
+    available: true,
+    map: true,
+    preview: { kind: "result", result: commuteResultSix, mode: "transit" },
+  },
+  {
+    state: "commute-row-no-route",
+    caption: "wiersz bez trasy komunikacją, start z lokalizacji i ulicy",
+    points: commutePoints,
+    origin: "address",
+    available: true,
+    map: true,
+    preview: { kind: "result", result: commuteResultNoRoute, mode: "transit" },
+  },
+  {
+    state: "commute-row-address-rejected",
+    caption: "wiersz z adresem odrzuconym przez Google",
+    points: commutePoints,
+    origin: "coordinates",
+    available: true,
+    map: true,
+    preview: { kind: "result", result: commuteResultRejected, mode: "drive" },
+  },
+  {
+    state: "commute-map-missing",
+    caption: "wynik bez klucza do mapy — tabela bez mapy",
+    points: commutePoints,
+    origin: "coordinates",
+    available: true,
+    map: false,
+    preview: { kind: "result", result: commuteResult, mode: "transit" },
+  },
+  ...COMMUTE_FAILURE_REASONS.map((reason): CommuteState => ({
+    state: `commute-failed-${reason}`,
+    caption: `liczenie nieudane — ${reason}`,
+    points: commutePoints,
+    origin: "coordinates",
+    available: true,
+    map: true,
+    preview: { kind: "failed", reason },
+  })),
+  {
+    state: "commute-unreadable",
+    caption: "odpowiedź, która nie jest strumieniem liczenia (strona 503) — bez ponowienia",
+    points: commutePoints,
+    origin: "coordinates",
+    available: true,
+    map: true,
+    preview: { kind: "unreadable", status: 503 },
+  },
+];
+
 const stateClass = "border-border flex flex-col gap-6 border-t pt-6";
 const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppercase";
 ---
@@ -596,7 +770,8 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
       audytu w archiwum (<code>audit-archived-*</code>), a u góry powiadomienie o duplikacie zarchiwizowanej oferty i
       komunikaty po archiwizacji i przywróceniu. Usuwanie: blok „Usuń ofertę” stoi na każdej karcie, żywej i
       zarchiwizowanej, trzy stany pokazują nieudane usunięcie oferty i notatki, a u góry stoją oba komunikaty po
-      usunięciu własnej notatki.
+      usunięciu własnej notatki. Dojazdy: sekcja stoi pod notatkami na każdej karcie (bez klucza tras), a niżej osobno w
+      każdym stanie (<code>commute-*</code>) — wyniki i przebieg liczenia z podglądu, bez mapy Google.
     </p>
 
     {states.map((state, index) => (
@@ -622,6 +797,11 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
           deleteError={state.deleteError}
           deleteAnchorId={`usuwanie-${index + 1}`}
           noteDeleteError={state.noteDeleteError}
+          commutePoints={commutePoints}
+          commuteOrigin={startOf(state.offer)}
+          commuteAvailable={false}
+          commuteMapKey={null}
+          commuteAnchorId={`dojazdy-${index + 1}`}
         />
       </div>
     ))}
@@ -640,6 +820,24 @@ const captionClass = "text-muted-foreground font-mono text-xs tracking-wide uppe
             anchorId={`audyt-${state.state}`}
             runnerPreview={state.runnerPreview}
             archived={state.archived}
+          />
+        </div>
+      </div>
+    ))}
+
+    {commuteStates.map((state) => (
+      <div class:list={stateClass} data-state={state.state}>
+        <p class:list={captionClass}>Dojazdy: {state.caption}</p>
+        <div class="w-full max-w-sm">
+          <OfferCommute
+            offerId={fullOffer.id}
+            points={state.points}
+            origin={state.origin}
+            available={state.available}
+            mapKey={state.map && state.preview !== undefined ? PREVIEW_MAP_KEY : null}
+            archived={state.archived}
+            anchorId={`dojazdy-${state.state}`}
+            runnerPreview={state.preview}
           />
         </div>
       </div>

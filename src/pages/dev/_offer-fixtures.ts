@@ -10,11 +10,14 @@ import { auditFailureMessage } from "@/lib/audit/failure";
 import type { AuditFreshness, BoardFreshness } from "@/lib/audit/freshness";
 import type { StoredFindings } from "@/lib/audit/schema";
 import type { AuditIndex, OfferAudit, StoredAudit } from "@/lib/audit/store";
+import type { CommuteRow } from "@/lib/commute/outcome";
+import type { CommutePointsResult } from "@/lib/commute/points";
 import type { TeamLimitsResult } from "@/lib/criteria";
 import type { Saver } from "@/lib/members";
 import type { NoteView, OfferNotes } from "@/lib/notes";
 import type { ArchivedOffer, ArchiveResult, OfferArchiveState } from "@/lib/offer-archive";
 import type { OfferImage, OfferRow } from "@/lib/otodom/types";
+import type { CommuteResult } from "@/pages/api/commute";
 
 /** Saved by another member: the banner and the card name them by email. */
 export const memberSaver: Saver = { kind: "member", email: "czlonek-zespolu@example.com" };
@@ -823,3 +826,91 @@ export const mixedFreshness: BoardFreshness = {
 
 /** A failed read of the freshness: every audited row says it could not be established, never „Audytowano". */
 export const failedFreshness: BoardFreshness = { ok: false };
+
+// The commute section (FR-016) for the /dev/offer-card kitchen sink. Points name places by role and
+// carry made-up addresses; results are written by hand — no time, distance or line here came from
+// Google, and the lines are never decoded on the kitchen sink, which mounts no map.
+
+/** Three points, in the order the team added them. */
+export const commutePoints: CommutePointsResult = {
+  state: "ok",
+  points: [
+    { id: "00000000-0000-4000-8000-0000000000c1", name: "Biuro", address: "ul. Przykładowa 1, Warszawa" },
+    { id: "00000000-0000-4000-8000-0000000000c2", name: "Szkoła", address: "ul. Testowa 5, Warszawa" },
+    { id: "00000000-0000-4000-8000-0000000000c3", name: "Dworzec", address: "ul. Wzorcowa 10, Warszawa" },
+  ],
+};
+
+/** A team without points: the section links to /criteria#punkty. */
+export const noCommutePoints: CommutePointsResult = { state: "ok", points: [] };
+
+/** A failed read of the points: never „no points". */
+export const failedCommutePoints: CommutePointsResult = { state: "error" };
+
+// A short line in Google's encoded-polyline format, the same for every route: the kitchen sink never draws it.
+const LINE = "_p~iF~ps|U_ulLnnqC_mqNvxq`@";
+
+function routeCell(minutes: number, meters: number) {
+  return { kind: "route", durationSeconds: minutes * 60, distanceMeters: meters, encodedPolyline: LINE } as const;
+}
+
+const commuteRows: CommuteRow[] = [
+  {
+    pointId: "00000000-0000-4000-8000-0000000000c1",
+    name: "Biuro",
+    transit: routeCell(34, 7400),
+    drive: routeCell(18, 8100),
+  },
+  {
+    pointId: "00000000-0000-4000-8000-0000000000c2",
+    name: "Szkoła",
+    transit: routeCell(12, 1900),
+    drive: routeCell(7, 2300),
+  },
+  {
+    pointId: "00000000-0000-4000-8000-0000000000c3",
+    name: "Dworzec",
+    transit: routeCell(71, 21500),
+    drive: routeCell(42, 19800),
+  },
+];
+
+/** Every point reached in both modes, from the listing's coordinates. */
+export const commuteResult: CommuteResult = {
+  departure: { date: "2026-10-28", time: "08:00" },
+  origin: "coordinates",
+  rows: commuteRows,
+};
+
+/** A point with no public-transport route, from the listing's location and street. */
+export const commuteResultNoRoute: CommuteResult = {
+  departure: { date: "2026-10-28", time: "08:00" },
+  origin: "address",
+  rows: [commuteRows[0], { ...commuteRows[2], transit: { kind: "no_route" } }],
+};
+
+/** A point whose address Google rejected in both modes, beside one it reached. */
+export const commuteResultRejected: CommuteResult = {
+  departure: { date: "2026-10-28", time: "08:00" },
+  origin: "coordinates",
+  rows: [
+    commuteRows[0],
+    { ...commuteRows[1], transit: { kind: "address_rejected" }, drive: { kind: "address_rejected" } },
+  ],
+};
+
+/** Six points, the most a team keeps: every route colour once. */
+export const commuteResultSix: CommuteResult = {
+  departure: { date: "2026-10-30", time: "08:00" },
+  origin: "coordinates",
+  rows: [
+    ...commuteRows,
+    { ...commuteRows[0], pointId: "00000000-0000-4000-8000-0000000000c4", name: "Siłownia" },
+    {
+      ...commuteRows[1],
+      pointId: "00000000-0000-4000-8000-0000000000c5",
+      name: "Bardzo-długa-nazwa-punktu-dojazdu-bez-spacji-do-zawijania",
+    },
+    { ...commuteRows[2], pointId: "00000000-0000-4000-8000-0000000000c6", name: "Lotnisko" },
+  ],
+};

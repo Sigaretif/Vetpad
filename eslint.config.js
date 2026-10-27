@@ -217,30 +217,49 @@ const deleteNoNotesConfig = defineConfig({
 // in `@/lib/config-status` instead. Each regex takes its module by any path, the alias or a relative
 // one, with or without a file extension, and leaves its neighbours alone: `apify-request` holds no
 // token, and the other commute modules hold no key. API routes under src/pages/api/ are `.ts` files
-// and are not covered — they are where the clients are built. Both patterns live in this one block:
+// and are not covered — they are where the clients are built. The patterns live in this one block:
 // a second block over the same files would replace this one's options rather than add to them.
-const paidServiceServerOnlyConfig = defineConfig({
-  files: ["src/components/**", "src/layouts/**", "src/pages/**/*.astro"],
-  rules: {
-    "no-restricted-imports": [
-      "error",
-      {
-        patterns: [
-          {
-            regex: "(?:^|/)otodom/apify(?:\\.[cm]?[jt]sx?)?$",
-            message:
-              "A view must not import the Apify module: it holds the token, which never leaves the server. Ask isApifyAvailable() in @/lib/config-status (CLAUDE.md, Secrets and data access).",
-          },
-          {
-            regex: "(?:^|/)commute/google(?:\\.[cm]?[jt]sx?)?$",
-            message:
-              "A view must not import the Google Routes module: it holds the server key, which never leaves the server. Ask isCommuteAvailable() in @/lib/config-status (CLAUDE.md, Secrets and data access).",
-          },
-        ],
-      },
-    ],
+//
+// The third pattern is the one narrow exception (FR-016): `@/lib/commute/browser-key` reads the
+// Google Maps browser key, which is public by design and handed to the map island as a prop — by
+// src/pages/offers/[id].astro and from nowhere else. The block after this one gives that page the
+// first two patterns alone; flat config lets the later block's options replace these for that file.
+const SERVER_KEY_PATTERNS = [
+  {
+    regex: "(?:^|/)otodom/apify(?:\\.[cm]?[jt]sx?)?$",
+    message:
+      "A view must not import the Apify module: it holds the token, which never leaves the server. Ask isApifyAvailable() in @/lib/config-status (CLAUDE.md, Secrets and data access).",
   },
-});
+  {
+    regex: "(?:^|/)commute/google(?:\\.[cm]?[jt]sx?)?$",
+    message:
+      "A view must not import the Google Routes module: it holds the server key, which never leaves the server. Ask isCommuteAvailable() in @/lib/config-status (CLAUDE.md, Secrets and data access).",
+  },
+];
+const paidServiceServerOnlyConfig = defineConfig(
+  {
+    files: ["src/components/**", "src/layouts/**", "src/pages/**/*.astro"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            ...SERVER_KEY_PATTERNS,
+            {
+              regex: "(?:^|/)commute/browser-key(?:\\.[cm]?[jt]sx?)?$",
+              message:
+                "Only src/pages/offers/[id].astro may import the Google Maps browser key and hand it to the map island. Ask isCommuteMapAvailable() in @/lib/config-status (CLAUDE.md, Secrets and data access).",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/pages/offers/[[]id[]].astro"],
+    rules: { "no-restricted-imports": ["error", { patterns: SERVER_KEY_PATTERNS }] },
+  },
+);
 
 // Members' notes never leave the system (prd.md, Non-Functional Requirements): the commute modules
 // and the calculation route are the code that talks to Google, so they cannot import the notes

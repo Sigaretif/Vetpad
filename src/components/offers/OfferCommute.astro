@@ -1,0 +1,143 @@
+---
+import { CircleAlert } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import CommuteRunner, { type CommutePreview } from "@/components/offers/CommuteRunner";
+import type { CommuteOrigin } from "@/lib/commute/origin";
+import type { CommutePointsResult } from "@/lib/commute/points";
+import { pluralForm } from "@/lib/format";
+
+/*
+ * The commute times of a saved offer (FR-016), in the team column under the notes: the button that
+ * calculates them (the `CommuteRunner` island) and, after a calculation, its table and map — which
+ * live in the island only and are never stored. One component for the card page and the
+ * /dev/offer-card kitchen sink.
+ *
+ * Five attributes carry the section's state into the markup, where scripts/smoke.mjs and the render
+ * tests read it, none standing in for another:
+ * - `data-commute-available` — whether the application holds the Routes key (`isCommuteAvailable`);
+ * - `data-commute-map` — whether it holds the browser key for the map;
+ * - `data-commute-origin` — `coordinates`, `address` or `none`: where the routes would start;
+ * - `data-commute-archived` — whether the offer is in the archive;
+ * - `data-commute-points-state` — `ok` or `error`, the read of the team's points.
+ *
+ * The island is rendered only where a calculation can be asked for; everywhere else one sentence
+ * says why, in the order the route would refuse: an archived offer (it must be restored first), no
+ * start, a failed read of the points (never "no points"), no points. Without the Routes key the
+ * island still renders, with its button disabled and the reason beside it.
+ *
+ * The section never holds a point's address — only the island's result carries the points' names —
+ * and never the offer's coordinates: `origin` is the kind of start alone.
+ */
+interface Props {
+  offerId: string;
+  /** The team's points as `loadCommutePoints` read them; a failed read is its own state. */
+  points: CommutePointsResult;
+  /** The kind of start `commuteOrigin` gives for the offer, or `null` when it has none. */
+  origin: CommuteOrigin["kind"] | null;
+  /** Whether the application holds the Routes key (`isCommuteAvailable`). */
+  available: boolean;
+  /** The browser key for the map (`commuteMapKey`), or `null`. Only the card page passes one. */
+  mapKey: string | null;
+  /** Whether the offer is in the archive: then no calculation is offered. */
+  archived?: boolean;
+  /** The section's id; the kitchen sink passes unique values. */
+  anchorId?: string;
+  /** A state the island opens in — for the kitchen sink only. */
+  runnerPreview?: CommutePreview;
+}
+
+const {
+  offerId,
+  points,
+  origin,
+  available,
+  mapKey,
+  archived = false,
+  anchorId = "dojazdy",
+  runnerPreview,
+} = Astro.props;
+
+// `Astro.props` is not checked at run time: a read nobody passed is a failed one, never "no points".
+const read = points as CommutePointsResult | undefined;
+const pointsState: "ok" | "error" = read?.state === "ok" ? "ok" : "error";
+const pointCount = read?.state === "ok" ? read.points.length : 0;
+const headingId = `${anchorId}-naglowek`;
+// Likewise a start nobody passed is no start, never a guessed one.
+const start = (origin as CommuteOrigin["kind"] | null | undefined) ?? null;
+
+const branch = archived
+  ? "archived"
+  : start === null
+    ? "no_origin"
+    : pointsState === "error"
+      ? "points_error"
+      : pointCount === 0
+        ? "no_points"
+        : "runner";
+
+const pointsSentence =
+  pointCount === 0
+    ? ""
+    : `Liczy czas i odległość do ${pointCount} ${pluralForm(pointCount, "punktu", "punktów", "punktów")} zespołu, komunikacją i samochodem.`;
+---
+
+<section
+  id={anchorId}
+  aria-labelledby={headingId}
+  data-commute-available={available ? "true" : "false"}
+  data-commute-map={mapKey === null ? "false" : "true"}
+  data-commute-origin={start ?? "none"}
+  data-commute-archived={archived ? "true" : "false"}
+  data-commute-points-state={pointsState}
+  class="flex scroll-mt-4 flex-col gap-4"
+>
+  <div class="flex flex-col gap-1">
+    <h2 id={headingId} class="text-xl font-semibold">
+      Dojazdy
+    </h2>
+    <p class="text-muted-foreground text-sm">
+      Czas dojazdu z okolicy oferty do punktów zespołu, policzony przez Google na żądanie. Wynik nie jest zapisywany.
+    </p>
+  </div>
+
+  {branch === "archived" && (
+    <p class="bg-muted rounded-md px-3 py-2 text-sm">
+      Ta oferta jest w archiwum — dojazdy będzie można policzyć po jej przywróceniu.
+    </p>
+  )}
+  {branch === "no_origin" && (
+    <p class="bg-muted rounded-md px-3 py-2 text-sm">
+      Ogłoszenie nie podaje ani współrzędnych, ani lokalizacji, więc nie ma skąd liczyć dojazdów.
+    </p>
+  )}
+  {branch === "points_error" && (
+    <Alert variant="destructive">
+      <CircleAlert />
+      <AlertDescription>
+        Nie udało się wczytać punktów dojazdu zespołu. Odśwież kartę za chwilę — dopóki punkty są nieznane, dojazdów nie
+        można policzyć.
+      </AlertDescription>
+    </Alert>
+  )}
+  {branch === "no_points" && (
+    <div class="flex flex-col gap-1 text-sm">
+      <p class="text-muted-foreground">Zespół nie ma jeszcze punktów dojazdu, więc nie ma dokąd liczyć dojazdów.</p>
+      <a href="/criteria#punkty" class="text-link self-start underline-offset-4 hover:underline">
+        Dodaj punkty w kryteriach
+      </a>
+    </div>
+  )}
+  {branch === "runner" && (
+    <>
+      <p class="text-sm">{pointsSentence}</p>
+      <CommuteRunner
+        client:load
+        offerId={offerId}
+        available={available}
+        mapKey={mapKey}
+        anchorId={anchorId}
+        preview={runnerPreview}
+      />
+    </>
+  )}
+</section>

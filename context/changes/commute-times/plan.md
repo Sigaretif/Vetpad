@@ -936,27 +936,27 @@ Two additive migrations with no data backfill. Rollback = drop the function and 
 
 #### Automated
 
-- [x] 3.1 Route tests pass with a Google request count in every scenario: `npm test`
-- [x] 3.2 Lint and types pass: `npm run lint && npx astro sync && npx astro check`
-- [x] 3.3 Build passes: `npm run build`
-- [x] 3.4 Smoke passes, including the four `/api/commute` steps: `npm run smoke`
-- [x] 3.5 Route tests cover `daily_limit` and `usage_unavailable` with Google 0, and every scenario past the key check makes exactly one reservation before Google: `npm test`
+- [x] 3.1 Route tests pass with a Google request count in every scenario: `npm test` — 8da11a6
+- [x] 3.2 Lint and types pass: `npm run lint && npx astro sync && npx astro check` — 8da11a6
+- [x] 3.3 Build passes: `npm run build` — 8da11a6
+- [x] 3.4 Smoke passes, including the four `/api/commute` steps: `npm run smoke` — 8da11a6
+- [x] 3.5 Route tests cover `daily_limit` and `usage_unavailable` with Google 0, and every scenario past the key check makes exactly one reservation before Google: `npm test` — 8da11a6
 
 ### Phase 4: The commute section on the card
 
 #### Automated
 
-- [ ] 4.1 Lint passes, including tokens-only for the route swatches: `npm run lint`
-- [ ] 4.2 Types check: `npx astro sync && npx astro check`
-- [ ] 4.3 Tests pass, including stream, colors and the render states: `npm test`
-- [ ] 4.4 Build passes with no `.env`: `npm run build`
-- [ ] 4.5 Smoke passes, and the fixture offer's card carries `data-commute-available="false"` and a `data-commute-origin`: `npm run smoke`
+- [x] 4.1 Lint passes, including tokens-only for the route swatches: `npm run lint`
+- [x] 4.2 Types check: `npx astro sync && npx astro check`
+- [x] 4.3 Tests pass, including stream, colors and the render states: `npm test`
+- [x] 4.4 Build passes with no `.env`: `npm run build`
+- [x] 4.5 Smoke passes, and the fixture offer's card carries `data-commute-available="false"` and a `data-commute-origin`: `npm run smoke`
 
 #### Manual
 
-- [ ] 4.6 `/dev/offer-card` shows every commute state; the browser's network panel shows no request to `maps.googleapis.com` or `routes.googleapis.com`
-- [ ] 4.7 On a real card under `npm run dev` with no Google keys: the section renders, the button is unavailable with its explanation, and the banner names both keys
-- [ ] 4.8 Code reading of `CommuteRunner`/`CommuteMap`: the map mounts only after `done`, and no `key` on `APIProvider` or `Map` depends on the mode or the result
+- [x] 4.6 `/dev/offer-card` shows every commute state; the browser's network panel shows no request to `maps.googleapis.com` or `routes.googleapis.com`
+- [x] 4.7 On a real card under `npm run dev` with no Google keys: the section renders, the button is unavailable with its explanation, and the banner names both keys
+- [x] 4.8 Code reading of `CommuteRunner`/`CommuteMap`: the map mounts only after `done`, and no `key` on `APIProvider` or `Map` depends on the mode or the result
 
 ### Phase 5: Rules and documentation
 

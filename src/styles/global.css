@@ -57,6 +57,17 @@
   /* overlay: the scrim under a modal dialog (alert-dialog.tsx). The registry writes it as a
      literal, black at 50%; here it is a role. It carries no text, so it has no -foreground pair. */
   --overlay: oklch(0 0 0 / 50%);
+  /* route-1..6: one colour per commute point (FR-016), in the points' order — the swatch beside a
+     row of the commute table and the same route's line on Google's dark map, which reads the token
+     and converts it to hex (src/components/offers/CommuteMap.tsx). Hues about 50° apart, light
+     enough to stand out on the dark map: Tailwind v4 default palette rose/amber/lime/teal/sky/violet
+     400 (node_modules/tailwindcss/theme.css). They carry no text, so they have no -foreground pair. */
+  --route-1: oklch(0.712 0.194 13.428);
+  --route-2: oklch(0.828 0.189 84.429);
+  --route-3: oklch(0.841 0.238 128.85);
+  --route-4: oklch(0.777 0.152 181.912);
+  --route-5: oklch(0.746 0.16 232.661);
+  --route-6: oklch(0.702 0.183 293.541);
 }
 
 .dark {
@@ -113,6 +124,13 @@
   --warning-foreground: oklch(0.962 0.059 95.617);
   /* overlay: as in :root, darker — the page under it is already dark, and the dialog has to stand out. */
   --overlay: oklch(0 0 0 / 70%);
+  /* route-1..6: as in :root — the map behind the lines is dark in either theme (colorScheme DARK). */
+  --route-1: oklch(0.712 0.194 13.428);
+  --route-2: oklch(0.828 0.189 84.429);
+  --route-3: oklch(0.841 0.238 128.85);
+  --route-4: oklch(0.777 0.152 181.912);
+  --route-5: oklch(0.746 0.16 232.661);
+  --route-6: oklch(0.702 0.183 293.541);
 }
 
 @theme inline {
@@ -146,6 +164,12 @@
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
   --color-overlay: var(--overlay);
+  --color-route-1: var(--route-1);
+  --color-route-2: var(--route-2);
+  --color-route-3: var(--route-3);
+  --color-route-4: var(--route-4);
+  --color-route-5: var(--route-5);
+  --color-route-6: var(--route-6);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);

@@ -259,6 +259,44 @@ describe("eslint.config.js: no view imports the module that holds the Google Map
   });
 });
 
+// The browser key's one narrow exception (FR-016): `@/lib/commute/browser-key` may be imported by
+// src/pages/offers/[id].astro, which hands the key to the map island, and by no other view.
+// Expected outcomes come from context/changes/commute-times/plan.md (Phase 4, „Section and card
+// wiring”): the same block rejects it everywhere else under src/components/**, src/layouts/** and
+// in .astro pages, and the card page keeps the two server-key patterns.
+const BROWSER_KEY_MESSAGE = "Only src/pages/offers/[id].astro may import the Google Maps browser key";
+
+describe("eslint.config.js: only the card page imports the Google Maps browser key", () => {
+  it.each([
+    ["src/components/offers/OfferCommute.astro", "@/lib/commute/browser-key"],
+    ["src/components/offers/CommuteRunner.tsx", "../../lib/commute/browser-key.ts"],
+    ["src/layouts/Layout.astro", "@/lib/commute/browser-key"],
+    ["src/pages/criteria.astro", "@/lib/commute/browser-key"],
+  ])("rejects, in %s, an import of %s", async (filePath, specifier) => {
+    const messages = restrictedImportMessages(await lintAs(filePath, specifier));
+
+    expect(messages).toHaveLength(1);
+    expect(messages[0].severity).toBe(2);
+    expect(messages[0].message).toContain(BROWSER_KEY_MESSAGE);
+  });
+
+  it.each([
+    ["src/pages/offers/[id].astro", "@/lib/commute/browser-key"],
+    ["src/components/offers/CommuteRunner.tsx", "@/lib/commute/colors"],
+  ])("allows, in %s, an import of %s", async (filePath, specifier) => {
+    expect(restrictedImportMessages(await lintAs(filePath, specifier))).toEqual([]);
+  });
+
+  it("keeps both server-key patterns on the card page, and drops only the browser key's", async () => {
+    const config: unknown = await eslint.calculateConfigForFile(path.join(ROOT, "src/pages/offers/[id].astro"));
+    const entry = JSON.stringify(restrictedImportsEntry(config) ?? null);
+
+    expect(entry).toContain(APIFY_MESSAGE);
+    expect(entry).toContain(GOOGLE_MESSAGE);
+    expect(entry).not.toContain(BROWSER_KEY_MESSAGE);
+  });
+});
+
 // Members' notes never reach Google (FR-016, prd.md Non-Functional Requirements):
 // `commuteNoNotesConfig` makes an import of the notes module an error in the commute modules and in
 // the calculation route. src/pages/api/commute.ts does not exist before Phase 3, so the cases lint

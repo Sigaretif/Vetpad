@@ -1,10 +1,14 @@
 ---
 import type { AuditRunnerPreview } from "@/components/offers/AuditRunner";
+import type { CommutePreview } from "@/components/offers/CommuteRunner";
 import OfferAudit from "@/components/offers/OfferAudit.astro";
+import OfferCommute from "@/components/offers/OfferCommute.astro";
 import OfferCard from "@/components/offers/OfferCard.astro";
 import OfferNotes from "@/components/offers/OfferNotes.astro";
 import type { AuditFreshness } from "@/lib/audit/freshness";
 import type { OfferAudit as OfferAuditData } from "@/lib/audit/store";
+import type { CommuteOrigin } from "@/lib/commute/origin";
+import type { CommutePointsResult } from "@/lib/commute/points";
 import type { Saver } from "@/lib/members";
 import { archiveOf, type OfferArchiveState } from "@/lib/offer-archive";
 import type { OfferNotes as OfferNotesData } from "@/lib/notes";
@@ -12,16 +16,16 @@ import type { OfferRow } from "@/lib/otodom/types";
 
 /*
  * The offer card beside the team column: two columns from `lg` up, stacked below it (the listing
- * first, then the team column). The team column holds the AI audit and, under it, the notes: two
- * reads of their own, so the audit renders whatever the notes' read did, and the other way round.
+ * first, then the team column). The team column holds the AI audit, under it the notes, and under
+ * them the commute times (FR-016): reads of their own, so each renders whatever the others' did.
  * One component for the card page and the /dev/offer-card kitchen sink; the page renders it inside
  * `<AppLayout wide>`.
  *
  * `data-offer-archived` carries whether the offer is in the archive (FR-014) into the markup, where
  * scripts/smoke.mjs reads it. It is the row's fact — `archived_at` — and never anything the address
  * said; the `archive` prop only adds who archived the offer. The card shows the state and holds the
- * form that changes it, and the audit section gets it as `archived`, because an archived offer's
- * audit cannot be started.
+ * form that changes it, and the audit and commute sections get it as `archived`, because an
+ * archived offer's audit cannot be started and its commute cannot be calculated.
  */
 interface Props {
   offer: OfferRow;
@@ -62,6 +66,18 @@ interface Props {
   deleteAnchorId?: string;
   /** Passed to OfferNotes: a failed deletion of the member's own note, from `?error=…&form=note-delete`. */
   noteDeleteError?: string | null;
+  /** The team's commute points as `loadCommutePoints` read them; a failed read is its own state. */
+  commutePoints: CommutePointsResult;
+  /** The kind of start `commuteOrigin` gives for the offer, or `null` when it has none. */
+  commuteOrigin: CommuteOrigin["kind"] | null;
+  /** Whether the application holds the Routes key (`isCommuteAvailable`). */
+  commuteAvailable: boolean;
+  /** The browser key for the map (`commuteMapKey`), or `null`; only the card page passes one. */
+  commuteMapKey: string | null;
+  /** Passed to OfferCommute as `anchorId`; unique per instance on the kitchen sink. */
+  commuteAnchorId?: string;
+  /** A state the commute island opens in — for the kitchen sink only. */
+  commuteRunnerPreview?: CommutePreview;
 }
 
 const {
@@ -85,6 +101,12 @@ const {
   deleteError = null,
   deleteAnchorId,
   noteDeleteError = null,
+  commutePoints,
+  commuteOrigin,
+  commuteAvailable,
+  commuteMapKey,
+  commuteAnchorId,
+  commuteRunnerPreview,
 } = Astro.props;
 
 const archived = archive ?? archiveOf(offer, { kind: "unknown" });
@@ -125,6 +147,16 @@ const archived = archive ?? archiveOf(offer, { kind: "unknown" });
       deleteError={noteDeleteError}
       startEditing={startEditing}
       anchorId={notesAnchorId}
+    />
+    <OfferCommute
+      offerId={offer.id}
+      points={commutePoints}
+      origin={commuteOrigin}
+      available={commuteAvailable}
+      mapKey={commuteMapKey}
+      archived={archived !== null}
+      anchorId={commuteAnchorId}
+      runnerPreview={commuteRunnerPreview}
     />
   </div>
 </div>

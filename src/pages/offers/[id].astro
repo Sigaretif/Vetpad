@@ -9,7 +9,10 @@ import RefetchNotice from "@/components/offers/RefetchNotice.astro";
 import { buttonVariants } from "@/components/ui/button";
 import { auditFreshness, currentListingFingerprint, type AuditFreshness } from "@/lib/audit/freshness";
 import { loadOfferAudit, type OfferAudit } from "@/lib/audit/store";
-import { isAuditAvailable } from "@/lib/config-status";
+import { commuteMapKey } from "@/lib/commute/browser-key";
+import { commuteOrigin, readCommuteOffer } from "@/lib/commute/origin";
+import { loadCommutePoints, type CommutePointsResult } from "@/lib/commute/points";
+import { isAuditAvailable, isCommuteAvailable } from "@/lib/config-status";
 import { loadCriteriaRevision, type CriteriaRevisionResult } from "@/lib/criteria";
 import { resolveSaver, type Saver } from "@/lib/members";
 import { loadNotes, type OfferNotes } from "@/lib/notes";
@@ -59,14 +62,18 @@ if (!offer) {
 // Who archived the offer is named the same way as who saved it, and only for an archived offer:
 // `archived_by` comes from the row, and a `null` there is a deleted account. A live offer has
 // nobody to name and costs no read.
+// The team's commute points are read beside them (FR-016): loadCommutePoints never throws, and a
+// failed read is `{ state: "error" }` — never "no points" — which renders the commute section
+// without its button.
 // The reads are independent and never throw, so they run side by side.
-const [saver, archiver, notes, audit, revision, fingerprint]: [
+const [saver, archiver, notes, audit, revision, fingerprint, commutePoints]: [
   Saver,
   Saver,
   OfferNotes | null,
   OfferAudit | null,
   CriteriaRevisionResult,
   string | null,
+  CommutePointsResult,
 ] = offer
   ? await Promise.all([
       resolveSaver(supabase, offer.created_by, Astro.locals.user?.id),
@@ -77,11 +84,16 @@ const [saver, archiver, notes, audit, revision, fingerprint]: [
       loadOfferAudit(supabase, offer.id, Astro.locals.user?.id, new Date()),
       loadCriteriaRevision(supabase),
       currentListingFingerprint(offer),
+      loadCommutePoints(supabase),
     ])
-  : [{ kind: "unknown" }, { kind: "unknown" }, null, null, { ok: false }, null];
+  : [{ kind: "unknown" }, { kind: "unknown" }, null, null, { ok: false }, null, { state: "error" }];
 // Whether the offer is in the archive is the row's fact (FR-014): `null` for a live offer. Nothing
 // in the address makes an offer archived or restores one.
 const archive = offer ? archiveOf(offer, archiver) : null;
+// Where a commute would start, from the row this view already holds (FR-016): only its kind goes to
+// the view — never the coordinates or the label, which the calculation route reads for itself.
+const commuteOffer = offer ? readCommuteOffer(offer) : null;
+const commuteStart = commuteOffer ? (commuteOrigin(commuteOffer)?.kind ?? null) : null;
 const duplicate = offer !== null && Astro.url.searchParams.get("duplicate") === "1";
 
 // Whether the stored result still describes what the team sees (FR-003, FR-009). `null` when
@@ -158,6 +170,10 @@ const hasOwnNote = notes?.state !== "ok" || notes.own !== null;
       archiveError={archiveError}
       deleteError={deleteError}
       noteDeleteError={noteDeleteError}
+      commutePoints={commutePoints}
+      commuteOrigin={commuteStart}
+      commuteAvailable={isCommuteAvailable()}
+      commuteMapKey={commuteMapKey()}
     />
   )}
 </AppLayout>
